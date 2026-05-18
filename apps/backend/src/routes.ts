@@ -37,6 +37,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   r.get("/nodes/:id/progress", (req, res) => res.json(repo.listProgress(req.params.id)));
   r.post("/nodes/:id/progress", (req, res) => {
     const { content, statusSnapshot, actor } = req.body;
+    if (!content) return res.status(400).json({ error: "content required" });
     res.status(201).json(repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
   });
 

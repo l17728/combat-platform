@@ -10,6 +10,8 @@ describe("API e2e", () => {
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连", 状态: "进行中" });
     expect(c.status).toBe(201);
     const g = await request(app).get(`/api/nodes/${c.body.id}`);
+    expect(g.status).toBe(200);
+    expect(g.body.nodeType).toBe("attackTicket");
     expect(g.body.properties["标题"]).toBe("断连");
   });
   it("BE-2 rejects missing required", async () => {
@@ -31,6 +33,7 @@ describe("API e2e", () => {
     expect(all.body).toHaveLength(2);
     const f = await request(app).get("/api/nodes/attackTicket?状态=进行中");
     expect(f.body).toHaveLength(1);
+    expect(f.body[0].properties["状态"]).toBe("进行中");
   });
   it("BE-5 404 unknown id", async () => {
     const { app } = makeTestApp();
@@ -42,6 +45,8 @@ describe("API e2e", () => {
     for (const t of ["d1", "d2", "d3"])
       await request(app).post(`/api/nodes/${c.body.id}/progress`).send({ content: t, statusSnapshot: "进行中", actor: "u" });
     const seq = await request(app).get(`/api/nodes/${c.body.id}/progress`);
+    expect(seq.body).toHaveLength(3);
+    expect(seq.body[0].updatedBy).toBe("u");
     expect(seq.body.map((p: any) => p.seqNo)).toEqual([1, 2, 3]);
     expect(seq.body[0].content).toBe("d1");
   });
@@ -56,11 +61,22 @@ describe("API e2e", () => {
         { name: "根因服务", type: "string", label: "根因服务" },
       ],
     }));
-    await request(app).post("/api/schema/scan");
+    const sc = await request(app).post("/api/schema/scan");
+    expect(sc.status).toBe(200);
+    expect(sc.body.ok).toBe(true);
     const c = await request(app).post("/api/nodes/attackTicket")
       .send({ 标题: "x", 状态: "进行中", 根因服务: "ModelArts" });
     expect(c.status).toBe(201);
     const g = await request(app).get(`/api/nodes/${c.body.id}`);
     expect(g.body.properties["根因服务"]).toBe("ModelArts");
+    const sch = await request(app).get("/api/schema/attackTicket");
+    expect(sch.body.fields.some((f: any) => f.name === "根因服务")).toBe(true);
+  });
+  it("progress requires content (400, not a 500 throw)", async () => {
+    const { app } = makeTestApp();
+    const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "a", 状态: "进行中" });
+    const r = await request(app).post(`/api/nodes/${c.body.id}/progress`).send({ statusSnapshot: "进行中" });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toContain("content");
   });
 });

@@ -8,5 +8,8 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) 
   app.use(express.json());
   app.use("/api", makeRouter(deps.repo, deps.registry));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
+  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err.message });
+  });
   return app;
 }
