@@ -6,6 +6,7 @@
     "test:shared": "npm run test --workspace=@combat/shared",
     "test:backend": "npm run test --workspace=@combat/backend",
     "test:frontend:e2e": "npm run test:e2e --workspace=@combat/frontend",
+    "test:all": "npm run test:shared && npm run test:backend && npm run test --workspace=@combat/frontend && npm run test:frontend:e2e",
     "dev:backend": "npm run dev --workspace=@combat/backend",
     "dev:frontend": "npm run dev --workspace=@combat/frontend"
   }
