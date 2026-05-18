@@ -1,6 +1,6 @@
 node_modules/
 dist/
-*.sqlite
+*.sqlite*
 apps/frontend/test-results/
 apps/frontend/playwright-report/
 .env
