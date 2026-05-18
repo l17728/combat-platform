@@ -10,7 +10,19 @@ export class FileSchemaRegistry implements SchemaRegistry {
   reload(): void {
     const nodeTypes: NodeSchema[] = readdirSync(this.dir)
       .filter(f => f.endsWith(".json"))
-      .map(f => JSON.parse(readFileSync(join(this.dir, f), "utf8")) as NodeSchema);
+      .map(f => {
+        let raw: unknown;
+        try {
+          raw = JSON.parse(readFileSync(join(this.dir, f), "utf8"));
+        } catch (e) {
+          throw new Error(`Schema 配置文件 ${f} 不是合法 JSON: ${(e as Error).message}`);
+        }
+        const r = raw as { nodeType?: unknown; fields?: unknown };
+        if (typeof r.nodeType !== "string" || !Array.isArray(r.fields)) {
+          throw new Error(`Schema 配置文件 ${f} 缺少必需的 nodeType 或 fields`);
+        }
+        return raw as NodeSchema;
+      });
     this.config = { version: Date.now(), nodeTypes, edgeTypes: [] };
   }
   getConfig(): EntitySchemaConfig { return this.config; }
