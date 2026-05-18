@@ -1,0 +1,11 @@
+{
+  "nodeType": "person",
+  "label": "人员",
+  "identityKeys": ["employeeId", "email"],
+  "derivedToKG": true,
+  "fields": [
+    { "name": "name", "type": "string", "label": "姓名", "required": true },
+    { "name": "employeeId", "type": "string", "label": "工号" },
+    { "name": "email", "type": "string", "label": "邮箱" }
+  ]
+}
