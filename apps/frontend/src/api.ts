@@ -1,7 +1,12 @@
 import type { GraphNode, ProgressLog, NodeSchema } from "@combat/shared";
 
 export class Api {
-  constructor(private base = "", private f: typeof fetch = fetch) {}
+  private f: typeof fetch;
+  constructor(private base = "", f?: typeof fetch) {
+    // Native fetch must keep its global receiver; calling a bare/instance-stored
+    // reference as this.f(...) throws "Illegal invocation" in browsers.
+    this.f = f ?? globalThis.fetch.bind(globalThis);
+  }
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
     const r = await this.f(`${this.base}${path}`, init);
