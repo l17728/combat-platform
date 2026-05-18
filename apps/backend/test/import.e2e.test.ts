@@ -22,5 +22,9 @@ describe("import e2e", () => {
     expect(r.body.created).toBe(2);
     expect(repo.queryNodes("attackTicket")).toHaveLength(2);
     expect(repo.queryNodes("person")).toHaveLength(1); // entity resolution
+    const edges = repo.queryEdges({ edgeType: "ASSIGNED_TO" });
+    expect(edges).toHaveLength(2);
+    const personId = repo.queryNodes("person")[0].id;
+    expect(edges.every(e => e.targetId === personId)).toBe(true);
   });
 });
