@@ -15,11 +15,12 @@ export class SqliteRepository implements Repository {
   createNode(nodeType: string, properties: Record<string, unknown>, actor: string): GraphNode {
     const now = new Date().toISOString();
     const node: GraphNode = { id: randomUUID(), nodeType, properties, createdAt: now, updatedAt: now };
-    this.db.prepare(
-      `INSERT INTO nodes VALUES (@id,@nodeType,@properties,@search,@c,@u)`
-    ).run({ id: node.id, nodeType, properties: JSON.stringify(properties),
-      search: Object.values(properties).join(" "), c: now, u: now });
-    this.audit("CREATE", "node", node.id, properties, actor);
+    this.db.transaction(() => {
+      this.db.prepare(`INSERT INTO nodes VALUES (@id,@nodeType,@properties,@search,@c,@u)`)
+        .run({ id: node.id, nodeType, properties: JSON.stringify(properties),
+          search: Object.values(properties).join(" "), c: now, u: now });
+      this.audit("CREATE", "node", node.id, properties, actor);
+    })();
     return node;
   }
 
@@ -35,9 +36,11 @@ export class SqliteRepository implements Repository {
     if (!cur) throw new Error(`node ${id} not found`);
     const properties = { ...cur.properties, ...patch };
     const now = new Date().toISOString();
-    this.db.prepare(`UPDATE nodes SET properties=?, search_text=?, updated_at=? WHERE id=?`)
-      .run(JSON.stringify(properties), Object.values(properties).join(" "), now, id);
-    this.audit("UPDATE", "node", id, patch, actor);
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE nodes SET properties=?, search_text=?, updated_at=? WHERE id=?`)
+        .run(JSON.stringify(properties), Object.values(properties).join(" "), now, id);
+      this.audit("UPDATE", "node", id, patch, actor);
+    })();
     return { ...cur, properties, updatedAt: now };
   }
 
@@ -52,9 +55,11 @@ export class SqliteRepository implements Repository {
   createEdge(edgeType: string, sourceId: string, targetId: string, properties: Record<string, unknown>, actor: string): GraphEdge {
     const now = new Date().toISOString();
     const e: GraphEdge = { id: randomUUID(), edgeType, sourceId, targetId, properties, createdAt: now, updatedAt: now };
-    this.db.prepare(`INSERT INTO edges VALUES (@id,@edgeType,@s,@t,@p,@c,@u)`)
-      .run({ id: e.id, edgeType, s: sourceId, t: targetId, p: JSON.stringify(properties), c: now, u: now });
-    this.audit("CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
+    this.db.transaction(() => {
+      this.db.prepare(`INSERT INTO edges VALUES (@id,@edgeType,@s,@t,@p,@c,@u)`)
+        .run({ id: e.id, edgeType, s: sourceId, t: targetId, p: JSON.stringify(properties), c: now, u: now });
+      this.audit("CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
+    })();
     return e;
   }
 
@@ -68,16 +73,21 @@ export class SqliteRepository implements Repository {
   }
 
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog {
-    const max = this.db.prepare(`SELECT MAX(seqNo) m FROM progress_log WHERE ownerId=?`).get(ownerId) as any;
-    const p: ProgressLog = { id: randomUUID(), ownerId, seqNo: (max?.m ?? 0) + 1,
-      content, statusSnapshot, updatedBy: actor, updatedAt: new Date().toISOString() };
-    this.db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`)
-      .run({ id: p.id, ownerId, seqNo: p.seqNo, content, s: statusSnapshot, by: actor, at: p.updatedAt });
-    this.audit("PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
+    let p!: ProgressLog;
+    this.db.transaction(() => {
+      const max = this.db.prepare(`SELECT MAX(seqNo) m FROM progress_log WHERE ownerId=?`).get(ownerId) as any;
+      p = { id: randomUUID(), ownerId, seqNo: (max?.m ?? 0) + 1,
+        content, statusSnapshot, updatedBy: actor, updatedAt: new Date().toISOString() };
+      this.db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`)
+        .run({ id: p.id, ownerId, seqNo: p.seqNo, content, s: statusSnapshot, by: actor, at: p.updatedAt });
+      this.audit("PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
+    })();
     return p;
   }
 
   listProgress(ownerId: string): ProgressLog[] {
-    return this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
+    const rows = this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
+    return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
+      content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
   }
 }

@@ -7,8 +7,9 @@ import { SqliteRepository } from "../src/repository.js";
 import type { Repository } from "@combat/shared";
 
 let repo: Repository;
+let db: ReturnType<typeof openDb>;
 beforeEach(() => {
-  const db = openDb(join(mkdtempSync(join(tmpdir(), "combat-")), "t.sqlite"));
+  db = openDb(join(mkdtempSync(join(tmpdir(), "combat-")), "t.sqlite"));
   repo = new SqliteRepository(db);
 });
 
@@ -30,5 +31,8 @@ describe("SqliteRepository", () => {
     const seq = repo.listProgress(n.id);
     expect(seq.map(p => p.seqNo)).toEqual([1, 2]);
     expect(seq[0].content).toBe("day1");
+    const audits = db.prepare("SELECT * FROM audit_log WHERE action='PROGRESS' AND entityId=?").all(n.id) as any[];
+    expect(audits).toHaveLength(2);
+    expect(audits[0].performedBy).toBe("alice");
   });
 });
