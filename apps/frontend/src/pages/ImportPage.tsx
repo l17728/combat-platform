@@ -8,8 +8,13 @@ export function ImportPage() {
     <div style={{ padding: 16 }}>
       <h2>导入攻关单</h2>
       <Upload beforeUpload={async (file) => {
-        const r = await api.importXlsx(file as unknown as File);
-        message.success(`导入 ${r.created} 条`); setDone(true); return false;
+        try {
+          const r = await api.importXlsx(file as unknown as File);
+          message.success(`导入 ${r.created} 条`); setDone(true);
+        } catch {
+          message.error("导入失败，请重试");
+        }
+        return false;
       }}>
         <Button>选择 Excel 文件</Button>
       </Upload>

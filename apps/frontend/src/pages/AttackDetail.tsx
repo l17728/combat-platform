@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Descriptions, Timeline, Input, Button, message } from "antd";
 import { api } from "../api.js";
@@ -9,8 +9,11 @@ export function AttackDetail() {
   const [node, setNode] = useState<GraphNode | null>(null);
   const [seq, setSeq] = useState<ProgressLog[]>([]);
   const [text, setText] = useState("");
-  const refresh = () => { api.getNode(id).then(setNode); api.listProgress(id).then(setSeq); };
-  useEffect(refresh, [id]);
+  const refresh = useCallback(() => {
+    api.getNode(id).then(setNode);
+    api.listProgress(id).then(setSeq);
+  }, [id]);
+  useEffect(() => { refresh(); }, [refresh]);
   const add = async () => {
     if (!text) return;
     await api.appendProgress(id, text, String(node?.properties["状态"] ?? ""));
