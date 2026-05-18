@@ -1,0 +1,9 @@
+{
+  "name": "@combat/shared",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "test": "vitest run" },
+  "devDependencies": { "vitest": "^2.0.0", "typescript": "^5.5.0" }
+}

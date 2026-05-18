@@ -1,0 +1,12 @@
+{
+  "name": "combat-tool",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test:shared": "npm run test --workspace=@combat/shared",
+    "test:backend": "npm run test --workspace=@combat/backend",
+    "test:frontend:e2e": "npm run test:e2e --workspace=@combat/frontend",
+    "dev:backend": "npm run dev --workspace=@combat/backend",
+    "dev:frontend": "npm run dev --workspace=@combat/frontend"
+  }
+}
