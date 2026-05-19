@@ -45,7 +45,9 @@ export function recommendHelpers(repo: Repository, ticketId: string, limit = 10)
     const lvl = String(c.properties["贡献等级"] ?? "");
     if (lvl !== "核心" && lvl !== "关键") continue;
     for (const pid of refPersons(repo, c.id, "贡献人")) {
-      if (self.has(pid)) continue;
+      // last-resort: skip self AND anyone already credited via shared-anchor
+      // evidence (acc is fully built by the anchor pass above)
+      if (self.has(pid) || acc.has(pid)) continue;
       fbCount.set(pid, (fbCount.get(pid) ?? 0) + 1);
     }
   }

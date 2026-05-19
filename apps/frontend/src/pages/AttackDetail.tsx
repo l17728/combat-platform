@@ -13,7 +13,8 @@ export function AttackDetail() {
   const refresh = useCallback(() => {
     api.getNode(id).then(setNode);
     api.listProgress(id).then(setSeq);
-    api.recommendHelpers(id).then(setHelpers).catch(() => setHelpers([]));
+    api.recommendHelpers(id).then(setHelpers)
+      .catch(() => { setHelpers([]); message.error("找帮手加载失败"); });
   }, [id]);
   useEffect(() => { refresh(); }, [refresh]);
   const add = async () => {

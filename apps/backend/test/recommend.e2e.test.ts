@@ -52,6 +52,12 @@ describe("find-helper recommendation e2e", () => {
     expect(names.indexOf("丁")).toBeGreaterThan(names.indexOf("丙"));
     const reasonsAll = r.body.flatMap((h: any) => h.reasons).join(" ");
     expect(reasonsAll).toContain("PB-1");
+    // fallback is last-resort: 乙(anchor handler)=丙(anchor 核心 contrib)=3
+    // (丙 NOT double-credited by the general fallback); 丁(fallback only)=1
+    const byName = Object.fromEntries(r.body.map((h: any) => [String(h.person.properties["name"]), h.score]));
+    expect(byName["乙"]).toBe(3);
+    expect(byName["丙"]).toBe(3);
+    expect(byName["丁"]).toBe(1);
     const r2 = await request(app).get(`/api/recommend/helpers/${T.id}`);
     expect(r2.body.map((h: any) => h.person.id)).toEqual(r.body.map((h: any) => h.person.id));
   });

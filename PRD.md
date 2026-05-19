@@ -1142,7 +1142,7 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
   3. 候选累加（确定性权重）：
      - 共享锚点的**另一 attackTicket** 的当前处理人 P：`+3`，reason「曾处理共享问题单「{key}」的攻关单「{标题}」」。
      - 共享锚点关联的 **contribution** 的贡献人 P：`+level`（核心=3/关键=2/普通=1，缺省 1），reason「在共享问题单「{key}」相关贡献「{贡献描述‖贡献类型}」（{贡献等级}）」。
-     - **通用胜任度兜底**（保证无锚点重叠时仍有用）：P 作为任意 contribution 贡献人且 `贡献等级∈{核心,关键}`，每次 `+1`（该项每人累计上限 `+3`），reason「历史{核心/关键}贡献 {n} 次」。
+     - **通用胜任度兜底**（last-resort，保证无锚点重叠时仍有用）：仅对**未被上述共享锚点证据计分**的 P（排除 self 与已在 `acc` 者），P 作为任意 contribution 贡献人且 `贡献等级∈{核心,关键}`，每次 `+1`（该项每人累计上限 `+3`），reason 为定值聚合串「历史核心/关键贡献 {n} 次」（n 为该人核心+关键贡献总次数，不分级展开）。
   4. 排除 `selfPersons`；`score=证据和`；按 `score desc, person summary(姓名/name) asc, id asc` 确定性排序；截断 `limit`（默认 10，可 `?limit=` 1–50）。
 - `apps/backend/src/recommend.ts` 路由（或并入；挂 `/api`、错误中间件前）`GET /api/recommend/helpers/:id?limit=`：`getNode` 不存在→404 `{error:"not found"}`；存在但 `nodeType!=="attackTicket"`→400 `{error:"仅支持 attackTicket"}`；否则返回 `HelperRecommendation[]`。
 - 只读：仅上述 reader 原语；调用前后 `audit_log` 行数不变（e2e 断言）。
