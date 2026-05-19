@@ -21,7 +21,9 @@ export class FileSchemaRegistry implements SchemaRegistry {
         if (typeof r.nodeType !== "string" || !Array.isArray(r.fields)) {
           throw new Error(`Schema 配置文件 ${f} 缺少必需的 nodeType 或 fields`);
         }
-        return raw as NodeSchema;
+        const ns = raw as NodeSchema;
+        ns.fields = ns.fields.map(fd => ({ ...fd, id: fd.id ?? fd.name }));
+        return ns;
       });
     this.config = { version: Date.now(), nodeTypes, edgeTypes: [] };
   }
