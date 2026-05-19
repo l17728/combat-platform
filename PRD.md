@@ -1240,10 +1240,10 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 24.6 验收标准
 
-- [ ] shared `DashboardSummary` 契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] `GET /api/dashboard`：`tickets.total`/`byStatus`/`open`(待响应,处理中,进行中)/`resolved`(已解决,已关闭) 正确
-- [ ] `contributions.total` 正确；`topContributors` 按贡献条数 `count desc, 贡献人 asc` 取前 5
-- [ ] `proposalsPending` = 待审批提议数
-- [ ] 只读：调用前后 `audit_log` 行数不变；同输入同输出
-- [ ] `HomePage` `dashboard` 面板与数据一致；大盘失败时模块卡片仍全部可用；既有 `home-card-*` 不破坏
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `DashboardSummary` 契约生效（shared 类型测试 15/15，tsc RED→GREEN），现有不破坏
+- [x] `GET /api/dashboard`：`tickets.total`/`byStatus`(非空状态)/`open`(待响应,处理中,进行中)/`resolved`(已解决,已关闭) 正确（dashboard.e2e 用例1）
+- [x] `contributions.total` 正确；`topContributors` 按贡献条数 `count desc, 贡献人 asc` 取前 5（dashboard.e2e 用例1：张三×2，李四×1）
+- [x] `proposalsPending` = 待审批提议数（dashboard.e2e 用例1：≥1，张伟≈张玮 SAME_AS）
+- [x] 只读：调用前后 `audit_log` 行数不变（dashboard.e2e 用例2）；同输入同输出；空系统→零值（用例3）
+- [x] `HomePage` `dashboard` 面板与数据一致；大盘失败时 message.error+模块卡片仍全部可用；既有 `home-card-*` 不破坏（FE-D1）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend72/FEunit13/e2e29）；完成后部署测试服务器
