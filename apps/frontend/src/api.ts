@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -83,6 +83,13 @@ export class Api {
     return this.req<RelationProposal>(`/api/proposals/${id}/decide`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ decision, decidedBy, patch }) });
+  }
+  search(q: string, type?: string): Promise<QueryHit[]> {
+    const qs = new URLSearchParams({ q, ...(type ? { type } : {}) }).toString();
+    return this.req<QueryHit[]>(`/api/query/search?${qs}`, {});
+  }
+  getContext(id: string): Promise<QueryContext> {
+    return this.req<QueryContext>(`/api/query/context/${id}`, {});
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);

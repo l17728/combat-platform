@@ -7,6 +7,7 @@ const MODULES = [
   { to: "/contributions", title: "贡献录入", desc: "记录贡献并关联攻关单" },
   { to: "/import", title: "导入", desc: "从 Excel 导入数据" },
   { to: "/proposals", title: "关系审批", desc: "候选关系扫描与人工审批" },
+  { to: "/search", title: "信息检索", desc: "跨攻关/贡献/关联的只读检索（Hermes 契约）" },
 ];
 
 export function HomePage() {
