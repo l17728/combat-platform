@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor } from "@combat/shared";
 
 export class Api {
   private f: typeof fetch;
@@ -53,6 +53,13 @@ export class Api {
     return this.req<NodeSchema>(`/api/schema/${nodeType}`, {
       method: "PATCH", headers: { "content-type": "application/json" },
       body: JSON.stringify(op) });
+  }
+  getLeaderboard(period?: string): Promise<LeaderboardEntry[]> {
+    const qs = period ? `?period=${encodeURIComponent(period)}` : "";
+    return this.req<LeaderboardEntry[]>(`/api/honor/leaderboard${qs}`, {});
+  }
+  getPersonHonor(name: string): Promise<PersonHonor> {
+    return this.req<PersonHonor>(`/api/honor/person/${encodeURIComponent(name)}`, {});
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
