@@ -27,7 +27,11 @@ test("FE-H4..H6 record contribution -> weighted leaderboard -> personal profile 
 
   await page.goto("/honor");
   await expect(page.getByRole("link", { name: "赵六" })).toBeVisible();
-  await expect(page.getByText("8", { exact: false })).toBeVisible(); // 核心 weight
+  // GAP-21: row-scoped, data-independent score check (other specs add other
+  // people's contributions to the shared leaderboard — bare getByText("8") was
+  // fragile). 赵六 has exactly one 核心 contribution -> weighted score 8.
+  await expect(page.getByRole("row").filter({ has: page.getByRole("link", { name: "赵六" }) }))
+    .toContainText("8");
 
   await page.getByRole("link", { name: "赵六" }).click();
   await expect(page).toHaveURL(/\/honor\/%E8%B5%B5%E5%85%AD/);
