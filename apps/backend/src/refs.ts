@@ -17,6 +17,6 @@ export function syncRefEdges(
     let target = candidates.find(n => idKeys.some(k => String(n.properties[k] ?? "") === v))
       ?? candidates.find(n => String(n.properties["name"] ?? "") === v);
     if (!target) target = repo.createNode(f.refType, { name: v }, actor);
-    repo.createEdge("REF", node.id, target.id, { field: f.id, refType: f.refType }, actor);
+    repo.createEdge("REF", node.id, target.id, { field: f.id, refType: f.refType, concept: f.concept ?? "" }, actor);
   }
 }
