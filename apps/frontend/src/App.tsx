@@ -7,6 +7,7 @@ import { ImportPage } from "./pages/ImportPage.js";
 import { HonorPage } from "./pages/HonorPage.js";
 import { PersonHonor } from "./pages/PersonHonor.js";
 import { RelatedPage } from "./pages/RelatedPage.js";
+import { ProposalsPage } from "./pages/ProposalsPage.js";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/honor" element={<HonorPage />} />
           <Route path="/honor/:name" element={<PersonHonor />} />
           <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
+          <Route path="/proposals" element={<ProposalsPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>

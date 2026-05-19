@@ -16,7 +16,7 @@ export function RelatedPage() {
   const { nodeType = "", id = "" } = useParams();
   const [data, setData] = useState<RelatedResult | null>(null);
   useEffect(() => {
-    api.getRelated(nodeType, id).then(setData)
+    api.getRelated(nodeType, id, { includeCandidates: true }).then(setData)
       .catch(() => setData({ outgoing: [], incoming: [] }));
   }, [nodeType, id]);
   const all = [
@@ -41,6 +41,21 @@ export function RelatedPage() {
             )} />
         </div>
       ))}
+      {(data?.candidates?.length ?? 0) > 0 && (
+        <div style={{ marginTop: 24, borderTop: "1px dashed #d46b08", paddingTop: 12 }}>
+          <Typography.Title level={5} style={{ color: "#d46b08" }}>候选关系（待审批）</Typography.Title>
+          <List size="small" dataSource={data!.candidates}
+            rowKey={(c) => c.proposalId}
+            renderItem={(c) => (
+              <List.Item>
+                <Link to={detailLink(c.node)}>{label(c.node)}</Link>
+                <span style={{ marginLeft: 8, color: "#d46b08" }}>
+                  [{c.relationType} {Math.round(c.confidence * 100)}%] {c.rationale}
+                </span>
+              </List.Item>
+            )} />
+        </div>
+      )}
     </div>
   );
 }
