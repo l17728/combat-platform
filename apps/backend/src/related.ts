@@ -7,6 +7,8 @@ export function makeRelatedRouter(repo: Repository): Router {
     const node = repo.getNode(req.params.id);
     if (!node) return res.status(404).json({ error: "not found" });
     const id = node.id;
+    // /related surfaces only association edges; domain edges (CONTRIBUTED_TO,
+    // ONCALL_FOR, …) have their own routes — keep this an explicit whitelist.
     const isRel = (t: string) => t === "REF" || t === "ANCHORED_TO";
     const out = repo.queryEdges({ sourceId: id }).filter(e => isRel(e.edgeType))
       .map(e => ({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node: repo.getNode(e.targetId) }))

@@ -77,7 +77,9 @@ describe("cross-granularity anchor e2e", () => {
     const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "U", 问题单号: "PB-A" });
     await request(app).put(`/api/nodes/${t.body.id}`).send({ 问题单号: "PB-B" });
     const rel = await request(app).get(`/api/related/attackTicket/${t.body.id}`);
-    const keys = rel.body.outgoing.filter((x: any) => x.node.nodeType === "问题单号").map((x: any) => x.node.properties["key"]);
-    expect(keys).toEqual(["PB-B"]);
+    const anchorOut = rel.body.outgoing.filter((x: any) => x.node.nodeType === "问题单号");
+    // delete-first idempotency: exactly ONE ANCHORED_TO survives (old PB-A gone)
+    expect(anchorOut).toHaveLength(1);
+    expect(anchorOut.map((x: any) => x.node.properties["key"])).toEqual(["PB-B"]);
   });
 });
