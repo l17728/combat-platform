@@ -41,17 +41,25 @@ describe("relation proposals e2e", () => {
     expect(list.body[0].status).toBe("待审批");
   });
 
-  it("decide 通过 merges persons authoritatively (+audit); re-decide → 409", async () => {
+  it("decide 通过 merges persons authoritatively: edge migration + 原引用可达 + audit; re-decide → 409", async () => {
     const { app, repo } = makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "王芳" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T3", 当前处理人: "王萍" });
     await request(app).post("/api/proposals/scan").send({});
-    const list = (await request(app).get("/api/proposals?status=待审批")).body;
-    const pid = list[0].id;
+    const prop = (await request(app).get("/api/proposals?status=待审批")).body[0];
+    const pid = prop.id;
     const before = repo.queryNodes("person").length;
     const d = await request(app).post(`/api/proposals/${pid}/decide`).send({ decision: "通过", decidedBy: "运营" });
     expect(d.status).toBe(200);
     expect(repo.queryNodes("person").length).toBe(before - 1);
+    // merged-away source gone; surviving target = proposal.targetNodeId
+    expect(repo.getNode(prop.sourceNodeId)).toBeNull();
+    const survivor = repo.getNode(prop.targetNodeId);
+    expect(survivor).not.toBeNull();
+    // §20.4 边迁移 + 原引用可达: BOTH tickets' REF edges now resolve to the survivor
+    const rel = await request(app).get(`/api/related/person/${prop.targetNodeId}`);
+    const titles = rel.body.incoming.map((x: any) => x.node.properties["标题"]).sort();
+    expect(titles).toEqual(["T1", "T3"]);
     const got = (await request(app).get("/api/proposals?status=已通过")).body;
     expect(got.find((x: any) => x.id === pid)?.decidedBy).toBe("运营");
     const again = await request(app).post(`/api/proposals/${pid}/decide`).send({ decision: "通过", decidedBy: "运营" });

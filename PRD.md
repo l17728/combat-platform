@@ -952,7 +952,7 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 20.2 后端
 
-- 新模块 `apps/backend/src/proposer.ts` `HeuristicRelationProposer implements RelationProposer`（确定性、可测、无外部依赖）：对同一 `refType` 实体类型（如 person）现存节点，按规范化键（trim+小写+去内部空白）两两比较；规范化后**非精确相等**但 Levenshtein 距离 ≤ 阈值（默认 2）者，提议 `relationType:"SAME_AS"`，`confidence = 1 - dist/maxLen`，`proposerSource:"heuristic-v1"`，`rationale` 含两值与距离。精确相等**不**提议（§0.3 显式优先；3a 已处理）。已被「已拒绝」覆盖的同 `(sourceNodeId,targetNodeId,relationType)` 三元组不再重复提议（负样本回流抑制）。
+- 新模块 `apps/backend/src/proposer.ts` `HeuristicRelationProposer implements RelationProposer`（确定性、可测、无外部依赖）：对同一 `refType` 实体类型（如 person）现存节点，按规范化键（trim+小写+去内部空白）两两比较；规范化后**非精确相等**但 Levenshtein 距离 ≤ 阈值（默认 **1**：单字符近重复=疑似录入误差，是最精准的"疑似同实体"信号；阈值 2 会把无关单字名两两误配，已验证收敛为 1）者，提议 `relationType:"SAME_AS"`，`confidence = 1 - dist/maxLen`，`proposerSource:"heuristic-v1"`，`rationale` 含两值与距离。精确相等**不**提议（§0.3 显式优先；3a 已处理）。已被「已拒绝」覆盖的同 `(sourceNodeId,targetNodeId,relationType)` 三元组不再重复提议（负样本回流抑制）。
 - 提议存储：`SqliteRepository` 加 `proposals` 表（id,source_node_id,target_node_id,relation_type,confidence,proposer_source,rationale,status,decided_by,decided_at,created_at）+ §20.1 方法，每变更写 `audit_log`。
 - API（新 `apps/backend/src/proposals.ts` 路由，挂 `/api`、全局错误中间件前）：
   - `POST /api/proposals/scan`：运行 registry 配置的所有 proposer（本增量即 `HeuristicRelationProposer`）；每个新候选若无同三元组「待审批/已拒绝」记录则 `createProposal(status:"待审批")`；返回 `{created:n}`。**幂等**。

@@ -70,4 +70,25 @@ describe("Api client", () => {
     expect(calls[0][1].method).toBe("PATCH");
     expect(JSON.parse(calls[0][1].body)).toEqual({ op: "setConcept", id: "当前处理人", concept: "负责人" });
   });
+  it("getRelated includeCandidates appends the query flag (no-opts URL unchanged)", async () => {
+    const calls: string[] = [];
+    const fm = vi.fn(async (u: string) => { calls.push(u); return new Response(JSON.stringify({ outgoing: [], incoming: [], candidates: [] }), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    await api.getRelated("person", "p1", { includeCandidates: true });
+    expect(calls[0]).toBe("http://x/api/related/person/p1?includeCandidates=1");
+  });
+  it("listProposals / scanProposals / decideProposal hit the proposal endpoints", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify([]), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    await api.listProposals("待审批");
+    expect(calls[0][0]).toBe("http://x/api/proposals?status=%E5%BE%85%E5%AE%A1%E6%89%B9");
+    await api.scanProposals();
+    expect(calls[1][0]).toBe("http://x/api/proposals/scan");
+    expect(calls[1][1].method).toBe("POST");
+    await api.decideProposal("pr1", "通过", "运营");
+    expect(calls[2][0]).toBe("http://x/api/proposals/pr1/decide");
+    expect(calls[2][1].method).toBe("POST");
+    expect(JSON.parse(calls[2][1].body)).toEqual({ decision: "通过", decidedBy: "运营" });
+  });
 });

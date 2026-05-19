@@ -38,8 +38,9 @@ export function ProposalsPage() {
     <div style={{ padding: 16 }}>
       <Typography.Title level={3}>关系审批队列</Typography.Title>
       <Button aria-label="scan-proposals" type="primary" onClick={scan} style={{ marginBottom: 12 }}>扫描候选</Button>
-      {rows.length === 0 && <p role="status">暂无待审批候选</p>}
-      <Table rowKey="id" columns={columns} pagination={false} dataSource={rows} />
+      {rows.length === 0
+        ? <p role="status">暂无待审批候选</p>
+        : <Table rowKey="id" columns={columns} pagination={false} dataSource={rows} />}
     </div>
   );
 }
