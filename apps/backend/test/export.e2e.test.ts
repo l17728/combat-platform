@@ -59,6 +59,8 @@ describe("export e2e", () => {
     });
     expect(r.status).toBe(200);
     const wb = XLSX.read(r.body, { type: "buffer" });
-    expect(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])).toHaveLength(0);
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    expect(XLSX.utils.sheet_to_json(ws)).toHaveLength(0);
+    expect(ws["A1"]?.v).toBe("标题"); // header row present (active field labels), zero data rows
   });
 });
