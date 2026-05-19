@@ -608,8 +608,9 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 | 增量 | 内容 | 状态 |
 |---|---|---|
-| **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | **本次实现（规格见 §14.2）** |
-| 增量1.5 | **UI 导出当前 view 为 Excel**（用户诉求；落实 §7.3 导出能力到可编辑表格界面） | 已排期：Increment 1 全绿后立即做 |
+| **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | ✅ 完成、tag、已部署（§14.2） |
+| **荣誉殿堂 (P0-②)** | 贡献记录(配置驱动)+CONTRIBUTED_TO 边+等级加权榜单+个人档案 | **进行中：本次实现（规格见 §15）** |
+| 增量1.5 | **UI 导出当前 view 为 Excel**（用户诉求；落实 §7.3 导出能力到可编辑表格界面） | 已排期：荣誉殿堂之后 |
 | 增量2 | canonical 字段 + 别名/同义词映射（跨 view/导入名字归一，模糊推荐） | 已定向（§14.3） |
 | 增量3 | ref→实体 + 语义 concept + 跨颗粒度锚点关联 → 派生 KG 边 | 已定向（§14.3） |
 
@@ -653,3 +654,64 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 | 跨颗粒度关联 | 锚点优先 + 类型化层级边；"相关"仅兜底 | 语义不丢、可上钻下钻；符合派生 KG 范式 |
 | MVP UX 底线 | 任何数据特性首切片须含手工 CRUD | 用户反馈：只读/只导入不可用 |
 | 关系建立 | LLM/Hermes 提议 + **强制人工审批门**（增量2/3） | 自动召回 + 人审准确率；Agent 不破坏写权威性，审批样本回流改进 |
+
+---
+
+## 15. 荣誉殿堂（贡献记录）增量规格（开发依据）
+
+> 落实 PRD §1.3 **P0-②** / §2.3 Contribution / §2.4 CONTRIBUTED_TO / §10 Phase 2。复用增量1 的配置驱动通用存储 + 可编辑表格。本节是本增量的实现依据。
+
+### 15.1 数据模型（配置驱动，零新增通用存储代码）
+
+新增 `config/schemas/contribution.json`，`nodeType: contribution`，字段（id=name；枚举沿用 req.md/§1.3 原文）：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| 贡献人 | string(必填) | 姓名或工号 |
+| 关联攻关单 | string | 关联的攻关单（其 `攻关单号` 或 id） |
+| 贡献类型 | enum(必填) | 发现 / 设计 / 实施 / 协调 / 公关 |
+| 贡献等级 | enum | 普通 / 关键 / 核心 |
+| 贡献描述 | string | |
+| 周期 | string | 如 `2026-Q2` / `2026-05` |
+| 记录时间 | datetime | |
+| 记录人 | string | |
+
+创建贡献时（API 层）同时建一条 `CONTRIBUTED_TO` 边 `contribution → attackTicket`，用于回溯。**目标解析规则（明确）**：取一个 attackTicket 节点，其 `攻关单号` 属性等于"关联攻关单"值；若无匹配则退而匹配 `标题` 等于该值；仍无匹配则**只存字段、不建边、不报错**（首匹配；空值同样不建边）。复用现有 `createEdge/queryEdges`。
+
+### 15.2 后端
+
+- Contribution 的 CRUD 完全走**现有通用路由**（`POST/GET/PUT/DELETE /api/nodes/contribution`、`GET /api/schema/contribution`）——零新增通用代码。`POST /api/nodes/contribution` 之后，若 body 含可解析的"关联攻关单"，建 `CONTRIBUTED_TO` 边（在 nodes 路由内对 `contribution` 类型做此一处特化，或独立 honor 路由处理创建）。
+- 新增 2 个**只读聚合**路由（独立 `honor` 路由模块）：
+  - `GET /api/honor/leaderboard?period=<可选>` → 按贡献人聚合：`score = Σ 等级权重`（**默认 普通=1 / 关键=3 / 核心=8**，常量，注释标注后续可配置化），返回按 score 降序的 `[{ 贡献人, score, 贡献数, byLevel{普通,关键,核心}, byType{...} }]`；`period` 传入则先按 `周期` 过滤。
+  - `GET /api/honor/person/:name` → 该贡献人全部 Contribution（含其"关联攻关单"值与（若有）CONTRIBUTED_TO 边目标的 attackTicket id，用于前端回链）。
+
+### 15.3 前端
+
+- 把现有可编辑表格组件**泛化为接收 `nodeType` 参数**（它已完全 schema 驱动；仅 `NODE="attackTicket"` 常量与 `标题→Link` 特化需参数化：链接特化改为"当存在某约定字段时才链接"，contribution 无此字段则不链接）。新增路由 `/contributions` 复用之做贡献增删改。
+- 新增页 `/honor`（荣誉殿堂）：排行榜表（名次 / 贡献人 / 加权得分 / 贡献数 / 各等级计数）+ `周期` 筛选输入；点击贡献人 → 个人贡献档案（其贡献列表，每条可链接回关联攻关单详情 `/attack/:id`）。
+- 顶部导航新增「荣誉殿堂」「贡献录入」入口。
+
+### 15.4 测试（TDD + 前后台全 e2e）
+
+- 后端 e2e：创建 contribution（配置驱动校验）+ CONTRIBUTED_TO 边建立；leaderboard 加权得分与排序、byLevel/byType 计数、period 过滤；person 档案返回该人贡献 + 攻关单回链；非法枚举被拒。
+- 前端 Playwright e2e：经 `/contributions` 录入一条贡献（关联某攻关单）→ `/honor` 看到该人按加权得分排名 → 点贡献人进个人档案 → 列表含该贡献并可链接回攻关单。
+- 复用确定性 e2e 框架；`reset-db.cjs` 的 per-run 配置恢复集**加入 `contribution.json`**。
+
+### 15.5 关键设计决策（补充 §12/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 贡献实体 | 配置驱动 nodeType，复用通用 CRUD | 零新增存储代码；与 §0.4 一致 |
+| 贡献↔攻关单 | 存字段值 + 建 CONTRIBUTED_TO 边 | 双保险；支持从贡献/攻关单双向回溯 |
+| 排名指标 | 等级加权 score（默认 1/3/8，常量可后续配置化） | "雷锋让人记住"需突出关键/核心贡献 |
+| 等级标定权限 | **无 RBAC**，谁都可填等级 | 全应用尚无鉴权；RBAC 按 §13#4 延后 |
+| 可编辑表格 | 泛化出 nodeType 参数（小重构） | 复用、不重复造轮子；借机改良所接触代码 |
+| 首期范围 | 录入 + 加权个人榜单 + 个人档案 + 回链 + `周期` 筛选 | 用户选定。**团队维度不在本期**（尚无 Team 数据模型/Person→Team 关系）——延后 |
+
+### 15.6 验收标准
+
+- [ ] `contribution.json` 配置生效，经 `/contributions` 可增删改贡献，枚举校验生效（配置驱动，零 DDL）
+- [ ] 创建带"关联攻关单"的贡献后存在 CONTRIBUTED_TO 边，可双向回溯
+- [ ] `/api/honor/leaderboard` 加权得分/排序/各等级计数正确，`period` 过滤生效
+- [ ] `/honor` 展示排行榜，点人进个人档案，档案条目可链接回攻关单详情
+- [ ] `npm run test:all` 全绿（含新增后端 e2e + Playwright honor 用例）；完成后部署到测试服务器
