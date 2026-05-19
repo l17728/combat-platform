@@ -1119,3 +1119,66 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] `related-core` 抽取后 `/api/related` 行为零变更（既有 related/anchor/concept/ref/proposals e2e 全绿，backend 66/66）
 - [x] `/search`「信息检索」页：查询→结果→点击跳详情/关联页；空/无结果状态；AppShell+首页入口集成（FE-S1）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared13/backend66/FEunit13/e2e26）；完成后部署测试服务器
+
+---
+
+## 23. 增量5：找人推荐（Phase 3.3）开发依据
+
+> 兑现 §6.3「基于 KG 的人-任务-知识关联，推荐"谁能帮"」+ §10 P2「找人推荐（资源断裂）」。复用 3a(REF 当前处理人/贡献人)+3c(person)+3d(ANCHORED_TO 共享问题单)+honor(CONTRIBUTED_TO/贡献等级)既有 KG，**确定性打分、只读**（推荐为派生，不写库；与 §6.1/增量4 只读哲学一致）。本节是本增量的实现依据。
+
+### 23.0 范围与定向
+
+交付 ①确定性 KG 打分推荐器（无外部 LLM、可 TDD）；②只读 `GET /api/recommend/helpers/:attackTicketId`；③`AttackDetail` 集成「找帮手」区（排名人选+理由+跳人关联页）。MVP 只做 **"谁能帮"（履历/胜任度证据）**；§6.3 的 **"谁有空"（需 OncallSchedule/排班可用性，未实现）/"谁必须帮"（义务）留后续**（§23.5 记录）。**严格只读**：仅 `getNode/queryNodes/queryEdges/listProgress` 等 reader 原语 + 复用 `buildRelated`/锚点遍历，绝不写库/不审计。
+
+### 23.1 契约（@combat/shared）
+
+`HelperRecommendation`：`{ person: GraphNode; score: number; reasons: string[] }`（`reasons` 为中文证据串，引用具体攻关单/问题单/贡献）。纯加法；无新增 `FieldOp`（只读）。
+
+### 23.2 后端
+
+- 新模块 `apps/backend/src/recommend.ts` `recommendHelpers(repo, ticketId): HelperRecommendation[]`（确定性、只读）：
+  1. 取 T=`getNode(ticketId)`；其经 `REF`(field=当前处理人) 指向的 person 集为 `selfPersons`（**排除**，已在处理）。
+  2. 取 T 的 `ANCHORED_TO` 锚点；对每个锚点取其它 `ANCHORED_TO` 源节点（共享问题单的 attackTicket / contribution，≠T）。
+  3. 候选累加（确定性权重）：
+     - 共享锚点的**另一 attackTicket** 的当前处理人 P：`+3`，reason「曾处理共享问题单「{key}」的攻关单「{标题}」」。
+     - 共享锚点关联的 **contribution** 的贡献人 P：`+level`（核心=3/关键=2/普通=1，缺省 1），reason「在共享问题单「{key}」相关贡献「{贡献描述‖贡献类型}」（{贡献等级}）」。
+     - **通用胜任度兜底**（保证无锚点重叠时仍有用）：P 作为任意 contribution 贡献人且 `贡献等级∈{核心,关键}`，每次 `+1`（该项每人累计上限 `+3`），reason「历史{核心/关键}贡献 {n} 次」。
+  4. 排除 `selfPersons`；`score=证据和`；按 `score desc, person summary(姓名/name) asc, id asc` 确定性排序；截断 `limit`（默认 10，可 `?limit=` 1–50）。
+- `apps/backend/src/recommend.ts` 路由（或并入；挂 `/api`、错误中间件前）`GET /api/recommend/helpers/:id?limit=`：`getNode` 不存在→404 `{error:"not found"}`；存在但 `nodeType!=="attackTicket"`→400 `{error:"仅支持 attackTicket"}`；否则返回 `HelperRecommendation[]`。
+- 只读：仅上述 reader 原语；调用前后 `audit_log` 行数不变（e2e 断言）。
+- `apps/backend/src/app.ts`：`app.use("/api", makeRecommendRouter(deps.repo));`（query 路由之后、错误中间件前）。
+
+### 23.3 前端
+
+- `apps/frontend/src/api.ts`：加 `recommendHelpers(id, limit?)` → `GET /api/recommend/helpers/:id`（`HelperRecommendation[]`）。
+- `apps/frontend/src/pages/AttackDetail.tsx`：在「关联全景」与 Descriptions 之间或进展序列之前，加「找帮手」区——加载时（或按钮）调 `api.recommendHelpers(id)`，渲染排名 `List`：每项 person summary（`Link` → `/related/person/${person.id}`）+ `score` + `reasons`（逐行）；空 → `<p role="status">暂无可推荐人选</p>`；错误 `message.error`。`aria-label="find-helpers"` 区块。纯加法，不改既有 AttackDetail 行为/aria-label。
+- 无新增路由（推荐按攻关单维度，归属 AttackDetail）。
+
+### 23.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`HelperRecommendation` 契约类型测试（tsc RED→GREEN）。
+- 后端 e2e（新 `apps/backend/test/recommend.e2e.test.ts`）：场景——T(问题单号 PB-1,当前处理人 甲)；T2(问题单号 PB-1,当前处理人 乙)；contribution(贡献人 丙,关联问题单 PB-1,贡献等级 核心)；contribution(贡献人 丁,贡献等级 关键, 无锚点)。`GET /helpers/T`：含 乙(+3 共享锚点处理人)、丙(+3 共享锚点核心贡献)，**不含 甲**(self)；丁 出现于通用兜底(+1)且排名最低；reasons 含「PB-1」；按 score 确定性排序；不存在 id→404；非 attackTicket→400；调用前后 audit_log 行数不变（只读）；同输入同输出（确定性）。
+- 前端 Playwright（新 `apps/frontend/e2e/recommend.spec.ts`）：建上述数据→打开 T 的 AttackDetail→「找帮手」区出现推荐人(含理由文案 PB-1)→点人跳其关联页；无证据攻关单→空态文案可见。
+- 既有断言加法不破坏；随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 23.5 关键设计决策（补充 §6.3/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 推荐机制 | 确定性 KG 证据打分（共享锚点履历 + 贡献等级胜任度 + 兜底） | 无外部依赖、可 TDD、可解释（reasons 引证）；LLM 化属后续 |
+| 数据面 | 复用 3a/3c/3d/honor 既有边与锚点，不新增写 | §0.3 KG 派生；推荐是只读派生，写仍走结构化 |
+| 排除 self | 排除本单当前处理人 | 推荐"能帮的别人"，非已在处理者 |
+| 排序 | score desc, 姓名 asc, id asc | 确定性、可测、稳定 |
+| "谁有空"/"谁必须帮" | 不在增量5 | 需排班/可用性(OncallSchedule 未实现)与义务模型；§6.3 后续 |
+| 入口 | AttackDetail 内「找帮手」区，无新路由 | 推荐按攻关单维度；最小集成面 |
+| LLM 解释/学习 | 不在增量5 | YAGNI；reasons 已可解释 |
+
+### 23.6 验收标准
+
+- [ ] shared `HelperRecommendation` 契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] `GET /api/recommend/helpers/:id`：共享问题单的另一攻关单当前处理人 + 共享问题单相关贡献人（按贡献等级）计分；通用核心/关键贡献兜底（每人封顶）；**排除本单当前处理人**
+- [ ] 排序确定（score desc, 姓名 asc, id asc）、`limit` 截断、`reasons` 引用具体问题单/攻关单/贡献；同输入同输出
+- [ ] 不存在 id→404；存在但非 `attackTicket`→400
+- [ ] 只读：调用前后 `audit_log` 行数不变（无写/无审计副作用）
+- [ ] `AttackDetail`「找帮手」区：展示排名人选+score+reasons，点击跳该人关联页；无人选空态；纯加法不破坏既有
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
