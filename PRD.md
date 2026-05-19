@@ -1112,10 +1112,10 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 22.6 验收标准
 
-- [ ] shared `QueryHit`/`QueryContext` 契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] `GET /api/query/search?q=` 跨节点属性子串、大小写不敏感、`type` 过滤、空`q`→400、`limit` 截断、确定性排序（score/updatedAt/id）
-- [ ] `search` 为只读：调用前后 `audit_log` 行数不变（无写/无审计副作用）
-- [ ] `GET /api/query/context/:id` → `{node, related(REF/ANCHORED_TO/coAnchored), progress}`；不存在→404；与 `/api/related` 派生一致
-- [ ] `related-core` 抽取后 `/api/related` 行为零变更（既有 related/anchor/concept/ref/proposals e2e 全绿）
-- [ ] `/search`「信息检索」页：查询→结果→点击跳详情/关联页；空/无结果状态；AppShell+首页入口集成
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `QueryHit`/`QueryContext` 契约生效（shared 类型测试 13/13，tsc RED→GREEN），现有不破坏
+- [x] `GET /api/query/search?q=` 跨节点属性子串、大小写不敏感、`type` 过滤、空`q`→400、`limit` 截断、确定性排序（score/updatedAt/id）；req 数组参数安全（query.e2e 用例1）
+- [x] `search` 为只读：调用前后 `audit_log` 行数不变（query.e2e 用例2）
+- [x] `GET /api/query/context/:id` → `{node, related(REF/ANCHORED_TO/coAnchored), progress}`；不存在→404；与 `/api/related` 三字段全一致（query.e2e 用例3）
+- [x] `related-core` 抽取后 `/api/related` 行为零变更（既有 related/anchor/concept/ref/proposals e2e 全绿，backend 66/66）
+- [x] `/search`「信息检索」页：查询→结果→点击跳详情/关联页；空/无结果状态；AppShell+首页入口集成（FE-S1）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared13/backend66/FEunit13/e2e26）；完成后部署测试服务器
