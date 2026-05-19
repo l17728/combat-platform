@@ -87,6 +87,10 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
       {filterField && <Input.Search aria-label="status-filter" placeholder={`按${filterField}过滤`} allowClear
         onSearch={setFilter} style={{ width: 220, marginBottom: 12 }} />}
       <Space style={{ marginBottom: 12 }}>
+        <a aria-label="export-excel" href={`/api/export/${nodeType}`} download
+           style={{ marginRight: 8 }}>
+          <Button>导出 Excel</Button>
+        </a>
         {draft === null
           ? <Button aria-label="new-row" type="primary" onClick={() => setDraft({})}>新增行</Button>
           : <>
