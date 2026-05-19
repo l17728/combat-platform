@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp } from "@combat/shared";
 
 export class Api {
   private f: typeof fetch;
@@ -31,6 +31,24 @@ export class Api {
     return this.req<ProgressLog>(`/api/nodes/${id}/progress`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ content, statusSnapshot, actor: "ui" }) });
+  }
+  createNode(nodeType: string, props: Record<string, unknown>): Promise<GraphNode> {
+    return this.req<GraphNode>(`/api/nodes/${nodeType}`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(props) });
+  }
+  updateNode(id: string, props: Record<string, unknown>): Promise<GraphNode> {
+    return this.req<GraphNode>(`/api/nodes/${id}`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify(props) });
+  }
+  deleteNode(id: string): Promise<{ ok: boolean }> {
+    return this.req<{ ok: boolean }>(`/api/nodes/${id}`, { method: "DELETE" });
+  }
+  patchSchema(nodeType: string, op: FieldOp): Promise<NodeSchema> {
+    return this.req<NodeSchema>(`/api/schema/${nodeType}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify(op) });
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
