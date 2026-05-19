@@ -74,6 +74,9 @@ export class FileSchemaRegistry implements SchemaRegistry {
     } else if (op.op === "setConcept") {
       if (typeof op.concept !== "string") throw new Error("setConcept 需要 concept 字符串");
       find(op.id).concept = op.concept;
+    } else if (op.op === "setAnchor") {
+      if (typeof op.anchor !== "string") throw new Error("setAnchor 需要 anchor 字符串");
+      find(op.id).anchor = op.anchor;
     } else {
       throw new Error(`未知操作: ${(op as { op: string }).op}`);
     }

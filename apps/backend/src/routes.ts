@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Repository, SchemaRegistry } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
+import { syncAnchorEdges } from "./anchors.js";
 
 export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
@@ -53,6 +54,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       }
     }
     syncRefEdges(repo, registry, node, req.body, "api");
+    syncAnchorEdges(repo, registry, node, req.body, "api");
     res.status(201).json(node);
   });
 
@@ -65,6 +67,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const updated = repo.updateNode(req.params.id, req.body, "api");
     syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
     res.json(updated);
   });
 

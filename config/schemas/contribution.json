@@ -11,6 +11,7 @@
     { "id": "贡献描述", "name": "贡献描述", "type": "string", "label": "贡献描述" },
     { "id": "周期", "name": "周期", "type": "string", "label": "周期" },
     { "id": "记录时间", "name": "记录时间", "type": "datetime", "label": "记录时间" },
-    { "id": "记录人", "name": "记录人", "type": "string", "label": "记录人" }
+    { "id": "记录人", "name": "记录人", "type": "string", "label": "记录人" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" }
   ]
 }

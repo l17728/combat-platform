@@ -17,6 +17,7 @@
     { "id": "当前处理人", "name": "当前处理人", "type": "ref", "refType": "person", "label": "当前处理人", "aliases": ["研发责任人", "运维责任人", "责任人", "owner"], "concept": "负责人" },
     { "id": "攻关组长", "name": "攻关组长", "type": "string", "label": "攻关组长" },
     { "id": "是否已解决", "name": "是否已解决", "type": "string", "label": "是否已解决" },
-    { "id": "攻关有效性", "name": "攻关有效性", "type": "string", "label": "攻关有效性" }
+    { "id": "攻关有效性", "name": "攻关有效性", "type": "string", "label": "攻关有效性" },
+    { "id": "问题单号", "name": "问题单号", "type": "string", "label": "问题单号", "anchor": "问题单号" }
   ]
 }
