@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { Descriptions, Timeline, Input, Button, message } from "antd";
 import { api } from "../api.js";
 import type { GraphNode, ProgressLog } from "@combat/shared";
@@ -22,6 +22,7 @@ export function AttackDetail() {
   return (
     <div style={{ padding: 16 }}>
       <h2>{String(node?.properties["标题"] ?? "")}</h2>
+      <p><Link to={`/related/attackTicket/${id}`} aria-label="related-link">关联全景</Link></p>
       <Descriptions bordered column={1} size="small">
         {Object.entries(node?.properties ?? {}).map(([k, v]) =>
           <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>)}

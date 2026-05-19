@@ -64,7 +64,9 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
         if (e) return <Input aria-label={`edit-${f.id}`} value={e[f.id] ?? String(r.properties[f.id] ?? "")}
           onChange={ev => setEditing(s => ({ ...s, [r.id]: { ...s[r.id], [f.id]: ev.target.value } }))} />;
         const val = String(r.properties[f.id] ?? "");
-        return linkField && linkTo && f.id === linkField ? <Link to={linkTo(r.id)}>{val}</Link> : val;
+        if (linkField && linkTo && f.id === linkField) return <Link to={linkTo(r.id)}>{val}</Link>;
+        if (f.type === "ref") return <Link aria-label={`ref-${f.id}`} to={`/related/${nodeType}/${r.id}`}>{val}</Link>;
+        return val;
       },
     })),
     {

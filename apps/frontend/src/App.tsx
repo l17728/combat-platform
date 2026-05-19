@@ -6,6 +6,7 @@ import { AttackDetail } from "./pages/AttackDetail.js";
 import { ImportPage } from "./pages/ImportPage.js";
 import { HonorPage } from "./pages/HonorPage.js";
 import { PersonHonor } from "./pages/PersonHonor.js";
+import { RelatedPage } from "./pages/RelatedPage.js";
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/contributions" element={<EntityTable nodeType="contribution" />} />
           <Route path="/honor" element={<HonorPage />} />
           <Route path="/honor/:name" element={<PersonHonor />} />
+          <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>
