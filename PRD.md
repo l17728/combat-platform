@@ -925,10 +925,10 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 19.6 验收标准
 
-- [ ] `FieldSchema.concept?` + `FieldOp.setConcept` 契约生效（shared 类型测试，tsc-clean），现有数据/配置/校验不破坏
-- [ ] 写带 ref 字段节点 → REF 边 `properties.concept` 正确；`/api/related` 项含 `concept`
-- [ ] 同一 person 经 attackTicket.当前处理人 与 contribution.贡献人（皆 concept=负责人）被引用 → related 两项 concept 均为「负责人」
-- [ ] `PATCH /api/schema {op:"setConcept"}` 持久化回 config + reload；非字符串 → 400 + 配置不变
-- [ ] `EntityTable` 列头「概念」编辑器在 `/attack`、`/contributions` 可设 concept 并持久化（schema 端点可见）
-- [ ] `RelatedPage` 把两个异名字段（当前处理人/贡献人，concept=负责人）归并到同一「负责人」组显示；无 concept 节点仍按 nodeType
-- [ ] 既有 FE-R1/coverage RelatedPage 断言已按新分组更新；全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署到测试服务器
+- [x] `FieldSchema.concept?` + `FieldOp.setConcept` 契约生效（shared 类型测试 9/9，tsc-clean），现有数据/配置/校验不破坏
+- [x] 写带 ref 字段节点 → REF 边 `properties.concept` 正确；`/api/related` 项含 `concept`（concept.e2e 用例1）
+- [x] 同一 person 经 attackTicket.当前处理人 与 contribution.贡献人（皆 concept=负责人）被引用 → related 两项 concept 均为「负责人」（concept.e2e 用例2，断言 incoming 长度 2）
+- [x] `PATCH /api/schema {op:"setConcept"}` 持久化回 config + reload；非字符串(缺键 + `42`) → 400 + 配置不变（concept.e2e 用例4）
+- [x] `EntityTable` 列头「概念」编辑器在 `/attack`、`/contributions` 可设 concept 并持久化（FE-C1；编辑器为配置驱动 EntityTable 列头，两路由同组件）
+- [x] `RelatedPage` 把两个异名字段（当前处理人/贡献人，concept=负责人）归并到同一「负责人」组显示（FE-C1/FE-R1）；无 concept 节点仍按 nodeType（concept.e2e「ref WITHOUT concept → related concept ''」覆盖回退输入）
+- [x] 既有 FE-R1/coverage RelatedPage 断言已按新分组更新；全功能 e2e 覆盖审计门通过（审计发现 nodeType-回退缺口并补齐）；`npm run test:all` 连续两次全绿（shared9/backend54/FEunit11/e2e19）；完成后部署到测试服务器
