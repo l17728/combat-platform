@@ -610,7 +610,7 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 |---|---|---|
 | **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | ✅ 完成、tag、已部署（§14.2） |
 | **荣誉殿堂 (P0-②) + 平台集成** | 贡献记录(配置驱动)+CONTRIBUTED_TO+等级加权榜单+个人档案 **+ 统一外壳/导航 + 作战平台首页** | **进行中：本次实现（规格见 §15）** |
-| 增量1.5 | **UI 导出当前 view 为 Excel**（用户诉求；落实 §7.3 导出能力到可编辑表格界面） | 已排期：荣誉殿堂之后 |
+| 增量1.5 | **服务端全量导出 Excel**（落实 §7.3 到 EntityTable 界面） | **进行中：本次实现（规格见 §16）** |
 | 增量2 | canonical 字段 + 别名/同义词映射（跨 view/导入名字归一，模糊推荐） | 已定向（§14.3） |
 | 增量3 | ref→实体 + 语义 concept + 跨颗粒度锚点关联 → 派生 KG 边 | 已定向（§14.3） |
 
@@ -719,3 +719,43 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [ ] 统一外壳 `AppShell` 生效：所有页面在同一 Layout 内，侧/顶导航可在 首页/攻关作战台/荣誉殿堂/贡献录入/导入 间切换
 - [ ] `/` 为作战平台导航首页（模块卡片可进入各模块）；既有 e2e（goto `/attack`）不受影响仍全绿
 - [ ] `npm run test:all` 全绿（含新增后端 e2e + Playwright：honor 用例 + 首页/导航集成用例）；完成后部署到测试服务器
+
+---
+
+## 16. 服务端全量 Excel 导出（增量1.5 规格，开发依据）
+
+落实 §7.3「任意 view 可导出为 Excel，双向兼容」到 EntityTable 界面。复用既有 `xlsx`(SheetJS，已是后端依赖)。
+
+### 16.1 后端
+
+- 新增 `apps/backend/src/export.ts`：`makeExportRouter(repo, registry): Router` → `GET /api/export/:nodeType`：
+  - `registry.getNodeSchema(nodeType)` 未知 → 404 `{ error }`。
+  - `repo.queryNodes(nodeType)` 全量（**忽略任何 UI 过滤——全量导出**）；按**活跃字段**（`!retired`）将每行扁平化为 `{ [field.label]: properties[field.id] }`（表头用 `label` 人类可读，值按稳定 `id` 取——与导入 `mapColumns` 的 name/label 匹配对称，实现 §7.3 双向兼容）。
+  - `xlsx` `json_to_sheet`→`book_append_sheet`→`write({type:"buffer",bookType:"xlsx"})`；响应头 `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`、`Content-Disposition: attachment; filename="<nodeType>-<ISO时间>.xlsx"`，body 为 buffer。
+- `app.ts`：挂载 `makeExportRouter(deps.repo, deps.registry)` 于 `/api`，在全局错误中间件之前。
+
+### 16.2 前端
+
+- `EntityTable` 头部新增「导出 Excel」按钮，`aria-label="export-excel"`，实现为 `<a href={\`/api/export/${nodeType}\`} download>`（浏览器走 attachment 头直接下载，零 blob 处理）。`/attack`、`/contributions` 复用同组件自动具备。
+
+### 16.3 测试（TDD + 前后台 e2e）
+
+- 后端 e2e：建数条记录 → `GET /api/export/attackTicket` 200 + 正确 content-type；`XLSX.read` 回解析，表头=活跃字段 `label`、值按 `id` 正确、退休字段不出现；未知 nodeType→404。
+- 前端 Playwright：`/attack` 点「导出 Excel」→ `page.waitForEvent('download')` 触发，`suggestedFilename` 匹配 `attackTicket-*.xlsx`。复用既有确定性 e2e 框架（无需改 reset-db.cjs）。
+
+### 16.4 关键设计决策（补充 §12）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 导出位置 | 服务端端点 | 全量、与导入对称、复用后端 xlsx；前端零依赖新增 |
+| 导出范围 | 该 nodeType 全部记录（忽略 UI 过滤） | 用户选定"全量导出" |
+| 表头/取值 | 表头=活跃字段 label，值按 field.id | 可读 + 与 §7 导入列映射对称（双向兼容） |
+| 退休字段 | 排除 | 与 §14 退休=非破坏隐藏一致 |
+| 鉴权 | 无 | 与全局一致（§13#4 延后） |
+| 范围 | 仅服务端全量；不含客户端过滤导出/样式 | YAGNI |
+
+### 16.5 验收标准
+
+- [ ] `GET /api/export/:nodeType` 返回合法 xlsx（正确 content-type + attachment 文件名）；回解析行=全量、表头=活跃字段 label、值按 id 正确、退休字段不含；未知 nodeType→404
+- [ ] `EntityTable`「导出 Excel」按钮在 `/attack` 与 `/contributions` 均可触发浏览器下载
+- [ ] `npm run test:all` 全绿（含新增导出后端 e2e + Playwright 下载用例）；完成后部署到测试服务器
