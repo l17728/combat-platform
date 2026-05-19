@@ -591,7 +591,7 @@ UI 层      : 视图渲染引擎（表格↔布局↔图↔时间线，配置驱
 | 3 | welinkcli 抓取攻关群消息的可行性与权限？ | Phase3 自动日报/找人 | 需确认 welinkcli 能力与合规 |
 | 4 | 权限模型（谁可见/可改/可标定贡献等级）？ | 全局 | Phase1 不做，Phase2 加 RBAC（贡献等级仅 Leader） |
 | 5 | 图谱规模上限？ | KG 存储/渲染 | 千级先用 SQL+内存图，万级引入图索引/分页聚类 |
-| 6 | 发布包/权重文件归档：仅元数据登记还是文件托管？ | 李嘉⑤⑥ | 倾向先做元数据+链接登记，文件托管后评估 |
+| 6 | 发布包/权重文件归档：仅元数据登记还是文件托管？ | 李嘉⑤⑥ | **已解决（§25）**：增量7 交付**元数据+链接登记**（`releasePackage` / `weightFile` 两 nodeType），文件托管后续按需评估 |
 | 7 | 字段 id 生成策略（新字段 slug 派生算法/唯一化/中文）？ | §14 增量1 | 现有字段 id=原名；新字段：名字派生 slug + 冲突加序号；最终化 §14.2 |
 | 8 | 跨颗粒度锚点的权威清单（问题单号/OSM/事件单号/domain id/客户）？ | §14 增量3d | **已解决（§21.1）**：锁定 `问题单号`（含 OSM/关联需求·问题单）/`事件单号`/`domain`/`客户`（含 涉及/影响客户），配置可扩展 |
 | 9 | `applyFieldOp` 回滚粒度：`reload()` 全目录重解析，无关 sibling 配置损坏会误回滚本次有效变更 | §14.2B 增量1 已交付（单/少 schema 可接受） | schema 增多前改为"仅校验被写文件"再 reload；现以注释+本条跟踪 |
@@ -1247,3 +1247,92 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] 只读：调用前后 `audit_log` 行数不变（dashboard.e2e 用例2）；同输入同输出；空系统→零值（用例3）
 - [x] `HomePage` `dashboard` 面板与数据一致；大盘失败时 message.error+模块卡片仍全部可用；既有 `home-card-*` 不破坏（FE-D1）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend72/FEunit13/e2e29）；完成后部署测试服务器
+
+---
+
+## 25. 增量7：发布包 / 权重文件 归档（Phase 3.5）开发依据
+
+> 兑现 §1.4 李嘉⑤⑥ + §10 Phase 3.5 + 解决 §13#6（已锁定**元数据 + 链接登记**，文件托管后续按需）。本增量是 **§0.4 配置驱动 schema** 架构的优雅证伪：两个全新业务实体几乎零后端代码——只增两份 JSON 配置 + 两个前端路由/卡片即落地，泛型 CRUD/导入/导出/检索/关联/锚点全部自动复用。本节是本增量的实现依据。
+
+### 25.0 范围与定向
+
+交付 ①`releasePackage`（发布包）与 ②`weightFile`（权重文件）两个 nodeType（**仅 config，无后端代码新增**）；③前端 `/releases` 与 `/weights` 两路由（复用既有 `EntityTable`）+ AppShell 导航 + HomePage 卡片；④通过既有 anchor「问题单号」与共享 person `负责人` concept 自动并入跨 view 关联与找帮手数据面。**YAGNI**：不做文件上传/托管/校验和（仅链接登记，§13#6 拍板）、不专门改 dashboard（资源数据非作战态势聚合面，后续按需）、不专门改 recommendHelpers（仍 attackTicket 维度）。
+
+### 25.1 配置（无 shared 契约改动）
+
+新建 `config/schemas/releasePackage.json`（最小可演示字段集，配置驱动 → UI 可后续增减）：
+```json
+{
+  "nodeType": "releasePackage",
+  "label": "发布包",
+  "identityKeys": ["版本号"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "版本号", "name": "版本号", "type": "string", "label": "版本号", "required": true },
+    { "id": "产品", "name": "产品", "type": "string", "label": "产品" },
+    { "id": "发布日期", "name": "发布日期", "type": "date", "label": "发布日期" },
+    { "id": "链接", "name": "链接", "type": "string", "label": "下载/仓库链接" },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" },
+    { "id": "描述", "name": "描述", "type": "string", "label": "描述" },
+    { "id": "备注", "name": "备注", "type": "string", "label": "备注" }
+  ]
+}
+```
+新建 `config/schemas/weightFile.json`：
+```json
+{
+  "nodeType": "weightFile",
+  "label": "权重文件",
+  "identityKeys": ["名称"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "名称", "name": "名称", "type": "string", "label": "名称/版本", "required": true },
+    { "id": "模型", "name": "模型", "type": "string", "label": "模型" },
+    { "id": "链接", "name": "链接", "type": "string", "label": "存储链接" },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "训练日期", "name": "训练日期", "type": "date", "label": "训练日期" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" },
+    { "id": "备注", "name": "备注", "type": "string", "label": "备注" }
+  ]
+}
+```
+两者通过 `责任人 ref→person concept="负责人"` 自动并入 3b 异名同 concept 归并；通过 `关联问题单 anchor="问题单号"` 自动并入 3d 跨颗粒度共享锚点派生（与同一问题单号下的 attackTicket/contribution 在 `coAnchored` 互见）。
+
+### 25.2 后端
+
+**无新增代码。**既有泛型 `POST/PUT/DELETE /api/nodes/:nodeType`、`GET /api/nodes/:nodeType`、`syncRefEdges`、`syncAnchorEdges`、`/api/related`、`/api/query/search`、`/api/export/:nodeType`、`/api/import` 对任意配置 nodeType 自动生效。仅需后端 e2e **证伪/确认**这种泛型复用对新 nodeType 端到端工作。
+
+### 25.3 前端
+
+- `apps/frontend/src/App.tsx`：加路由 `<Route path="/releases" element={<EntityTable nodeType="releasePackage" />} />` 与 `<Route path="/weights" element={<EntityTable nodeType="weightFile" />} />`（紧接 `/search` 之后）。
+- `apps/frontend/src/pages/AppShell.tsx`：`ITEMS` 增「发布包」`/releases` 与「权重文件」`/weights`（置于「信息检索」之后）。
+- `apps/frontend/src/pages/HomePage.tsx`：`MODULES` 增两条卡片（标题/描述同上）。
+- 不改 EntityTable、不改 dashboard、不改 recommendHelpers。
+
+### 25.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- 后端 e2e（新 `apps/backend/test/archive.e2e.test.ts`）：①`POST /api/nodes/releasePackage` 与 `POST /api/nodes/weightFile` 成功（required 校验生效）；②`GET /api/nodes/:nodeType` 列出；③`PUT /api/nodes/:id` 修改；④`syncRefEdges` 对 `责任人` 建 REF→person；⑤`syncAnchorEdges` 对 `关联问题单` 建 ANCHORED_TO 锚点；⑥同一问题单号 X 下：attackTicket + releasePackage + weightFile 三者经 `/api/related/...?` 互在 `coAnchored`（跨 view 跨 nodeType 共享锚点派生贯通）；⑦`/api/query/search` 命中 releasePackage/weightFile 内属性子串；⑧`DELETE /api/nodes/:id` 删除并清边（既有 deleteNode 行为）。
+- 前端 Playwright（新 `apps/frontend/e2e/archive.spec.ts`）：首页导航至 `/releases` 与 `/weights`；新增行（valid required）并显示；导出 Excel 按钮可见；信息检索命中新建行。
+- 全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 25.5 关键设计决策（补充 §0.4/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 数据形态 | 元数据 + 链接登记，**非文件托管** | §13#6 拍板；MVP YAGNI；文件托管涉及存储/校验/权限，后续按需评估 |
+| 实现路径 | **仅 config + 前端路由**，零后端代码 | §0.4 配置驱动；证实泛型 CRUD/导入/导出/检索/关联/锚点对新 nodeType 自动生效 |
+| 关联机制 | `责任人 ref→person concept=负责人` + `关联问题单 anchor=问题单号` | 自动并入 3b 异名归并 + 3d 跨颗粒度共享锚点（与 attackTicket/contribution 互见 coAnchored）|
+| dashboard / 推荐器 | **不动** | dashboard 是作战态势面（tickets+contribs），资源面不在范畴；recommendHelpers 是攻关单维度 |
+| 文件上传/校验/权限 | 不在增量7 | YAGNI；§13#6 后续 |
+| 字段集 | 最小可演示 + UI 可后续增减 | §0.4 字段可运行时增减写回 config |
+
+### 25.6 验收标准
+
+- [ ] `config/schemas/releasePackage.json` / `weightFile.json` 加载生效；后端 ZERO 新代码、ZERO 新 shared 契约（架构验证）
+- [ ] 两 nodeType 的 CRUD（POST/PUT/GET/DELETE）经泛型路由生效；`required` 字段（版本号 / 名称）违反 → 400
+- [ ] `责任人` ref 写入 → REF→person 边自动建立（3a 复用）
+- [ ] `关联问题单` 非空 → ANCHORED_TO 问题单号 锚点（3d 复用）；同 X 下 attackTicket + releasePackage + weightFile 经 `/api/related` `coAnchored` 互见（跨 view 跨 nodeType 派生贯通）
+- [ ] `/api/query/search` 命中新 nodeType 属性子串（4 复用）
+- [ ] 前端 `/releases` / `/weights` 路由 + AppShell 导航 + HomePage 卡片可达；EntityTable 渲染、新增、编辑、退休字段、导出 Excel 全部复用既有
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
