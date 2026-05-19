@@ -1208,7 +1208,7 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 ### 24.2 后端
 
 - 新模块 `apps/backend/src/dashboard.ts` 路由（挂 `/api`、错误中间件前）`GET /api/dashboard`（只读）：
-  - `const tks = repo.queryNodes("attackTicket")`；`byStatus`：对每个 `t.properties["状态"]`（缺省空串归 `""` 键）计数；`total=tks.length`；`open=∈{待响应,处理中,进行中}` 计数；`resolved=∈{已解决,已关闭}` 计数。
+  - `const tks = repo.queryNodes("attackTicket")`；`byStatus`：对每个非空 `t.properties["状态"]`（trim 后空者跳过，避免 `""` 噪声键污染响应）计数；`total=tks.length`；`open=∈{待响应,处理中,进行中}` 计数；`resolved=∈{已解决,已关闭}` 计数（**不变式**：仅当所有 ticket 的状态都在这两个集合之内时 `open+resolved==total`；非规范/缺省状态仍计入 `total` 但不计入 open/resolved）。
   - `const cs = repo.queryNodes("contribution")`；`contributions.total=cs.length`；`topContributors`：按 `c.properties["贡献人"]`（字符串值；空者跳过）分组计数，按 `count desc, 贡献人 asc` 确定排序，取前 5。
   - `proposalsPending = repo.listProposals({ status: "待审批" }).length`。
   - 返回 `DashboardSummary`。仅上述 reader 原语；调用前后 `audit_log` 行数不变（e2e 断言）。
