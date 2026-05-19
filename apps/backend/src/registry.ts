@@ -69,6 +69,7 @@ export class FileSchemaRegistry implements SchemaRegistry {
     } else if (op.op === "unretire") {
       find(op.id).retired = false;
     } else if (op.op === "setAliases") {
+      if (!Array.isArray(op.aliases)) throw new Error("setAliases 需要 aliases 数组");
       find(op.id).aliases = op.aliases;
     } else {
       throw new Error(`未知操作: ${(op as { op: string }).op}`);

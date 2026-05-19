@@ -60,4 +60,18 @@ describe("alias e2e", () => {
     expect(r.status).toBe(400);
     expect(readFileSync(join(cfg, "attackTicket.json"), "utf8")).toBe(before);
   });
+  it("setAliases with empty array clears aliases; missing aliases -> 400 + config unchanged", async () => {
+    const { app, cfg } = makeApp();
+    const clr = await request(app).patch("/api/schema/attackTicket")
+      .send({ op: "setAliases", id: "当前处理人", aliases: [] });
+    expect(clr.status).toBe(200);
+    expect(clr.body.fields.find((f: any) => f.id === "当前处理人").aliases).toEqual([]);
+    const onDisk = JSON.parse(readFileSync(join(cfg, "attackTicket.json"), "utf8"));
+    expect(onDisk.fields.find((f: any) => f.id === "当前处理人").aliases).toEqual([]);
+    const before = readFileSync(join(cfg, "attackTicket.json"), "utf8");
+    const bad = await request(app).patch("/api/schema/attackTicket")
+      .send({ op: "setAliases", id: "标题" });
+    expect(bad.status).toBe(400);
+    expect(readFileSync(join(cfg, "attackTicket.json"), "utf8")).toBe(before);
+  });
 });
