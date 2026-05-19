@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { EntitySchemaConfig, GraphNode, ProgressLog } from "./index.js";
+import type { QueryHit, QueryContext } from "./index.js";
 import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
 import type { LeaderboardEntry, PersonHonor } from "./index.js";
 import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
@@ -114,5 +115,18 @@ describe("anchor contracts", () => {
     expect(f.anchor).toBe("问题单号");
     const op: FieldOp = { op: "setAnchor", id: "问题单号", anchor: "问题单号" };
     expect(op.op).toBe("setAnchor");
+  });
+});
+
+describe("query contracts", () => {
+  it("QueryHit + QueryContext shapes", () => {
+    const h: QueryHit = { id: "n1", nodeType: "attackTicket", summary: "断网攻关", score: 2 };
+    expect(h.score).toBe(2);
+    const ctx: QueryContext = {
+      node: { id: "n1", nodeType: "attackTicket", properties: {}, createdAt: "t", updatedAt: "t" },
+      related: { outgoing: [], incoming: [], coAnchored: [] },
+      progress: [],
+    };
+    expect(ctx.related.coAnchored).toEqual([]);
   });
 });

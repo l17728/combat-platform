@@ -52,6 +52,14 @@ export interface ProgressLog {
   updatedBy: string;
   updatedAt: string;
 }
+export interface QueryHit { id: string; nodeType: string; summary: string; score: number; }
+export interface RelatedItem { field: string; concept: string; node: GraphNode; }
+export interface CoAnchoredItem { anchorKind: string; anchorKey: string; node: GraphNode; }
+export interface QueryContext {
+  node: GraphNode;
+  related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
+  progress: ProgressLog[];
+}
 export interface LeaderboardEntry {
   贡献人: string;
   score: number;
