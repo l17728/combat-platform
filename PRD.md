@@ -1336,3 +1336,58 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] `/api/query/search` 命中新 nodeType 属性子串（用例4）；summarize() 补充 攻关单号/版本号/名称 识别键，新 nodeType 返回人读标签（非 UUID）
 - [x] 前端 `/releases` / `/weights` 路由 + AppShell 导航 + HomePage 卡片可达；EntityTable 渲染/新增/导出 Excel 全部复用（FE-AR1/FE-AR2）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend76/FEunit13/e2e31）；完成后部署测试服务器
+
+---
+
+## 26. 增量8：增量导入（Phase 3.6）开发依据
+
+> 兑现 §10 Phase 3.6「增量导入」+ 用户实际需求（重新导入更新后的 Excel 不能制造重复行）。把现有全量 create 导入升级为 **按 identityKey upsert** 的增量导入，并把 `/api/import` **参数化到任意 nodeType**（attackTicket / contribution / releasePackage / weightFile / person），自然继承增量7 的两个新归档表的导入能力。**写权威路径不变**（仍经 validateNode + 结构化模型；UPDATE 仍触发 `syncRefEdges`/`syncAnchorEdges`/audit）。
+
+### 26.0 范围与定向
+
+交付 ①`POST /api/import?type=<nodeType>` 参数化（默认 `attackTicket` 向后兼容）；②按 nodeType 的 `identityKeys` upsert——任一 identityKey 在请求中有非空值且匹配既有节点 → `updateNode`（属性合并）；否则 `createNode`；③响应 `{ created, updated }` 加法；④`attackTicket` 既有 `ASSIGNED_TO 攻关申请人` 边在 upsert 时**幂等**（先删该节点的 ASSIGNED_TO 边再按当前请求重建）；⑤`ImportPage` 加 nodeType 选择 + 新消息「导入新增 N · 已更新 M」。**YAGNI**：不做 CSV、不做并行 worker、不做大文件流式、不做去重冲突 UI（首匹配确定胜出）、不做事务回滚整批（每行独立校验+导入，失败行跳过——既有行为保留）。
+
+### 26.1 后端
+
+- `apps/backend/src/import.ts`：
+  - `req.query.type` 解析为 `nodeType`（默认 `"attackTicket"`，数组安全）。`schema = registry.getNodeSchema(nodeType)`；缺则 400 `{error:"unknown nodeType: <type>"}`。
+  - 每行：`props = mapColumns(raw, schema)`；`validateNode(nodeType, props)` 失败则跳过（既有）。
+  - **upsert 查找**：遍历 `schema.identityKeys`，第一个在 `props` 中有非空值（trim 后非空）的 key 取 `repo.queryNodes(nodeType, { [key]: value }).at(0)` 作为匹配；找到→`updateNode(found.id, props, "import")`（合并），`updated++`；未找到（包括全部 identityKey 为空）→`createNode(nodeType, props, "import")`，`created++`。
+  - **REF / ANCHORED_TO 自动同步**：调用 `syncRefEdges(repo, registry, node, props, "import")` 与 `syncAnchorEdges(repo, registry, node, props, "import")`（创建与更新两条路径均调用，保持与正常 POST/PUT 一致——既有 3a/3d 派生不被绕过）。
+  - **ASSIGNED_TO 幂等**（仅 `nodeType==="attackTicket"`，保留原 `攻关申请人` 边语义，向后兼容）：upsert 后 `repo.deleteEdges({ sourceId: node.id, edgeType: "ASSIGNED_TO" }, "import")`；若 `resolvePerson(...)` 非空则重建。
+  - 响应 `{ created, updated }`（向后兼容：旧调用方仅读 `.created` 仍工作）。
+
+### 26.2 前端
+
+- `apps/frontend/src/api.ts`：`importXlsx(file, type?)` 改签名 → `POST /api/import?type=<type>`（无 type 不带查询）→ `Promise<{ created: number; updated: number }>`。
+- `apps/frontend/src/pages/ImportPage.tsx`：加 `Select aria-label="import-type"` 含 5 个选项（`attackTicket`/`contribution`/`releasePackage`/`weightFile`/`person`，默认 `attackTicket`）；上传成功消息改为 `导入新增 ${r.created} · 已更新 ${r.updated}`；标题改为「导入数据」（覆盖原「导入攻关单」更通用，FE-IM-1 既有断言用 `getByText("导入攻关单")` 需要随之更新——属于有意识更新，等价 3b 既有断言更新先例）。
+
+### 26.3 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- 后端 e2e（新 `apps/backend/test/import-upsert.e2e.test.ts`）：①xlsx with 2 rows (新 攻关单号 A1+A2) → created=2, updated=0；②同 xlsx 再次导入（同 identityKey）→ created=0, updated=2；③同行修改属性值 → updateNode 合并；④`?type=releasePackage` + xlsx (版本号 v1, v2) → 新 nodeType upsert 生效；⑤未知 type → 400；⑥validate 失败行跳过且不计 created/updated；⑦attackTicket upsert + ASSIGNED_TO 边幂等（一次导入只剩一条该边）；⑧UPDATE 后 syncRefEdges 重建（当前处理人 改值 → REF 边更新）。
+- 前端 Playwright（既有 `coverage.spec.ts` 的 "GAP Import" 与新 `apps/frontend/e2e/import-upsert.spec.ts`）：选 attackTicket 上传 → 显示「新增 N · 已更新 M」；选 releasePackage 上传 → 同；既有失败路径（route 500）仍显示「导入失败，请重试」（不变）。
+- 既有 coverage.spec 「GAP Import：failure path」与首页/导航相关断言中的「导入攻关单」标题改为新标题 → 等价有意识更新（同 3b 先例）。
+- 随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 26.4 关键设计决策（补充 §0.4/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 写权威路径 | 全部经 validateNode + `createNode`/`updateNode` + `syncRefEdges`/`syncAnchorEdges` + audit | §0.3：导入也是写，必须走唯一权威写路径 |
+| 匹配键 | nodeType.identityKeys 顺序遍历、首个非空且命中胜出 | 简单可预测；多 identityKey 节点（如 person:employeeId/email）任一命中即视为同一实体 |
+| 全部 identityKey 为空 | 视为新行，create | 无身份信号无法 upsert；旧 create-only 行为的兼容 |
+| 多个既有节点都命中？ | 取 `queryNodes` 首个 | 实际罕见（identity 已保证唯一）；保留确定性，复杂去重留后续 |
+| ASSIGNED_TO 边 | 仅 attackTicket、upsert 时先删后建 | 保留向后兼容；幂等避免重复 |
+| CSV / 大文件流式 / 整批事务 | 不在 8 | YAGNI |
+| nodeType 选择 UI | 5 项固定列表 | MVP；后续可改 registry-driven |
+
+### 26.5 验收标准
+
+- [ ] `POST /api/import?type=<nodeType>`（默认 attackTicket 向后兼容）；未知 type → 400
+- [ ] 首次导入新数据 → `{created:N, updated:0}`；再次导入相同 identityKey 行 → `{created:0, updated:N}`；混合 → 各自计数正确
+- [ ] UPDATE 合并属性（既有字段保留，新值覆盖；如 `当前处理人` 改值，`syncRefEdges` 重建 REF）
+- [ ] `?type=releasePackage` 与 `?type=weightFile` 导入按 identityKey upsert 生效（架构验证：泛型导入对新 nodeType 自动适用）
+- [ ] validateNode 失败行不计入 created/updated（既有行为保留）
+- [ ] attackTicket：ASSIGNED_TO `攻关申请人` 边 upsert 幂等（每节点至多 1 条）
+- [ ] `ImportPage`：nodeType 选择可用；上传成功显示「导入新增 N · 已更新 M」；失败路径不变
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
