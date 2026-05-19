@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { EntitySchemaConfig, GraphNode, ProgressLog } from "./index.js";
 import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
 import type { LeaderboardEntry, PersonHonor } from "./index.js";
+import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -82,5 +83,27 @@ describe("concept contracts", () => {
     expect(f.concept).toBe("负责人");
     expect(ops[0].op).toBe("setConcept");
     if (ops[0].op === "setConcept") expect(ops[0].concept).toBe("负责人");
+  });
+});
+
+describe("relation-proposal contracts", () => {
+  it("RelationProposal shape + Chinese status literals", () => {
+    const p: RelationProposal = {
+      id: "p1", sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
+      confidence: 0.8, proposerSource: "heuristic-v1", rationale: "张伟≈张玮 dist=1",
+      status: "待审批", createdAt: new Date().toISOString(),
+    };
+    const decided: RelationProposalStatus[] = ["待审批", "已通过", "已拒绝"];
+    expect(decided).toContain(p.status);
+    const p2: RelationProposal = { ...p, status: "已通过", decidedBy: "运营", decidedAt: "t" };
+    expect(p2.decidedBy).toBe("运营");
+  });
+  it("RelationProposer.propose returns proposal drafts (no id/status)", () => {
+    const proposer: RelationProposer = {
+      propose: () => [{ sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
+        confidence: 0.9, proposerSource: "heuristic-v1", rationale: "r" }],
+    };
+    const out = proposer.propose({} as Repository, {} as SchemaRegistry);
+    expect(out[0].relationType).toBe("SAME_AS");
   });
 });

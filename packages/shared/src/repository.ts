@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, ProgressLog } from "./types.js";
+import type { GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus } from "./types.js";
+import type { SchemaRegistry } from "./registry.js";
 
 export type NodeFilter = Record<string, unknown>;
 
@@ -15,4 +16,13 @@ export interface Repository {
   listProgress(ownerId: string): ProgressLog[];
   deleteNode(id: string, actor: string): void;
   logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): void;
+  createProposal(p: Omit<RelationProposal, "id" | "status" | "decidedBy" | "decidedAt" | "createdAt">, actor: string): RelationProposal;
+  listProposals(opts?: { status?: RelationProposalStatus }): RelationProposal[];
+  getProposal(id: string): RelationProposal | undefined;
+  updateProposalStatus(id: string, status: RelationProposalStatus, decidedBy: string, actor: string): RelationProposal;
+}
+
+export type ProposalDraft = Omit<RelationProposal, "id" | "status" | "decidedBy" | "decidedAt" | "createdAt">;
+export interface RelationProposer {
+  propose(repo: Repository, registry: SchemaRegistry): ProposalDraft[];
 }

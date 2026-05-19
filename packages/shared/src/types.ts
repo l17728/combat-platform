@@ -66,3 +66,18 @@ export interface PersonHonor {
   贡献人: string;
   contributions: HonorContribution[];
 }
+
+export type RelationProposalStatus = "待审批" | "已通过" | "已拒绝";
+export interface RelationProposal {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  relationType: string;
+  confidence: number;
+  proposerSource: string;
+  rationale: string;
+  status: RelationProposalStatus;
+  decidedBy?: string;
+  decidedAt?: string;
+  createdAt: string;
+}
