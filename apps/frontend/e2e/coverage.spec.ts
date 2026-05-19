@@ -25,7 +25,7 @@ test("GAP nav: home cards + AppShell nav reach every module", async ({ page }) =
   await expect(page).toHaveURL(/\/contributions$/);
   await page.getByRole("link", { name: "导入", exact: true }).first().click();
   await expect(page).toHaveURL(/\/import$/);
-  await expect(page.getByText("导入攻关单")).toBeVisible(); // GAP-17 IM-1 heading
+  await expect(page.getByText("导入数据")).toBeVisible(); // GAP-17 IM-1 heading
 });
 
 test("GAP AttackDetail: Descriptions render, related-link, empty-progress no-op", async ({ page, request }) => {
@@ -45,7 +45,7 @@ test("GAP AttackDetail: Descriptions render, related-link, empty-progress no-op"
 
 test("GAP Import: failure path shows error message", async ({ page }) => {
   await page.goto("/import");
-  await expect(page.getByText("导入攻关单")).toBeVisible();
+  await expect(page.getByText("导入数据")).toBeVisible();
   // GAP-18 IM-5: the error toast is ImportPage's catch on a failed POST /api/import.
   // SheetJS parses junk leniently (→ 200 {created:0}), so deterministically force
   // the HTTP failure via route interception to exercise the real error-handling path.
