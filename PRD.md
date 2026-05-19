@@ -1175,10 +1175,10 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 23.6 验收标准
 
-- [ ] shared `HelperRecommendation` 契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] `GET /api/recommend/helpers/:id`：共享问题单的另一攻关单当前处理人 + 共享问题单相关贡献人（按贡献等级）计分；通用核心/关键贡献兜底（每人封顶）；**排除本单当前处理人**
-- [ ] 排序确定（score desc, 姓名 asc, id asc）、`limit` 截断、`reasons` 引用具体问题单/攻关单/贡献；同输入同输出
-- [ ] 不存在 id→404；存在但非 `attackTicket`→400
-- [ ] 只读：调用前后 `audit_log` 行数不变（无写/无审计副作用）
-- [ ] `AttackDetail`「找帮手」区：展示排名人选+score+reasons，点击跳该人关联页；无人选空态；纯加法不破坏既有
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `HelperRecommendation` 契约生效（shared 类型测试 14/14，tsc RED→GREEN），现有不破坏
+- [x] `GET /api/recommend/helpers/:id`：共享问题单另一攻关单当前处理人(+3) + 共享问题单相关贡献人(按等级 核心3/关键2/普通1)；通用核心/关键贡献兜底(last-resort，排除已锚点计分者，每人封顶+3)；**排除本单当前处理人**（recommend.e2e 用例1，断言 乙=丙=3、丁=1、丙 reasons 仅1条）
+- [x] 排序确定（score desc, 姓名 asc, id asc）、`limit` 截断、`reasons` 引用具体问题单/攻关单/贡献；同输入同输出（recommend.e2e 用例1/3）
+- [x] 不存在 id→404；存在但非 `attackTicket`→400（recommend.e2e 用例2）
+- [x] 只读：调用前后 `audit_log` 行数不变（recommend.e2e 用例2）
+- [x] `AttackDetail`「找帮手」区：排名人选+score+reasons，点击跳该人关联页（FE-RC1）；空态（FE-RC2 路由拦截确定性覆盖）；纯加法不破坏既有（e2e 28/28）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared14/backend69/FEunit13/e2e28）；完成后部署测试服务器
