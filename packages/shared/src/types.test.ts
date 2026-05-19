@@ -9,7 +9,7 @@ describe("shared types", () => {
       nodeTypes: [{
         nodeType: "attackTicket", label: "攻关单",
         identityKeys: ["攻关单号"], derivedToKG: true,
-        fields: [{ name: "标题", type: "string", label: "标题", required: true }],
+        fields: [{ id: "标题", name: "标题", type: "string", label: "标题", required: true }],
       }],
       edgeTypes: [{ edgeType: "ASSIGNED_TO", from: "attackTicket", to: "person" }],
     };
