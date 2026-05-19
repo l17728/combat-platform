@@ -8,6 +8,7 @@ import { makeRelatedRouter } from "./related.js";
 import { makeProposalsRouter } from "./proposals.js";
 import { makeQueryRouter } from "./query.js";
 import { makeRecommendRouter } from "./recommend.js";
+import { makeDashboardRouter } from "./dashboard.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) {
   const app = express();
@@ -20,6 +21,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) 
   app.use("/api", makeProposalsRouter(deps.repo, deps.registry));
   app.use("/api", makeQueryRouter(deps.repo, deps.registry));
   app.use("/api", makeRecommendRouter(deps.repo));
+  app.use("/api", makeDashboardRouter(deps.repo));
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: err.message });
   });
