@@ -12,6 +12,11 @@ test("GAP nav: home cards + AppShell nav reach every module", async ({ page }) =
   await page.goto("/");
   await page.getByRole("link", { name: /导入/ }).first().click();
   await expect(page).toHaveURL(/\/import$/);
+  // GAP-3c home card → 关系审批 queue
+  await page.goto("/");
+  await page.getByRole("link", { name: /关系审批/ }).first().click();
+  await expect(page).toHaveURL(/\/proposals$/);
+  await expect(page.getByRole("heading", { name: "关系审批队列" })).toBeVisible();
   // GAP-3/4/5 AppShell nav from an arbitrary page
   await page.goto("/attack");
   await page.getByRole("link", { name: "首页", exact: true }).first().click();
