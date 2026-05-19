@@ -61,6 +61,11 @@ export interface QueryContext {
   progress: ProgressLog[];
 }
 export interface HelperRecommendation { person: GraphNode; score: number; reasons: string[]; }
+export interface DashboardSummary {
+  tickets: { total: number; byStatus: Record<string, number>; open: number; resolved: number };
+  contributions: { total: number; topContributors: { 贡献人: string; count: number }[] };
+  proposalsPending: number;
+}
 export interface LeaderboardEntry {
   贡献人: string;
   score: number;

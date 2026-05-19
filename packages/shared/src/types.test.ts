@@ -4,6 +4,7 @@ import type { QueryHit, QueryContext, HelperRecommendation } from "./index.js";
 import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
 import type { LeaderboardEntry, PersonHonor } from "./index.js";
 import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
+import type { DashboardSummary } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -139,5 +140,17 @@ describe("helper-recommendation contract", () => {
     };
     expect(r.score).toBe(6);
     expect(r.reasons[0]).toContain("PB-1");
+  });
+});
+
+describe("dashboard contract", () => {
+  it("DashboardSummary shape", () => {
+    const d: DashboardSummary = {
+      tickets: { total: 3, byStatus: { 进行中: 2, 已解决: 1 }, open: 2, resolved: 1 },
+      contributions: { total: 4, topContributors: [{ 贡献人: "张三", count: 3 }] },
+      proposalsPending: 1,
+    };
+    expect(d.tickets.open).toBe(2);
+    expect(d.contributions.topContributors[0].贡献人).toBe("张三");
   });
 });
