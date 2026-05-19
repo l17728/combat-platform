@@ -47,6 +47,22 @@ describe("SqliteRepository", () => {
     const a = db.prepare("SELECT * FROM audit_log WHERE action='DELETE' AND entityId=?").all(n.id) as any[];
     expect(a).toHaveLength(1);
     expect(a[0].performedBy).toBe("killer");
+    expect(repo.getNode(other.id)).not.toBeNull();
+  });
+  it("deleteNode removes inbound edges, leaves unrelated data, no audit for unknown id", () => {
+    const a = repo.createNode("attackTicket", { 标题: "A" }, "t");
+    const b = repo.createNode("person", { name: "B" }, "t");
+    const c = repo.createNode("person", { name: "C" }, "t");
+    repo.createEdge("BLOCKED_BY", b.id, a.id, {}, "t");   // a is TARGET (inbound)
+    repo.createEdge("RELATES_TO", b.id, c.id, {}, "t");   // unrelated, must survive
+    repo.deleteNode(a.id, "t");
+    expect(repo.queryEdges({ targetId: a.id })).toHaveLength(0);
+    expect(repo.queryEdges({ sourceId: b.id, targetId: c.id })).toHaveLength(1);
+    expect(repo.getNode(b.id)).not.toBeNull();
+    const before = (db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action='DELETE'").get() as any).n;
+    repo.deleteNode("ghost-does-not-exist", "t");
+    const after = (db.prepare("SELECT COUNT(*) n FROM audit_log WHERE action='DELETE'").get() as any).n;
+    expect(after).toBe(before);
   });
   it("logAudit writes an arbitrary audit row", () => {
     repo.logAudit({ action: "SCHEMA_addField", entityType: "schema", entityId: "attackTicket", changes: { x: 1 }, actor: "alice" });
