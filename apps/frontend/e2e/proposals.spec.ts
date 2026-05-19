@@ -9,16 +9,20 @@ test("FE-P1 proposals queue: nav, scan, approve; RelatedPage candidate group", a
   await page.getByRole("link", { name: "关系审批", exact: true }).first().click();
   await expect(page).toHaveURL(/\/proposals$/);
   await page.getByLabel("scan-proposals").click();
-  const row = page.getByRole("row").filter({ hasText: "SAME_AS" }).first();
-  await expect(row).toBeVisible();
+  // non-vacuous: a real candidate row + its SAME_AS relationType must appear
+  const approve = page.getByLabel(/^approve-/).first();
+  await expect(approve).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "SAME_AS" }).first()).toBeVisible();
+  const approveId = await approve.getAttribute("aria-label"); // approve-<proposalId>
 
   const persons = await (await page.request.get(`${API}/api/nodes/person`)).json();
   await page.goto(`/related/person/${persons[0].id}`);
   await expect(page.getByRole("heading", { name: "候选关系（待审批）" })).toBeVisible();
 
   await page.goto("/proposals");
-  await page.getByLabel(/^approve-/).first().click();
-  await expect(page.getByRole("row").filter({ hasText: "SAME_AS" })).toHaveCount(0);
+  await page.getByLabel(approveId!).click();
+  // the approved proposal specifically must leave the 待审批 queue
+  await expect(page.getByLabel(approveId!)).toHaveCount(0);
 });
 
 test("FE-P2 ref cell jumps directly to the referenced person's relations page", async ({ page, request }) => {

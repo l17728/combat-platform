@@ -6,7 +6,8 @@ import type { RelationProposal } from "@combat/shared";
 export function ProposalsPage() {
   const [rows, setRows] = useState<RelationProposal[]>([]);
   const refresh = useCallback(async () => {
-    setRows(await api.listProposals("待审批"));
+    try { setRows(await api.listProposals("待审批")); }
+    catch (e) { message.error(String((e as Error).message)); }
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
 

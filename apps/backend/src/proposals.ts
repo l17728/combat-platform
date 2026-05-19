@@ -40,6 +40,8 @@ export function makeProposalsRouter(repo: Repository, registry: SchemaRegistry):
       return res.json(repo.updateProposalStatus(p.id, "已拒绝", decidedBy, decidedBy));
     if (decision === "通过" || decision === "修正") {
       const target = decision === "修正" && patch?.targetNodeId ? patch.targetNodeId : p.targetNodeId;
+      if (decision === "修正" && patch?.targetNodeId && !repo.getNode(patch.targetNodeId))
+        return res.status(400).json({ error: `patch.targetNodeId 不存在: ${patch.targetNodeId}` });
       if (p.relationType === "SAME_AS") mergePerson(repo, p.sourceNodeId, target, decidedBy);
       return res.json(repo.updateProposalStatus(p.id, "已通过", decidedBy, decidedBy));
     }

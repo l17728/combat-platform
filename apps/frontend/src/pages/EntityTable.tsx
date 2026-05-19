@@ -7,11 +7,14 @@ import type { GraphNode, NodeSchema, FieldSchema } from "@combat/shared";
 function RefCell({ nodeType, rowId, fieldId, value }: { nodeType: string; rowId: string; fieldId: string; value: string }) {
   const [to, setTo] = useState(`/related/${nodeType}/${rowId}`);
   useEffect(() => {
+    let alive = true;
     api.getRelated(nodeType, rowId).then(d => {
+      if (!alive) return; // guard stale/out-of-order resolve after refresh/unmount
       const hit = d.outgoing.find(o => o.field === fieldId);
       if (hit) setTo(hit.node.nodeType === "attackTicket"
         ? `/attack/${hit.node.id}` : `/related/${hit.node.nodeType}/${hit.node.id}`);
     }).catch(() => {});
+    return () => { alive = false; };
   }, [nodeType, rowId, fieldId]);
   return <Link aria-label={`ref-${fieldId}`} to={to}>{value}</Link>;
 }

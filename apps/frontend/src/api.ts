@@ -76,8 +76,7 @@ export class Api {
     return this.req<RelationProposal[]>(`/api/proposals${qs}`, {});
   }
   scanProposals(): Promise<{ created: number }> {
-    return this.req<{ created: number }>(`/api/proposals/scan`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    return this.req<{ created: number }>(`/api/proposals/scan`, { method: "POST" });
   }
   decideProposal(id: string, decision: string, decidedBy: string, patch?: { targetNodeId?: string }): Promise<RelationProposal> {
     return this.req<RelationProposal>(`/api/proposals/${id}/decide`, {

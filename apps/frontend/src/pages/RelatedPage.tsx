@@ -41,10 +41,10 @@ export function RelatedPage() {
             )} />
         </div>
       ))}
-      {(data?.candidates?.length ?? 0) > 0 && (
+      {data?.candidates && data.candidates.length > 0 && (
         <div style={{ marginTop: 24, borderTop: "1px dashed #d46b08", paddingTop: 12 }}>
           <Typography.Title level={5} style={{ color: "#d46b08" }}>候选关系（待审批）</Typography.Title>
-          <List size="small" dataSource={data!.candidates}
+          <List size="small" dataSource={data.candidates}
             rowKey={(c) => c.proposalId}
             renderItem={(c) => (
               <List.Item>

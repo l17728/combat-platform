@@ -90,5 +90,7 @@ describe("Api client", () => {
     expect(calls[2][0]).toBe("http://x/api/proposals/pr1/decide");
     expect(calls[2][1].method).toBe("POST");
     expect(JSON.parse(calls[2][1].body)).toEqual({ decision: "通过", decidedBy: "运营" });
+    await api.decideProposal("pr1", "修正", "运营", { targetNodeId: "node-x" });
+    expect(JSON.parse(calls[3][1].body)).toEqual({ decision: "修正", decidedBy: "运营", patch: { targetNodeId: "node-x" } });
   });
 });
