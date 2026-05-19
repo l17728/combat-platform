@@ -9,7 +9,8 @@ export type FieldOp =
   | { op: "editEnum"; id: string; enumValues: string[] }
   | { op: "retire"; id: string }
   | { op: "unretire"; id: string }
-  | { op: "setAliases"; id: string; aliases: string[] };
+  | { op: "setAliases"; id: string; aliases: string[] }
+  | { op: "setConcept"; id: string; concept: string };
 
 export interface SchemaRegistry {
   getConfig(): EntitySchemaConfig;

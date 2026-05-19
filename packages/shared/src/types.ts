@@ -10,6 +10,7 @@ export interface FieldSchema {
   refType?: string;
   retired?: boolean;
   aliases?: string[];
+  concept?: string;
 }
 export interface NodeSchema {
   nodeType: string;

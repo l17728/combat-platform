@@ -74,3 +74,13 @@ describe("ref-edge contracts", () => {
     expect(keys).toContain("deleteEdges");
   });
 });
+
+describe("concept contracts", () => {
+  it("FieldSchema has optional concept and FieldOp has setConcept", () => {
+    const f: FieldSchema = { id: "当前处理人", name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" };
+    const ops: FieldOp[] = [{ op: "setConcept", id: "当前处理人", concept: "负责人" }];
+    expect(f.concept).toBe("负责人");
+    expect(ops[0].op).toBe("setConcept");
+    if (ops[0].op === "setConcept") expect(ops[0].concept).toBe("负责人");
+  });
+});
