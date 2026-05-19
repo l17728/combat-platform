@@ -9,6 +9,7 @@ export interface FieldSchema {
   enumValues?: string[];
   refType?: string;
   retired?: boolean;
+  aliases?: string[];
 }
 export interface NodeSchema {
   nodeType: string;

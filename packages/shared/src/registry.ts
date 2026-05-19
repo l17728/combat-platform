@@ -8,7 +8,8 @@ export type FieldOp =
   | { op: "renameLabel"; id: string; label: string }
   | { op: "editEnum"; id: string; enumValues: string[] }
   | { op: "retire"; id: string }
-  | { op: "unretire"; id: string };
+  | { op: "unretire"; id: string }
+  | { op: "setAliases"; id: string; aliases: string[] };
 
 export interface SchemaRegistry {
   getConfig(): EntitySchemaConfig;

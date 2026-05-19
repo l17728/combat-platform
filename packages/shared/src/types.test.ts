@@ -57,3 +57,12 @@ describe("honor contracts", () => {
     expect(p.contributions[0].attackTicketId).toBe("a1");
   });
 });
+
+describe("alias contracts", () => {
+  it("FieldSchema has optional aliases and FieldOp has setAliases", () => {
+    const f: FieldSchema = { id: "标题", name: "标题", type: "string", label: "标题", aliases: ["title", "问题标题"] };
+    const ops: FieldOp[] = [{ op: "setAliases", id: "标题", aliases: ["title"] }];
+    expect(f.aliases).toEqual(["title", "问题标题"]);
+    expect(ops[0].op).toBe("setAliases");
+  });
+});
