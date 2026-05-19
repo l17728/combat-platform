@@ -611,8 +611,12 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 | **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | ✅ 完成、tag、已部署（§14.2） |
 | **荣誉殿堂 (P0-②) + 平台集成** | 贡献记录(配置驱动)+CONTRIBUTED_TO+等级加权榜单+个人档案 **+ 统一外壳/导航 + 作战平台首页** | **进行中：本次实现（规格见 §15）** |
 | 增量1.5 | **服务端全量导出 Excel**（落实 §7.3 到 EntityTable 界面） | ✅ 完成、tag、已部署（§16） |
-| 增量2 | 字段 `aliases` 别名映射：导入列归一 + UI 别名管理（精确等值；模糊推荐+人审门留后续） | **进行中：本次实现（规格见 §17）** |
-| 增量3 | ref→实体 + 语义 concept + 跨颗粒度锚点关联 → 派生 KG 边 | 已定向（§14.3） |
+| 增量2 | 字段 `aliases` 别名映射：导入列归一 + UI 别名管理（精确等值；模糊推荐+人审门留后续） | ✅ 完成、tag、已部署（§17） |
+| 增量3（拆解） | ref→实体+concept+跨颗粒度锚点+LLM提议人审+派生KG —— **跨多子系统，拆 3a/3b/3c/3d 各自独立交付** | 拆解见 §18.0 |
+| └ 增量3a | `type:ref` 写入解析建实体+建有向边 + 1跳跨view关联只读API/页 | **进行中：本次实现（规格见 §18）** |
+| └ 增量3b | 语义 `concept`：异名同 concept 自动归并关系语义 | 已定向（需 3a） |
+| └ 增量3c | LLM/Hermes 提议候选关系 + **强制人工审批队列**（§0.3/§14.4） | 已定向（需 3a） |
+| └ 增量3d | 跨颗粒度锚点：类型化层级/聚合边 + 共享最细锚点 + 桥接节点 | 已定向（需 3a） |
 
 ### 14.2 增量1 规格（开发依据）
 
@@ -800,3 +804,72 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [ ] `PATCH /api/schema/:nodeType {op:"setAliases",...}` 持久化回 config JSON + reload；非法/未知字段 id 报错并回滚；setAliases 后再导入能用新别名
 - [ ] `EntityTable` 列头「别名」按钮在 `/attack`、`/contributions` 可设别名并持久化（经 schema 端点/刷新可见）
 - [ ] `npm run test:all` 全绿（含新增 shared 类型测试 + 后端 alias-import/setAliases e2e + Playwright 别名管理用例）；完成后部署到测试服务器
+
+---
+
+## 18. 增量3a：ref→实体边 + 1跳跨view关联（开发依据）
+
+> 兑现 §0.2「从一个人遍历到他在所有 view 的全部工作」与 §4 关联（1跳子集）。承接 §14.3 ②→③ 过渡。
+
+### 18.0 增量3 拆解（多子系统，各自独立 spec→plan→实现→部署）
+
+| 子增量 | 内容 | 依赖 |
+|---|---|---|
+| **3a（本节）** | `type:ref`+`refType` 字段写入解析/建实体+建有向边；1跳「从实体→跨view全部引用」只读 API + 关联页 | 地基 |
+| 3b | 语义 `concept`：字段挂 concept，异名同 concept 归并到同一关系语义 | 需 3a |
+| 3c | LLM/Hermes 提议候选关系 + **强制人工审批队列**（§0.3 模糊兜底 + §14.4 审批门；Agent 只提议不直写） | 需 3a |
+| 3d | 跨颗粒度：`PART_OF/ROLLS_UP/AGGREGATES…` 类型化层级/聚合边 + 共享最细锚点(问题单号/事件单号/domain id/客户) + 桥接节点 | 需 3a |
+| 多跳/冲突/独立KG引擎 | PRD §3 冲突检测、§4 depth-N 遍历、独立可重建 KG 引擎 | 后续 |
+
+### 18.1 契约（@combat/shared）
+
+`FieldSchema` 已含 `type:"ref"` 与 `refType?:string`（无需改）。`Repository` 新增 `deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void`（事务+审计，镜像 `deleteNode` 风格）——用于节点更新时先删旧 `REF` 边再按当前字段值重建，保证幂等。
+
+### 18.2 后端 — 写入时解析 ref（新模块 `apps/backend/src/refs.ts`，单一职责）
+
+`syncRefEdges(repo, registry, node, body, actor)`：
+- 先 `repo.deleteEdges({ sourceId: node.id, edgeType: "REF" }, actor)`（幂等基础）。
+- 对该 nodeType schema 中每个 `f.type === "ref" && f.refType` 字段，若 `body[f.id]` 为非空值 `v`（trim 后非空）：
+  - 解析目标：在 `repo.queryNodes(f.refType)` 中找首个节点，其某 `identityKey` 属性 === `v`，否则其 `name` 属性 === `v`（精确匹配；§2.1 精确层；不做模糊——模糊+人审属 3c）。
+  - 找不到 → `repo.createNode(f.refType, { name: v }, actor)` 建新目标实体（`name` 为首选标识）。
+  - `repo.createEdge("REF", node.id, target.id, { field: f.id, refType: f.refType }, actor)`。
+- 单一通用 `REF` 边类型，来源字段记于 `properties.field`（便于统一遍历，不每字段一种边类型）。
+- 在通用 `POST /api/nodes/:nodeType`（节点创建后）与 `PUT /api/nodes/:id`（更新后）各加一行调用 `syncRefEdges`。contribution 的 `CONTRIBUTED_TO` 特化逻辑保持不变，二者并存互不冲突。
+
+### 18.3 后端 — 1跳关联只读 API
+
+`GET /api/related/:nodeType/:id`：`repo.getNode(id)` 不存在 → 404 `{error}`；否则取 `REF` 边中 `sourceId===id` 与 `targetId===id` 两类，载入对端节点，返回 `{ outgoing: [{ field, node }], incoming: [{ field, node }] }`（`node` 为完整 GraphNode，含 nodeType 供前端分组/跳转；`field` 为边 `properties.field`）。独立 `related` 路由模块或并入既有路由，挂载于 `/api`、全局错误中间件之前。
+
+### 18.4 配置 seed（让 ref 真实可用）
+
+- `config/schemas/attackTicket.json`：`当前处理人` 字段改为 `"type": "ref", "refType": "person"`（保留 id/name/label/aliases）。
+- `config/schemas/contribution.json`：`贡献人` 字段改为 `"type": "ref", "refType": "person"`。
+- 现存字符串数据不受影响（解析仅在新写入触发）；`validateNode` 对 `ref` 走非枚举常规校验（required 仍生效，不破坏）。`person.json` 现有 `identityKeys: ["employeeId","email"]` + `name` 字段，解析按 identityKey/name 精确匹配。
+
+### 18.5 前端
+
+- 新页 `/related/:nodeType/:id`（关联全景）：调 `api.getRelated(nodeType, id)`，将 outgoing+incoming 的对端节点**按 nodeType 分组**列出，每条目链接到该实体自己的 `/related/<其nodeType>/<其id>`（可继续钻取）或其详情页（attackTicket→`/attack/:id`）。
+- 入口（最小，二者皆"链接到本行节点自身的关联页"，不在前端解析 person id——从关联页可见其 outgoing 指向的 person 并继续钻取）：
+  - ① `AttackDetail` 页加「关联全景」链接 → `/related/attackTicket/:id`（:id = 当前攻关单）。
+  - ② `EntityTable` 中 `f.type==="ref"` 字段的单元格：值渲染为 `<Link>` → `/related/${nodeType}/${rowId}`（rowId = 该行节点 id；非编辑态时；编辑态仍是 Input）。
+- 不做通用力导向图可视化（留后续）。
+
+### 18.6 关键设计决策（补充 §12/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 边模型 | 单一 `REF` 边 + `properties.field` 标记来源字段 | 统一遍历；避免边类型爆炸；与 honor/import 既有具名边并存 |
+| 解析策略 | 精确(identityKey/name)否则建新；无模糊 | §0.3 显式优先；模糊+人审属 3c |
+| 更新幂等 | 写前 `deleteEdges(sourceId,REF)` 全删再按现值重建 | 简单可预测；避免悬挂/重复边；复用事务+审计 |
+| 遍历面 | 仅 1 跳、只读 | 最小可用闭环兑现 §0.2；depth-N/冲突留后续 |
+| seed | 改 attackTicket.当前处理人 / contribution.贡献人 为 ref→person | 让"从人跨view看全部工作"端到端真实可演示 |
+| 前端入口 | AttackDetail 链接 + ref 单元格链接到本节点关联页 | 最小；通用图可视化 YAGNI |
+
+### 18.7 验收标准
+
+- [ ] `Repository.deleteEdges` 契约生效（shared 类型/行为测试，事务+审计）
+- [ ] 写 attackTicket(当前处理人=张三) → 自动建/复用 person「张三」+ 一条 `REF` 边（field=当前处理人）
+- [ ] 同一 person 再建 contribution(贡献人=张三) → `GET /api/related/person/<id>` 跨 view 返回该攻关单 + 该贡献（incoming 分组）
+- [ ] 更新 当前处理人=李四 → 旧 REF 边删、新边建，无重复/悬挂；复用已有 person 不重复建；未知 id→404
+- [ ] `/related/:nodeType/:id` 关联页按 nodeType 分组展示并可钻取；AttackDetail 与 ref 单元格入口可达
+- [ ] `npm run test:all` 全绿（shared deleteEdges + 后端 refs/related e2e + Playwright 关联用例）；完成后部署到测试服务器
