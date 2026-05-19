@@ -3,7 +3,7 @@ const API = "http://localhost:3001";
 
 test("FE-AN1 cross-granularity: shared anchor surfaces a separate 跨颗粒度 group", async ({ page, request }) => {
   const at = await (await request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: "锚点攻关单", 状态: "进行中", 问题单号: "PBX-1" } })).json();
-  const co = await (await request.post(`${API}/api/nodes/contribution`, { data: { 贡献人: "锚点贡献人", 关联问题单: "PBX-1" } })).json();
+  const co = await (await request.post(`${API}/api/nodes/contribution`, { data: { 贡献人: "锚点贡献人", 贡献类型: "实施", 关联问题单: "PBX-1" } })).json();
   await page.goto(`/related/attackTicket/${at.id}`);
   await expect(page.getByRole("heading", { name: "跨颗粒度（共享锚点）" })).toBeVisible();
   await expect(page.getByText("[问题单号:PBX-1]", { exact: false })).toBeVisible();
