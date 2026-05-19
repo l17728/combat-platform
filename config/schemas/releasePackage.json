@@ -1,0 +1,16 @@
+{
+  "nodeType": "releasePackage",
+  "label": "发布包",
+  "identityKeys": ["版本号"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "版本号", "name": "版本号", "type": "string", "label": "版本号", "required": true },
+    { "id": "产品", "name": "产品", "type": "string", "label": "产品" },
+    { "id": "发布日期", "name": "发布日期", "type": "date", "label": "发布日期" },
+    { "id": "链接", "name": "链接", "type": "string", "label": "下载/仓库链接" },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" },
+    { "id": "描述", "name": "描述", "type": "string", "label": "描述" },
+    { "id": "备注", "name": "备注", "type": "string", "label": "备注" }
+  ]
+}

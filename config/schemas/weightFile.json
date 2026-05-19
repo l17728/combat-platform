@@ -1,0 +1,15 @@
+{
+  "nodeType": "weightFile",
+  "label": "权重文件",
+  "identityKeys": ["名称"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "名称", "name": "名称", "type": "string", "label": "名称/版本", "required": true },
+    { "id": "模型", "name": "模型", "type": "string", "label": "模型" },
+    { "id": "链接", "name": "链接", "type": "string", "label": "存储链接" },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "训练日期", "name": "训练日期", "type": "date", "label": "训练日期" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" },
+    { "id": "备注", "name": "备注", "type": "string", "label": "备注" }
+  ]
+}
