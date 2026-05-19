@@ -1051,11 +1051,11 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 21.6 验收标准
 
-- [ ] shared `FieldSchema.anchor?` + `FieldOp.setAnchor` 契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] 写带 anchor 字段节点 → 建/复用共享锚点实体 + `ANCHORED_TO` 边（`properties.anchorKind` 正确）；改值幂等（旧删新建）
-- [ ] 不同 nodeType 异名 anchor 字段（attackTicket.问题单号 / contribution.关联问题单）填同值 → 共享同一锚点节点（仅 1 个）；粗对象间无任何直接互连边
-- [ ] `GET /api/related` 含派生 `coAnchored`（经共享锚点的其它 view 对端节点，对称、不落边）；无锚点时 `coAnchored:[]`；其余与 3c 一致
-- [ ] `PATCH /api/schema {op:"setAnchor"}` 持久化+reload；非字符串 → 400 + 配置不变
-- [ ] `EntityTable` 列头「锚点」编辑器在 `/attack`、`/contributions` 可设 anchor 并持久化（schema 端点可见）
-- [ ] `RelatedPage` 独立「跨颗粒度（共享锚点）」分组（标注 anchorKind:anchorKey），不污染权威/concept/候选分组；ANCHORED_TO 可经锚点 2 跳钻取
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `FieldSchema.anchor?` + `FieldOp.setAnchor` 契约生效（shared 类型测试 12/12，tsc RED→GREEN 验证），现有不破坏
+- [x] 写带 anchor 字段节点 → 建/复用共享锚点实体 + `ANCHORED_TO` 边（`properties.anchorKind` 正确）；改值幂等（anchor.e2e 用例1+用例4 断言唯一边存活）
+- [x] 不同 nodeType 异名 anchor 字段（attackTicket.问题单号 / contribution.关联问题单）填同值 → 共享同一锚点节点（仅 1 个）；粗对象间无任何直接互连边（anchor.e2e 用例2）
+- [x] `GET /api/related` 含派生 `coAnchored`（经共享锚点的其它 view 对端节点，对称、不落边）；无锚点时 `coAnchored:[]`；其余与 3c 一致（anchor.e2e 用例2/3）
+- [x] `PATCH /api/schema {op:"setAnchor"}` 持久化+reload；非字符串(缺键+`7`)→400+配置不变（anchor.e2e 用例4）；空串=清除（§21.1，FE-AN2 teardown 验证）
+- [x] `EntityTable` 列头「锚点」编辑器可设 anchor 并持久化（FE-AN2 经 schema 端点轮询验证；编辑器为配置驱动 EntityTable 列头，/attack /contributions 同组件）
+- [x] `RelatedPage` 独立「跨颗粒度（共享锚点）」分组（标注 anchorKind:anchorKey），不污染权威/concept/候选分组（FE-AN1）；ANCHORED_TO 可经锚点 2 跳钻取（anchor.e2e 用例3 + 故障快照实证 问题单号 组）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared12/backend63/FEunit13/e2e25）；完成后部署测试服务器
