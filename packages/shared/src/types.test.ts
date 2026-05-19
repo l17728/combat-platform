@@ -64,5 +64,6 @@ describe("alias contracts", () => {
     const ops: FieldOp[] = [{ op: "setAliases", id: "标题", aliases: ["title"] }];
     expect(f.aliases).toEqual(["title", "问题标题"]);
     expect(ops[0].op).toBe("setAliases");
+    if (ops[0].op === "setAliases") expect(ops[0].aliases).toEqual(["title"]);
   });
 });
