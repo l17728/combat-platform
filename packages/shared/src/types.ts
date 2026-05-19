@@ -56,7 +56,11 @@ export interface LeaderboardEntry {
   byLevel: Record<string, number>;
   byType: Record<string, number>;
 }
+export interface HonorContribution {
+  contribution: GraphNode;
+  attackTicketId: string | null;
+}
 export interface PersonHonor {
   贡献人: string;
-  contributions: { contribution: GraphNode; attackTicketId: string | null }[];
+  contributions: HonorContribution[];
 }

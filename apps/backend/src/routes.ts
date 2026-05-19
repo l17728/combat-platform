@@ -41,7 +41,17 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const { nodeType } = req.params;
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    res.status(201).json(repo.createNode(nodeType, req.body, "api"));
+    const node = repo.createNode(nodeType, req.body, "api");
+    if (nodeType === "contribution") {
+      const ref = String(req.body?.["关联攻关单"] ?? "");
+      if (ref) {
+        const tickets = repo.queryNodes("attackTicket");
+        const target = tickets.find(t => String(t.properties["攻关单号"] ?? "") === ref)
+          ?? tickets.find(t => String(t.properties["标题"] ?? "") === ref);
+        if (target) repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
+      }
+    }
+    res.status(201).json(node);
   });
 
   // Partial/merge update only (no-DDL JSON store): body keys are merged into
