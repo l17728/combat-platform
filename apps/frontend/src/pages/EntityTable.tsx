@@ -32,6 +32,7 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   const [rn, setRn] = useState<{ id: string; label: string } | null>(null);
   const [al, setAl] = useState<{ id: string; text: string } | null>(null);
   const [cp, setCp] = useState<{ id: string; text: string } | null>(null);
+  const [an, setAn] = useState<{ id: string; text: string } | null>(null);
   const [filter, setFilter] = useState("");
 
   const activeFields = (s: NodeSchema | null): FieldSchema[] => (s?.fields ?? []).filter(f => !f.retired);
@@ -74,6 +75,8 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
             onClick={() => setAl({ id: f.id, text: (f.aliases ?? []).join("\n") })}>别名</Button>
           <Button aria-label={`concept-${f.id}`} size="small" type="link"
             onClick={() => setCp({ id: f.id, text: f.concept ?? "" })}>概念</Button>
+          <Button aria-label={`anchor-${f.id}`} size="small" type="link"
+            onClick={() => setAn({ id: f.id, text: f.anchor ?? "" })}>锚点</Button>
         </Space>
       ),
       dataIndex: f.id,
@@ -158,6 +161,14 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
         }}>
         <Input aria-label="concept-input" value={cp?.text ?? ""}
           onChange={e => setCp(s => (s ? { ...s, text: e.target.value } : s))} />
+      </Modal>
+      <Modal title="编辑锚点" open={an !== null} okText="确定" onCancel={() => setAn(null)}
+        onOk={async () => {
+          if (an) await patch({ op: "setAnchor", id: an.id, anchor: an.text.trim() });
+          setAn(null);
+        }}>
+        <Input aria-label="anchor-input" value={an?.text ?? ""}
+          onChange={e => setAn(s => (s ? { ...s, text: e.target.value } : s))} />
       </Modal>
     </div>
   );

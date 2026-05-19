@@ -4,6 +4,7 @@ export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
   incoming: { field: string; concept: string; node: GraphNode }[];
   candidates?: { proposalId: string; relationType: string; confidence: number; rationale: string; node: GraphNode }[];
+  coAnchored?: { anchorKind: string; anchorKey: string; node: GraphNode }[];
 }
 
 export class Api {

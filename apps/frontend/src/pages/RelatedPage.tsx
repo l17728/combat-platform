@@ -56,6 +56,19 @@ export function RelatedPage() {
             )} />
         </div>
       )}
+      {data?.coAnchored && data.coAnchored.length > 0 && (
+        <div style={{ marginTop: 24, borderTop: "1px dashed #1677ff", paddingTop: 12 }}>
+          <Typography.Title level={5} style={{ color: "#1677ff" }}>跨颗粒度（共享锚点）</Typography.Title>
+          <List size="small" dataSource={data.coAnchored}
+            rowKey={(c) => c.node.id + c.anchorKind + c.anchorKey}
+            renderItem={(c) => (
+              <List.Item>
+                <Link to={detailLink(c.node)}>{label(c.node)}</Link>
+                <span style={{ marginLeft: 8, color: "#1677ff" }}>[{c.anchorKind}:{c.anchorKey}]</span>
+              </List.Item>
+            )} />
+        </div>
+      )}
     </div>
   );
 }
