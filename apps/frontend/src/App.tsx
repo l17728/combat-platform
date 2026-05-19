@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import { AttackList } from "./pages/AttackList.js";
+import { AttackTable } from "./pages/AttackTable.js";
 import { AttackDetail } from "./pages/AttackDetail.js";
 import { ImportPage } from "./pages/ImportPage.js";
 
@@ -10,8 +10,8 @@ export default function App() {
         <Link to="/attack">攻关作战台</Link> | <Link to="/import">导入</Link>
       </nav>
       <Routes>
-        <Route path="/" element={<AttackList />} />
-        <Route path="/attack" element={<AttackList />} />
+        <Route path="/" element={<AttackTable />} />
+        <Route path="/attack" element={<AttackTable />} />
         <Route path="/attack/:id" element={<AttackDetail />} />
         <Route path="/import" element={<ImportPage />} />
       </Routes>

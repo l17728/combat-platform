@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 // @playwright/test which is not runnable under vitest.
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
     exclude: ["e2e/**", "node_modules/**", "dist/**"],
   },
 });
