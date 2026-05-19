@@ -35,4 +35,24 @@ describe("SqliteRepository", () => {
     expect(audits).toHaveLength(2);
     expect(audits[0].performedBy).toBe("alice");
   });
+  it("deleteNode removes node, its progress and edges, and audits", () => {
+    const n = repo.createNode("attackTicket", { 标题: "a" }, "t");
+    const other = repo.createNode("person", { name: "p" }, "t");
+    repo.appendProgress(n.id, "d1", "进行中", "t");
+    repo.createEdge("ASSIGNED_TO", n.id, other.id, {}, "t");
+    repo.deleteNode(n.id, "killer");
+    expect(repo.getNode(n.id)).toBeNull();
+    expect(repo.listProgress(n.id)).toHaveLength(0);
+    expect(repo.queryEdges({ sourceId: n.id })).toHaveLength(0);
+    const a = db.prepare("SELECT * FROM audit_log WHERE action='DELETE' AND entityId=?").all(n.id) as any[];
+    expect(a).toHaveLength(1);
+    expect(a[0].performedBy).toBe("killer");
+  });
+  it("logAudit writes an arbitrary audit row", () => {
+    repo.logAudit({ action: "SCHEMA_addField", entityType: "schema", entityId: "attackTicket", changes: { x: 1 }, actor: "alice" });
+    const a = db.prepare("SELECT * FROM audit_log WHERE action='SCHEMA_addField'").all() as any[];
+    expect(a).toHaveLength(1);
+    expect(a[0].performedBy).toBe("alice");
+    expect(JSON.parse(a[0].changes)).toEqual({ x: 1 });
+  });
 });
