@@ -18,6 +18,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **When a problem is found, fix the entire class of problems, not just the single instance.** Reason from one failure to all similar latent failures (举一反三), trace every divergent/leaf-node issue, and keep resolving until the problem space converges (no remaining related failures). This is a standing directive from the user.
 
+## Core Principle: Deploy to Test Server After Green
+
+**After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle. This is a standing directive.
+
+Deploy target host/user/password are stored **out of version control** — in the gitignored `.env.deploy` at repo root (and agent memory). **Never hardcode the server password in any committed file** (CLAUDE.md, scripts, code); read it from `.env.deploy` at deploy time. Committing root credentials to git is a security exposure and is prohibited even if asked — keep the secret out of tracked files and tell the user where it lives.
+
 ## Repository State
 
 **Greenfield / pre-implementation.** Only documents exist — no code, scaffolding, or git history:
