@@ -991,12 +991,12 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 20.6 验收标准
 
-- [ ] shared `RelationProposal`/`RelationProposer`/Repository 提议契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] `POST /api/proposals/scan`：近似（非精确）同类型实体生成「待审批」`SAME_AS`，精确相等不提议；幂等（同三元组待审批/已拒绝不重复）
-- [ ] `GET /api/proposals?status=待审批` 列表正确
-- [ ] `decide 通过`→结构化权威合并（边迁移/字段并/审计）+ 提议「已通过」；`decide 拒绝`→「已拒绝」+ 后续 scan 抑制该三元组；非待审批再 decide→409；全程 audit
-- [ ] `GET /api/related?includeCandidates=1` 含 `candidates[]` 且权威 outgoing/incoming 绝不含候选；无参与 3b 一致
-- [ ] `/proposals` 审批队列页：扫描→列待审批→通过/拒绝可用并持久；AppShell+首页入口集成
-- [ ] `RelatedPage` 独立「候选关系（待审批）」分组（标注置信度/理由），不污染权威分组
-- [ ] `EntityTable` ref 单元格直跳被引用实体关联页（§18.0 line823 兑现）；未解析回退原行为不破坏 FE-R1
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `RelationProposal`/`RelationProposer`/Repository 提议契约生效（shared 类型测试 11/11，tsc-clean），现有不破坏
+- [x] `POST /api/proposals/scan`：近似（非精确）同类型实体生成「待审批」`SAME_AS`，精确相等不提议；幂等（proposals.e2e 用例1）
+- [x] `GET /api/proposals?status=待审批` 列表正确（proposals.e2e 用例1）
+- [x] `decide 通过`→结构化权威合并（proposals.e2e 用例2 断言边迁移/原引用可达 titles=["T1","T3"]）+ 提议「已通过」+ merge.ts 顶层 MERGE 审计；`decide 拒绝`→「已拒绝」+ 后续 scan 抑制三元组（用例3）；非待审批再 decide→409
+- [x] `GET /api/related?includeCandidates=1` 含 `candidates[]` 且权威 outgoing/incoming 绝不含候选；无参与 3b 一致（proposals.e2e 用例4）
+- [x] `/proposals` 审批队列页：扫描→列待审批→通过（FE-P1）/拒绝（FE-P3）可用并持久；空状态中文无 AntD 英文（FE-P0）；AppShell+首页入口集成（coverage GAP-3c）
+- [x] `RelatedPage` 独立「候选关系（待审批）」分组（标注置信度/理由），不污染权威分组（FE-P1）
+- [x] `EntityTable` ref 单元格直跳被引用实体关联页（§18.0 line823 兑现，FE-P2）；未解析回退原行为不破坏 FE-R1（e2e 23/23 含 related.spec）
+- [x] 全功能 e2e 覆盖审计门通过（审计补齐 空状态/拒绝/首页卡片 缺口）；`npm run test:all` 连续两次全绿（shared11/backend59/FEunit13/e2e23）；完成后部署测试服务器
