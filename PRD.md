@@ -117,7 +117,10 @@
 EntitySchema (配置文件 / Schema Registry)
   ├── nodeTypes:  { Person, Task, Domain, Team, AttackTicket, Contribution, Document, ... }
   │     每个 nodeType:
-  │       ├── fields: [{ name, type, enumValues?, required?, label, source? }]
+  │       ├── fields: [{ id, name, type, enumValues?, required?, label, source?, retired? }]
+  │       │     # id: 不可变内部键（创建时定，永不变）；数据与一切引用按 id 取值
+  │       │     # label: 可改的展示名；改名只动 label，零数据迁移（详见 §14）
+  │       │     # retired: 非破坏退休标记（删字段=置 retired，旧数据保留，可恢复）
   │       ├── identityKeys: [...]      # 实体合并用（如 employeeId/email）
   │       └── derivedToKG: bool        # 是否同步到派生 KG
   ├── edgeTypes:  { ASSIGNED_TO, BELONGS_TO, CONTRIBUTED_TO, ... }
@@ -582,3 +585,60 @@ UI 层      : 视图渲染引擎（表格↔布局↔图↔时间线，配置驱
 | 4 | 权限模型（谁可见/可改/可标定贡献等级）？ | 全局 | Phase1 不做，Phase2 加 RBAC（贡献等级仅 Leader） |
 | 5 | 图谱规模上限？ | KG 存储/渲染 | 千级先用 SQL+内存图，万级引入图索引/分页聚类 |
 | 6 | 发布包/权重文件归档：仅元数据登记还是文件托管？ | 李嘉⑤⑥ | 倾向先做元数据+链接登记，文件托管后评估 |
+| 7 | 字段 id 生成策略（新字段 slug 派生算法/唯一化/中文）？ | §14 增量1 | 现有字段 id=原名；新字段：名字派生 slug + 冲突加序号；最终化 §14.2 |
+| 8 | 跨颗粒度锚点的权威清单（问题单号/OSM/事件单号/domain id/客户）？ | §14 增量2/3 | 增量2 与用户确认锚点字段集与优先级 |
+
+---
+
+## 14. 可编辑 Schema 与跨 View 关联（演进路线）
+
+> 本章细化并作为 §0.4 / §2.1 / §3.4 / §4 在"用户可手工增删改记录与字段、跨 view 动态关联"方向上的权威规格。**§14.2 是下一次实现（增量1）的开发依据。**
+
+### 14.1 背景
+
+Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录与 UI 增删字段——对每天要用的工具这是底线 UX 缺失（用户明确反馈）。同时"用户自改字段名 / 不同 view 字段名不一 / 跟踪对象颗粒度不对齐"需要统一的关联机制。解法分层递进，分多个增量交付。
+
+| 增量 | 内容 | 状态 |
+|---|---|---|
+| **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | **本次实现（规格见 §14.2）** |
+| 增量2 | canonical 字段 + 别名/同义词映射（跨 view/导入名字归一，模糊推荐） | 已定向（§14.3） |
+| 增量3 | ref→实体 + 语义 concept + 跨颗粒度锚点关联 → 派生 KG 边 | 已定向（§14.3） |
+
+### 14.2 增量1 规格（开发依据）
+
+**A. 字段稳定 ID / 显示名解耦（地基）**
+- `FieldSchema` 增不可变 `id`（创建时定、永不变）；`label` 为可改展示名。数据(`properties`)与一切引用（view 列、校验、导入映射）一律按 `id` 取值，按 `label` 显示。
+- 零迁移迁法：现有字段 `id` 初始化为其当前中文名（如 `标题` 的 id 即 `"标题"`），与现存 `properties` 键天然对齐；改名只改 `label`，`id` 不动；新字段创建时分配派生 slug（开放问题 §13#7）。
+- 属于对已锁 `@combat/shared` 契约的有意演进：`FieldSchema` 加 `id` + 可选 `retired`；`validateNode`、前端列渲染改为按 `id` 取值、按 `label` 显示。
+
+**B. 字段管理（UI → 回写配置）**
+- 新增 `PATCH /api/schema/:nodeType`：加字段(分配新 id，零 DDL) / 改 label / 改 enumValues / **退休字段**(置 `retired:true`) / 取消退休。持久化回 `config/schemas/<type>.json`(`version`+1)→ `reload()`；**写文件后 reload 校验失败则回滚到上一版 JSON**（复用 §2.7/Registry 硬化的报错→可回滚）。
+- **删字段 = 非破坏退休**（用户已拍板）：从活跃 schema 移除展示/校验，节点 `properties` 旧值保留；重新加回同 `id` 字段即恢复。所有 schema 变更写 `audit_log`。
+
+**C. 记录手工增删改 + 可编辑表格**
+- 后端：建（已有 `POST /nodes/:type`）；改 → 暴露已实现的 `updateNode` 为 `PUT /api/nodes/:id`；删 → `Repository` 增 `deleteNode` + `DELETE /api/nodes/:id`（**记录硬删** + 写 `audit_log`；区别于字段的非破坏退休）。
+- `@combat/shared` 契约演进：`Repository` 增 `deleteNode(id, actor)`；前端 `Api` 增 `createNode / updateNode / deleteNode / patchSchema`。
+- 前端 `/attack` 升级为**可编辑 Excel 式表格**：单元格行内编辑并保存、新增行、删除行；列由 schema 动态生成（按 `id`/`label`）；列头菜单"加字段 / 改名 / 退休字段"。
+- **不含**表格↔布局/卡片切换（用户已拍板，留后续增量）。
+
+**D. 测试（TDD + 前后台全 e2e）**
+- 后端 e2e：记录 建/改/删（含 audit 断言）；`PATCH` 加字段 → 新 id 可写读（证零 DDL）；改 `label` → 老数据按 `id` 仍取到；退休字段 → 数据保留且不再校验、可恢复；非法 schema 写入 → 回滚且旧 schema 可用；`DELETE` 不存在 id → 合理响应。
+- 前端 Playwright e2e：行内改值持久化（刷新仍在）；加行；删行；列头加字段→新列出现可填；改列名→数据不丢；退休列→列消失但重加恢复数据。复用既有确定性 e2e 框架（fresh-DB global setup）。
+- 复用既有 TDD→spec 评审→代码质量评审→修复闭环;并行拆分按依赖波次。
+
+### 14.3 跨 View 关联方向（增量2/3 定向，不在增量1）
+
+- **别名/同义词映射（增量2）**：EntitySchema 定义 canonical 字段；ViewSchema/导入声明别名→canonical `id`；人工维护 + 模糊推荐（编辑距离/同义词，延伸 §7.2）。
+- **ref→实体 + 语义 concept（增量3）**：关系型字段（责任人/处理人/组长…）本质是 `type:ref` 指向实体，关联=图的边而非字符串匹配；字段挂 `concept`（语义角色），异名同 concept 自动归并。
+- **跨颗粒度关联（增量2/3）**：`RELATES_TO`/"相关" 仅作兜底，**不是最优**。标准做法由弱到强：①类型化层级/聚合边（`PART_OF`/`AGGREGATES`/`ROLLS_UP`/`DERIVED_FROM`/`CAUSED_BY`）承载颗粒度关系，上钻下钻=定向遍历；②显式 grain/level（节点层级或按颗粒度分 nodeType）使"不对齐"可查询；③**(最强、首选)经共享最细粒度锚点实体关联**——粗对象不互连，统一连到共享原子，跨 view 关系由"共享锚点"派生（req.md 现成锚点：问题单号/OSM单号、事件单号、domain id、客户）；④关联本身带属性时用**桥接(关联)节点**而非裸边。这与 §0.2/§4 派生 KG 范式一致。
+
+### 14.4 关键设计决策（补充 §12）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 字段身份 | **稳定 id 与 label 解耦，数据按 id 存** | 改名/增删字段不破坏数据与引用；零迁移；跨 view 关联前提 |
+| 删字段语义 | **非破坏退休（retired），数据保留可恢复** | 避免不可逆数据丢失；与审计/不可逆合并的审慎一致 |
+| 删记录语义 | **硬删 + 写 audit** | 记录不需列级可恢复；审计可追溯 |
+| 增量1 范围 | 仅可编辑表格，不含布局切换 | 最小可用闭环；YAGNI |
+| 跨颗粒度关联 | 锚点优先 + 类型化层级边；"相关"仅兜底 | 语义不丢、可上钻下钻；符合派生 KG 范式 |
+| MVP UX 底线 | 任何数据特性首切片须含手工 CRUD | 用户反馈：只读/只导入不可用 |
