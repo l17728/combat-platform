@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { EntitySchemaConfig, GraphNode, ProgressLog } from "./index.js";
+import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -19,5 +20,30 @@ describe("shared types", () => {
     const p: ProgressLog = { id: "p1", ownerId: "1", seqNo: 1, content: "c", statusSnapshot: "进行中", updatedBy: "u", updatedAt: "t" };
     expect(n.properties["标题"]).toBe("x");
     expect(p.seqNo).toBe(1);
+  });
+});
+
+describe("increment-1 contracts", () => {
+  it("FieldSchema has immutable id and optional retired", () => {
+    const f: FieldSchema = { id: "标题", name: "标题", type: "string", label: "标题", required: true };
+    const r: FieldSchema = { id: "x", name: "x", type: "string", label: "X", retired: true };
+    expect(f.id).toBe("标题");
+    expect(r.retired).toBe(true);
+  });
+  it("Repository requires deleteNode and logAudit", () => {
+    const keys: (keyof Repository)[] = ["deleteNode", "logAudit", "createNode", "updateNode"];
+    expect(keys).toContain("deleteNode");
+  });
+  it("FieldOp union and SchemaRegistry.applyFieldOp typecheck", () => {
+    const ops: FieldOp[] = [
+      { op: "addField", field: { name: "根因服务", type: "string", label: "根因服务" } },
+      { op: "renameLabel", id: "标题", label: "问题标题" },
+      { op: "editEnum", id: "状态", enumValues: ["待响应", "已关闭"] },
+      { op: "retire", id: "事件级别" },
+      { op: "unretire", id: "事件级别" },
+    ];
+    const applyKey: keyof SchemaRegistry = "applyFieldOp";
+    expect(ops).toHaveLength(5);
+    expect(applyKey).toBe("applyFieldOp");
   });
 });

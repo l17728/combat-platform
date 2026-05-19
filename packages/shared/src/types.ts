@@ -1,12 +1,14 @@
 export type FieldType = "string" | "number" | "date" | "datetime" | "enum" | "ref" | "sequence";
 
 export interface FieldSchema {
+  id: string;
   name: string;
   type: FieldType;
   label: string;
   required?: boolean;
   enumValues?: string[];
   refType?: string;
+  retired?: boolean;
 }
 export interface NodeSchema {
   nodeType: string;
