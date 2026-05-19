@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -94,6 +94,9 @@ export class Api {
   recommendHelpers(id: string, limit?: number): Promise<HelperRecommendation[]> {
     const qs = limit ? `?limit=${limit}` : "";
     return this.req<HelperRecommendation[]>(`/api/recommend/helpers/${id}${qs}`, {});
+  }
+  getDashboard(): Promise<DashboardSummary> {
+    return this.req<DashboardSummary>(`/api/dashboard`, {});
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
