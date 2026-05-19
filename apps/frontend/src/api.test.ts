@@ -27,4 +27,22 @@ describe("Api client", () => {
     expect(calls[0][1].method).toBe("PATCH");
     expect(JSON.parse(calls[0][1].body)).toEqual({ op: "retire", id: "状态" });
   });
+  it("updateNode PUTs to the node endpoint", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify({ id: "abc", nodeType: "attackTicket", properties: {}, createdAt: "t", updatedAt: "t" }), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    await api.updateNode("abc", { 标题: "b" });
+    expect(calls[0][0]).toBe("http://x/api/nodes/abc");
+    expect(calls[0][1].method).toBe("PUT");
+    expect(JSON.parse(calls[0][1].body)).toEqual({ 标题: "b" });
+  });
+  it("deleteNode DELETEs the node endpoint", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify({ ok: true }), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    const result = await api.deleteNode("abc");
+    expect(calls[0][0]).toBe("http://x/api/nodes/abc");
+    expect(calls[0][1].method).toBe("DELETE");
+    expect(result.ok).toBe(true);
+  });
 });
