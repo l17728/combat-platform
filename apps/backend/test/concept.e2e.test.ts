@@ -53,6 +53,7 @@ describe("concept e2e", () => {
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "李四", 贡献类型: "实施" });
     const pid = repo.queryNodes("person")[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
+    expect(r.body.incoming).toHaveLength(2);
     expect(r.body.incoming.map((x: any) => x.concept).sort()).toEqual(["负责人", "负责人"]);
     expect(r.body.incoming.map((x: any) => x.field).sort()).toEqual(["当前处理人", "贡献人"]);
   });
@@ -66,6 +67,8 @@ describe("concept e2e", () => {
     const before = readFileSync(join(cfg, "attackTicket.json"), "utf8");
     const bad = await request(app).patch("/api/schema/attackTicket").send({ op: "setConcept", id: "标题" });
     expect(bad.status).toBe(400);
+    const bad2 = await request(app).patch("/api/schema/attackTicket").send({ op: "setConcept", id: "标题", concept: 42 });
+    expect(bad2.status).toBe(400);
     expect(readFileSync(join(cfg, "attackTicket.json"), "utf8")).toBe(before);
   });
 });

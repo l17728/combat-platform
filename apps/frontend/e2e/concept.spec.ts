@@ -22,4 +22,8 @@ test("FE-C1 concept editor persists + cross-view same-concept merge in RelatedPa
   await expect(page.getByText("概念攻关单", { exact: false })).toBeVisible();
   await expect(page.getByText("[当前处理人]", { exact: false })).toBeVisible();
   await expect(page.getByText("[贡献人]", { exact: false })).toBeVisible();
+
+  // single-backend determinism: this spec edited a seed field's concept; clear it
+  // so spec ordering can't leak 标题.concept into later specs.
+  await request.patch(`${API}/api/schema/attackTicket`, { data: { op: "setConcept", id: "标题", concept: "" } });
 });
