@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { EntitySchemaConfig, GraphNode, ProgressLog } from "./index.js";
-import type { QueryHit, QueryContext } from "./index.js";
+import type { QueryHit, QueryContext, HelperRecommendation } from "./index.js";
 import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
 import type { LeaderboardEntry, PersonHonor } from "./index.js";
 import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
@@ -128,5 +128,16 @@ describe("query contracts", () => {
       progress: [],
     };
     expect(ctx.related.coAnchored).toEqual([]);
+  });
+});
+
+describe("helper-recommendation contract", () => {
+  it("HelperRecommendation shape", () => {
+    const r: HelperRecommendation = {
+      person: { id: "p1", nodeType: "person", properties: { name: "张三" }, createdAt: "t", updatedAt: "t" },
+      score: 6, reasons: ["曾处理共享问题单「PB-1」的攻关单「断网」"],
+    };
+    expect(r.score).toBe(6);
+    expect(r.reasons[0]).toContain("PB-1");
   });
 });

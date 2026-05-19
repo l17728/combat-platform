@@ -60,6 +60,7 @@ export interface QueryContext {
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
   progress: ProgressLog[];
 }
+export interface HelperRecommendation { person: GraphNode; score: number; reasons: string[]; }
 export interface LeaderboardEntry {
   贡献人: string;
   score: number;
