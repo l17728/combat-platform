@@ -49,3 +49,14 @@ export interface ProgressLog {
   updatedBy: string;
   updatedAt: string;
 }
+export interface LeaderboardEntry {
+  贡献人: string;
+  score: number;
+  贡献数: number;
+  byLevel: Record<string, number>;
+  byType: Record<string, number>;
+}
+export interface PersonHonor {
+  贡献人: string;
+  contributions: { contribution: GraphNode; attackTicketId: string | null }[];
+}

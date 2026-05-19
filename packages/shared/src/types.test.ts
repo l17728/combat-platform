@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { EntitySchemaConfig, GraphNode, ProgressLog } from "./index.js";
 import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.js";
+import type { LeaderboardEntry, PersonHonor } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -45,5 +46,14 @@ describe("increment-1 contracts", () => {
     const applyKey: keyof SchemaRegistry = "applyFieldOp";
     expect(ops).toHaveLength(5);
     expect(applyKey).toBe("applyFieldOp");
+  });
+});
+
+describe("honor contracts", () => {
+  it("LeaderboardEntry and PersonHonor shapes", () => {
+    const l: LeaderboardEntry = { 贡献人: "张三", score: 11, 贡献数: 3, byLevel: { 核心: 1 }, byType: { 实施: 2 } };
+    const p: PersonHonor = { 贡献人: "张三", contributions: [{ contribution: { id: "c1", nodeType: "contribution", properties: {}, createdAt: "t", updatedAt: "t" }, attackTicketId: "a1" }] };
+    expect(l.score).toBe(11);
+    expect(p.contributions[0].attackTicketId).toBe("a1");
   });
 });
