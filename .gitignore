@@ -8,3 +8,4 @@ apps/frontend/playwright-report/
 .worktrees/
 scripts/deploy/node_modules/
 scripts/deploy/app.tar.gz
+scripts/deploy/package-lock.json
