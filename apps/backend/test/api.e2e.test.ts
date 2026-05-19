@@ -79,4 +79,20 @@ describe("API e2e", () => {
     expect(r.status).toBe(400);
     expect(r.body.error).toContain("content");
   });
+  it("PUT /api/nodes/:id updates a record (validated)", async () => {
+    const { app } = makeTestApp();
+    const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "old", 状态: "进行中" });
+    const u = await request(app).put(`/api/nodes/${c.body.id}`).send({ 标题: "new" });
+    expect(u.status).toBe(200);
+    expect((await request(app).get(`/api/nodes/${c.body.id}`)).body.properties["标题"]).toBe("new");
+    const bad = await request(app).put(`/api/nodes/${c.body.id}`).send({ 状态: "不存在" });
+    expect(bad.status).toBe(400);
+  });
+  it("DELETE /api/nodes/:id removes the record", async () => {
+    const { app } = makeTestApp();
+    const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "del", 状态: "进行中" });
+    expect((await request(app).delete(`/api/nodes/${c.body.id}`)).status).toBe(200);
+    expect((await request(app).get(`/api/nodes/${c.body.id}`)).status).toBe(404);
+    expect((await request(app).delete(`/api/nodes/does-not-exist`)).status).toBe(404);
+  });
 });

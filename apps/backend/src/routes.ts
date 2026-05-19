@@ -16,6 +16,16 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       res.status(400).json({ error: (e as Error).message });
     }
   });
+  r.patch("/schema/:nodeType", (req, res) => {
+    try {
+      const s = registry.applyFieldOp(req.params.nodeType, req.body);
+      repo.logAudit({ action: `SCHEMA_${req.body?.op}`, entityType: "schema",
+        entityId: req.params.nodeType, changes: req.body, actor: "api" });
+      res.json(s);
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
+  });
 
   r.get("/nodes/:nodeType", (req, res) => {
     const { nodeType } = req.params;
@@ -32,6 +42,20 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     res.status(201).json(repo.createNode(nodeType, req.body, "api"));
+  });
+
+  r.put("/nodes/:id", (req, res) => {
+    const cur = repo.getNode(req.params.id);
+    if (!cur) return res.status(404).json({ error: "not found" });
+    const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
+    if (!v.ok) return res.status(400).json({ errors: v.errors });
+    res.json(repo.updateNode(req.params.id, req.body, "api"));
+  });
+
+  r.delete("/nodes/:id", (req, res) => {
+    if (!repo.getNode(req.params.id)) return res.status(404).json({ error: "not found" });
+    repo.deleteNode(req.params.id, "api");
+    res.json({ ok: true });
   });
 
   r.get("/nodes/:id/progress", (req, res) => res.json(repo.listProgress(req.params.id)));

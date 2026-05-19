@@ -1,6 +1,6 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { SchemaRegistry, EntitySchemaConfig, NodeSchema, ValidationResult } from "@combat/shared";
+import type { SchemaRegistry, EntitySchemaConfig, NodeSchema, ValidationResult, FieldOp } from "@combat/shared";
 import { validateNode } from "./validation.js";
 
 export class FileSchemaRegistry implements SchemaRegistry {
@@ -35,5 +35,48 @@ export class FileSchemaRegistry implements SchemaRegistry {
     const s = this.getNodeSchema(nodeType);
     if (!s) return { ok: false, errors: [`未知节点类型: ${nodeType}`] };
     return validateNode(s, properties);
+  }
+
+  applyFieldOp(nodeType: string, op: FieldOp): NodeSchema {
+    const file = join(this.dir, `${nodeType}.json`);
+    const prev = readFileSync(file, "utf8");
+    const schema = JSON.parse(prev) as NodeSchema;
+    schema.fields = schema.fields.map(f => ({ ...f, id: f.id ?? f.name }));
+
+    const find = (id: string) => {
+      const f = schema.fields.find(x => x.id === id);
+      if (!f) throw new Error(`字段 id 不存在: ${id}`);
+      return f;
+    };
+    if (op.op === "addField") {
+      const { name, type, label } = op.field;
+      if (!name || !type || !label) throw new Error("addField 需要 name/type/label");
+      const ids = new Set(schema.fields.map(f => f.id));
+      let id = name, n = 2;
+      while (ids.has(id)) id = `${name}#${n++}`;
+      schema.fields.push({ id, name, type, label,
+        required: op.field.required, enumValues: op.field.enumValues });
+    } else if (op.op === "renameLabel") {
+      if (!op.label) throw new Error("renameLabel 需要非空 label");
+      find(op.id).label = op.label;
+    } else if (op.op === "editEnum") {
+      find(op.id).enumValues = op.enumValues;
+    } else if (op.op === "retire") {
+      find(op.id).retired = true;
+    } else if (op.op === "unretire") {
+      find(op.id).retired = false;
+    } else {
+      throw new Error(`未知操作: ${(op as { op: string }).op}`);
+    }
+
+    writeFileSync(file, JSON.stringify(schema, null, 2));
+    try {
+      this.reload();
+    } catch (e) {
+      writeFileSync(file, prev);
+      this.reload();
+      throw new Error(`Schema 变更后重载失败，已回滚: ${(e as Error).message}`);
+    }
+    return this.getNodeSchema(nodeType)!;
   }
 }
