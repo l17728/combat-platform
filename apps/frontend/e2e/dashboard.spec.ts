@@ -6,8 +6,10 @@ test("FE-D1 homepage dashboard reflects data; module cards still present/usable"
   await page.goto("/");
   const dash = page.getByLabel("dashboard");
   await expect(dash.getByText("攻关单总数")).toBeVisible();
-  await expect(dash.getByText("进行中", { exact: false })).toBeVisible();
-  await expect(dash.getByText("状态分布", { exact: false })).toBeVisible();
+  // exact:true → match only the Statistic title "进行中", not the
+  // Descriptions content "进行中: N　已解决: M" which contains it as substring.
+  await expect(dash.getByText("进行中", { exact: true })).toBeVisible();
+  await expect(dash.getByText("状态分布")).toBeVisible();
   await expect(page.getByLabel("home-card-/attack")).toBeVisible();
   await expect(page.getByLabel("home-card-/search")).toBeVisible();
   await page.getByRole("link", { name: "攻关作战台", exact: true }).first().click();
