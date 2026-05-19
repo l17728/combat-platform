@@ -24,6 +24,8 @@ export default function App() {
           <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
           <Route path="/proposals" element={<ProposalsPage />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/releases" element={<EntityTable nodeType="releasePackage" />} />
+          <Route path="/weights" element={<EntityTable nodeType="weightFile" />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>
