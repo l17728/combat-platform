@@ -3,7 +3,11 @@ import type { Repository, SchemaRegistry, QueryHit } from "@combat/shared";
 import { buildRelated } from "./related-core.js";
 
 function summarize(p: Record<string, unknown>, id: string): string {
-  return String(p["标题"] ?? p["name"] ?? p["贡献人"] ?? p["key"] ?? id);
+  // human-readable label: walk common identity keys across all configured
+  // nodeTypes (attackTicket 标题/攻关单号, person name, contribution 贡献人,
+  // releasePackage 版本号, weightFile 名称, anchor nodes key) → id fallback.
+  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"]
+    ?? p["name"] ?? p["贡献人"] ?? p["key"] ?? id);
 }
 
 export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Router {
