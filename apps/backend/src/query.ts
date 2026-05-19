@@ -12,8 +12,9 @@ export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Rou
   r.get("/query/search", (req, res) => {
     const q = String(req.query.q ?? "").trim();
     if (!q) return res.status(400).json({ error: "q 必填" });
-    const type = req.query.type ? String(req.query.type) : undefined;
-    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 50));
+    const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+    const type = req.query.type ? String(first(req.query.type)) : undefined;
+    const limit = Math.max(1, Math.min(200, Number(first(req.query.limit)) || 50));
     const needle = q.toLowerCase();
     const types = type ? [type] : registry.getConfig().nodeTypes.map(n => n.nodeType);
     const hits: (QueryHit & { _u: string })[] = [];

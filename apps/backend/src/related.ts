@@ -16,7 +16,7 @@ export function makeRelatedRouter(repo: Repository): Router {
           const otherId = p.sourceNodeId === id ? p.targetNodeId : p.sourceNodeId;
           return { proposalId: p.id, relationType: p.relationType,
             confidence: p.confidence, rationale: p.rationale, node: repo.getNode(otherId) };
-        }).filter(x => x.node);
+        }).filter((x): x is typeof x & { node: NonNullable<typeof x.node> } => x.node != null);
       return res.json({ outgoing, incoming, candidates: cand, coAnchored });
     }
     res.json({ outgoing, incoming, coAnchored });

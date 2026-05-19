@@ -69,7 +69,10 @@ describe("read-only query API e2e", () => {
     expect(ctx.body.progress.map((p: any) => p.content)).toContain("进展X");
     expect(ctx.body.related.outgoing.some((x: any) => x.node.nodeType === "person")).toBe(true);
     const rel = await request(app).get(`/api/related/attackTicket/${t.id}`);
-    expect(ctx.body.related.outgoing.map((x: any) => x.node.id).sort())
-      .toEqual(rel.body.outgoing.map((x: any) => x.node.id).sort());
+    const ids = (a: any[]) => a.map((x: any) => x.node.id).sort();
+    // buildRelated reuse: all three derived fields must match /api/related
+    expect(ids(ctx.body.related.outgoing)).toEqual(ids(rel.body.outgoing));
+    expect(ids(ctx.body.related.incoming)).toEqual(ids(rel.body.incoming));
+    expect(ids(ctx.body.related.coAnchored)).toEqual(ids(rel.body.coAnchored));
   });
 });

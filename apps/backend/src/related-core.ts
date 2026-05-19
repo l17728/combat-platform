@@ -1,7 +1,4 @@
-import type { Repository, GraphNode } from "@combat/shared";
-
-export interface RelatedItem { field: string; concept: string; node: GraphNode; }
-export interface CoAnchoredItem { anchorKind: string; anchorKey: string; node: GraphNode; }
+import type { Repository, RelatedItem, CoAnchoredItem } from "@combat/shared";
 
 export function buildRelated(repo: Repository, id: string): {
   outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[];
