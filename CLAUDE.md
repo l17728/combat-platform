@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Core Principle: Parallelize Development
 
-**Maximize development throughput by working in parallel.** Prefer git worktrees (or the native worktree tooling) to isolate independent workstreams, and dispatch **multiple agents working concurrently** whenever tasks are independent (no shared state, no sequential dependency). Decompose phases into independent slices and run them in parallel rather than serially. Only serialize when there is a true data/sequence dependency. This is a standing directive from the user, not a per-task choice.
+**Any task that CAN run in parallel MUST run in parallel, using multiple concurrent agents.** This is mandatory, not a preference. For every plan, identify the independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them as **multiple agents working concurrently, each in its own isolated git worktree** — launched in a single message. Do NOT fall back to sequential execution for convenience even when a process skill (e.g. subagent-driven-development) defaults to sequential; the user's parallelize directive overrides that default. Only serialize across a true data/sequence dependency (a dependency gate). Read-only work (reviews) may also run concurrently. This is a standing, emphatic directive from the user ("能并行的任务一定要并行处理，使用多个agent").
 
 ## Core Principle: Fast MVP, TDD, Full E2E Coverage
 
