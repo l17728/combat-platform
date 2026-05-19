@@ -9,7 +9,7 @@ function mapColumns(row: Record<string, unknown>, schema: NodeSchema): Record<st
   const out: Record<string, unknown> = {};
   for (const f of schema.fields) {
     const hit = Object.keys(row).find(k => k.trim() === f.name || k.trim() === f.label);
-    if (hit !== undefined) out[f.name] = row[hit];
+    if (hit !== undefined) out[f.id] = row[hit];
   }
   return out;
 }
