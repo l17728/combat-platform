@@ -60,9 +60,10 @@ export function recommendHelpers(repo: Repository, ticketId: string, limit = 10)
   const out = [...acc.entries()]
     .map(([pid, e]) => ({ person: repo.getNode(pid), score: e.score, reasons: e.reasons }))
     .filter((x): x is HelperRecommendation => !!x.person);
-  out.sort((a, b) => b.score - a.score
-    || (name(a.person) < name(b.person) ? -1 : name(a.person) > name(b.person) ? 1
-    : (a.person.id < b.person.id ? -1 : 1)));
+  out.sort((a, b) => {
+    const na = name(a.person), nb = name(b.person);
+    return b.score - a.score || (na < nb ? -1 : na > nb ? 1 : a.person.id < b.person.id ? -1 : 1);
+  });
   return out.slice(0, Math.max(1, Math.min(50, limit)));
 }
 

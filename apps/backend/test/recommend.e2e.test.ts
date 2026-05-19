@@ -58,6 +58,9 @@ describe("find-helper recommendation e2e", () => {
     expect(byName["乙"]).toBe(3);
     expect(byName["丙"]).toBe(3);
     expect(byName["丁"]).toBe(1);
+    // structural proof 丙 not double-credited: exactly the anchor reason, no fallback reason
+    const bing = r.body.find((h: any) => String(h.person.properties["name"]) === "丙");
+    expect(bing.reasons).toHaveLength(1);
     const r2 = await request(app).get(`/api/recommend/helpers/${T.id}`);
     expect(r2.body.map((h: any) => h.person.id)).toEqual(r.body.map((h: any) => h.person.id));
   });

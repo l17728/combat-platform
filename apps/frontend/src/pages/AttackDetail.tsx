@@ -11,8 +11,8 @@ export function AttackDetail() {
   const [text, setText] = useState("");
   const [helpers, setHelpers] = useState<HelperRecommendation[] | null>(null);
   const refresh = useCallback(() => {
-    api.getNode(id).then(setNode);
-    api.listProgress(id).then(setSeq);
+    api.getNode(id).then(setNode).catch(() => message.error("攻关单加载失败"));
+    api.listProgress(id).then(setSeq).catch(() => message.error("进展加载失败"));
     api.recommendHelpers(id).then(setHelpers)
       .catch(() => { setHelpers([]); message.error("找帮手加载失败"); });
   }, [id]);
