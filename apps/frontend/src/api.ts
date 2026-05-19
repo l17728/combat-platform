@@ -1,8 +1,8 @@
 import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor } from "@combat/shared";
 
 export interface RelatedResult {
-  outgoing: { field: string; node: GraphNode }[];
-  incoming: { field: string; node: GraphNode }[];
+  outgoing: { field: string; concept: string; node: GraphNode }[];
+  incoming: { field: string; concept: string; node: GraphNode }[];
 }
 
 export class Api {

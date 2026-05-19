@@ -6,10 +6,10 @@ test("FE-R1 ref field creates a cross-view relation reachable from the relations
   await request.post(`${API}/api/nodes/contribution`, { data: { 贡献人: "王五", 贡献类型: "实施", 贡献等级: "核心" } });
   await page.goto(`/related/attackTicket/${t.id}`);
   await expect(page.getByText("关联全景", { exact: false })).toBeVisible();
-  await expect(page.getByText("person", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /负责人/ })).toBeVisible();
   await page.getByRole("link", { name: "王五" }).first().click();
   await expect(page).toHaveURL(/\/related\/person\//);
-  await expect(page.getByText("attackTicket", { exact: false })).toBeVisible();
-  await expect(page.getByText("contribution", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /负责人/ })).toBeVisible();
+  await expect(page.getByText("关联攻关单", { exact: false })).toBeVisible();
   await expect(page.getByRole("link", { name: "关联攻关单" })).toBeVisible();
 });

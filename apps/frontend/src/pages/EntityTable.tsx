@@ -16,6 +16,7 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   const [nf, setNf] = useState({ name: "", label: "", type: "string" });
   const [rn, setRn] = useState<{ id: string; label: string } | null>(null);
   const [al, setAl] = useState<{ id: string; text: string } | null>(null);
+  const [cp, setCp] = useState<{ id: string; text: string } | null>(null);
   const [filter, setFilter] = useState("");
 
   const activeFields = (s: NodeSchema | null): FieldSchema[] => (s?.fields ?? []).filter(f => !f.retired);
@@ -56,6 +57,8 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
           </Popconfirm>
           <Button aria-label={`aliases-${f.id}`} size="small" type="link"
             onClick={() => setAl({ id: f.id, text: (f.aliases ?? []).join("\n") })}>别名</Button>
+          <Button aria-label={`concept-${f.id}`} size="small" type="link"
+            onClick={() => setCp({ id: f.id, text: f.concept ?? "" })}>概念</Button>
         </Space>
       ),
       dataIndex: f.id,
@@ -132,6 +135,14 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
         }}>
         <Input.TextArea aria-label="aliases-input" rows={4} value={al?.text ?? ""}
           onChange={e => setAl(s => (s ? { ...s, text: e.target.value } : s))} />
+      </Modal>
+      <Modal title="编辑语义概念" open={cp !== null} okText="确定" onCancel={() => setCp(null)}
+        onOk={async () => {
+          if (cp) await patch({ op: "setConcept", id: cp.id, concept: cp.text.trim() });
+          setCp(null);
+        }}>
+        <Input aria-label="concept-input" value={cp?.text ?? ""}
+          onChange={e => setCp(s => (s ? { ...s, text: e.target.value } : s))} />
       </Modal>
     </div>
   );
