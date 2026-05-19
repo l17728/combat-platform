@@ -50,4 +50,15 @@ describe("export e2e", () => {
     expect(r.status).toBe(404);
     expect(r.body.error).toBeTruthy();
   });
+  it("empty table -> 200 with a valid header-only xlsx", async () => {
+    const { app } = makeApp();
+    const r = await request(app).get("/api/export/attackTicket").buffer().parse((res, cb) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => cb(null, Buffer.concat(chunks)));
+    });
+    expect(r.status).toBe(200);
+    const wb = XLSX.read(r.body, { type: "buffer" });
+    expect(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])).toHaveLength(0);
+  });
 });
