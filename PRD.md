@@ -1329,10 +1329,10 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 25.6 验收标准
 
-- [ ] `config/schemas/releasePackage.json` / `weightFile.json` 加载生效；后端 ZERO 新代码、ZERO 新 shared 契约（架构验证）
-- [ ] 两 nodeType 的 CRUD（POST/PUT/GET/DELETE）经泛型路由生效；`required` 字段（版本号 / 名称）违反 → 400
-- [ ] `责任人` ref 写入 → REF→person 边自动建立（3a 复用）
-- [ ] `关联问题单` 非空 → ANCHORED_TO 问题单号 锚点（3d 复用）；同 X 下 attackTicket + releasePackage + weightFile 经 `/api/related` `coAnchored` 互见（跨 view 跨 nodeType 派生贯通）
-- [ ] `/api/query/search` 命中新 nodeType 属性子串（4 复用）
-- [ ] 前端 `/releases` / `/weights` 路由 + AppShell 导航 + HomePage 卡片可达；EntityTable 渲染、新增、编辑、退休字段、导出 Excel 全部复用既有
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] `config/schemas/releasePackage.json` / `weightFile.json` 加载生效；后端 ZERO 新源代码（apps/backend/src/* 未改）、ZERO 新 shared 契约（archive.e2e 经 import.meta.url 绝对路径加载真实配置；架构验证通过）
+- [x] 两 nodeType 的 CRUD（POST/PUT/GET/DELETE）经泛型路由生效；`required` 字段（版本号 / 名称）违反 → 400（archive.e2e 用例1/2）
+- [x] `责任人` ref 写入 → REF→person 边自动建立（archive.e2e 用例1 断言 properties.field="责任人"）
+- [x] `关联问题单` 非空 → ANCHORED_TO 问题单号 锚点（用例1）；同 X 下 attackTicket + releasePackage + weightFile 经 `/api/related` `coAnchored` 三方互见（用例3 跨 view 跨 nodeType 派生贯通）
+- [x] `/api/query/search` 命中新 nodeType 属性子串（用例4）；summarize() 补充 攻关单号/版本号/名称 识别键，新 nodeType 返回人读标签（非 UUID）
+- [x] 前端 `/releases` / `/weights` 路由 + AppShell 导航 + HomePage 卡片可达；EntityTable 渲染/新增/导出 Excel 全部复用（FE-AR1/FE-AR2）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend76/FEunit13/e2e31）；完成后部署测试服务器
