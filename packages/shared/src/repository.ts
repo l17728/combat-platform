@@ -12,5 +12,5 @@ export interface Repository {
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog;
   listProgress(ownerId: string): ProgressLog[];
   deleteNode(id: string, actor: string): void;
-  logAudit(action: string, entityType: string, entityId: string, changes: unknown, actor: string): void;
+  logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): void;
 }
