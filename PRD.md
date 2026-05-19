@@ -610,8 +610,8 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 |---|---|---|
 | **增量1** | 字段稳定 ID 地基 + 记录 CRUD + UI 字段管理(回写配置) + 可编辑表格 | ✅ 完成、tag、已部署（§14.2） |
 | **荣誉殿堂 (P0-②) + 平台集成** | 贡献记录(配置驱动)+CONTRIBUTED_TO+等级加权榜单+个人档案 **+ 统一外壳/导航 + 作战平台首页** | **进行中：本次实现（规格见 §15）** |
-| 增量1.5 | **服务端全量导出 Excel**（落实 §7.3 到 EntityTable 界面） | **进行中：本次实现（规格见 §16）** |
-| 增量2 | canonical 字段 + 别名/同义词映射（跨 view/导入名字归一，模糊推荐） | 已定向（§14.3） |
+| 增量1.5 | **服务端全量导出 Excel**（落实 §7.3 到 EntityTable 界面） | ✅ 完成、tag、已部署（§16） |
+| 增量2 | 字段 `aliases` 别名映射：导入列归一 + UI 别名管理（精确等值；模糊推荐+人审门留后续） | **进行中：本次实现（规格见 §17）** |
 | 增量3 | ref→实体 + 语义 concept + 跨颗粒度锚点关联 → 派生 KG 边 | 已定向（§14.3） |
 
 ### 14.2 增量1 规格（开发依据）
@@ -759,3 +759,44 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [ ] `GET /api/export/:nodeType` 返回合法 xlsx（正确 content-type + attachment 文件名）；回解析行=全量、表头=活跃字段 label、值按 id 正确、退休字段不含；未知 nodeType→404
 - [ ] `EntityTable`「导出 Excel」按钮在 `/attack` 与 `/contributions` 均可触发浏览器下载
 - [ ] `npm run test:all` 全绿（含新增导出后端 e2e + Playwright 下载用例）；完成后部署到测试服务器
+
+---
+
+## 17. 字段别名映射（增量2 规格，开发依据）
+
+落实 §14.3「别名/同义词映射（跨 view/导入名字归一）」第一步与 §0.3「显式优先」。本增量只做**显式别名**（精确等值）；**模糊推荐 + 强制人工审批门**（§0.3/§14.4）留后续增量；跨 view 查询归一留增量3。
+
+### 17.1 契约（@combat/shared）
+
+`FieldSchema` 增可选 `aliases?: string[]`（纯加法，与 `retired?` 同性质，不破坏现有数据/配置/校验）。
+
+### 17.2 后端
+
+- `apps/backend/src/import.ts` `mapColumns`：列→字段匹配从 `k===f.name || k===f.label` 扩展为 `k===f.name || k===f.label || (f.aliases ?? []).includes(k)`（k、name、label、alias 均 `trim()`）。遍历 `schema.fields` 顺序，首个命中某 Excel 列的字段胜出；输出仍按 `f.id` 键。效果：跨表异名列（研发责任人/运维责任人/责任人/owner/当前处理人…）归到同一 canonical 字段。
+- `@combat/shared` `FieldOp` 新增变体 `{ op: "setAliases"; id: string; aliases: string[] }`。`apps/backend/src/registry.ts` `applyFieldOp` 处理该 op：`find(id)` 后整体替换 `field.aliases = op.aliases`，复用既有「写回 config JSON → reload → 失败回滚」机制。`PATCH /api/schema/:nodeType` 自动支持（它转发 FieldOp）。
+
+### 17.3 前端
+
+- `apps/frontend/src/pages/EntityTable.tsx` 列头在「改名/退休」旁加「别名」按钮 `aria-label="aliases-${f.id}"`，打开 Modal（`okText="确定"`）含 `<Input.TextArea aria-label="aliases-input">`（换行/逗号分隔，预填当前 `f.aliases` join），确定 → 解析为 `string[]`（去空、trim）→ `api.patchSchema(nodeType, { op: "setAliases", id: f.id, aliases })` → refresh。`/attack`、`/contributions` 复用同组件自动具备。
+
+### 17.4 配置（最小演示性 seed）
+
+仅 `config/schemas/attackTicket.json`，给少数字段按 `req.md` 真实异名列补 `aliases`（如 `当前处理人` ← `["研发责任人","运维责任人","责任人","owner"]`；`标题` ← `["title","问题标题","事件标题"]`）。其余 nodeType 不动。该文件已在 `apps/frontend/e2e/reset-db.cjs` 的 e2e 恢复集，无需改 reset-db。
+
+### 17.5 关键设计决策（补充 §12/§14.4）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 别名存放 | EntitySchema 字段级 `aliases[]`（非 ViewSchema） | 首期一份规范别名表够用；view 级覆盖留后续；与 §0.4 配置驱动一致 |
+| 匹配方式 | 精确等值（trim 后） | 显式优先（§0.3）；大小写/编辑距离模糊属下一增量+人审门 |
+| setAliases 语义 | 整体替换该字段 aliases（非 add/remove） | UI 传完整列表，简单可预测；复用 applyFieldOp 持久化/回滚 |
+| seed 范围 | 仅 attackTicket，来源 req.md 真实表列名 | 让"导入跨表异名归一"立即有真实价值；YAGNI |
+| 模糊推荐+人审门 | 不在本增量 | §0.3/§14.4 明确属后续；本增量只做显式别名 |
+
+### 17.6 验收标准
+
+- [ ] `FieldSchema.aliases` 契约生效（类型测试），现有数据/配置/校验不破坏
+- [ ] 导入含异名列（如「研发责任人」）的 Excel，按 alias 命中 → 值落到 canonical 字段（`properties[f.id]`），跨异名归一
+- [ ] `PATCH /api/schema/:nodeType {op:"setAliases",...}` 持久化回 config JSON + reload；非法/未知字段 id 报错并回滚；setAliases 后再导入能用新别名
+- [ ] `EntityTable` 列头「别名」按钮在 `/attack`、`/contributions` 可设别名并持久化（经 schema 端点/刷新可见）
+- [ ] `npm run test:all` 全绿（含新增 shared 类型测试 + 后端 alias-import/setAliases e2e + Playwright 别名管理用例）；完成后部署到测试服务器
