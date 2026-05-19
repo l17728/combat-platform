@@ -61,4 +61,13 @@ describe("Api client", () => {
     await api.getRelated("person", "p1");
     expect(calls[0]).toBe("http://x/api/related/person/p1");
   });
+  it("patchSchema setConcept PATCHes the schema endpoint with the op", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify({ nodeType: "attackTicket", label: "攻关单", fields: [], identityKeys: [], derivedToKG: true }), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    await api.patchSchema("attackTicket", { op: "setConcept", id: "当前处理人", concept: "负责人" });
+    expect(calls[0][0]).toBe("http://x/api/schema/attackTicket");
+    expect(calls[0][1].method).toBe("PATCH");
+    expect(JSON.parse(calls[0][1].body)).toEqual({ op: "setConcept", id: "当前处理人", concept: "负责人" });
+  });
 });

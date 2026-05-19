@@ -74,7 +74,7 @@ test("GAP RelatedPage: direction labels, incoming edge, and empty state", async 
   await page.getByRole("link", { name: "覆盖人乙" }).first().click();
   await expect(page).toHaveURL(/\/related\/person\//);
   await expect(page.getByText("← 引用本节点", { exact: false })).toBeVisible();
-  await expect(page.getByText("attackTicket", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /负责人/ })).toBeVisible();
   // GAP-26/RP-5: a fresh ticket with no refs/edges -> 暂无关联 status
   const lone = await (await request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: "孤立单", 状态: "进行中" } })).json();
   await page.goto(`/related/attackTicket/${lone.id}`);

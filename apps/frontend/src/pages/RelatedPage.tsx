@@ -24,7 +24,7 @@ export function RelatedPage() {
     ...(data?.outgoing ?? []).map(x => ({ ...x, dir: "→ 本节点引用" })),
   ];
   const groups: Record<string, typeof all> = {};
-  for (const x of all) (groups[x.node.nodeType] ??= []).push(x);
+  for (const x of all) (groups[x.concept || x.node.nodeType] ??= []).push(x);
   return (
     <div style={{ padding: 16 }}>
       <Typography.Title level={3}>关联全景：{nodeType} / {id}</Typography.Title>
