@@ -59,4 +59,10 @@ describe("honor e2e", () => {
     expect(p.body.contributions).toHaveLength(1);
     expect(p.body.contributions[0].attackTicketId).toBe(t.body.id);
   });
+  it("contribution with no 关联攻关单 returns 201 and creates no edge", async () => {
+    const { app, repo } = makeApp();
+    const c = await request(app).post("/api/nodes/contribution").send({ 贡献人: "赵六", 贡献类型: "设计" });
+    expect(c.status).toBe(201);
+    expect(repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(0);
+  });
 });

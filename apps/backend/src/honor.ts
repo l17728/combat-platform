@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Repository } from "@combat/shared";
 
+// Unknown/blank level (incl. schema-optional omission) defaults to 普通-equivalent weight 1.
 const WEIGHT: Record<string, number> = { 普通: 1, 关键: 3, 核心: 8 };
 
 export function makeHonorRouter(repo: Repository): Router {
