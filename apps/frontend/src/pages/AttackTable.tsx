@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { Table, Input, Button, Space, Popconfirm, message, Modal, Select } from "antd";
 import { api } from "../api.js";
 import type { GraphNode, NodeSchema, FieldSchema } from "@combat/shared";
@@ -12,6 +13,8 @@ export function AttackTable() {
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [nf, setNf] = useState({ name: "", label: "", type: "string" });
+  const [rn, setRn] = useState<{ id: string; label: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState("");
 
   const activeFields = (s: NodeSchema | null): FieldSchema[] =>
     (s?.fields ?? []).filter(f => !f.retired);
@@ -47,10 +50,8 @@ export function AttackTable() {
       title: (
         <Space size={4}>
           <span>{f.label}</span>
-          <Button aria-label={`rename-${f.id}`} size="small" type="link" onClick={() => {
-            const v = window.prompt(`重命名「${f.label}」`, f.label);
-            if (v) patch({ op: "renameLabel", id: f.id, label: v });
-          }}>改名</Button>
+          <Button aria-label={`rename-${f.id}`} size="small" type="link"
+            onClick={() => setRn({ id: f.id, label: f.label })}>改名</Button>
           <Popconfirm title={`退休字段「${f.label}」？数据保留`} onConfirm={() => patch({ op: "retire", id: f.id })}>
             <Button aria-label={`retire-${f.id}`} size="small" type="link" danger>退休</Button>
           </Popconfirm>
@@ -61,7 +62,8 @@ export function AttackTable() {
         const e = editing[r.id];
         if (e) return <Input aria-label={`edit-${f.id}`} value={e[f.id] ?? String(r.properties[f.id] ?? "")}
           onChange={ev => setEditing(s => ({ ...s, [r.id]: { ...s[r.id], [f.id]: ev.target.value } }))} />;
-        return String(r.properties[f.id] ?? "");
+        const val = String(r.properties[f.id] ?? "");
+        return f.id === "标题" ? <Link to={`/attack/${r.id}`}>{val}</Link> : val;
       },
     })),
     {
@@ -81,6 +83,8 @@ export function AttackTable() {
   return (
     <div style={{ padding: 16 }}>
       <h2>攻关作战台（可编辑）</h2>
+      <Input.Search aria-label="status-filter" placeholder="按状态过滤" allowClear
+        onSearch={setStatusFilter} style={{ width: 220, marginBottom: 12 }} />
       <Space style={{ marginBottom: 12 }}>
         {draft === null
           ? <Button aria-label="new-row" type="primary" onClick={() => setDraft({})}>新增行</Button>
@@ -92,7 +96,8 @@ export function AttackTable() {
               <Button onClick={() => setDraft(null)}>取消</Button>
             </>}
       </Space>
-      <Table rowKey="id" dataSource={rows} columns={columns} pagination={false} />
+      <Table rowKey="id" columns={columns} pagination={false}
+        dataSource={rows.filter(r => !statusFilter || String(r.properties["状态"] ?? "").includes(statusFilter))} />
       <Modal title="新增字段" open={addOpen} okText="添加"
         onCancel={() => setAddOpen(false)}
         onOk={async () => { await patch({ op: "addField", field: { name: nf.name, label: nf.label || nf.name, type: nf.type as FieldSchema["type"] } }); setAddOpen(false); setNf({ name: "", label: "", type: "string" }); }}>
@@ -103,6 +108,15 @@ export function AttackTable() {
             onChange={v => setNf(s => ({ ...s, type: v }))}
             options={["string", "number", "date", "datetime", "enum"].map(t => ({ value: t, label: t }))} />
         </Space>
+      </Modal>
+      <Modal title="重命名字段" open={rn !== null} okText="确定"
+        onCancel={() => setRn(null)}
+        onOk={async () => {
+          if (rn) await patch({ op: "renameLabel", id: rn.id, label: rn.label });
+          setRn(null);
+        }}>
+        <Input aria-label="rename-input" value={rn?.label ?? ""}
+          onChange={e => setRn(s => (s ? { ...s, label: e.target.value } : s))} />
       </Modal>
     </div>
   );
