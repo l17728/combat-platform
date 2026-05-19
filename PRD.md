@@ -593,7 +593,7 @@ UI 层      : 视图渲染引擎（表格↔布局↔图↔时间线，配置驱
 | 5 | 图谱规模上限？ | KG 存储/渲染 | 千级先用 SQL+内存图，万级引入图索引/分页聚类 |
 | 6 | 发布包/权重文件归档：仅元数据登记还是文件托管？ | 李嘉⑤⑥ | 倾向先做元数据+链接登记，文件托管后评估 |
 | 7 | 字段 id 生成策略（新字段 slug 派生算法/唯一化/中文）？ | §14 增量1 | 现有字段 id=原名；新字段：名字派生 slug + 冲突加序号；最终化 §14.2 |
-| 8 | 跨颗粒度锚点的权威清单（问题单号/OSM/事件单号/domain id/客户）？ | §14 增量2/3 | 增量2 与用户确认锚点字段集与优先级 |
+| 8 | 跨颗粒度锚点的权威清单（问题单号/OSM/事件单号/domain id/客户）？ | §14 增量3d | **已解决（§21.1）**：锁定 `问题单号`（含 OSM/关联需求·问题单）/`事件单号`/`domain`/`客户`（含 涉及/影响客户），配置可扩展 |
 | 9 | `applyFieldOp` 回滚粒度：`reload()` 全目录重解析，无关 sibling 配置损坏会误回滚本次有效变更 | §14.2B 增量1 已交付（单/少 schema 可接受） | schema 增多前改为"仅校验被写文件"再 reload；现以注释+本条跟踪 |
 
 ---
@@ -1000,3 +1000,62 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] `RelatedPage` 独立「候选关系（待审批）」分组（标注置信度/理由），不污染权威分组（FE-P1）
 - [x] `EntityTable` ref 单元格直跳被引用实体关联页（§18.0 line823 兑现，FE-P2）；未解析回退原行为不破坏 FE-R1（e2e 23/23 含 related.spec）
 - [x] 全功能 e2e 覆盖审计门通过（审计补齐 空状态/拒绝/首页卡片 缺口）；`npm run test:all` 连续两次全绿（shared11/backend59/FEunit13/e2e23）；完成后部署测试服务器
+
+---
+
+## 21. 增量3d：跨颗粒度——共享最细锚点派生关联 开发依据
+
+> 兑现 §14.3③「**(最强、首选)经共享最细粒度锚点实体关联**——粗对象不互连，统一连到共享原子，跨 view 关系由共享锚点派生」+ §18.0 row 3d + 解决 §13#8（锁定锚点权威清单）。依赖 3a（派生边机制）。复用 3a `syncRefEdges`/3b `concept` 形态（配置驱动字段标注 → 写入时派生边，KG 派生只读、唯一权威写路径、审计）。本节是本增量的实现依据。
+
+### 21.0 范围与定向
+
+交付：①字段可配置标注 `anchor:"<kind>"`（与 `refType`/`concept` 同性质，纯加法）；②写入时按锚点字段值解析/建**共享锚点实体**并建**类型化边 `ANCHORED_TO`**（`properties.anchorKind`），幂等（先删本节点旧 ANCHORED_TO 再按当前值重建，镜像 3a）；③粗对象**不互连**——跨 view 关联**派生**自"共享同一锚点"（node→anchor→其它 view node 的 2 跳）；④`/api/related` 纳入 ANCHORED_TO 边（可经锚点 2 跳钻取，复用 3a/3b 既有形态）并新增派生 `跨颗粒度（共享锚点）` 同锚点对端 view 节点分组；⑤锁定锚点权威清单（§13#8）。锚点实体即 §14.3④ 的桥接节点（关系属性挂锚点节点）。YAGNI：不做显式 `PART_OF/ROLLS_UP` 层级 nodeType 体系（无层级字段，留后续）、不做 depth-N 遍历/冲突检测。
+
+### 21.1 契约（@combat/shared）
+
+`FieldSchema` 增可选 `anchor?: string`（值为锚点种类/共享原子 nodeType，如 `问题单号`/`事件单号`/`domain`/`客户`；纯加法，与 `refType`/`concept`/`aliases`/`retired` 同性质，不破坏现有数据/配置/校验）。`FieldOp` 增变体 `| { op: "setAnchor"; id: string; anchor: string }`（追加在 `setConcept` 之后；空串=清除）。锚点权威清单（§13#8 锁定，配置可扩展）：`问题单号`（含 OSM问题单号/关联需求·问题单）、`事件单号`、`domain`、`客户`（含 涉及客户/影响客户）——异名 anchor 字段经同一 `anchor` 值归一到同一共享原子 nodeType。
+
+### 21.2 后端
+
+- `apps/backend/src/registry.ts` `applyFieldOp`：在 `setConcept` 分支后、未知 op `else` 前新增 `} else if (op.op === "setAnchor") { if (typeof op.anchor !== "string") throw new Error("setAnchor 需要 anchor 字符串"); find(op.id).anchor = op.anchor;`（沿用 setConcept 守卫教训；写盘前抛错→400→配置不变；复用既有 writeFileSync→reload→回滚尾）。
+- 新模块 `apps/backend/src/anchors.ts` `syncAnchorEdges(repo, registry, node, body, actor)`（单一职责，镜像 `refs.ts`）：先 `repo.deleteEdges({ sourceId: node.id, edgeType: "ANCHORED_TO" }, actor)`（幂等）；对该 nodeType schema 每个 `f.anchor` 非空字段，若 `body[f.id]` trim 后非空值 `v`：在 `repo.queryNodes(f.anchor)` 中找 `properties["key"]===v` 的锚点节点，否则 `repo.createNode(f.anchor, { key: v }, actor)` 建共享锚点；`repo.createEdge("ANCHORED_TO", node.id, anchor.id, { anchorKind: f.anchor, field: f.id }, actor)`。**粗对象间不建任何直接边**。
+- 在 `POST /api/nodes/:nodeType`（创建后）与 `PUT /api/nodes/:id`（更新后）各加一行 `syncAnchorEdges` 调用（与既有 `syncRefEdges` 并存，互不冲突）。
+- `apps/backend/src/related.ts`：`queryEdges` 取边时由 `edgeType:"REF"` 扩展为同时含 `ANCHORED_TO`（outgoing/incoming 项保留既有 `{field,concept,node}` 形，锚点边 `concept` 取 `""`，`node` 为锚点实体或对端，使既有 1 跳钻取与 3b 分组对锚点自然生效——锚点按 nodeType 分组）；并新增**派生** `coAnchored: [{ anchorKind, anchorKey, node }]`：对本节点每条 ANCHORED_TO 的锚点，列出该锚点其它 incoming 源节点（≠本节点），即"共享同一锚点的其它 view 节点"（粗对象跨颗粒度对端，派生不落边）。无锚点字段时 `coAnchored: []`，其余响应与 3c 一致。
+- seed：`config/schemas/attackTicket.json` 增字段或标注现有——为可演示，给 attackTicket 增 `{ name:"问题单号", type:"string", label:"问题单号", anchor:"问题单号" }`；`config/schemas/contribution.json` 增 `{ name:"关联问题单", type:"string", label:"关联问题单", anchor:"问题单号" }`（异名同 anchor）。仅追加字段，其余 JSON 字节不变，Chinese 完好；现存数据不受影响（解析仅新写触发）。
+
+### 21.3 前端
+
+- `apps/frontend/src/api.ts`：`RelatedResult` 增可选 `coAnchored?: { anchorKind: string; anchorKey: string; node: GraphNode }[]`。
+- `apps/frontend/src/pages/RelatedPage.tsx`：现有权威/concept 分组**不变**（ANCHORED_TO 边经 3b 分组按锚点 nodeType 自然成组，可继续 2 跳钻取——与 FE-R1 同形态）；**新增独立** `跨颗粒度（共享锚点）` 分组渲染 `coAnchored`（标注 `anchorKind:anchorKey`，链到对端 detailLink），与权威/候选分组数据/视觉分离。`label/detailLink` 不变。
+- `apps/frontend/src/pages/EntityTable.tsx`：列头在「概念」旁加「锚点」按钮 `aria-label="anchor-${f.id}"` + Modal（`okText="确定"`，`Input aria-label="anchor-input"` 预填 `f.anchor`）→ `api.patchSchema(nodeType,{op:"setAnchor",id,anchor})`，镜像 `概念` 编辑器（`cp`→`an`/`setAn`）。纯加法不改既有。
+- `apps/frontend/src/api.ts` 已有 `patchSchema` 泛型透传，无需改签名。
+
+### 21.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`FieldSchema.anchor?` + `FieldOp.setAnchor` 类型测试（tsc-clean）。
+- 后端 e2e（新 `apps/backend/test/anchor.e2e.test.ts`）：①写带 anchor 字段节点→建共享锚点+ANCHORED_TO 边（`properties.anchorKind` 正确）；②不同 nodeType 异名 anchor 字段（attackTicket.问题单号 / contribution.关联问题单）填同值→共享同一锚点节点（仅 1 个）；③`/api/related` 该 attackTicket 的 `coAnchored` 含该 contribution（经共享锚点派生，**无**直接粗-粗边）且对称；④粗对象间 `repo.queryEdges` 无直接互连边；⑤`PATCH setAnchor` 持久化+reload，非字符串→400 配置不变；⑥更新节点改锚点值→旧 ANCHORED_TO 删、新建（幂等）。
+- 前端 Playwright（新 `apps/frontend/e2e/anchor.spec.ts`）：建 attackTicket(问题单号=X)+contribution(关联问题单=X)→该 attackTicket 关联页出现独立「跨颗粒度（共享锚点）」分组且含该 contribution；列头「锚点」编辑器设置 anchor 经 schema 端点验证持久化。
+- 既有断言加法不破坏；随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 21.5 关键设计决策（补充 §12/§14.4/§18.6/§19.5/§20.5）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 跨颗粒度机制 | 共享最细锚点派生（粗对象不互连，2 跳经锚点） | §14.3③ 明列为**最强、首选**；与 §0.2/§4 派生 KG 一致 |
+| 锚点承载 | 字段级 `anchor?`（配置驱动）→ 写入派生 `ANCHORED_TO` 边 | 与 `refType`/`concept` 同形态；异名字段同 anchor 归一；零 DDL |
+| 桥接节点 | 锚点实体本身即桥接（关系属性挂锚点节点） | §14.3④；MVP 无需独立关联节点构造 |
+| 锚点权威清单（§13#8） | `问题单号`/`事件单号`/`domain`/`客户`（含异名归并），配置可扩展 | req.md 现成锚点；锁定即解 §13#8 |
+| 类型化层级 nodeType（PART_OF/ROLLS_UP 体系） | 不在 3d（仅 `ANCHORED_TO` 单类型边 + anchorKind） | 无显式层级字段，YAGNI；锚点派生已兑现首选机制；显式层级留后续 |
+| /api/related 集成 | ANCHORED_TO 复用既有 outgoing/incoming（按 nodeType 2 跳钻取）+ 新增派生 `coAnchored` 分组 | 复用 3a/3b 形态、最小新面；粗-粗关联派生不落边 |
+| depth-N/冲突检测/独立 KG 引擎 | 不在 3d | §18.0 明列后续 |
+
+### 21.6 验收标准
+
+- [ ] shared `FieldSchema.anchor?` + `FieldOp.setAnchor` 契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] 写带 anchor 字段节点 → 建/复用共享锚点实体 + `ANCHORED_TO` 边（`properties.anchorKind` 正确）；改值幂等（旧删新建）
+- [ ] 不同 nodeType 异名 anchor 字段（attackTicket.问题单号 / contribution.关联问题单）填同值 → 共享同一锚点节点（仅 1 个）；粗对象间无任何直接互连边
+- [ ] `GET /api/related` 含派生 `coAnchored`（经共享锚点的其它 view 对端节点，对称、不落边）；无锚点时 `coAnchored:[]`；其余与 3c 一致
+- [ ] `PATCH /api/schema {op:"setAnchor"}` 持久化+reload；非字符串 → 400 + 配置不变
+- [ ] `EntityTable` 列头「锚点」编辑器在 `/attack`、`/contributions` 可设 anchor 并持久化（schema 端点可见）
+- [ ] `RelatedPage` 独立「跨颗粒度（共享锚点）」分组（标注 anchorKind:anchorKey），不污染权威/concept/候选分组；ANCHORED_TO 可经锚点 2 跳钻取
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
