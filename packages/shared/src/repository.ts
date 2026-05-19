@@ -9,6 +9,7 @@ export interface Repository {
   queryNodes(nodeType: string, filter?: NodeFilter): GraphNode[];
   createEdge(edgeType: string, sourceId: string, targetId: string, properties: Record<string, unknown>, actor: string): GraphEdge;
   queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): GraphEdge[];
+  deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void;
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog;
   listProgress(ownerId: string): ProgressLog[];
   deleteNode(id: string, actor: string): void;

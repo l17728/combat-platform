@@ -77,6 +77,16 @@ export class SqliteRepository implements Repository {
         && (!opts.edgeType || e.edgeType === opts.edgeType));
   }
 
+  deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void {
+    this.db.transaction(() => {
+      const victims = this.queryEdges(opts);
+      for (const e of victims) {
+        this.db.prepare(`DELETE FROM edges WHERE id=?`).run(e.id);
+        this.audit("DELETE", "edge", e.id, { edgeType: e.edgeType, sourceId: e.sourceId, targetId: e.targetId }, actor);
+      }
+    })();
+  }
+
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog {
     let p!: ProgressLog;
     this.db.transaction(() => {

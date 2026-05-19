@@ -71,4 +71,18 @@ describe("SqliteRepository", () => {
     expect(a[0].performedBy).toBe("alice");
     expect(JSON.parse(a[0].changes)).toEqual({ x: 1 });
   });
+  it("deleteEdges removes only matching edges and audits", () => {
+    const a = repo.createNode("attackTicket", { 标题: "A" }, "t");
+    const p = repo.createNode("person", { name: "张三" }, "t");
+    const q = repo.createNode("person", { name: "李四" }, "t");
+    repo.createEdge("REF", a.id, p.id, { field: "当前处理人" }, "t");
+    repo.createEdge("REF", a.id, q.id, { field: "攻关组长" }, "t");
+    repo.createEdge("CONTRIBUTED_TO", a.id, p.id, {}, "t");
+    repo.deleteEdges({ sourceId: a.id, edgeType: "REF" }, "killer");
+    expect(repo.queryEdges({ sourceId: a.id, edgeType: "REF" })).toHaveLength(0);
+    expect(repo.queryEdges({ sourceId: a.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(1);
+    const au = db.prepare("SELECT * FROM audit_log WHERE action='DELETE' AND entityType='edge'").all() as any[];
+    expect(au.length).toBeGreaterThanOrEqual(1);
+    expect(au[0].performedBy).toBe("killer");
+  });
 });

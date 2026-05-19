@@ -67,3 +67,10 @@ describe("alias contracts", () => {
     if (ops[0].op === "setAliases") expect(ops[0].aliases).toEqual(["title"]);
   });
 });
+
+describe("ref-edge contracts", () => {
+  it("Repository requires deleteEdges", () => {
+    const keys: (keyof Repository)[] = ["deleteEdges", "createEdge", "queryEdges"];
+    expect(keys).toContain("deleteEdges");
+  });
+});
