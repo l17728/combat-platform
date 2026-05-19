@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -90,6 +90,10 @@ export class Api {
   }
   getContext(id: string): Promise<QueryContext> {
     return this.req<QueryContext>(`/api/query/context/${id}`, {});
+  }
+  recommendHelpers(id: string, limit?: number): Promise<HelperRecommendation[]> {
+    const qs = limit ? `?limit=${limit}` : "";
+    return this.req<HelperRecommendation[]>(`/api/recommend/helpers/${id}${qs}`, {});
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
