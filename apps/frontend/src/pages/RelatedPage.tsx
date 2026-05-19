@@ -15,7 +15,10 @@ function label(n: GraphNode): string {
 export function RelatedPage() {
   const { nodeType = "", id = "" } = useParams();
   const [data, setData] = useState<RelatedResult | null>(null);
-  useEffect(() => { api.getRelated(nodeType, id).then(setData); }, [nodeType, id]);
+  useEffect(() => {
+    api.getRelated(nodeType, id).then(setData)
+      .catch(() => setData({ outgoing: [], incoming: [] }));
+  }, [nodeType, id]);
   const all = [
     ...(data?.incoming ?? []).map(x => ({ ...x, dir: "← 引用本节点" })),
     ...(data?.outgoing ?? []).map(x => ({ ...x, dir: "→ 本节点引用" })),
