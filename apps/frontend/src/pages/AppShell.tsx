@@ -9,6 +9,7 @@ const ITEMS = [
   { key: "/honor", label: <Link to="/honor">荣誉殿堂</Link> },
   { key: "/contributions", label: <Link to="/contributions">贡献录入</Link> },
   { key: "/import", label: <Link to="/import">导入</Link> },
+  { key: "/proposals", label: <Link to="/proposals">关系审批</Link> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

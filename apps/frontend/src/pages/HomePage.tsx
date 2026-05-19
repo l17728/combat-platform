@@ -6,6 +6,7 @@ const MODULES = [
   { to: "/honor", title: "荣誉殿堂", desc: "贡献加权排行榜与个人档案" },
   { to: "/contributions", title: "贡献录入", desc: "记录贡献并关联攻关单" },
   { to: "/import", title: "导入", desc: "从 Excel 导入数据" },
+  { to: "/proposals", title: "关系审批", desc: "候选关系扫描与人工审批" },
 ];
 
 export function HomePage() {

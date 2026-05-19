@@ -4,6 +4,18 @@ import { Table, Input, Button, Space, Popconfirm, message, Modal, Select } from 
 import { api } from "../api.js";
 import type { GraphNode, NodeSchema, FieldSchema } from "@combat/shared";
 
+function RefCell({ nodeType, rowId, fieldId, value }: { nodeType: string; rowId: string; fieldId: string; value: string }) {
+  const [to, setTo] = useState(`/related/${nodeType}/${rowId}`);
+  useEffect(() => {
+    api.getRelated(nodeType, rowId).then(d => {
+      const hit = d.outgoing.find(o => o.field === fieldId);
+      if (hit) setTo(hit.node.nodeType === "attackTicket"
+        ? `/attack/${hit.node.id}` : `/related/${hit.node.nodeType}/${hit.node.id}`);
+    }).catch(() => {});
+  }, [nodeType, rowId, fieldId]);
+  return <Link aria-label={`ref-${fieldId}`} to={to}>{value}</Link>;
+}
+
 export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   nodeType: string; filterField?: string;
   linkField?: string; linkTo?: (id: string) => string;
@@ -68,7 +80,7 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
           onChange={ev => setEditing(s => ({ ...s, [r.id]: { ...s[r.id], [f.id]: ev.target.value } }))} />;
         const val = String(r.properties[f.id] ?? "");
         if (linkField && linkTo && f.id === linkField) return <Link to={linkTo(r.id)}>{val}</Link>;
-        if (f.type === "ref") return <Link aria-label={`ref-${f.id}`} to={`/related/${nodeType}/${r.id}`}>{val}</Link>;
+        if (f.type === "ref") return <RefCell nodeType={nodeType} rowId={r.id} fieldId={f.id} value={val} />;
         return val;
       },
     })),

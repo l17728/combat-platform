@@ -1,8 +1,9 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
   incoming: { field: string; concept: string; node: GraphNode }[];
+  candidates?: { proposalId: string; relationType: string; confidence: number; rationale: string; node: GraphNode }[];
 }
 
 export class Api {
@@ -66,8 +67,22 @@ export class Api {
   getPersonHonor(name: string): Promise<PersonHonor> {
     return this.req<PersonHonor>(`/api/honor/person/${encodeURIComponent(name)}`, {});
   }
-  getRelated(nodeType: string, id: string): Promise<RelatedResult> {
-    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}`, {});
+  getRelated(nodeType: string, id: string, opts: { includeCandidates?: boolean } = {}): Promise<RelatedResult> {
+    const qs = opts.includeCandidates ? "?includeCandidates=1" : "";
+    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}${qs}`, {});
+  }
+  listProposals(status?: string): Promise<RelationProposal[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.req<RelationProposal[]>(`/api/proposals${qs}`, {});
+  }
+  scanProposals(): Promise<{ created: number }> {
+    return this.req<{ created: number }>(`/api/proposals/scan`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  }
+  decideProposal(id: string, decision: string, decidedBy: string, patch?: { targetNodeId?: string }): Promise<RelationProposal> {
+    return this.req<RelationProposal>(`/api/proposals/${id}/decide`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decision, decidedBy, patch }) });
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
