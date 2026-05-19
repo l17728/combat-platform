@@ -613,8 +613,8 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 | 增量1.5 | **服务端全量导出 Excel**（落实 §7.3 到 EntityTable 界面） | ✅ 完成、tag、已部署（§16） |
 | 增量2 | 字段 `aliases` 别名映射：导入列归一 + UI 别名管理（精确等值；模糊推荐+人审门留后续） | ✅ 完成、tag、已部署（§17） |
 | 增量3（拆解） | ref→实体+concept+跨颗粒度锚点+LLM提议人审+派生KG —— **跨多子系统，拆 3a/3b/3c/3d 各自独立交付** | 拆解见 §18.0 |
-| └ 增量3a | `type:ref` 写入解析建实体+建有向边 + 1跳跨view关联只读API/页 | **进行中：本次实现（规格见 §18）** |
-| └ 增量3b | 语义 `concept`：异名同 concept 自动归并关系语义 | 已定向（需 3a） |
+| └ 增量3a | `type:ref` 写入解析建实体+建有向边 + 1跳跨view关联只读API/页 | ✅ 完成、tag、已部署（§18）+ 全功能 e2e 覆盖审计门确立 |
+| └ 增量3b | 语义 `concept`：字段挂 concept→写 REF 边→/api/related 按 concept 分组（异名同 concept 归并可见） | **进行中：本次实现（规格见 §19）** |
 | └ 增量3c | LLM/Hermes 提议候选关系 + **强制人工审批队列**（§0.3/§14.4） | 已定向（需 3a） |
 | └ 增量3d | 跨颗粒度锚点：类型化层级/聚合边 + 共享最细锚点 + 桥接节点 | 已定向（需 3a） |
 
@@ -874,3 +874,61 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [ ] 更新 当前处理人=李四 → 旧 REF 边删、新边建，无重复/悬挂；复用已有 person 不重复建；未知 id→404
 - [ ] `/related/:nodeType/:id` 关联页按 nodeType 分组展示并可钻取；AttackDetail 与 ref 单元格入口可达
 - [ ] `npm run test:all` 全绿（shared deleteEdges + 后端 refs/related e2e + Playwright 关联用例）；完成后部署到测试服务器
+
+---
+
+## 19. 增量3b：语义 concept（异名同 concept 归并）开发依据
+
+> 承接 §14.3 ②→③：在 3a 的 REF 边之上加"语义角色"，使不同 view 的异名关系字段（当前处理人/贡献人/责任人…）按 concept 归并为同一语义。复用增量2（aliases）的形态。本节是本增量的实现依据。
+
+### 19.1 契约（@combat/shared）
+
+`FieldSchema` 增可选 `concept?: string`（纯加法，与 `aliases?`/`retired?` 同性质，不破坏现有数据/配置/校验）。`FieldOp` 增变体 `| { op: "setConcept"; id: string; concept: string }`（追加在 `setAliases` 之后）。
+
+### 19.2 后端
+
+- `apps/backend/src/registry.ts` `applyFieldOp`：在 `setAliases` 分支之后、未知 op `else` 之前，新增：
+  ```ts
+  } else if (op.op === "setConcept") {
+    if (typeof op.concept !== "string") throw new Error("setConcept 需要 concept 字符串");
+    find(op.id).concept = op.concept;
+  ```
+  （沿用增量2 `setAliases` 评审教训的运行时类型守卫；`find(id)` 在写盘前抛错→路由 400→配置不变；复用既有 writeFileSync→reload→回滚尾。）
+- `apps/backend/src/refs.ts` `syncRefEdges`：建 REF 边时 properties 增 `concept: f.concept ?? ""`（与既有 `field`、`refType` 并存，单一 `REF` 边类型不变）。
+- `apps/backend/src/related.ts`：每个关联项增 `concept`，即 `outgoing`/`incoming` 项形为 `{ field: string; concept: string; node: GraphNode }`（`concept` 取边 `properties.concept` 字符串）。
+- seed：`config/schemas/attackTicket.json` 的 `当前处理人` 字段增 `"concept": "负责人"`；`config/schemas/contribution.json` 的 `贡献人` 字段增 `"concept": "负责人"`。仅这两个字段对象改动（追加 `concept` 键），其余 JSON 字节不变，Chinese 完好。
+
+### 19.3 前端
+
+- `apps/frontend/src/api.ts`：`RelatedResult` 的项类型由 `{ field; node }` 改为 `{ field: string; concept: string; node: GraphNode }`（outgoing/incoming 同）。
+- `apps/frontend/src/pages/EntityTable.tsx`：列头在「改名/退休/别名」旁加「概念」按钮 `aria-label="concept-${f.id}"`，打开 Modal（`okText="确定"`）含 `<Input aria-label="concept-input">`（预填当前 `f.concept`），确定 → `api.patchSchema(nodeType, { op: "setConcept", id: f.id, concept })` → refresh。镜像现有 `别名` 编辑器（`al`/`setAl` → `cp`/`setCp`，单值字符串而非数组）。纯加法，不改任何既有 aria-label/行为。
+- `apps/frontend/src/pages/RelatedPage.tsx`：分组键由 `x.node.nodeType` 改为 **`x.concept || x.node.nodeType`**。组标题即该键；无 concept 的项仍按 nodeType 分组（行为不变）。效果：某 person 的关联页里，来自 attackTicket 的「当前处理人」与来自 contribution 的「贡献人」（皆 concept=负责人）归并到同一「负责人」组——异名同语义归并可见。`label/detailLink` 不变。
+- **有意更新既有断言**（分组键变更所致，非弱化——底层关联数据仍断言）：`apps/frontend/e2e/related.spec.ts` FE-R1 与 `apps/frontend/e2e/coverage.spec.ts` 的 RelatedPage 用例中，对 person 关联页"按 nodeType 分组标题(attackTicket/contribution/person)"的断言，更新为新的 concept 分组（如「负责人」组含来自两个异名字段的节点；无 concept 节点仍按 nodeType）。
+
+### 19.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`FieldSchema.concept` + `FieldOp` `setConcept` 类型测试（tsc-clean）。
+- 后端 e2e（新 `apps/backend/test/concept.e2e.test.ts`）：写带 ref 字段的节点 → REF 边 `properties.concept` = 字段 concept；`/api/related` 项含正确 concept；同一 person 经两个不同 nodeType 的同-concept ref 字段被引用 → related 两项 concept 均为「负责人」；`PATCH setConcept` 持久化回 config + reload + 再读 schema 生效；`setConcept` 非字符串 body → 400 + 配置不变（镜像 setAliases 测试）。
+- 前端 Playwright（新 `apps/frontend/e2e/concept.spec.ts`）：列头「概念」编辑器设置 concept 并经 schema 端点验证持久化；建 attackTicket(当前处理人=某人)+contribution(贡献人=同人)→该 person 关联页两项归并到「负责人」组（断言该组标题可见且含两来源）。
+- 既有 FE-R1/coverage RelatedPage 断言按 §19.3 更新；随后跑**全功能 Playwright e2e 覆盖审计门**（§18 确立的标准门：审计所有用户可见功能×现有 spec，补缺）+ `npm run test:all` 连续两次全绿。
+
+### 19.5 关键设计决策（补充 §12/§18.6）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| concept 存放 | EntitySchema 字段级 `concept?`，写入 REF 边 `properties.concept` | 与 aliases 同形态、配置驱动；边自带语义便于 related 分组与后续遍历 |
+| 分组键 | `concept ‖ nodeType` | 异名同 concept 归并可见；无 concept 退回 nodeType 不破坏既有行为 |
+| setConcept 语义 | 整体替换 + 非字符串运行时守卫 | 简单可预测；沿用增量2 setAliases 评审教训 |
+| seed | 仅 attackTicket.当前处理人 / contribution.贡献人 → concept「负责人」 | 让"异名同语义跨 view 归并"端到端真实可演示；YAGNI |
+| 既有断言更新 | 有意更新 FE-R1/coverage RelatedPage 分组断言 | 分组键有意变更；底层数据仍断言；覆盖审计门+两次全绿兜底 |
+| 专用 concept 查询 API / concept 词表管理 UI | 不在 3b | 留 3c/后续；本增量只做"字段挂 concept + 边带 concept + related 按 concept 分组" |
+
+### 19.6 验收标准
+
+- [ ] `FieldSchema.concept?` + `FieldOp.setConcept` 契约生效（shared 类型测试，tsc-clean），现有数据/配置/校验不破坏
+- [ ] 写带 ref 字段节点 → REF 边 `properties.concept` 正确；`/api/related` 项含 `concept`
+- [ ] 同一 person 经 attackTicket.当前处理人 与 contribution.贡献人（皆 concept=负责人）被引用 → related 两项 concept 均为「负责人」
+- [ ] `PATCH /api/schema {op:"setConcept"}` 持久化回 config + reload；非字符串 → 400 + 配置不变
+- [ ] `EntityTable` 列头「概念」编辑器在 `/attack`、`/contributions` 可设 concept 并持久化（schema 端点可见）
+- [ ] `RelatedPage` 把两个异名字段（当前处理人/贡献人，concept=负责人）归并到同一「负责人」组显示；无 concept 节点仍按 nodeType
+- [ ] 既有 FE-R1/coverage RelatedPage 断言已按新分组更新；全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署到测试服务器
