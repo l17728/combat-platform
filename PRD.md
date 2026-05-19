@@ -1182,3 +1182,68 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] 只读：调用前后 `audit_log` 行数不变（recommend.e2e 用例2）
 - [x] `AttackDetail`「找帮手」区：排名人选+score+reasons，点击跳该人关联页（FE-RC1）；空态（FE-RC2 路由拦截确定性覆盖）；纯加法不破坏既有（e2e 28/28）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared14/backend69/FEunit13/e2e28）；完成后部署测试服务器
+
+---
+
+## 24. 增量6：数据大盘（Phase 3.6）开发依据
+
+> 兑现 §10 Phase 3.6「数据大盘」+ §0.2「作战平台首页」用户反馈（首页应是可一览的作战态势盘，而非仅模块卡片）。**只读聚合派生**（与 §6.1/增量4 只读哲学一致；不写库/不审计）。复用既有 attackTicket/contribution/proposals 数据。本节是本增量的实现依据。
+
+### 24.0 范围与定向
+
+交付 ①只读 `GET /api/dashboard` 聚合快照（攻关单按状态分布/open/resolved、贡献总数 + 按贡献条数 Top 贡献人、待审批提议数）；②`HomePage` 在模块卡片之上集成统计面板（一览态势），错误降级不破坏首页。**严格只读**：仅 `queryNodes/listProposals` reader 原语，绝不写库/不审计。YAGNI：不做图表可视化（AntD `Statistic`/数字即可）、不做增量导入（3.6 另一子项，另增量）、不做时间序列/趋势。
+
+### 24.1 契约（@combat/shared）
+
+`DashboardSummary`：
+```ts
+{
+  tickets: { total: number; byStatus: Record<string, number>; open: number; resolved: number };
+  contributions: { total: number; topContributors: { 贡献人: string; count: number }[] };
+  proposalsPending: number;
+}
+```
+`open` = 状态 ∈ {待响应,处理中,进行中}；`resolved` = 状态 ∈ {已解决,已关闭}（§2.3 规范枚举，verbatim）。纯加法；无新增 `FieldOp`（只读）。
+
+### 24.2 后端
+
+- 新模块 `apps/backend/src/dashboard.ts` 路由（挂 `/api`、错误中间件前）`GET /api/dashboard`（只读）：
+  - `const tks = repo.queryNodes("attackTicket")`；`byStatus`：对每个 `t.properties["状态"]`（缺省空串归 `""` 键）计数；`total=tks.length`；`open=∈{待响应,处理中,进行中}` 计数；`resolved=∈{已解决,已关闭}` 计数。
+  - `const cs = repo.queryNodes("contribution")`；`contributions.total=cs.length`；`topContributors`：按 `c.properties["贡献人"]`（字符串值；空者跳过）分组计数，按 `count desc, 贡献人 asc` 确定排序，取前 5。
+  - `proposalsPending = repo.listProposals({ status: "待审批" }).length`。
+  - 返回 `DashboardSummary`。仅上述 reader 原语；调用前后 `audit_log` 行数不变（e2e 断言）。
+- `apps/backend/src/app.ts`：`app.use("/api", makeDashboardRouter(deps.repo));`（recommend 路由之后、错误中间件前）。
+
+### 24.3 前端
+
+- `apps/frontend/src/api.ts`：加 `getDashboard()` → `GET /api/dashboard`（`DashboardSummary`）。
+- `apps/frontend/src/pages/HomePage.tsx`：mount 时 `api.getDashboard()`；渲染统计面板 `aria-label="dashboard"` 于 `<h1>作战平台</h1>` 与模块卡片之间——AntD `Statistic`/`Descriptions` 展示：攻关单总数、进行中(open)、已闭环(resolved)、按状态分布（逐项 `状态: n`）、贡献总数、待审批提议数、Top 贡献人（`贡献人 ×count`）。失败 → `message.error("大盘加载失败")` 且**不渲染面板但模块卡片照常**（首页不可因大盘失败而崩）。模块卡片（含既有 6 项）保持不变。
+- 不新增路由（大盘即首页一部分，集成首页原则）。
+
+### 24.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`DashboardSummary` 契约类型测试（tsc RED→GREEN）。
+- 后端 e2e（新 `apps/backend/test/dashboard.e2e.test.ts`）：建若干 attackTicket（不同 状态：待响应/进行中/已解决/已关闭）+ contribution（同一/不同 贡献人）+ scan 候选；`GET /api/dashboard`：`tickets.total`、`byStatus` 各值、`open`/`resolved` 正确；`contributions.total`、`topContributors` 顺序确定（count desc, 贡献人 asc）取前 5；`proposalsPending` 正确；调用前后 `audit_log` 行数不变（只读）；同输入同输出。
+- 前端 Playwright（新 `apps/frontend/e2e/dashboard.spec.ts`）：建数据→首页 `dashboard` 面板显示总数/状态分布/贡献/待审批与数据一致；模块卡片仍全部可见；导航卡片仍可用。
+- 既有断言加法不破坏（HomePage 仅新增面板，模块卡片 `home-card-*` 不变——既有 coverage/honor nav 用例仍绿）；随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 24.5 关键设计决策（补充 §6/§10）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 大盘机制 | 只读聚合 `GET /api/dashboard`（reader 原语，无写/审计） | §0.3/§6.1 只读派生；与增量4/5 一致 |
+| Top 贡献人口径 | 按贡献**条数**计数（非荣誉殿堂加权分） | 大盘为一览快照；加权榜在 /honor 自有页；count 简单自洽，不耦合/重构 honor.ts（YAGNI）|
+| open/resolved 切分 | 待响应/处理中/进行中 vs 已解决/已关闭 | §2.3 规范枚举；态势一览语义 |
+| 失败降级 | 大盘失败 → message.error + 不渲染面板，模块卡片照常 | 首页是入口，不可因聚合失败而不可用（MVP-UX 底线）|
+| 入口 | 集成进 HomePage，无新路由 | §0.2「作战平台首页」即态势盘 |
+| 图表/趋势/增量导入 | 不在增量6 | YAGNI；可视化与时间序列后续；增量导入属 3.6 另一子项 |
+
+### 24.6 验收标准
+
+- [ ] shared `DashboardSummary` 契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] `GET /api/dashboard`：`tickets.total`/`byStatus`/`open`(待响应,处理中,进行中)/`resolved`(已解决,已关闭) 正确
+- [ ] `contributions.total` 正确；`topContributors` 按贡献条数 `count desc, 贡献人 asc` 取前 5
+- [ ] `proposalsPending` = 待审批提议数
+- [ ] 只读：调用前后 `audit_log` 行数不变；同输入同输出
+- [ ] `HomePage` `dashboard` 面板与数据一致；大盘失败时模块卡片仍全部可用；既有 `home-card-*` 不破坏
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
