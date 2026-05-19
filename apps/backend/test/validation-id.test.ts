@@ -21,6 +21,7 @@ describe("id-based validation + legacy normalization", () => {
     const reg = regWith({ nodeType: "t", label: "T", identityKeys: [], derivedToKG: false,
       fields: [{ id: "标题", name: "标题", type: "string", label: "标题", required: true }] });
     expect(reg.validateNode("t", {}).ok).toBe(false);
+    expect(reg.validateNode("t", {}).errors[0]).toBe("字段「标题」必填");
     expect(reg.validateNode("t", { "标题": "x" }).ok).toBe(true);
   });
   it("validateNode skips retired fields entirely", () => {
@@ -35,5 +36,12 @@ describe("id-based validation + legacy normalization", () => {
       fields: [{ id: "real-id", name: "displayName", type: "string", label: "L", required: true }] } as any;
     expect(validateNode(schema, { "displayName": "x" }).ok).toBe(false);
     expect(validateNode(schema, { "real-id": "x" }).ok).toBe(true);
+  });
+  it("enum error message uses label and reports the invalid value", () => {
+    const reg = regWith({ nodeType: "t", label: "T", identityKeys: [], derivedToKG: false,
+      fields: [{ id: "状态", name: "状态", type: "enum", label: "状态", required: true, enumValues: ["待响应"] }] });
+    const r = reg.validateNode("t", { 状态: "X" });
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]).toBe("字段「状态」取值非法: X");
   });
 });
