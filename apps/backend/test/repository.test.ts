@@ -82,7 +82,7 @@ describe("SqliteRepository", () => {
     expect(repo.queryEdges({ sourceId: a.id, edgeType: "REF" })).toHaveLength(0);
     expect(repo.queryEdges({ sourceId: a.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(1);
     const au = db.prepare("SELECT * FROM audit_log WHERE action='DELETE' AND entityType='edge'").all() as any[];
-    expect(au.length).toBeGreaterThanOrEqual(1);
+    expect(au).toHaveLength(2);
     expect(au[0].performedBy).toBe("killer");
   });
 });
