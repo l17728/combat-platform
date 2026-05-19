@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Repository, SchemaRegistry } from "@combat/shared";
+import { syncRefEdges } from "./refs.js";
 
 export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
@@ -51,6 +52,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         if (target) repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
       }
     }
+    syncRefEdges(repo, registry, node, req.body, "api");
     res.status(201).json(node);
   });
 
@@ -61,7 +63,9 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (!cur) return res.status(404).json({ error: "not found" });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    res.json(repo.updateNode(req.params.id, req.body, "api"));
+    const updated = repo.updateNode(req.params.id, req.body, "api");
+    syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    res.json(updated);
   });
 
   r.delete("/nodes/:id", (req, res) => {

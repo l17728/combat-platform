@@ -4,7 +4,7 @@
   "identityKeys": [],
   "derivedToKG": true,
   "fields": [
-    { "id": "贡献人", "name": "贡献人", "type": "string", "label": "贡献人", "required": true },
+    { "id": "贡献人", "name": "贡献人", "type": "ref", "refType": "person", "label": "贡献人", "required": true },
     { "id": "关联攻关单", "name": "关联攻关单", "type": "string", "label": "关联攻关单" },
     { "id": "贡献类型", "name": "贡献类型", "type": "enum", "label": "贡献类型", "required": true, "enumValues": ["发现", "设计", "实施", "协调", "公关"] },
     { "id": "贡献等级", "name": "贡献等级", "type": "enum", "label": "贡献等级", "enumValues": ["普通", "关键", "核心"] },
