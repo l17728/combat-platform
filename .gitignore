@@ -6,3 +6,5 @@ apps/frontend/playwright-report/
 .env
 .env.*
 .worktrees/
+scripts/deploy/node_modules/
+scripts/deploy/app.tar.gz
