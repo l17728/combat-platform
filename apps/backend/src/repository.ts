@@ -5,11 +5,15 @@ import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog } from "
 export class SqliteRepository implements Repository {
   constructor(private db: DB) {}
 
-  private audit(action: string, entityType: string, entityId: string, changes: unknown, actor: string) {
+  logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): void {
     this.db.prepare(
       `INSERT INTO audit_log VALUES (@id,@action,@entityType,@entityId,@changes,@by,@at)`
-    ).run({ id: randomUUID(), action, entityType, entityId,
-      changes: JSON.stringify(changes), by: actor, at: new Date().toISOString() });
+    ).run({ id: randomUUID(), action: entry.action, entityType: entry.entityType,
+      entityId: entry.entityId, changes: JSON.stringify(entry.changes),
+      by: entry.actor, at: new Date().toISOString() });
+  }
+  private audit(action: string, entityType: string, entityId: string, changes: unknown, actor: string) {
+    this.logAudit({ action, entityType, entityId, changes, actor });
   }
 
   createNode(nodeType: string, properties: Record<string, unknown>, actor: string): GraphNode {
@@ -89,5 +93,14 @@ export class SqliteRepository implements Repository {
     const rows = this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
     return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
       content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
+  }
+
+  deleteNode(id: string, actor: string): void {
+    this.db.transaction(() => {
+      this.db.prepare(`DELETE FROM progress_log WHERE ownerId=?`).run(id);
+      this.db.prepare(`DELETE FROM edges WHERE sourceId=? OR targetId=?`).run(id, id);
+      this.db.prepare(`DELETE FROM nodes WHERE id=?`).run(id);
+      this.audit("DELETE", "node", id, { id }, actor);
+    })();
   }
 }
