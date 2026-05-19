@@ -932,3 +932,71 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] `EntityTable` 列头「概念」编辑器在 `/attack`、`/contributions` 可设 concept 并持久化（FE-C1；编辑器为配置驱动 EntityTable 列头，两路由同组件）
 - [x] `RelatedPage` 把两个异名字段（当前处理人/贡献人，concept=负责人）归并到同一「负责人」组显示（FE-C1/FE-R1）；无 concept 节点仍按 nodeType（concept.e2e「ref WITHOUT concept → related concept ''」覆盖回退输入）
 - [x] 既有 FE-R1/coverage RelatedPage 断言已按新分组更新；全功能 e2e 覆盖审计门通过（审计发现 nodeType-回退缺口并补齐）；`npm run test:all` 连续两次全绿（shared9/backend54/FEunit11/e2e19）；完成后部署到测试服务器
+
+---
+
+## 20. 增量3c：LLM/Hermes 提议候选关系 + 强制人工审批队列 开发依据
+
+> 承接 §14.3④⑤ + §0.3「模糊兜底 + 并集检索」 + §14.4「强制人工审批门」。依赖 3a（REF 边）/3b（concept）。本节是本增量的实现依据。
+
+### 20.0 范围与定向
+
+交付：①可插拔 `RelationProposer`（本增量内置**确定性启发式**实现；真实 Hermes/LLM 按 §13#9 后续接入）；②提议持久化（append-only + 审计，**非权威、不入派生图**）；③**强制人工审批队列**（通过/拒绝/修正），仅审批「通过」才走结构化权威写路径；④决策回流正/负样本（MVP：持久化 + 启发式据「已拒绝」抑制重复）；⑤**并集呈现**（`/api/related` 可选 `candidates`，UI 独立「候选关系（待审批）」分组，标注来源/置信度，绝不混入权威列表）；⑥并入跟进项 §18.0 line823「ref 单元格直跳被引用实体」。YAGNI：不做在线学习 / 真实 LLM / 力导图。
+
+### 20.1 契约（@combat/shared）
+
+- `RelationProposalStatus = "待审批" | "已通过" | "已拒绝"`（中文字面，规范，不译）。
+- `RelationProposal`：`{ id; sourceNodeId; targetNodeId; relationType: string; confidence: number; proposerSource: string; rationale: string; status: RelationProposalStatus; decidedBy?: string; decidedAt?: string; createdAt: string }`。
+- `RelationProposer`：`propose(repo: Repository, registry: SchemaRegistry): Omit<RelationProposal,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">[]`（**只读分析、纯提议、不写**）。
+- `Repository` 增（纯加法，镜像既有节点/边事务+审计）：`createProposal(p, actor): RelationProposal`、`listProposals(opts:{status?:RelationProposalStatus}): RelationProposal[]`、`getProposal(id): RelationProposal | undefined`、`updateProposalStatus(id, status, decidedBy, actor): RelationProposal`。不破坏 §0.3「KG 不接受直接写入」——提议是独立 pending 存储，非派生图边、非权威结构化数据。
+
+### 20.2 后端
+
+- 新模块 `apps/backend/src/proposer.ts` `HeuristicRelationProposer implements RelationProposer`（确定性、可测、无外部依赖）：对同一 `refType` 实体类型（如 person）现存节点，按规范化键（trim+小写+去内部空白）两两比较；规范化后**非精确相等**但 Levenshtein 距离 ≤ 阈值（默认 2）者，提议 `relationType:"SAME_AS"`，`confidence = 1 - dist/maxLen`，`proposerSource:"heuristic-v1"`，`rationale` 含两值与距离。精确相等**不**提议（§0.3 显式优先；3a 已处理）。已被「已拒绝」覆盖的同 `(sourceNodeId,targetNodeId,relationType)` 三元组不再重复提议（负样本回流抑制）。
+- 提议存储：`SqliteRepository` 加 `proposals` 表（id,source_node_id,target_node_id,relation_type,confidence,proposer_source,rationale,status,decided_by,decided_at,created_at）+ §20.1 方法，每变更写 `audit_log`。
+- API（新 `apps/backend/src/proposals.ts` 路由，挂 `/api`、全局错误中间件前）：
+  - `POST /api/proposals/scan`：运行 registry 配置的所有 proposer（本增量即 `HeuristicRelationProposer`）；每个新候选若无同三元组「待审批/已拒绝」记录则 `createProposal(status:"待审批")`；返回 `{created:n}`。**幂等**。
+  - `GET /api/proposals?status=待审批`：默认全部，可按 status 过滤。
+  - `POST /api/proposals/:id/decide` body `{ decision:"通过"|"拒绝"|"修正", decidedBy:string, patch?:{ targetNodeId?:string } }`：不存在→404；非「待审批」→409。`通过`：走**结构化权威写路径**——`SAME_AS`→调用既有 §2.1 person 合并（并字段、迁边、不可逆、审计）；`updateProposalStatus(已通过,decidedBy)`；全程 audit。`修正`：以 `patch.targetNodeId` 校正后按「通过」处理。`拒绝`：`updateProposalStatus(已拒绝,decidedBy)`（负样本）+ audit。
+  - `GET /api/related/:nodeType/:id?includeCandidates=1`：在既有权威 `{outgoing,incoming}` 外**另加** `candidates:[{ proposalId, relationType, confidence, rationale, node }]`（仅 status=待审批 且命中该节点）。**绝不**并入 outgoing/incoming。无 `includeCandidates` 时与 3b 完全一致。
+- 无需改 schema seed；proposer 基于现有 person 节点运行。
+
+### 20.3 前端
+
+- `apps/frontend/src/api.ts`：加 `listProposals(status?)`、`scanProposals()`、`decideProposal(id,decision,decidedBy,patch?)`；`getRelated` 加可选 `includeCandidates`，`RelatedResult` 加可选 `candidates?:{ proposalId:string; relationType:string; confidence:number; rationale:string; node:GraphNode }[]`。
+- 新页 `apps/frontend/src/pages/ProposalsPage.tsx`（路由 `/proposals`，「关系审批队列」）：顶部「扫描候选」按钮（POST scan）；表格列待审批项（来源实体/目标实体/relationType/置信度/理由/创建时间）；每行「通过」「拒绝」按钮（`decidedBy` 取占位 `"运营"`，真实鉴权后续）；决策后刷新。AntD Table 风格一致。
+- `AppShell` 导航加「关系审批」+ 首页卡片入口（集成首页原则）。
+- `RelatedPage`：调用改 `getRelated(...,{includeCandidates:true})`；若有 candidates，**独立**渲染「候选关系（待审批）」分组（标注置信度+理由），与权威 concept/nodeType 分组数据/视觉分离，不混入。
+- ref 单元格直跳（兑现 §18.0 line823）：`EntityTable` 中 `f.type==="ref"` 单元格非编辑态值渲染 `<Link>` → **被引用实体**关联页。解析：调既有 `/api/related/${nodeType}/${rowId}` 取 outgoing 中 `field===f.id` 对端 node，链到 `/related/${对端.nodeType}/${对端.id}`（attackTicket→`/attack/:id`）；未解析到则**回退**原行为（链到本行关联页，不破坏 §18.5/FE-R1）。纯加法、可回退。
+
+### 20.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`RelationProposal`/`RelationProposer`/Repository 提议契约类型测试（tsc-clean）。
+- 后端 e2e（新 `apps/backend/test/proposals.e2e.test.ts`）：①两近似名 person（非精确）→ scan 生成 1「待审批」`SAME_AS`，精确同名不提议；②`GET /proposals?status=待审批` 返回；③`decide 通过`→两 person 合并（边迁移/字段并/原引用可达）+ 提议「已通过」+ audit；同 id 再 decide→409；④`decide 拒绝`→「已拒绝」+ 再 scan 不重复该三元组；⑤`/api/related?includeCandidates=1` 含 `candidates` 且权威 outgoing/incoming 不含候选，无参时与 3b 一致；⑥proposer 确定性（同输入同输出）。
+- 前端 Playwright（新 `apps/frontend/e2e/proposals.spec.ts`）：首页/导航→`/proposals`；「扫描候选」后现待审批行；「通过」后该行消失且合并可见；RelatedPage 现独立「候选关系（待审批）」分组且不污染权威组；ref 单元格点击直达被引用实体关联页。
+- 随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 20.5 关键设计决策（补充 §12/§14.4/§18.6/§19.5）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| Proposer 形态 | 可插拔 `RelationProposer` + 内置确定性 `HeuristicRelationProposer` | §13#9 Hermes 接口未定；确定性启发式可 TDD/无外部依赖即端到端兑现 §0.3 模糊兜底+审批门；真实 LLM/Hermes 后续按接口接入 |
+| 提议存储 | 独立 `proposals` 表（append+审计），非派生图边/非权威 | 严守 §0.3 唯一权威写路径、KG 派生只读；提议仅审批通过才落权威 |
+| 审批动作 | 通过/拒绝/修正；非待审批→409 | §14.4 强制人审门；不可重复决策保审计一致 |
+| 通过的权威效果 | `SAME_AS`→走既有 §2.1 person 合并（不可逆+审计） | 复用实体解析；Agent 只提议不直写 |
+| 样本回流 | 持久化决策；启发式据「已拒绝」抑制重复（MVP，无在线学习） | YAGNI；先闭环可用 |
+| 并集呈现 | `/api/related?includeCandidates` 另出 `candidates[]`，UI 独立分组 | §0.3 并集但确定/模糊分离、模糊须人审、权威列表纯净 |
+| ref 单元格直跳 | 前端经 /api/related 解析对端；失败回退原行为 | 兑现 §18.0 line823；加法可回退不破坏 §18.5/FE-R1 |
+| 真实 LLM/在线学习/力导图 | 不在 3c | YAGNI；§13#9 后续 |
+
+### 20.6 验收标准
+
+- [ ] shared `RelationProposal`/`RelationProposer`/Repository 提议契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] `POST /api/proposals/scan`：近似（非精确）同类型实体生成「待审批」`SAME_AS`，精确相等不提议；幂等（同三元组待审批/已拒绝不重复）
+- [ ] `GET /api/proposals?status=待审批` 列表正确
+- [ ] `decide 通过`→结构化权威合并（边迁移/字段并/审计）+ 提议「已通过」；`decide 拒绝`→「已拒绝」+ 后续 scan 抑制该三元组；非待审批再 decide→409；全程 audit
+- [ ] `GET /api/related?includeCandidates=1` 含 `candidates[]` 且权威 outgoing/incoming 绝不含候选；无参与 3b 一致
+- [ ] `/proposals` 审批队列页：扫描→列待审批→通过/拒绝可用并持久；AppShell+首页入口集成
+- [ ] `RelatedPage` 独立「候选关系（待审批）」分组（标注置信度/理由），不污染权威分组
+- [ ] `EntityTable` ref 单元格直跳被引用实体关联页（§18.0 line823 兑现）；未解析回退原行为不破坏 FE-R1
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
