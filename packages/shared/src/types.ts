@@ -11,6 +11,7 @@ export interface FieldSchema {
   retired?: boolean;
   aliases?: string[];
   concept?: string;
+  anchor?: string;
 }
 export interface NodeSchema {
   nodeType: string;

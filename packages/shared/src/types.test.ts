@@ -107,3 +107,12 @@ describe("relation-proposal contracts", () => {
     expect(out[0].relationType).toBe("SAME_AS");
   });
 });
+
+describe("anchor contracts", () => {
+  it("FieldSchema.anchor? + FieldOp setAnchor", () => {
+    const f: FieldSchema = { id: "问题单号", name: "问题单号", type: "string", label: "问题单号", anchor: "问题单号" };
+    expect(f.anchor).toBe("问题单号");
+    const op: FieldOp = { op: "setAnchor", id: "问题单号", anchor: "问题单号" };
+    expect(op.op).toBe("setAnchor");
+  });
+});

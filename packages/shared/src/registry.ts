@@ -10,7 +10,8 @@ export type FieldOp =
   | { op: "retire"; id: string }
   | { op: "unretire"; id: string }
   | { op: "setAliases"; id: string; aliases: string[] }
-  | { op: "setConcept"; id: string; concept: string };
+  | { op: "setConcept"; id: string; concept: string }
+  | { op: "setAnchor"; id: string; anchor: string };
 
 export interface SchemaRegistry {
   getConfig(): EntitySchemaConfig;
