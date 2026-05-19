@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DB } from "./db.js";
-import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog } from "@combat/shared";
+import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus } from "@combat/shared";
 
 export class SqliteRepository implements Repository {
   constructor(private db: DB) {}
@@ -104,6 +104,44 @@ export class SqliteRepository implements Repository {
     const rows = this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
     return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
       content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
+  }
+
+  createProposal(p: Omit<RelationProposal,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): RelationProposal {
+    const now = new Date().toISOString();
+    const row: RelationProposal = { ...p, id: randomUUID(), status: "待审批", createdAt: now };
+    this.db.transaction(() => {
+      this.db.prepare(`INSERT INTO proposals VALUES (@id,@s,@t,@rt,@c,@ps,@r,@st,@db,@da,@ca)`)
+        .run({ id: row.id, s: row.sourceNodeId, t: row.targetNodeId, rt: row.relationType,
+          c: row.confidence, ps: row.proposerSource, r: row.rationale, st: row.status,
+          db: null, da: null, ca: now });
+      this.audit("CREATE", "proposal", row.id, { relationType: row.relationType }, actor);
+    })();
+    return row;
+  }
+  private mapProposal(r: any): RelationProposal {
+    return { id: r.id, sourceNodeId: r.source_node_id, targetNodeId: r.target_node_id,
+      relationType: r.relation_type, confidence: r.confidence, proposerSource: r.proposer_source,
+      rationale: r.rationale, status: r.status, decidedBy: r.decided_by ?? undefined,
+      decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
+  }
+  listProposals(opts: { status?: RelationProposalStatus } = {}): RelationProposal[] {
+    const rows = this.db.prepare(`SELECT * FROM proposals`).all() as any[];
+    return rows.map(r => this.mapProposal(r)).filter(p => !opts.status || p.status === opts.status);
+  }
+  getProposal(id: string): RelationProposal | undefined {
+    const r = this.db.prepare(`SELECT * FROM proposals WHERE id=?`).get(id) as any;
+    return r ? this.mapProposal(r) : undefined;
+  }
+  updateProposalStatus(id: string, status: RelationProposalStatus, decidedBy: string, actor: string): RelationProposal {
+    const cur = this.getProposal(id);
+    if (!cur) throw new Error(`proposal ${id} not found`);
+    const at = new Date().toISOString();
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE proposals SET status=?, decided_by=?, decided_at=? WHERE id=?`)
+        .run(status, decidedBy, at, id);
+      this.audit("UPDATE", "proposal", id, { status, decidedBy }, actor);
+    })();
+    return { ...cur, status, decidedBy, decidedAt: at };
   }
 
   deleteNode(id: string, actor: string): void {

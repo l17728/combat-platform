@@ -18,6 +18,10 @@ export function openDb(path: string): DB {
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY, action TEXT NOT NULL, entityType TEXT, entityId TEXT,
       changes TEXT, performedBy TEXT, performedAt TEXT);
+    CREATE TABLE IF NOT EXISTS proposals (
+      id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL,
+      relation_type TEXT NOT NULL, confidence REAL, proposer_source TEXT,
+      rationale TEXT, status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(nodeType);
     CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(sourceId);
     CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log(ownerId, seqNo);
