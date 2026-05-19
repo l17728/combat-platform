@@ -44,6 +44,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     res.status(201).json(repo.createNode(nodeType, req.body, "api"));
   });
 
+  // Partial/merge update only (no-DDL JSON store): body keys are merged into
+  // existing properties; field removal is intentionally unsupported in Phase 1.
   r.put("/nodes/:id", (req, res) => {
     const cur = repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });

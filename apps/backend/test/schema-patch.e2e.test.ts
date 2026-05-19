@@ -47,4 +47,12 @@ describe("PATCH /api/schema e2e", () => {
     expect(p.status).toBe(200);
     expect(p.body.fields.some((f: any) => f.id === "标题#2")).toBe(true);
   });
+  it("editEnum changes allowed values and is enforced", async () => {
+    const { app } = makeTestApp();
+    const p = await request(app).patch("/api/schema/attackTicket").send({ op: "editEnum", id: "状态", enumValues: ["进行中", "已归档"] });
+    expect(p.status).toBe(200);
+    expect(p.body.fields.find((f: any) => f.id === "状态").enumValues).toEqual(["进行中", "已归档"]);
+    expect((await request(app).post("/api/nodes/attackTicket").send({ 标题: "ok", 状态: "已归档" })).status).toBe(201);
+    expect((await request(app).post("/api/nodes/attackTicket").send({ 标题: "bad", 状态: "已解决" })).status).toBe(400);
+  });
 });

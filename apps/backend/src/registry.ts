@@ -39,6 +39,9 @@ export class FileSchemaRegistry implements SchemaRegistry {
 
   applyFieldOp(nodeType: string, op: FieldOp): NodeSchema {
     const file = join(this.dir, `${nodeType}.json`);
+    // Phase-1 assumption: single-process, synchronous fs + better-sqlite3 — this
+    // read-modify-write runs to completion without interleaving (no await). Not safe
+    // under async fs / multi-process; revisit then.
     const prev = readFileSync(file, "utf8");
     const schema = JSON.parse(prev) as NodeSchema;
     schema.fields = schema.fields.map(f => ({ ...f, id: f.id ?? f.name }));
@@ -70,6 +73,9 @@ export class FileSchemaRegistry implements SchemaRegistry {
     }
 
     writeFileSync(file, JSON.stringify(schema, null, 2));
+    // Tracked PRD §13: reload() re-parses ALL *.json in the dir, so an unrelated
+    // broken sibling config can trigger a false rollback of THIS valid change.
+    // Acceptable at current few-schema scope; revisit (per-file validate) before growth.
     try {
       this.reload();
     } catch (e) {
@@ -77,6 +83,8 @@ export class FileSchemaRegistry implements SchemaRegistry {
       this.reload();
       throw new Error(`Schema 变更后重载失败，已回滚: ${(e as Error).message}`);
     }
-    return this.getNodeSchema(nodeType)!;
+    const updated = this.getNodeSchema(nodeType);
+    if (!updated) throw new Error(`Schema 重载后未找到 nodeType: ${nodeType}（配置文件 nodeType 字段需与文件名一致）`);
+    return updated;
   }
 }
