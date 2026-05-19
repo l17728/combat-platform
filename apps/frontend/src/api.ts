@@ -10,7 +10,11 @@ export class Api {
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
     const r = await this.f(`${this.base}${path}`, init);
-    if (!r.ok) throw new Error(`HTTP ${r.status} ${r.url || path}`);
+    if (!r.ok) {
+      const body = await r.json().catch(() => null);
+      const detail = body?.error ?? (Array.isArray(body?.errors) ? body.errors.join("; ") : "");
+      throw new Error(`HTTP ${r.status}${detail ? ` ${detail}` : ` ${r.url || path}`}`);
+    }
     return r.json() as Promise<T>;
   }
 

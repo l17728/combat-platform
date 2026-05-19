@@ -28,7 +28,10 @@ export function AttackTable() {
       setEditing(e => { const n = { ...e }; delete n[r.id]; return n; }); await refresh(); }
     catch (err) { message.error(String((err as Error).message)); }
   };
-  const delRow = async (id: string) => { await api.deleteNode(id); message.success("已删除"); await refresh(); };
+  const delRow = async (id: string) => {
+    try { await api.deleteNode(id); message.success("已删除"); await refresh(); }
+    catch (err) { message.error(String((err as Error).message)); }
+  };
   const createDraft = async () => {
     try { await api.createNode(NODE, draft ?? {}); message.success("已新增"); setDraft(null); await refresh(); }
     catch (err) { message.error(String((err as Error).message)); }
