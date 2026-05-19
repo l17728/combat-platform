@@ -24,8 +24,11 @@ test("FE-P1 proposals queue: nav, scan, approve; RelatedPage candidate group", a
   await expect(page.getByRole("row").filter({ hasText: "SAME_AS" }).first()).toBeVisible();
   const approveId = await approve.getAttribute("aria-label"); // approve-<proposalId>
 
-  const persons = await (await page.request.get(`${API}/api/nodes/person`)).json();
-  await page.goto(`/related/person/${persons[0].id}`);
+  // a person that is actually part of a 待审批 proposal (not an arbitrary
+  // earlier-spec person) — its RelatedPage must show the candidate group.
+  const pending = await (await page.request.get(`${API}/api/proposals?status=${encodeURIComponent("待审批")}`)).json();
+  expect(pending.length).toBeGreaterThan(0);
+  await page.goto(`/related/person/${pending[0].sourceNodeId}`);
   await expect(page.getByRole("heading", { name: "候选关系（待审批）" })).toBeVisible();
 
   await page.goto("/proposals");
@@ -35,9 +38,13 @@ test("FE-P1 proposals queue: nav, scan, approve; RelatedPage candidate group", a
 });
 
 test("FE-P2 ref cell jumps directly to the referenced person's relations page", async ({ page, request }) => {
-  await request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: "直跳单", 状态: "进行中", 当前处理人: "唐僧" } });
+  await request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: "直跳单ZT", 状态: "进行中", 当前处理人: "唐三藏" } });
   await page.goto("/attack");
-  await page.getByRole("cell", { name: "唐僧" }).getByRole("link").click();
+  // scope to the just-created row; wait for RefCell to async-resolve the ref
+  // string → the referenced person's relations URL before clicking.
+  const link = page.getByRole("row").filter({ hasText: "直跳单ZT" }).getByLabel("ref-当前处理人");
+  await expect(link).toHaveAttribute("href", /\/related\/person\//);
+  await link.click();
   await expect(page).toHaveURL(/\/related\/person\//);
   await expect(page.getByText("关联全景", { exact: false })).toBeVisible();
 });
