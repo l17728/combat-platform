@@ -6,11 +6,17 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Resolve the repo's `config/schemas` absolutely from THIS test file's location,
+// not via process.cwd() (which differs between vitest invocations and would
+// require a cwd-shim that breaks the existing registry.test.ts relative path).
+const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 
 function makeApp() {
   const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-arc-")), "t.sqlite")));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry("config/schemas") }), repo };
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
 describe("archive (release/weight) e2e — config-driven, zero backend code", () => {
