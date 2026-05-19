@@ -5,3 +5,4 @@ apps/frontend/test-results/
 apps/frontend/playwright-report/
 .env
 .env.*
+.worktrees/
