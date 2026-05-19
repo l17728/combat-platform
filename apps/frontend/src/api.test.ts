@@ -54,4 +54,11 @@ describe("Api client", () => {
     expect(calls[0]).toBe("http://x/api/honor/leaderboard?period=2026-Q2");
     expect(calls[1]).toBe("http://x/api/honor/person/%E5%BC%A0%E4%B8%89");
   });
+  it("getRelated hits the related endpoint", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string) => { calls.push(u); return new Response(JSON.stringify({ outgoing: [], incoming: [] }), { status: 200 }); });
+    const api = new Api("http://x", fm as any);
+    await api.getRelated("person", "p1");
+    expect(calls[0]).toBe("http://x/api/related/person/p1");
+  });
 });

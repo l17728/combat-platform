@@ -1,5 +1,10 @@
 import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor } from "@combat/shared";
 
+export interface RelatedResult {
+  outgoing: { field: string; node: GraphNode }[];
+  incoming: { field: string; node: GraphNode }[];
+}
+
 export class Api {
   private f: typeof fetch;
   constructor(private base = "", f?: typeof fetch) {
@@ -60,6 +65,9 @@ export class Api {
   }
   getPersonHonor(name: string): Promise<PersonHonor> {
     return this.req<PersonHonor>(`/api/honor/person/${encodeURIComponent(name)}`, {});
+  }
+  getRelated(nodeType: string, id: string): Promise<RelatedResult> {
+    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}`, {});
   }
   importXlsx(file: File): Promise<{ created: number }> {
     const fd = new FormData(); fd.append("file", file);
