@@ -16,6 +16,7 @@ function makeApp() {
     fields: [
       { name: "标题", type: "string", label: "标题", required: true },
       { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" },
+      { name: "协办人", type: "ref", label: "协办人", refType: "person" },
     ],
   }));
   writeFileSync(join(cfg, "contribution.json"), JSON.stringify({
@@ -56,6 +57,16 @@ describe("concept e2e", () => {
     expect(r.body.incoming).toHaveLength(2);
     expect(r.body.incoming.map((x: any) => x.concept).sort()).toEqual(["负责人", "负责人"]);
     expect(r.body.incoming.map((x: any) => x.field).sort()).toEqual(["当前处理人", "贡献人"]);
+  });
+  it("ref field WITHOUT concept → related item concept is '' (RelatedPage falls back to nodeType)", async () => {
+    const { app, repo } = makeApp();
+    await request(app).post("/api/nodes/attackTicket").send({ 标题: "无concept边", 当前处理人: "钱七", 协办人: "钱七" });
+    const pid = repo.queryNodes("person")[0].id;
+    const r = await request(app).get(`/api/related/person/${pid}`);
+    expect(r.body.incoming).toHaveLength(2);
+    const byField = Object.fromEntries(r.body.incoming.map((x: any) => [x.field, x.concept]));
+    expect(byField["当前处理人"]).toBe("负责人");
+    expect(byField["协办人"]).toBe(""); // empty concept → frontend `x.concept || x.node.nodeType` → nodeType group
   });
   it("PATCH setConcept persists to config + reload; non-string -> 400, config unchanged", async () => {
     const { app, cfg } = makeApp();
