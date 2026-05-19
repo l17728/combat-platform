@@ -15,6 +15,7 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   const [addOpen, setAddOpen] = useState(false);
   const [nf, setNf] = useState({ name: "", label: "", type: "string" });
   const [rn, setRn] = useState<{ id: string; label: string } | null>(null);
+  const [al, setAl] = useState<{ id: string; text: string } | null>(null);
   const [filter, setFilter] = useState("");
 
   const activeFields = (s: NodeSchema | null): FieldSchema[] => (s?.fields ?? []).filter(f => !f.retired);
@@ -53,6 +54,8 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
           <Popconfirm title={`退休字段「${f.label}」？数据保留`} okText="OK" onConfirm={() => patch({ op: "retire", id: f.id })}>
             <Button aria-label={`retire-${f.id}`} size="small" type="link" danger>退休</Button>
           </Popconfirm>
+          <Button aria-label={`aliases-${f.id}`} size="small" type="link"
+            onClick={() => setAl({ id: f.id, text: (f.aliases ?? []).join("\n") })}>别名</Button>
         </Space>
       ),
       dataIndex: f.id,
@@ -116,6 +119,17 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
         onOk={async () => { if (rn) await patch({ op: "renameLabel", id: rn.id, label: rn.label }); setRn(null); }}>
         <Input aria-label="rename-input" value={rn?.label ?? ""}
           onChange={e => setRn(s => (s ? { ...s, label: e.target.value } : s))} />
+      </Modal>
+      <Modal title="编辑别名（每行/逗号一个）" open={al !== null} okText="确定" onCancel={() => setAl(null)}
+        onOk={async () => {
+          if (al) {
+            const aliases = al.text.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+            await patch({ op: "setAliases", id: al.id, aliases });
+          }
+          setAl(null);
+        }}>
+        <Input.TextArea aria-label="aliases-input" rows={4} value={al?.text ?? ""}
+          onChange={e => setAl(s => (s ? { ...s, text: e.target.value } : s))} />
       </Modal>
     </div>
   );

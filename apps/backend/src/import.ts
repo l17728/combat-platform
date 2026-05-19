@@ -8,7 +8,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 function mapColumns(row: Record<string, unknown>, schema: NodeSchema): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of schema.fields) {
-    const hit = Object.keys(row).find(k => k.trim() === f.name || k.trim() === f.label);
+    const aliases = (f.aliases ?? []).map(a => a.trim());
+    const hit = Object.keys(row).find(k => {
+      const kt = k.trim();
+      return kt === f.name || kt === f.label || aliases.includes(kt);
+    });
     if (hit !== undefined) out[f.id] = row[hit];
   }
   return out;
