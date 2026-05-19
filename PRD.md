@@ -586,7 +586,7 @@ UI 层      : 视图渲染引擎（表格↔布局↔图↔时间线，配置驱
 
 | # | 问题 | 影响 | 建议 |
 |---|---|---|---|
-| 1 | Hermes Agent 的具体接入形态（SDK/HTTP/MCP）？ | Phase3 集成 | 待确认 Hermes 提供的接口；先定义只读数据访问契约 |
+| 1 | Hermes Agent 的具体接入形态（SDK/HTTP/MCP）？ | Phase3 集成 | **部分解决（§22）**：增量4 已交付传输无关 HTTP 只读数据访问契约（任意 SDK/MCP 适配器可包装）；具体传输绑定待 Hermes 侧接口确定 |
 | 2 | 通知渠道：邮件 / eSpace / welink？ | Phase2-3 跟催/日报 | 先邮件，后接 eSpace/welink |
 | 3 | welinkcli 抓取攻关群消息的可行性与权限？ | Phase3 自动日报/找人 | 需确认 welinkcli 能力与合规 |
 | 4 | 权限模型（谁可见/可改/可标定贡献等级）？ | 全局 | Phase1 不做，Phase2 加 RBAC（贡献等级仅 Leader） |
@@ -1059,3 +1059,63 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] `EntityTable` 列头「锚点」编辑器可设 anchor 并持久化（FE-AN2 经 schema 端点轮询验证；编辑器为配置驱动 EntityTable 列头，/attack /contributions 同组件）
 - [x] `RelatedPage` 独立「跨颗粒度（共享锚点）」分组（标注 anchorKind:anchorKey），不污染权威/concept/候选分组（FE-AN1）；ANCHORED_TO 可经锚点 2 跳钻取（anchor.e2e 用例3 + 故障快照实证 问题单号 组）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared12/backend63/FEunit13/e2e25）；完成后部署测试服务器
+
+---
+
+## 22. 增量4：Hermes 只读数据访问契约（Phase 3.1）开发依据
+
+> 兑现 §6.1「提供只读数据访问接口（结构化 + 派生 KG）供 Hermes Agent 问答/关联分析/上钻下钻」+ §1「P0-① 在文档/历史攻关中检索相关信息」+ 解决 §13#1（"先定义只读数据访问契约"，传输形态 SDK/HTTP/MCP 待 Hermes 侧确认后再绑定）。是 Phase 3.2 自动日报 / 3.3 找人推荐的数据底座。本节是本增量的实现依据。
+
+### 22.0 范围与定向
+
+交付一个**传输无关的 HTTP 只读查询契约**（任何客户端/未来 Hermes SDK·MCP 适配器皆可包装）：①`GET /api/query/search`——跨全部节点对属性值做大小写不敏感子串检索（可选 nodeType 过滤），确定性排序、限量；②`GET /api/query/context/:id`——单节点 + 其 1 跳派生邻域（REF/ANCHORED_TO 出入向 + concept + coAnchored，复用既有 related 派生）+ 进展序列，作为 Agent 推理的"上下文包"；③最小可用「信息检索」前端页（集成导航+首页）使能力可人工验证；④**严格只读**不变量。YAGNI：不做 NL 理解（属 Agent 侧）、不做具体 Hermes 传输绑定、不做检索打分排序高级化、不做向量检索。**严格只读**：本增量所有接口仅 GET 且仅调用 `getNode/queryNodes/queryEdges/listProgress/listProposals`，绝不写库/不触发审计；写仍只走结构化模型（§0.3/§6.1 边界）。
+
+### 22.1 契约（@combat/shared）
+
+- `QueryHit`：`{ id: string; nodeType: string; summary: string; score: number }`（`summary`=该节点最佳人读标签：properties 中 `标题` ‖ `name` ‖ `贡献人` ‖ `key` ‖ `id`）。
+- `QueryContext`：`{ node: GraphNode; related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] }; progress: ProgressLog[] }`，其中 `RelatedItem = { field: string; concept: string; node: GraphNode }`、`CoAnchoredItem = { anchorKind: string; anchorKey: string; node: GraphNode }`（与 §18/§21 既有 `/api/related` 形一致，复用类型）。
+- 纯加法，不改既有契约；无新增 `FieldOp`（只读，不改 schema）。
+
+### 22.2 后端
+
+- 重构（DRY，服务本增量且消除复制）：抽出 `apps/backend/src/related-core.ts` 导出 `buildRelated(repo, id): { outgoing; incoming; coAnchored }`（把 `related.ts` 现有 REF+ANCHORED_TO 出入向 + coAnchored 派生逻辑原样迁入，**行为零变更**）。`apps/backend/src/related.ts` 改为调用 `buildRelated`（候选 `candidates` 分支保留在 related.ts）。既有全部 related/anchor/concept/ref/proposals e2e 必须保持全绿以证明零回归。
+- 新模块 `apps/backend/src/query.ts` 路由（挂 `/api`、全局错误中间件前）：
+  - `GET /api/query/search?q=<term>&type=<nodeType?>&limit=<n=50>`：`q` 空 → 400 `{error:"q 必填"}`。遍历 `repo.queryNodes(type?)`（无 type 则对每个已知 nodeType 取并集；nodeType 列表取 `registry.getConfig().nodeTypes` 的 `nodeType` ∪ 派生锚点种类——简化为遍历 registry 配置的 nodeType 即可，派生节点经其引用方命中已足够 MVP），对每节点构造 `hay = Object.values(node.properties).map(String).join(" ").toLowerCase()`，若含 `q.trim().toLowerCase()` 则计 `score = 出现次数`；按 `score desc, updatedAt desc, id asc` 确定性排序，截断 `limit`；返回 `QueryHit[]`。
+  - `GET /api/query/context/:id`：`repo.getNode(id)` 不存在 → 404 `{error:"not found"}`；否则返回 `QueryContext`：`{ node, related: buildRelated(repo, id), progress: repo.listProgress(id) }`。
+  - 二者**只读**：仅上述 reader 原语，无任何 create/update/delete/createEdge/applyFieldOp 调用。
+- `apps/backend/src/app.ts`：`app.use("/api", makeQueryRouter(deps.repo, deps.registry));`（related 路由之后、错误中间件前）。
+
+### 22.3 前端
+
+- `apps/frontend/src/api.ts`：加 `search(q, type?)` → `GET /api/query/search`（`QueryHit[]`）；`getContext(id)` → `GET /api/query/context/:id`（`QueryContext`）。
+- 新页 `apps/frontend/src/pages/SearchPage.tsx` 路由 `/search`「信息检索」：`Input.Search`（`aria-label="query-input"`）→ `api.search` → 结果 `List`，每项 `summary`（`nodeType`）`Link` 到 detailLink（attackTicket→`/attack/:id` 否则 `/related/${nodeType}/${id}`）；空查询提示；无结果 `role="status"` 文案「无匹配结果」。
+- `AppShell` 导航加「信息检索」、`HomePage` 加卡片入口（集成首页原则）。
+- 不在本增量做 NL 问答框 / context 可视化（Agent 侧 & 后续）。
+
+### 22.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`QueryHit`/`QueryContext` 契约类型测试（tsc RED→GREEN）。
+- 后端 e2e（新 `apps/backend/test/query.e2e.test.ts`）：①建多节点，`search?q=` 命中属性子串、大小写不敏感、`type` 过滤生效、空 `q`→400、`limit` 截断、排序确定（score desc/updatedAt desc/id asc）；②`search` 调用前后 `audit_log` 行数不变（只读证明）；③`context/:id`：返回 node+related(REF/ANCHORED_TO/coAnchored)+progress；不存在→404；与 `/api/related` 派生一致（buildRelated 复用）；④related-core 重构零回归（既有 related/anchor/concept e2e 仍绿——由全套回归保证）。
+- 前端 Playwright（新 `apps/frontend/e2e/search.spec.ts`）：首页/导航→`/search`；输入关键词→结果含该节点 summary；点结果跳到其详情/关联页；空/无结果状态可见。
+- 随后跑全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 22.5 关键设计决策（补充 §6/§13#1）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| Hermes 接入形态 | 仅定义**传输无关 HTTP 只读契约**；不绑定 SDK/MCP | §13#1：Hermes 侧接口未定；HTTP 契约可被任意适配器包装；先打底座 |
+| 检索实现 | 属性值拼接子串、大小写不敏感、确定性排序、限量 | 无外部依赖、可 TDD；向量/全文引擎属后续 YAGNI |
+| context 邻域 | 复用 `buildRelated`（抽 related-core）+ progress | DRY 消除与 /api/related 的派生复制；一次读取给 Agent 足够上下文 |
+| 只读保证 | GET-only + 仅 reader 原语 + 审计行数不变断言 | §0.3/§6.1 边界：Agent 只读不破坏写权威性 |
+| 最小检索 UI | 含一个集成的「信息检索」页 | 可人工验证/e2e；产品已具完整 CRUD，此为附加分析面（不违反 MVP-UX 底线） |
+| NL 问答 / Hermes 传输 / 向量检索 | 不在增量4 | YAGNI；§6.2/§6.3 与后续 |
+
+### 22.6 验收标准
+
+- [ ] shared `QueryHit`/`QueryContext` 契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] `GET /api/query/search?q=` 跨节点属性子串、大小写不敏感、`type` 过滤、空`q`→400、`limit` 截断、确定性排序（score/updatedAt/id）
+- [ ] `search` 为只读：调用前后 `audit_log` 行数不变（无写/无审计副作用）
+- [ ] `GET /api/query/context/:id` → `{node, related(REF/ANCHORED_TO/coAnchored), progress}`；不存在→404；与 `/api/related` 派生一致
+- [ ] `related-core` 抽取后 `/api/related` 行为零变更（既有 related/anchor/concept/ref/proposals e2e 全绿）
+- [ ] `/search`「信息检索」页：查询→结果→点击跳详情/关联页；空/无结果状态；AppShell+首页入口集成
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
