@@ -11,6 +11,8 @@ const MODULES = [
   { to: "/import", title: "导入", desc: "从 Excel 导入数据" },
   { to: "/proposals", title: "关系审批", desc: "候选关系扫描与人工审批" },
   { to: "/search", title: "信息检索", desc: "跨攻关/贡献/关联的只读检索（Hermes 契约）" },
+  { to: "/releases", title: "发布包", desc: "版本发布包元数据 + 下载链接登记（李嘉⑤）" },
+  { to: "/weights", title: "权重文件", desc: "模型权重文件元数据 + 存储链接登记（李嘉⑥）" },
 ];
 
 export function HomePage() {
