@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Repository, DashboardSummary } from "@combat/shared";
+import { listConflictRows } from "./conflicts.js";
 
 // §2.3 canonical 状态 enum partitioned into open/resolved.
 // Invariant: open + resolved == total ONLY when every ticket's 状态 falls in
@@ -34,10 +35,43 @@ export function makeDashboardRouter(repo: Repository): Router {
       .map(([贡献人, count]) => ({ 贡献人, count }))
       .sort((a, b) => b.count - a.count || (a.贡献人 < b.贡献人 ? -1 : a.贡献人 > b.贡献人 ? 1 : 0))
       .slice(0, 5);
+    // §36: conflicts (count + top reasons) — reuse derived edge listing
+    const cflRows = listConflictRows(repo);
+    const reasonSet = new Set<string>();
+    for (const r of cflRows) reasonSet.add(r.reason);
+    const conflicts = { count: cflRows.length, topReasons: [...reasonSet].slice(0, 5) };
+
+    // §36: today aggregate — progress entries today + distinct ticket count
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    let progressEntries = 0;
+    const touched = new Set<string>();
+    for (const t of tks) {
+      for (const p of repo.listProgress(t.id)) {
+        const at = new Date(p.updatedAt);
+        if (at >= today && at < tomorrow) { progressEntries++; touched.add(t.id); }
+      }
+    }
+    const todaySection = { progressEntries, ticketsTouched: touched.size };
+
+    // §36: recent activity — top 5 attackTickets by updatedAt desc
+    const recentActivity = tks.slice()
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+      .slice(0, 5)
+      .map(t => ({
+        ticketId: t.id,
+        标题: String(t.properties["标题"] ?? t.properties["攻关单号"] ?? t.id),
+        状态: String(t.properties["状态"] ?? ""),
+        lastChangedAt: t.updatedAt,
+      }));
+
     const summary: DashboardSummary = {
       tickets: { total: tks.length, byStatus, open, resolved },
       contributions: { total: cs.length, topContributors },
       proposalsPending: repo.listProposals({ status: "待审批" }).length,
+      conflicts,
+      today: todaySection,
+      recentActivity,
     };
     res.json(summary);
   });

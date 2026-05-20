@@ -76,10 +76,14 @@ describe("dashboard e2e", () => {
   it("empty system → zeroed summary", async () => {
     const { app } = makeApp();
     const r = await request(app).get("/api/dashboard");
-    expect(r.body).toEqual({
+    expect(r.body).toMatchObject({
       tickets: { total: 0, byStatus: {}, open: 0, resolved: 0 },
       contributions: { total: 0, topContributors: [] },
       proposalsPending: 0,
     });
+    // §36-extended fields exist alongside the legacy three (additive contract).
+    expect(r.body.conflicts).toBeDefined();
+    expect(r.body.today).toBeDefined();
+    expect(r.body.recentActivity).toBeDefined();
   });
 });
