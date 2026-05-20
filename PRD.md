@@ -1942,3 +1942,69 @@ export interface HermesAnswer {
 - [x] `/hermes` 页 TextArea+提问按钮+回答+引用链接可用
 - [x] AppShell + HomePage 入口可达 `/hermes`
 - [x] 既有 52 e2e + 新增 FE-HM1 + console-clean `/hermes` 覆盖 共 54 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
+
+---
+
+## 36. 增量 19：作战态势大盘升级（兑现 §10 Phase 3.6 一半 / §11 Phase 2 态势可视化）
+
+> 现首页大盘只看见 ticket/contribution/proposal 三个静态计数，看不到"今日动了啥/谁在冲突上/最近改了谁"——这是作战指挥最需要的实时视图。本增量在 `GET /api/dashboard` 上**追加** 3 段（不破坏既有字段，向后兼容），首页态势区扩展可视化。
+
+### 36.1 契约（@combat/shared）
+
+`DashboardSummary` 现有结构不动，**追加**：
+```ts
+export interface DashboardSummary {
+  tickets: { total: number; byStatus: Record<string, number>; open: number; resolved: number };
+  contributions: { total: number; topContributors: { 贡献人: string; count: number }[] };
+  proposalsPending: number;
+  // §36 新增
+  conflicts: { count: number; topReasons: string[] };       // count = 无向对总数；topReasons 最多 5 条
+  today: { progressEntries: number; ticketsTouched: number };  // 当日 progress 累计
+  recentActivity: { ticketId: string; 标题: string; 状态: string; lastChangedAt: string }[]; // 最近 5 个变动的攻关单
+}
+```
+
+### 36.2 后端
+
+`apps/backend/src/dashboard.ts` 扩展：
+
+1. **conflicts**：调 `listConflictRows(repo)`（来自 §33）取 ConflictRow[]；`count = rows.length`；`topReasons = [...new Set(rows.map(r=>r.reason))].slice(0,5)`。
+2. **today**：本地日期边界（取系统时区当日 00:00→24:00），遍历所有 attackTicket 的 progress，统计今日条数 + 涉及 ticket 数（去重）。可以 reuse `repo.listProgress` per ticket 或一次性 query；保持简单：循环 `queryNodes("attackTicket")` 调 `listProgress`。
+3. **recentActivity**：取所有 attackTicket，按 `updatedAt` 降序，取 Top 5；输出 `{ticketId, 标题, 状态, lastChangedAt: node.updatedAt}`。
+
+### 36.3 前端 — `apps/frontend/src/pages/HomePage.tsx`
+
+dashboard 区扩展（保持既有 Row + Descriptions 不动）：
+- 在状态分布/Top 贡献人 下方加 `Descriptions` 一行：
+  - `冲突/重叠`：红色字 `${dash.conflicts.count} 对` + 若有则附 1 个示例 reason
+  - `今日动态`：`${dash.today.progressEntries} 条进展 / ${dash.today.ticketsTouched} 个攻关单`
+- 在 Descriptions 下方加 `recent-activity` 区（小卡片）：「最近活跃攻关单」+ List：每行 `Link 标题 + Tag 状态 + 时间`
+- 给新区一个 `aria-label="dashboard-extras"` 容器供 e2e 锁定。
+
+### 36.4 测试
+
+后端 `apps/backend/test/dashboard-extras.e2e.test.ts` 至少 3 个测试：
+1. 大盘新字段 shape：空 db → `{conflicts:{count:0,topReasons:[]}, today:{progressEntries:0,ticketsTouched:0}, recentActivity:[]}`
+2. 同人 2 active → conflicts.count ≥ 1，topReasons 含「同负责人多并发」
+3. 追加 2 条 progress → today.progressEntries === 2，ticketsTouched 正确；recentActivity 第一项是最新 update 的 ticket
+
+前端 `apps/frontend/e2e/dashboard-extras.spec.ts` FE-D2：路由 mock dashboard 返回带新字段的 payload，访问 `/`，断言 `dashboard-extras` 容器、冲突计数、今日动态、recent-activity 列表渲染。
+
+### 36.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 字段位置 | 追加到 DashboardSummary（不破坏既有） | 既有 FE-D1 / unit 不需要改；前端可渐进显示 |
+| 今日边界 | 服务器本地时间 00:00–24:00 | MVP；UTC 偏移留后续 |
+| recentActivity 来源 | attackTicket.updatedAt 排序 Top 5 | 包含状态变更、progress、edit 任何写入；与"作战态势"一致 |
+| 冲突 reason 列表 | dedupe 去重前 5 | 避免同一 reason 重复刷屏 |
+
+### 36.6 验收
+
+- [ ] DashboardSummary 三段新字段 tsc-clean；既有 FE-D1 不破坏
+- [ ] 空 db → 新字段 0/空数组
+- [ ] 同人 2 active → conflicts.count ≥ 1，reason 含「同负责人多并发」
+- [ ] 当日 progress 计入 today.progressEntries；recentActivity 按 updatedAt 倒序
+- [ ] 首页态势区可见冲突计数 + 今日动态 + 最近活跃列表
+- [ ] 既有 54 e2e + 新增 FE-D2 共 55 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
+
