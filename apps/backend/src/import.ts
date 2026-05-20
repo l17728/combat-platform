@@ -2,6 +2,8 @@ import { Router } from "express";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import type { Repository, SchemaRegistry, NodeSchema } from "@combat/shared";
+import { syncRefEdges } from "./refs.js";
+import { syncAnchorEdges } from "./anchors.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -27,25 +29,46 @@ function resolvePerson(repo: Repository, name?: string, employeeId?: string): st
   return repo.createNode("person", { name: name ?? employeeId, employeeId }, "import").id;
 }
 
+function findByIdentity(repo: Repository, schema: NodeSchema, props: Record<string, unknown>) {
+  for (const k of schema.identityKeys) {
+    const v = props[k];
+    const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
+    if (!s) continue;
+    const hit = repo.queryNodes(schema.nodeType, { [k]: s }).at(0);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
 export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
   r.post("/import", upload.single("file"), (req, res) => {
-    const schema = registry.getNodeSchema("attackTicket");
-    if (!schema) return res.status(500).json({ error: "no attackTicket schema" });
+    const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+    const nodeType = String(first(req.query.type) ?? "attackTicket");
+    const schema = registry.getNodeSchema(nodeType);
+    if (!schema) return res.status(400).json({ error: `unknown nodeType: ${nodeType}` });
     const wb = XLSX.read(req.file!.buffer, { type: "buffer" });
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
-    let created = 0;
+    let created = 0, updated = 0;
     for (const raw of rows) {
       const props = mapColumns(raw, schema);
-      const v = registry.validateNode("attackTicket", props);
+      const v = registry.validateNode(nodeType, props);
       if (!v.ok) continue;
-      const node = repo.createNode("attackTicket", props, "import");
-      created++;
-      const personId = resolvePerson(repo,
-        raw["攻关申请人"] as string, raw["攻关申请人工号"] as string);
-      if (personId) repo.createEdge("ASSIGNED_TO", node.id, personId, { role: "攻关申请人" }, "import");
+      const existing = findByIdentity(repo, schema, props);
+      const node = existing
+        ? repo.updateNode(existing.id, props, "import")
+        : repo.createNode(nodeType, props, "import");
+      if (existing) updated++; else created++;
+      syncRefEdges(repo, registry, node, props, "import");
+      syncAnchorEdges(repo, registry, node, props, "import");
+      if (nodeType === "attackTicket") {
+        repo.deleteEdges({ sourceId: node.id, edgeType: "ASSIGNED_TO" }, "import");
+        const personId = resolvePerson(repo,
+          raw["攻关申请人"] as string, raw["攻关申请人工号"] as string);
+        if (personId) repo.createEdge("ASSIGNED_TO", node.id, personId, { role: "攻关申请人" }, "import");
+      }
     }
-    res.json({ created });
+    res.json({ created, updated });
   });
   return r;
 }
