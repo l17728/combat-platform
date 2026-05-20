@@ -1391,3 +1391,80 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 - [x] attackTicket：ASSIGNED_TO `攻关申请人` 边 upsert 幂等（每节点至多 1 条；用例7）
 - [x] `ImportPage`：nodeType Select 可用（FE-IU1 经 `getByRole(combobox)`）；上传成功显示「导入新增 N · 已更新 M」；既有失败路径不变（coverage GAP Import 仍绿，已适配 `?type=` 查询匹配）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend83/FEunit13/e2e32）；完成后部署测试服务器
+
+---
+
+## 27. 增量9：自动日报生成器（Phase 3.2 上半）开发依据
+
+> 兑现 §10 Phase 3.2「自动日报」+ §6.2 + Tony「信息断裂 → 自动日报」。本增量交付**生成器 + 预览 UI**，**不**实现外发渠道（§13#2 邮件/eSpace/welink 待你确认 + §13#3 welinkcli 抓取攻关群消息可行性/合规未定）：用户在页面预览今日日报，点「复制到剪贴板」粘进任意 IM/邮件。当 §13#2/#3 落实后，另增量加 channel adapter（pluggable outbox）即可。**严格只读**派生，不写库/不审计（同 §6.1/增量4 哲学）。
+
+### 27.0 范围与定向
+
+交付 ①`GET /api/daily-report?date=YYYY-MM-DD`（缺省今日 UTC）从既有 ProgressLog + attackTicket 派生当日按 ticket 分组的进展条目 + 摘要（被触达 ticket 数 / 进展条目总数 / 各状态 ticket 分布）；②前端 `/daily-report` 页（DatePicker 默认今日，预览结构化日报，**复制到剪贴板** 按钮把日报渲染为中文纯文本）；③AppShell 导航 + HomePage 卡片。**YAGNI**：不做外发渠道（待 §13#2/#3）、不做 welinkcli 抓取攻关群作为输入源、不做调度（手工触发即可）、不做 PDF/Excel 导出（先纯文本+剪贴板）、不做按人分组（先按 ticket）。
+
+### 27.1 契约（@combat/shared）
+
+```ts
+export interface DailyReportEntry {
+  seqNo: number; statusSnapshot: string; content: string; updatedBy: string; at: string;
+}
+export interface DailyReportSection {
+  ticketId: string; 标题: string; latestStatus: string; entries: DailyReportEntry[];
+}
+export interface DailyReport {
+  date: string; // YYYY-MM-DD
+  sections: DailyReportSection[]; // 仅含当日有进展的 ticket
+  summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
+}
+```
+纯加法；无新 `FieldOp`（只读）。
+
+### 27.2 后端
+
+- 新模块 `apps/backend/src/daily-report.ts` 路由 `GET /api/daily-report?date=YYYY-MM-DD`（只读）：
+  - `date` 解析：`req.query.date` 若缺省/无效 → 当日 UTC `YYYY-MM-DD`；通过 `new Date(date+"T00:00:00Z").getTime()` 与 +1 天上界判断属于该日（按 `progress.updatedAt` ISO 字符串前缀 `YYYY-MM-DD` 直接比对——更简单、时区一致：日报按报告者所在地的日历日意义留待后续，MVP 用 UTC 日期前缀匹配，确定性可测）。
+  - 遍历 `repo.queryNodes("attackTicket")`；对每个 t 取 `repo.listProgress(t.id)`；过滤 `p.updatedAt.startsWith(date)`；若该 ticket 当日有 ≥1 条 → 加入 `sections`（条目按 seqNo asc）。
+  - `latestStatus`：取该 ticket 当日**最后一条**进展的 `statusSnapshot`（按 seqNo 取末位）；当日无则取 ticket 当前 `状态` 属性。
+  - `summary`：`ticketsTouched = sections.length`；`entriesTotal = sum sections.entries.length`；`openByStatus`：所有 attackTicket（不限当日）按当前 `状态` 计数（同 dashboard 口径）。
+  - 仅 reader 原语 `queryNodes/listProgress`；调用前后 `audit_log` 行数不变（e2e 断言）。
+- `apps/backend/src/app.ts`：`app.use("/api", makeDailyReportRouter(deps.repo));`（dashboard 之后、错误中间件前）。
+
+### 27.3 前端
+
+- `apps/frontend/src/api.ts`：`getDailyReport(date?)` → `GET /api/daily-report` (+ optional `?date=YYYY-MM-DD`) → `Promise<DailyReport>`。
+- 新页 `apps/frontend/src/pages/DailyReportPage.tsx`（路由 `/daily-report`，标题「攻关日报」）：
+  - AntD `DatePicker` 默认今日，`aria-label="report-date"`；变更后 fetch 新日期。
+  - 渲染：日期标题 + 摘要（`Statistic`：被触达 ticket / 进展条目数 + `Descriptions` 状态分布）+ 各 section 卡片（标题=`【标题】（latestStatus）`，下方 List 列进展条目 `#seqNo [statusSnapshot] content — updatedBy at`）。
+  - **复制到剪贴板** Button `aria-label="copy-report"`：渲染为中文纯文本（标准 Markdown-like：日期标题、摘要行、`- 【ticket标题】(latestStatus): #seqNo [status] content — by/at`），写入 `navigator.clipboard`；成功 `message.success("已复制")`，失败 `message.error("复制失败")`。
+  - 空日（sections=[]）显示 `<p role="status">该日无进展记录</p>`。
+- `AppShell.tsx`：`ITEMS` 加 `{ key:"/daily-report", label: <Link to="/daily-report">攻关日报</Link> }`（置于「权重文件」之后）。
+- `HomePage.tsx`：`MODULES` 加 `{ to: "/daily-report", title: "攻关日报", desc: "自动汇总当日各攻关单进展，复制到剪贴板（待外发渠道接入）" }`。
+
+### 27.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`DailyReport`/`DailyReportSection`/`DailyReportEntry` 契约类型测试（tsc RED→GREEN）。
+- 后端 e2e（新 `apps/backend/test/daily-report.e2e.test.ts`）：①建 attackTicket A/B/C，给 A 在 `date1` 加 2 进展、B 在 `date1` 加 1 进展、C 在 `date2` 加 1 进展；`GET ?date=date1` → `sections.length===2`（A+B）、`entries.length` 正确、`summary.ticketsTouched===2`、`summary.entriesTotal===3`；`?date=date2` → C only；`?date=` 空 → 今日；`latestStatus` = 该日最后一条 statusSnapshot；②空日 → `sections:[]`、`ticketsTouched:0`、`entriesTotal:0`、`openByStatus` 仍含所有 ticket；③只读：audit_log 前后不变 + 同输入同输出；④无效 date 字符串 → 缺省到今日（不 400，等价空查询语义）。
+- 前端 Playwright（新 `apps/frontend/e2e/daily-report.spec.ts`）：首页/导航 → `/daily-report`；mock 路由返回固定 JSON（{date, sections:[1 section], summary}）→ 验证页渲染（日期标题、ticket 标题、进展条目文本）；点「复制到剪贴板」（mock `navigator.clipboard.writeText`）→ 验证 `已复制` 提示。空日 mock → `role="status"` 文案可见。
+- 全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 27.5 关键设计决策（补充 §6/§13）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 生成机制 | 只读派生（reader 原语 + audit 不变） | §0.3/§6.1 与增量 4/5/6 一致 |
+| 数据源 | 仅内部 ProgressLog + attackTicket | welinkcli 抓攻关群（§13#3）可行性/合规未定；MVP 内部数据已构成实用日报 |
+| 外发渠道 | **不在 9** | §13#2 通道未定（先邮件 vs eSpace vs welink）；MVP 用户用「复制到剪贴板」粘进任何 IM |
+| 日期匹配 | `progress.updatedAt.startsWith("YYYY-MM-DD")`（UTC 日历日前缀比对） | 确定性可测；本地时区/工作日历留待 §13 后续讨论 |
+| 分组 | 按 attackTicket | 主要日报使用场景；按人/部门分组留后续 |
+| 调度 | 手工触发（页内 DatePicker） | YAGNI；定时调度待外发渠道接入 |
+| 入口 | `/daily-report` + 导航 + 首页卡片 | 集成首页原则；与 dashboard/search/proposals 同形 |
+
+### 27.6 验收标准
+
+- [ ] shared `DailyReport`/`DailyReportSection`/`DailyReportEntry` 契约生效（类型测试，tsc-clean），现有不破坏
+- [ ] `GET /api/daily-report?date=YYYY-MM-DD`：sections 仅含当日有进展的 ticket，entries 按 seqNo asc，`latestStatus` 取当日最后条；summary 正确（ticketsTouched/entriesTotal/openByStatus）；缺省 `date`→今日；无效 date→缺省今日（不 400）
+- [ ] 只读：调用前后 `audit_log` 行数不变；同输入同输出
+- [ ] `/daily-report` 页：DatePicker 默认今日；预览渲染（日期/ticket/进展条目/摘要）；空日 `role="status"` 文案；AppShell+首页入口集成
+- [ ] 「复制到剪贴板」按钮：成功复制中文纯文本日报；`message.success("已复制")`
+- [ ] 既有断言加法不破坏（`home-card-*`、AppShell nav 既有项不变）
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
