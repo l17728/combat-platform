@@ -7,7 +7,8 @@ test("FE-IU1 ImportPage shows 新增/已更新 message (route-mocked, determinis
   }));
   await page.goto("/import");
   await expect(page.getByText("导入数据")).toBeVisible();
-  await expect(page.getByLabel("import-type")).toBeVisible();
+  // AntD Select sets aria-label on both wrapper and combobox input → use role
+  await expect(page.getByRole("combobox", { name: "import-type" })).toBeVisible();
   await page.setInputFiles("input[type=file]", {
     name: "x.xlsx", mimeType: "application/octet-stream", buffer: Buffer.from("x"),
   });

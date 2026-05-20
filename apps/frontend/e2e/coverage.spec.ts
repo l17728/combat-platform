@@ -49,7 +49,7 @@ test("GAP Import: failure path shows error message", async ({ page }) => {
   // GAP-18 IM-5: the error toast is ImportPage's catch on a failed POST /api/import.
   // SheetJS parses junk leniently (→ 200 {created:0}), so deterministically force
   // the HTTP failure via route interception to exercise the real error-handling path.
-  await page.route("**/api/import", route => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"boom"}' }));
+  await page.route("**/api/import**", route => route.fulfill({ status: 500, contentType: "application/json", body: '{"error":"boom"}' }));
   await page.setInputFiles("input[type=file]", {
     name: "any.xlsx", mimeType: "application/octet-stream", buffer: Buffer.from("x"),
   });
