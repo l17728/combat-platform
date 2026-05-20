@@ -12,6 +12,7 @@ import { makeDashboardRouter } from "./dashboard.js";
 import { makeDailyReportRouter } from "./daily-report.js";
 import { makeRemindersRouter } from "./reminders.js";
 import { makeConflictsRouter } from "./conflicts.js";
+import { makeKGRouter } from "./kg-rebuild.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) 
   app.use("/api", makeDailyReportRouter(deps.repo));
   app.use("/api", makeRemindersRouter(deps.repo, deps.registry));
   app.use("/api", makeConflictsRouter(deps.repo));
+  app.use("/api", makeKGRouter(deps.repo, deps.registry));
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: err.message });
   });
