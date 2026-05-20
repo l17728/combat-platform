@@ -108,3 +108,19 @@ export interface DailyReport {
   sections: DailyReportSection[];
   summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
 }
+
+export type ReminderStatus = "待发送" | "已发送" | "已忽略";
+export type ReminderKind = "问题单跟催" | "FE Deadline 提醒";
+export interface Reminder {
+  id: string;
+  kind: ReminderKind;
+  ticketId: string;
+  recipientPersonId?: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  status: ReminderStatus;
+  decidedBy?: string;
+  decidedAt?: string;
+  createdAt: string;
+}

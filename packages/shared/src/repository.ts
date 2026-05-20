@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus } from "./types.js";
+import type { GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus, Reminder, ReminderStatus } from "./types.js";
 import type { SchemaRegistry } from "./registry.js";
 
 export type NodeFilter = Record<string, unknown>;
@@ -20,6 +20,14 @@ export interface Repository {
   listProposals(opts?: { status?: RelationProposalStatus }): RelationProposal[];
   getProposal(id: string): RelationProposal | undefined;
   updateProposalStatus(id: string, status: RelationProposalStatus, decidedBy: string, actor: string): RelationProposal;
+  createReminder(p: Omit<Reminder, "id" | "status" | "decidedBy" | "decidedAt" | "createdAt">, actor: string): Reminder;
+  listReminders(opts?: { status?: ReminderStatus }): Reminder[];
+  getReminder(id: string): Reminder | undefined;
+  updateReminderStatus(id: string, status: ReminderStatus, decidedBy: string, actor: string): Reminder;
+}
+
+export interface ChannelAdapter {
+  send(r: Reminder, actor: string): { sentAt: string };
 }
 
 export type ProposalDraft = Omit<RelationProposal, "id" | "status" | "decidedBy" | "decidedAt" | "createdAt">;

@@ -6,6 +6,7 @@ import type { LeaderboardEntry, PersonHonor } from "./index.js";
 import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
+import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -167,5 +168,20 @@ describe("daily-report contracts", () => {
     };
     expect(r.sections[0].entries[0].statusSnapshot).toBe("进行中");
     expect(r.sections[0].标题).toBe("T1");
+  });
+});
+
+describe("reminder contracts", () => {
+  it("Reminder shape + status enum + ChannelAdapter interface", () => {
+    const r: Reminder = {
+      id: "r1", kind: "问题单跟催", ticketId: "t1",
+      recipientPersonId: "p1", recipientName: "甲",
+      subject: "跟催: T1", body: "已停滞 5 天",
+      status: "待发送", createdAt: new Date().toISOString(),
+    };
+    const all: ReminderStatus[] = ["待发送", "已发送", "已忽略"];
+    expect(all).toContain(r.status);
+    const ch: ChannelAdapter = { send: () => ({ sentAt: "t" }) };
+    expect(ch.send(r, "actor").sentAt).toBe("t");
   });
 });
