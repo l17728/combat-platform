@@ -1936,9 +1936,9 @@ export interface HermesAnswer {
 
 ### 35.6 验收
 
-- [ ] `HermesAnswer` / `HermesCitation` / `HermesIntent` 契约 tsc-clean
-- [ ] 5 类意图 e2e 全部通过
-- [ ] 空问题 → 400 中文错误
-- [ ] `/hermes` 页 TextArea+提问按钮+回答+引用链接可用
-- [ ] AppShell + HomePage 入口可达 `/hermes`
-- [ ] 既有 52 e2e + 新增 FE-HM1 共 53 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
+- [x] `HermesAnswer` / `HermesCitation` / `HermesIntent` 契约 tsc-clean
+- [x] 5 类意图 e2e 全部通过
+- [x] 空问题 → 400 中文错误
+- [x] `/hermes` 页 TextArea+提问按钮+回答+引用链接可用
+- [x] AppShell + HomePage 入口可达 `/hermes`
+- [x] 既有 52 e2e + 新增 FE-HM1 + console-clean `/hermes` 覆盖 共 54 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
