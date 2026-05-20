@@ -1856,9 +1856,9 @@ export interface RebuildKGResult {
 
 ### 34.6 验收
 
-- [ ] `RebuildKGResult` 契约 tsc-clean
-- [ ] 删掉所有 REF 边后 `POST /api/kg/rebuild` → 边数恢复到原值（与增量同步一致）
-- [ ] 二次 rebuild 数字幂等（同一图无新增/丢失）
-- [ ] 冲突边在 rebuild 后自动重建（与 `/api/conflicts/scan` 一致）
-- [ ] `/conflicts` 页「全量重建 KG」按钮可点击并显示结果
-- [ ] 既有 39 e2e + 新增 FE-KG1 共 40 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
+- [x] `RebuildKGResult` 契约 tsc-clean
+- [x] 删掉所有 REF 边后 `POST /api/kg/rebuild` → 边数恢复到原值（与增量同步一致）
+- [x] 二次 rebuild 数字幂等（同一图无新增/丢失）
+- [x] 冲突边在 rebuild 后自动重建（与 `/api/conflicts/scan` 一致）
+- [x] `/conflicts` 页「全量重建 KG」按钮可点击并显示结果
+- [x] 既有 39 e2e + 新增 FE-KG1 共 40 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
