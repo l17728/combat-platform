@@ -1798,3 +1798,67 @@ export interface ScanConflictsResult { conflicts: number; overlaps: number; }
 - [x] `/conflicts` 页 Tabs/扫描按钮/点击跳关联页全部可用
 - [x] RelatedPage 红色「冲突 / 重叠」区在涉冲突节点上渲染
 - [x] 既有 37 e2e + 新增 FE-CF1/FE-CF2 共 39 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
+
+---
+
+## 34. 增量 17：独立可重建 KG 引擎（兑现 §0.4 / §0.7 / §18.0 最后一项）
+
+> §0.7 KG 是**派生**且**全量可重建**。当前虽然 `syncRefEdges`/`syncAnchorEdges`/`syncConflicts` 都是幂等增量，但缺一键全量重建，发生增量漂移（如手工修 sqlite、批量改 properties、迁移恢复）后无法收敛。本增量提供 `rebuildKG(repo, registry)` 统一入口：从权威结构化数据（nodes + properties）清洗并重建所有派生边类型。
+
+### 34.1 契约（@combat/shared）
+
+```ts
+export interface RebuildKGResult {
+  refEdges: number;       // 重建 REF 边总数
+  anchorEdges: number;    // 重建 ANCHORED_TO 边总数
+  conflicts: number;      // 无向对数（与 ScanConflictsResult.conflicts 含义一致）
+  overlaps: number;       // 无向对数
+  durationMs: number;
+}
+```
+
+### 34.2 后端 — `apps/backend/src/kg-rebuild.ts`
+
+`rebuildKG(repo, registry): RebuildKGResult`：
+
+1. **清旧**：删除所有派生边 `REF`、`ANCHORED_TO`、`CONFLICTS_WITH`、`OVERLAPS_WITH`（按 edgeType 单条件批量删，复用 §33 已有的 deleteEdges）。
+2. **重建 REF + ANCHORED_TO**：对每个 nodeType（含 attackTicket/contribution/releasePackage/weightFile 等），`queryNodes(nodeType)` 全表遍历，对每个 node 调 `syncRefEdges(repo, registry, node, node.properties, "system:rebuild-kg")` 与 `syncAnchorEdges(repo, registry, node, node.properties, "system:rebuild-kg")`。注意：`syncRefEdges` 内部已会先 deleteEdges({sourceId, edgeType:"REF"})，但我们外层已清空，重复 delete 无副作用。
+3. **重建冲突/重叠**：调 `syncConflicts(repo)`。
+4. 统计：返回 `{ refEdges, anchorEdges, conflicts, overlaps, durationMs }`。`refEdges`/`anchorEdges` 通过 `queryEdges({edgeType})` 取最终边表计数；`conflicts`/`overlaps` 取 syncConflicts 返回。
+5. 路由 `POST /api/kg/rebuild` → 调 `rebuildKG` 返回 `RebuildKGResult`，无请求体。
+
+### 34.3 前端
+
+- `api.rebuildKG(): Promise<RebuildKGResult>`。
+- `ConflictsPage` 顶部 Space 追加「全量重建 KG」按钮（次级 default Button，不抢眼），点击 → `api.rebuildKG()` → 成功 message 显示重建统计 + 重新 `listConflicts()`。
+- 不新建独立路由（YAGNI；重建是低频运维动作，挂在冲突页够用）。
+
+### 34.4 测试
+
+后端 `apps/backend/test/kg-rebuild.e2e.test.ts`：
+1. 建若干 ticket / contribution / person，触发增量同步建好 REF/ANCHORED_TO 边 → 记录数 R0/A0。
+2. 手工 `repo.deleteEdges` 删掉所有 REF 边（模拟漂移）→ R 边数 = 0。
+3. `POST /api/kg/rebuild` → 响应 `refEdges === R0`，且 anchor 数 == A0（幂等）。
+4. 再次 rebuild → 数字仍一致（多次幂等）。
+5. 同人多活跃单存在时 → rebuildKG 后 conflicts ≥ 1。
+
+前端 `apps/frontend/e2e/kg-rebuild.spec.ts`：路由 mock `/api/kg/rebuild` 返回固定 result → 访问 `/conflicts` → 点「全量重建 KG」按钮 → 断言重建结果文本（refEdges 等）出现。
+
+### 34.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 暴露面 | 仅 POST `/api/kg/rebuild`，无 GET 状态 | 同步执行；返回结果即状态；MVP 不做后台任务 |
+| 调用入口 | `/conflicts` 页二级按钮 | 重建低频；与冲突 scan 是同类「派生数据维护」语义 |
+| 漂移检测 | 不在本增量做（YAGNI） | 只提供"修复手段"；漂移监控待真实运维需求出现再做 |
+| 并发 | 同步执行，单进程 SQLite | 后端单实例；不做锁 |
+| 触发条件 | 手动 | MVP；定时器/钩子→后续 |
+
+### 34.6 验收
+
+- [ ] `RebuildKGResult` 契约 tsc-clean
+- [ ] 删掉所有 REF 边后 `POST /api/kg/rebuild` → 边数恢复到原值（与增量同步一致）
+- [ ] 二次 rebuild 数字幂等（同一图无新增/丢失）
+- [ ] 冲突边在 rebuild 后自动重建（与 `/api/conflicts/scan` 一致）
+- [ ] `/conflicts` 页「全量重建 KG」按钮可点击并显示结果
+- [ ] 既有 39 e2e + 新增 FE-KG1 共 40 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
