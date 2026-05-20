@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -134,6 +134,9 @@ export class Api {
   }
   listConflicts(): Promise<ConflictRow[]> {
     return this.req<ConflictRow[]>(`/api/conflicts`, {});
+  }
+  rebuildKG(): Promise<RebuildKGResult> {
+    return this.req<RebuildKGResult>(`/api/kg/rebuild`, { method: "POST" });
   }
 }
 export const api = new Api("");

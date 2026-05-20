@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Space, Table, Tabs, Typography, message } from "antd";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
-import type { ConflictRow, GraphNode, ScanConflictsResult } from "@combat/shared";
+import type { ConflictRow, GraphNode, ScanConflictsResult, RebuildKGResult } from "@combat/shared";
 
 function detailLink(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
@@ -14,6 +14,7 @@ function label(n: GraphNode): string {
 export function ConflictsPage() {
   const [rows, setRows] = useState<ConflictRow[]>([]);
   const [scanResult, setScanResult] = useState<ScanConflictsResult | null>(null);
+  const [rebuildResult, setRebuildResult] = useState<RebuildKGResult | null>(null);
 
   const refresh = useCallback(async () => {
     try { setRows(await api.listConflicts()); }
@@ -26,6 +27,14 @@ export function ConflictsPage() {
       const r = await api.scanConflicts();
       setScanResult(r);
       message.success(`扫描完成：冲突 ${r.conflicts} · 重叠 ${r.overlaps}`);
+      await refresh();
+    } catch (e) { message.error(String((e as Error).message)); }
+  };
+  const rebuild = async () => {
+    try {
+      const r = await api.rebuildKG();
+      setRebuildResult(r);
+      message.success(`全量重建完成：REF ${r.refEdges} · ANCHORED_TO ${r.anchorEdges} · 冲突 ${r.conflicts} · 重叠 ${r.overlaps} · ${r.durationMs}ms`);
       await refresh();
     } catch (e) { message.error(String((e as Error).message)); }
   };
@@ -67,11 +76,17 @@ export function ConflictsPage() {
             冲突 {n} · 重叠 {m}
           </Typography.Text>
           <Button danger onClick={rescan}>重新扫描</Button>
+          <Button onClick={rebuild}>全量重建 KG</Button>
         </Space>
       </Space>
       {scanResult && (
         <Typography.Paragraph type="secondary" style={{ marginTop: -4 }}>
           上次扫描：冲突 {scanResult.conflicts} · 重叠 {scanResult.overlaps}
+        </Typography.Paragraph>
+      )}
+      {rebuildResult && (
+        <Typography.Paragraph type="secondary" aria-label="rebuild-summary" style={{ marginTop: -4 }}>
+          上次全量重建：REF {rebuildResult.refEdges} · ANCHORED_TO {rebuildResult.anchorEdges} · 冲突 {rebuildResult.conflicts} · 重叠 {rebuildResult.overlaps} · {rebuildResult.durationMs}ms
         </Typography.Paragraph>
       )}
       <Tabs
