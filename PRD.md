@@ -1657,8 +1657,8 @@ export interface DailyReport {
 
 ### 31.3 验收
 
-- [ ] `db.ts` 加 4 个新索引；现有索引保留
-- [ ] `queryEdges` 改 SQL WHERE；空/单参/多参组合均正确
-- [ ] `listProposals` / `listReminders` 改 SQL WHERE；`createdAt DESC` 保留
-- [ ] 既有 103 backend e2e + 全部 shared/frontend/playwright 测试**零回归**
-- [ ] `npm run test:all` 连续两次全绿；完成后部署
+- [x] `db.ts` 加 4 个新索引（idx_edges_target / idx_edges_type / idx_proposals_status / idx_notifications_status）；现有索引保留
+- [x] `queryEdges` 改 SQL WHERE；空/单参/多参组合均正确（既有 refs/anchors/related/recommend/dashboard 测试为证）
+- [x] `listProposals` / `listReminders` 改 SQL WHERE；`createdAt DESC` 保留（既有 proposals/reminders e2e 为证）
+- [x] 既有 backend 103/103 e2e + shared 18 + FE unit 13 + Playwright 36 **零回归**
+- [x] `npm run test:all` 连续两次全绿（shared18/backend103/FEunit13/e2e36）；完成后部署
