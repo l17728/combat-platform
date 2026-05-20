@@ -1622,9 +1622,9 @@ export interface DailyReport {
 
 ### 30.3 验收
 
-- [ ] `reload()` 容错：sibling 损坏 → `console.warn` 跳过，其余 nodeType 可用
-- [ ] 全部文件损坏 → 构造抛错（明确信号保留）
-- [ ] `applyFieldOp` 自校验合法 + sibling 损坏 → 变更落地（不误回滚）
-- [ ] 现有 registry/concept/anchor/aliases e2e 保持绿（回归无损）
-- [ ] §13#9 标记**已解决**
-- [ ] `npm run test:all` 连续两次全绿；完成后部署
+- [x] `reload()` 容错：sibling 损坏 → `console.warn` 跳过，其余 nodeType 可用（registry-resilience.e2e 用例1 + registry.test 更新断言）
+- [x] 全部文件损坏 → 构造抛错（用例3 保留明确信号）
+- [x] `applyFieldOp` 自校验合法 + sibling 损坏 → 变更落地不误回滚（用例2 PATCH setConcept 成功+磁盘验证）
+- [x] 现有 registry/concept/anchor/aliases/ref/proposals 等 e2e 全部保持绿（backend 103/103，零回归）
+- [x] §13#9 已标记**已解决**
+- [x] `npm run test:all` 连续两次全绿（shared18/backend103/FEunit13/e2e36）；完成后部署
