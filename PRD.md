@@ -1662,3 +1662,62 @@ export interface DailyReport {
 - [x] `listProposals` / `listReminders` 改 SQL WHERE；`createdAt DESC` 保留（既有 proposals/reminders e2e 为证）
 - [x] 既有 backend 103/103 e2e + shared 18 + FE unit 13 + Playwright 36 **零回归**
 - [x] `npm run test:all` 连续两次全绿（shared18/backend103/FEunit13/e2e36）；完成后部署
+
+---
+
+## 32. 增量15：depth-N 关联遍历 开发依据
+
+> 兑现 PRD §4 「depth-N 遍历」+ §18.0 row「多跳/冲突/独立KG引擎」之 depth-N 子项（其余子项：冲突检测 / 独立可重建 KG 引擎，仍为后续）。在既有 `/api/related/:nodeType/:id` 上加可选 `?depth=<1-5>` 参数：当 `depth>1` 时返回额外 `expanded: ExpandedItem[]`（BFS over REF+ANCHORED_TO 的 N-hop 扩展，每节点首次访问入列以保证最短路径），既有 1-跳 `outgoing/incoming/coAnchored/candidates` **行为字节级不变**——纯加法。前端 `RelatedPage` 加深度选择 Select 触发可选扩展面板。值给 Hermes 单次推理上下文与探索 UX 同时带来更深视野。
+
+### 32.1 契约（@combat/shared）
+
+`RelatedResult` 追加可选字段：
+```ts
+expanded?: { node: GraphNode; depth: number; viaEdgeType: string; viaField: string; parentId: string }[];
+```
+- `depth ∈ [1, requested]`（首次到达的最短路径深度，1=root 的直接邻居，N=N 跳到达）。
+- `viaEdgeType ∈ {REF, ANCHORED_TO}`（命中本节点的边类型）。
+- `viaField` = 边 `properties.field`（REF 时是字段名；ANCHORED_TO 时是关联问题单/字段名）。
+- `parentId` = 上一跳节点 id（树重构用）。
+- 不含 root；不含锚点节点（透明遍历）。
+
+### 32.2 后端
+
+- `apps/backend/src/related-core.ts` 加 `buildExpanded(repo, rootId, depth): ExpandedItem[]`：
+  - 维护 `visited: Set<id>`（含 root，防重）+ FIFO 队列 `[{id, depth}]`。
+  - 每出队 → 取该节点的所有 REF + ANCHORED_TO 边（出/入向）→ 对端节点 id 若未 visited → push 一条 ExpandedItem + 入队（depth+1 ≤ requested）。
+  - 出向锚点节点的反向边（其它视图）也算 1 跳遍历（沿用 §21 cross-nodeType 派生贯通）；锚点节点本身不入 expanded（透明节点）。
+- `apps/backend/src/related.ts`：解析 `?depth=` clamp 到 [1, 5]（无 / NaN / <1 → 1）；当 depth>1 调 `buildExpanded` 并在响应加 `expanded`；depth=1 时 **不**带 expanded 字段（保持现有响应字节级一致）。
+
+### 32.3 前端
+
+- `apps/frontend/src/api.ts`：`getRelated(nodeType, id, opts)` 扩展接收 `{ includeCandidates?, depth? }`；depth 拼为 `&depth=N`。
+- `apps/frontend/src/pages/RelatedPage.tsx`：顶部加 `Select aria-label="depth-select"` 含 1/2/3 三档（默认 1）；切换时重新拉数据；当返回有 `expanded` 时下方加「扩展（深度 N）」面板，列各项 `node label`（点击同样跳 detailLink）+ `[depth=N viaEdgeType viaField]` 标注。
+- 既有概念/候选/跨颗粒度分组的渲染与断言 **不变**。
+
+### 32.4 测试
+
+- shared：`RelatedResult.expanded?` 契约类型测试 tsc-clean。
+- 后端 e2e（新 `apps/backend/test/related-depth.e2e.test.ts`）：建链 A→(REF)P，A→(ANCHORED_TO)anchor 同时 B→(ANCHORED_TO)anchor；`?depth=1` 不返回 expanded；`?depth=2` 返回 P + B（B 是经锚点跨颗粒度 2 跳到达）；`?depth=3` 进一步扩展；环路（A→B→A）只入一次；`depth=99` clamp 到 5；既有 1-hop fields 字节级一致（snapshot 对比）。
+- 前端 Playwright（在 `related.spec.ts` 或新 `depth.spec.ts`）：mock 含 `expanded` 的响应 → 选择深度 2 → 扩展面板出现 + 节点 label 可见 + depth/via 标注可见。
+- 既有 36 e2e 全部保持绿（向后兼容）。
+
+### 32.5 关键决策
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 默认 depth | 1 | 既有调用方零变更 |
+| 上限 | 5 | 防爆炸（节点数指数级）；探索深度足够 |
+| 锚点节点入扩展 | 否（透明节点） | 让 expanded 仅含业务节点，可读性 |
+| 遍历方向 | 出向 + 入向 + 跨锚点 | 与 1-hop `outgoing/incoming/coAnchored` 语义一致 |
+| 重复访问 | 仅首次入列（BFS 最短路径） | 避免重复；保证深度=最短路径 |
+| 冲突检测 / 独立可重建 KG 引擎 | 不在 15 | §18.0 后续 |
+
+### 32.6 验收
+
+- [ ] `RelatedResult.expanded?` 契约类型测试 tsc-clean；现有契约不破坏
+- [ ] `/api/related?depth=N`（1-5）；`depth=1`/缺省时响应字节级与既有一致（不含 `expanded`）
+- [ ] `depth=2..5` 时 BFS 正确：每节点首次访问入扩展；环路防重；锚点透明
+- [ ] `depth=99` clamp 到 5；`depth=0` / 非数字 → 默认 1
+- [ ] RelatedPage 深度 Select 切换 → 拉取新数据 + 扩展面板渲染
+- [ ] 现有 36 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
