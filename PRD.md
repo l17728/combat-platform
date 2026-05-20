@@ -2081,9 +2081,9 @@ export type HermesIntent =
 
 ### 37.6 验收
 
-- [ ] HermesIntent 联合类型扩 3 项；既有 5 类不破坏
-- [ ] contribution-by-person / recent-changes / find-helpers 各 1 个 e2e 通过
-- [ ] HermesPage 占位符扩展可见
-- [ ] 既有 55 e2e + 后端新增 3 e2e；零回归；`test:all` 连续两次全绿；部署
+- [x] HermesIntent 联合类型扩 3 项；既有 5 类不破坏
+- [x] contribution-by-person / recent-changes / find-helpers 各 1 个 e2e 通过（+1 find-helpers 无定位提示）
+- [x] HermesPage 占位符扩展可见
+- [x] 既有 55 e2e 零回归 + 后端新增 4 e2e（hermes-v2）；`test:all` 连续两次全绿；待部署
 
 
