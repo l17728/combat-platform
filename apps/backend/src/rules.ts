@@ -43,6 +43,16 @@ export function scanReminders(repo: Repository, _registry: SchemaRegistry, nowMs
       });
     }
 
+    // ② CCB 提醒 (李嘉②): ticket flagged 是否需CCB=是 + status open + handler exists
+    if (String(t.properties["是否需CCB"] ?? "").trim() === "是") {
+      drafts.push({
+        kind: "CCB 提醒", ticketId: t.id,
+        recipientPersonId: handler.id, recipientName: handler.name,
+        subject: `[CCB] 攻关单「${title}」需上 CCB 评审`,
+        body: `攻关单「${title}」（${t.properties["攻关单号"] ?? t.id}）状态「${status}」标记为需要 CCB 评审，请安排上会。`,
+      });
+    }
+
     const dl = String(t.properties["客户要求解决时间"] ?? "").trim();
     if (dl) {
       const dlMs = Date.parse(dl);

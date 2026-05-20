@@ -18,6 +18,7 @@
     { "id": "攻关组长", "name": "攻关组长", "type": "string", "label": "攻关组长" },
     { "id": "是否已解决", "name": "是否已解决", "type": "string", "label": "是否已解决" },
     { "id": "攻关有效性", "name": "攻关有效性", "type": "string", "label": "攻关有效性" },
-    { "id": "问题单号", "name": "问题单号", "type": "string", "label": "问题单号", "anchor": "问题单号" }
+    { "id": "问题单号", "name": "问题单号", "type": "string", "label": "问题单号", "anchor": "问题单号" },
+    { "id": "是否需CCB", "name": "是否需CCB", "type": "enum", "label": "是否需CCB", "enumValues": ["是", "否"] }
   ]
 }
