@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -204,5 +204,20 @@ describe("depth-N expansion contract (§32)", () => {
     };
     expect(e.depth).toBe(2);
     expect(e.viaEdgeType).toBe("REF");
+  });
+});
+
+describe("conflict / overlap contract (§33)", () => {
+  it("ConflictItem + ConflictRow + ScanConflictsResult shapes", () => {
+    const node = { id: "n1", nodeType: "attackTicket", properties: { 标题: "X" }, createdAt: "t", updatedAt: "t" };
+    const c: ConflictItem = { edgeType: "CONFLICTS_WITH", reason: "同负责人多并发：甲", node };
+    expect(c.edgeType).toBe("CONFLICTS_WITH");
+    const r: ConflictRow = {
+      edgeType: "OVERLAPS_WITH", reason: "同问题单：PB-1",
+      source: node, target: { ...node, id: "n2" },
+    };
+    expect(r.edgeType).toBe("OVERLAPS_WITH");
+    const s: ScanConflictsResult = { conflicts: 2, overlaps: 1 };
+    expect(s.conflicts + s.overlaps).toBe(3);
   });
 });

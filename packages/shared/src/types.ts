@@ -58,6 +58,10 @@ export interface CoAnchoredItem { anchorKind: string; anchorKey: string; node: G
 export interface ExpandedItem {
   node: GraphNode; depth: number; viaEdgeType: string; viaField: string; parentId: string;
 }
+export type ConflictEdgeType = "CONFLICTS_WITH" | "OVERLAPS_WITH";
+export interface ConflictItem { edgeType: ConflictEdgeType; reason: string; node: GraphNode; }
+export interface ConflictRow { edgeType: ConflictEdgeType; reason: string; source: GraphNode; target: GraphNode; }
+export interface ScanConflictsResult { conflicts: number; overlaps: number; }
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
