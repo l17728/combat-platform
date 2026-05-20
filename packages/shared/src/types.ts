@@ -110,7 +110,7 @@ export interface DailyReport {
 }
 
 export type ReminderStatus = "待发送" | "已发送" | "已忽略";
-export type ReminderKind = "问题单跟催" | "FE Deadline 提醒";
+export type ReminderKind = "问题单跟催" | "FE Deadline 提醒" | "CCB 提醒";
 export interface Reminder {
   id: string;
   kind: ReminderKind;

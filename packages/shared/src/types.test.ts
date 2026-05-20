@@ -184,4 +184,13 @@ describe("reminder contracts", () => {
     const ch: ChannelAdapter = { send: () => ({ sentAt: "t" }) };
     expect(ch.send(r, "actor").sentAt).toBe("t");
   });
+  it("ReminderKind extended with 'CCB 提醒' (李嘉②)", () => {
+    const kinds: ReminderKind[] = ["问题单跟催", "FE Deadline 提醒", "CCB 提醒"];
+    const ccb: Reminder = {
+      id: "r2", kind: "CCB 提醒", ticketId: "t1", recipientName: "甲",
+      subject: "[CCB] T1", body: "需上 CCB", status: "待发送",
+      createdAt: new Date().toISOString(),
+    };
+    expect(kinds).toContain(ccb.kind);
+  });
 });
