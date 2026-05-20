@@ -10,16 +10,30 @@ const INTENT_LABEL: Record<HermesIntent, string> = {
   "ticket-by-pb": "问题单关联",
   "person-workload": "人员负载",
   "fallback-search": "全文检索",
+  "contribution-by-person": "贡献查询",
+  "recent-changes": "近期变更",
+  "find-helpers": "找帮手",
 };
 const INTENT_COLOR: Record<HermesIntent, string> = {
   status: "blue",
   owner: "geekblue",
   "ticket-by-pb": "purple",
-  "person-workload: ": "magenta",
+  "person-workload": "magenta",
   "fallback-search": "default",
-} as Record<HermesIntent, string>;
+  "contribution-by-person": "gold",
+  "recent-changes": "cyan",
+  "find-helpers": "volcano",
+};
 
-const PLACEHOLDER = "示例：\n· PB-12345 涉及哪些单？\n· 断网攻关 谁负责？\n· 数据迁移攻关 现在状态\n· 谁现在最忙？";
+const PLACEHOLDER = [
+  "示例：",
+  "· PB-12345 涉及哪些单？",
+  "· 断网攻关 谁负责？",
+  "· 数据迁移攻关 现在状态",
+  "· 张三 贡献了什么？",
+  "· 今天 谁动了什么？",
+  "· PB-12345 找谁帮忙？",
+].join("\n");
 
 export function HermesPage() {
   const [q, setQ] = useState("");
