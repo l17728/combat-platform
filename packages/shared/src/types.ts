@@ -55,6 +55,9 @@ export interface ProgressLog {
 export interface QueryHit { id: string; nodeType: string; summary: string; score: number; }
 export interface RelatedItem { field: string; concept: string; node: GraphNode; }
 export interface CoAnchoredItem { anchorKind: string; anchorKey: string; node: GraphNode; }
+export interface ExpandedItem {
+  node: GraphNode; depth: number; viaEdgeType: string; viaField: string; parentId: string;
+}
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };

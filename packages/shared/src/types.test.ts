@@ -7,6 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
+import type { ExpandedItem } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -192,5 +193,16 @@ describe("reminder contracts", () => {
       createdAt: new Date().toISOString(),
     };
     expect(kinds).toContain(ccb.kind);
+  });
+});
+
+describe("depth-N expansion contract (§32)", () => {
+  it("ExpandedItem shape", () => {
+    const e: ExpandedItem = {
+      node: { id: "n2", nodeType: "person", properties: { name: "甲" }, createdAt: "t", updatedAt: "t" },
+      depth: 2, viaEdgeType: "REF", viaField: "当前处理人", parentId: "root",
+    };
+    expect(e.depth).toBe(2);
+    expect(e.viaEdgeType).toBe("REF");
   });
 });
