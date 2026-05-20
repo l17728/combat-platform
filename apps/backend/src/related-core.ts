@@ -1,4 +1,4 @@
-import type { Repository, RelatedItem, CoAnchoredItem } from "@combat/shared";
+import type { Repository, RelatedItem, CoAnchoredItem, ExpandedItem } from "@combat/shared";
 
 export function buildRelated(repo: Repository, id: string): {
   outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[];
@@ -22,4 +22,51 @@ export function buildRelated(repo: Repository, id: string): {
     }
   }
   return { outgoing, incoming, coAnchored };
+}
+
+// §32 depth-N BFS over REF + ANCHORED_TO edges (out/in + cross-anchor).
+// Anchor nodes are traversed transparently (visited to find the other side
+// but NOT emitted into expanded — only business nodes are user-facing).
+// Each node visited at the shortest path (BFS); root never appears.
+export function buildExpanded(repo: Repository, rootId: string, maxDepth: number): ExpandedItem[] {
+  const out: ExpandedItem[] = [];
+  if (maxDepth <= 0) return out;
+  const visited = new Set<string>([rootId]);
+  // Use a single FIFO; element = {id, depth, isAnchor} — anchors don't enter expanded
+  // but their fan-out IS traversed (counts as 1 hop from the side that pointed in).
+  type Q = { id: string; depth: number };
+  const queue: Q[] = [{ id: rootId, depth: 0 }];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    if (cur.depth >= maxDepth) continue;
+    // outgoing REF + ANCHORED_TO → target node
+    for (const e of repo.queryEdges({ sourceId: cur.id })) {
+      if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
+      if (visited.has(e.targetId)) continue;
+      const target = repo.getNode(e.targetId);
+      if (!target) continue;
+      visited.add(target.id);
+      const nextDepth = cur.depth + 1;
+      // anchors are transparent: traverse through them but do NOT emit
+      if (e.edgeType !== "ANCHORED_TO") {
+        out.push({ node: target, depth: nextDepth, viaEdgeType: e.edgeType,
+          viaField: String(e.properties["field"] ?? ""), parentId: cur.id });
+      }
+      // either way, queue for further expansion if depth budget remains
+      if (nextDepth < maxDepth) queue.push({ id: target.id, depth: nextDepth });
+    }
+    // incoming REF + ANCHORED_TO → source node
+    for (const e of repo.queryEdges({ targetId: cur.id })) {
+      if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
+      if (visited.has(e.sourceId)) continue;
+      const source = repo.getNode(e.sourceId);
+      if (!source) continue;
+      visited.add(source.id);
+      const nextDepth = cur.depth + 1;
+      out.push({ node: source, depth: nextDepth, viaEdgeType: e.edgeType,
+        viaField: String(e.properties["field"] ?? ""), parentId: cur.id });
+      if (nextDepth < maxDepth) queue.push({ id: source.id, depth: nextDepth });
+    }
+  }
+  return out;
 }
