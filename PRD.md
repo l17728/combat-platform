@@ -2145,12 +2145,12 @@ export interface GraphSnapshot { rootId: string; nodes: GraphSnapshotNode[]; edg
 
 ### 38.6 验收
 
-- [ ] `GraphSnapshot` / `GraphSnapshotNode/Edge` 契约 tsc-clean
-- [ ] `GET /api/graph/snapshot/:nodeType/:id` depth=1/2/3 返回符合契约；depth=99 clamp；depth=0 默认 1
-- [ ] 节点 dedup + 边 dedup
-- [ ] `/graph/:nodeType/:id` SVG 渲染（节点圆 + 边线 + 4 类边色 + 点击钻取）
-- [ ] RelatedPage 入口可达 `/graph/...`
-- [ ] 既有 55 e2e 零回归 + 后端新增 3 e2e + FE-GR1；`test:all` 连续两次全绿；部署
+- [x] `GraphSnapshot` / `GraphSnapshotNode/Edge` 契约 tsc-clean
+- [x] `GET /api/graph/snapshot/:nodeType/:id` depth=1/2/3 返回符合契约；depth=99 clamp；depth=0 默认 1
+- [x] 节点 dedup + 边 dedup
+- [x] `/graph/:nodeType/:id` SVG 渲染（节点圆 + 边线 + 4 类边色 + 点击钻取）
+- [x] RelatedPage 入口可达 `/graph/...`
+- [x] 既有 55 e2e 零回归 + 后端新增 3 e2e（graph）+ FE-GR1；`test:all` 连续两次全绿；待部署
 
 
 
