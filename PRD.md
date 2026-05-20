@@ -1791,10 +1791,10 @@ export interface ScanConflictsResult { conflicts: number; overlaps: number; }
 
 ### 33.6 验收
 
-- [ ] `ConflictItem` / `ConflictRow` / `ScanConflictsResult` 契约 tsc-clean；既有契约不破坏
-- [ ] `POST /api/conflicts/scan` 同人 2 活跃单 → conflicts ≥ 2；同问题单号 2 单 → overlaps ≥ 2
-- [ ] 把活跃单转为 `已解决` 再 scan → 该单不再在 CONFLICTS_WITH 边
-- [ ] `GET /api/related/...` 在涉及节点上含 `conflicts`；无关节点不含（向后兼容）
-- [ ] `/conflicts` 页 Tabs/扫描按钮/点击跳关联页全部可用
-- [ ] RelatedPage 红色「冲突 / 重叠」区在涉冲突节点上渲染
-- [ ] 既有 37 e2e + 新增 FE-CF1 全部绿（零回归）；`test:all` 连续两次全绿；部署
+- [x] `ConflictItem` / `ConflictRow` / `ScanConflictsResult` 契约 tsc-clean；既有契约不破坏
+- [x] `POST /api/conflicts/scan` 同人 2 活跃单 → conflicts ≥ 1；同问题单号 2 单 → overlaps ≥ 1
+- [x] 把活跃单转为 `已解决` 再 scan → 该单不再在 CONFLICTS_WITH 边
+- [x] `GET /api/related/...` 在涉及节点上含 `conflicts`；无关节点不含（向后兼容）
+- [x] `/conflicts` 页 Tabs/扫描按钮/点击跳关联页全部可用
+- [x] RelatedPage 红色「冲突 / 重叠」区在涉冲突节点上渲染
+- [x] 既有 37 e2e + 新增 FE-CF1/FE-CF2 共 39 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署

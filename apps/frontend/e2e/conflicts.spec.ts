@@ -79,5 +79,7 @@ test("FE-CF2 RelatedPage red conflicts panel renders", async ({ page }) => {
   await expect(panel).toBeVisible();
   await expect(panel.getByRole("link", { name: "Y单" })).toBeVisible();
   await expect(panel.getByText(/同负责人多并发/)).toBeVisible();
-  await expect(panel.getByText(/冲突/)).toBeVisible();
+  // The bracketed item-level label distinguishes 冲突 from 重叠 per-row;
+  // use an exact bracketed match to avoid clashing with the panel heading "冲突 / 重叠".
+  await expect(panel.getByText(/\[冲突\s·/)).toBeVisible();
 });

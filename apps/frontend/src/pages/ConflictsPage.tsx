@@ -66,7 +66,7 @@ export function ConflictsPage() {
           <Typography.Text aria-label="conflicts-counts" style={{ color: "#cf1322" }}>
             冲突 {n} · 重叠 {m}
           </Typography.Text>
-          <Button aria-label="rescan-conflicts" danger onClick={rescan}>重新扫描</Button>
+          <Button danger onClick={rescan}>重新扫描</Button>
         </Space>
       </Space>
       {scanResult && (
