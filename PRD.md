@@ -1538,10 +1538,10 @@ export interface DailyReport {
 
 ### 28.6 验收标准
 
-- [ ] shared `Reminder*` 契约 + Repository 通知方法（类型测试，tsc-clean），现有不破坏
-- [ ] `POST /api/reminders/scan`：问题单跟催 + FE Deadline 两规则确定性产出；幂等（7天窗口内相同三元组不重复）；解析失败的 ticket 跳过；同输入同输出
-- [ ] `GET /api/reminders?status=` 列表与过滤；createdAt desc
-- [ ] `POST /api/reminders/:id/send`：调用 ChannelAdapter；stub → 置 `已发送`+audit；非待发送→409；不存在→404
-- [ ] `POST /api/reminders/:id/ignore`：置 `已忽略`+audit；非待发送→409；不存在→404
-- [ ] `/reminders` 页：扫描+列+发送/忽略可用；空态可见；AppShell+首页入口集成；卡片描述显式标注 stub 渠道
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `Reminder*` 契约 + Repository 通知方法（shared 17/17，tsc RED→GREEN），现有不破坏
+- [x] `POST /api/reminders/scan`：问题单跟催 + FE Deadline 两规则产出（reminders.e2e 用例1/2）；幂等（用例3，7天窗口）；无收件人跳过（用例6）
+- [x] `GET /api/reminders?status=` 列表与过滤；createdAt desc
+- [x] `POST /api/reminders/:id/send`：stub Channel→`已发送`+audit；非待发送→409；不存在→404（用例4）
+- [x] `POST /api/reminders/:id/ignore`：`已忽略`+audit；非待发送→409（用例5）
+- [x] `/reminders` 页：扫描+列+发送/忽略+空态 `暂无待发送提醒`（FE-RM1/FE-RM2）；AppShell+首页入口集成；卡片描述显式标注 stub 渠道
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared17/backend93/FEunit13/e2e36）；完成后部署测试服务器
