@@ -1595,9 +1595,9 @@ export interface DailyReport {
 
 ### 29.6 验收标准
 
-- [ ] `ReminderKind` 扩展（shared 类型测试 + tsc-clean），现有不破坏
-- [ ] `attackTicket.json` 加 `是否需CCB` enum；现存 ticket 不受影响（不 required）
-- [ ] `scanReminders` CCB 规则：=是+状态open+有处理人 → emit；其它分支不 emit；7天幂等
-- [ ] /reminders 页无需改动即可展示 CCB 提醒行（架构验证：数据驱动 UI）
-- [ ] §28.5 决策表 ②CCB 提醒由「延后」更新为「已交付」
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] `ReminderKind` 扩展（shared 18/18，tsc RED→GREEN），现有不破坏
+- [x] `attackTicket.json` 加 `是否需CCB` enum；现存 ticket 不受影响（不 required）
+- [x] `scanReminders` CCB 规则：=是+状态open+有处理人 → emit；其它分支(否/未设/已解决/无处理人)不 emit；7天幂等（ccb-reminder.e2e 6 用例）
+- [x] /reminders 页无需改动即可展示 CCB 提醒行（架构验证：数据驱动 UI；既有 FE-RM1/RM2 仍绿）
+- [x] §28.5 决策表 ②CCB 提醒已更新为「§29 已交付」
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared18/backend99/FEunit13/e2e36）；完成后部署测试服务器
