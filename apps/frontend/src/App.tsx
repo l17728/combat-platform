@@ -13,6 +13,7 @@ import { DailyReportPage } from "./pages/DailyReportPage.js";
 import { RemindersPage } from "./pages/RemindersPage.js";
 import { ConflictsPage } from "./pages/ConflictsPage.js";
 import { HermesPage } from "./pages/HermesPage.js";
+import { GraphPage } from "./pages/GraphPage.js";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/conflicts" element={<ConflictsPage />} />
           <Route path="/hermes" element={<HermesPage />} />
+          <Route path="/graph/:nodeType/:id" element={<GraphPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>

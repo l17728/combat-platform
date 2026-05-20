@@ -29,6 +29,9 @@ export function RelatedPage() {
   return (
     <div style={{ padding: 16 }}>
       <Typography.Title level={3}>关联全景：{nodeType} / {id}</Typography.Title>
+      <Space style={{ marginBottom: 8 }}>
+        <Link to={`/graph/${nodeType}/${id}`} aria-label="graph-view-link">📊 图形视图</Link>
+      </Space>
       <Space style={{ marginBottom: 12 }}>
         <span>深度：</span>
         <Select aria-label="depth-select" value={depth} onChange={setDepth} style={{ width: 80 }}

@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -143,6 +143,10 @@ export class Api {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ question }),
     });
+  }
+  graphSnapshot(nodeType: string, id: string, depth = 1): Promise<GraphSnapshot> {
+    const qs = depth > 1 ? `?depth=${depth}` : "";
+    return this.req<GraphSnapshot>(`/api/graph/snapshot/${nodeType}/${id}${qs}`, {});
   }
 }
 export const api = new Api("");
