@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -233,6 +233,21 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Graph snapshot contract (§38)", () => {
+  it("GraphSnapshot shape", () => {
+    const g: GraphSnapshot = {
+      rootId: "n1",
+      nodes: [
+        { id: "n1", nodeType: "attackTicket", label: "断网" },
+        { id: "n2", nodeType: "person", label: "甲" },
+      ],
+      edges: [{ source: "n1", target: "n2", edgeType: "REF" }],
+    };
+    expect(g.nodes.length).toBe(2);
+    expect(g.edges[0].edgeType).toBe("REF");
   });
 });
 
