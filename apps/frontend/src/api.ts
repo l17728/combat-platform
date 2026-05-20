@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -97,6 +97,10 @@ export class Api {
   }
   getDashboard(): Promise<DashboardSummary> {
     return this.req<DashboardSummary>(`/api/dashboard`, {});
+  }
+  getDailyReport(date?: string): Promise<DailyReport> {
+    const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+    return this.req<DailyReport>(`/api/daily-report${qs}`, {});
   }
   importXlsx(file: File, type?: string): Promise<{ created: number; updated: number }> {
     const fd = new FormData(); fd.append("file", file);

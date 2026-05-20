@@ -13,6 +13,7 @@ const ITEMS = [
   { key: "/search", label: <Link to="/search">信息检索</Link> },
   { key: "/releases", label: <Link to="/releases">发布包</Link> },
   { key: "/weights", label: <Link to="/weights">权重文件</Link> },
+  { key: "/daily-report", label: <Link to="/daily-report">攻关日报</Link> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
