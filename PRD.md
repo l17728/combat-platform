@@ -1715,9 +1715,9 @@ expanded?: { node: GraphNode; depth: number; viaEdgeType: string; viaField: stri
 
 ### 32.6 验收
 
-- [ ] `RelatedResult.expanded?` 契约类型测试 tsc-clean；现有契约不破坏
-- [ ] `/api/related?depth=N`（1-5）；`depth=1`/缺省时响应字节级与既有一致（不含 `expanded`）
-- [ ] `depth=2..5` 时 BFS 正确：每节点首次访问入扩展；环路防重；锚点透明
-- [ ] `depth=99` clamp 到 5；`depth=0` / 非数字 → 默认 1
-- [ ] RelatedPage 深度 Select 切换 → 拉取新数据 + 扩展面板渲染
-- [ ] 现有 36 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
+- [x] `RelatedResult.expanded?` 契约类型测试 tsc-clean；现有契约不破坏
+- [x] `/api/related?depth=N`（1-5）；`depth=1`/缺省时响应字节级与既有一致（不含 `expanded`）
+- [x] `depth=2..5` 时 BFS 正确：每节点首次访问入扩展；环路防重；锚点透明
+- [x] `depth=99` clamp 到 5；`depth=0` / 非数字 → 默认 1
+- [x] RelatedPage 深度 Select 切换 → 拉取新数据 + 扩展面板渲染
+- [x] 既有 36 e2e + 新增 FE-DP1 共 37 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
