@@ -1,5 +1,6 @@
 import { Router } from "express";
-import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, HermesIntent, GraphNode } from "@combat/shared";
+import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode } from "@combat/shared";
+import { recommendHelpers } from "./recommend.js";
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
@@ -38,11 +39,45 @@ export function answerQuestion(
   const question = raw.trim();
   const lower = question.toLowerCase();
 
-  // 1) ticket-by-pb: explicit 问题单号 reference
-  const pbMatch = question.match(/((?:pb[-_]?\d+)|(?:PB[-_]?\d+))/i)
+  // Helper: extract PB number from question (used by both ticket-by-pb and find-helpers)
+  // Match PB-... (alphanumeric tail to support PB-FH-001 etc.) or explicit 问题单号 prefix
+  const pbMatch = question.match(/(PB[-_]?[A-Z0-9][A-Z0-9_-]*)/i)
     ?? question.match(/问题单号\s*[：:]\s*([A-Za-z0-9_-]+)/);
-  if (pbMatch) {
-    const pb = (pbMatch[1] ?? pbMatch[0]).toUpperCase().replace(/[_]/g, "-");
+  const pb = pbMatch ? (pbMatch[1] ?? pbMatch[0]).toUpperCase().replace(/_/g, "-") : "";
+
+  // 1) find-helpers: 找谁帮忙 / 找帮手 / 谁能帮 (check before ticket-by-pb so a PB
+  //    inside a "找谁帮忙" question goes to helpers, not the plain ticket listing)
+  if (/找谁帮忙|找帮手|谁能帮/.test(question)) {
+    let ticket: GraphNode | undefined;
+    if (pb) ticket = findTicketsByPB(repo, pb)[0];
+    if (!ticket) {
+      const stripped = question.replace(/[?？。，,!！找谁帮忙帮手能帮的]/g, "").replace(pb, "").trim();
+      ticket = fuzzyTicketsByTitle(repo, stripped)[0];
+    }
+    if (!ticket) {
+      return { question, intent: "find-helpers",
+        answer: "未定位到具体攻关单。请补充问题单号（如 PB-123）或攻关单标题片段。",
+        citations: [] };
+    }
+    const helpers = recommendHelpers(repo, ticket.id, 5);
+    if (helpers.length === 0) {
+      return { question, intent: "find-helpers",
+        answer: `攻关单《${summarize(ticket)}》暂未找到合适帮手。可考虑补充共享问题单号或贡献记录后再问。`,
+        citations: [cite(ticket)] };
+    }
+    const lines = helpers.map((h, i) => {
+      const name = String(h.person.properties["name"] ?? h.person.id);
+      return `${i + 1}. ${name}（分数 ${h.score}）：${h.reasons.join("；")}`;
+    });
+    return {
+      question, intent: "find-helpers",
+      answer: `《${summarize(ticket)}》推荐帮手 Top ${helpers.length}：\n${lines.join("\n")}`,
+      citations: helpers.slice(0, 5).map(h => cite(h.person)),
+    };
+  }
+
+  // 2) ticket-by-pb: explicit 问题单号 reference (no 找帮手 keyword)
+  if (pb) {
     const tickets = findTicketsByPB(repo, pb).slice(0, 10);
     if (tickets.length > 0) {
       const lines = tickets.map(t => `· ${summarize(t)}（状态：${t.properties["状态"] ?? "未知"}，负责人：${t.properties["当前处理人"] ?? "未填"}）`);
@@ -88,6 +123,33 @@ export function answerQuestion(
     }
   }
 
+  // 4a) contribution-by-person: 「<人名> 贡献了什么 / 做了什么贡献」
+  if (/贡献/.test(question)) {
+    // Look for a name token — strip interrogatives + keywords, keep what's left as candidate name
+    const stripped = question.replace(/[?？。，,!！贡献了什么做的最近近期]/g, "").trim();
+    // Try exact match first, fall back to substring on 贡献人
+    const allC = repo.queryNodes("contribution");
+    let matched = allC.filter(c => String(c.properties["贡献人"] ?? "") === stripped);
+    if (matched.length === 0 && stripped) {
+      matched = allC.filter(c => String(c.properties["贡献人"] ?? "").includes(stripped));
+    }
+    if (matched.length > 0) {
+      const top = matched.slice(0, 5);
+      const lines = top.map(c => {
+        const lvl = c.properties["贡献等级"] ?? "普通";
+        const ty = c.properties["贡献类型"] ?? "";
+        const desc = c.properties["贡献描述"] ?? "";
+        return `· [${lvl}${ty ? "·" + ty : ""}] ${desc || summarize(c)}`;
+      });
+      const who = String(top[0].properties["贡献人"] ?? stripped);
+      return {
+        question, intent: "contribution-by-person",
+        answer: `${who} 贡献记录 ${matched.length} 条（取 Top ${top.length}）：\n${lines.join("\n")}`,
+        citations: top.map(cite),
+      };
+    }
+  }
+
   // 4) person-workload: 谁最忙 / 负载最重 / 活跃单最多
   if (/最忙|负载最重|活跃单最多|谁最重|工作量最多/.test(question)) {
     const byOwner = new Map<string, GraphNode[]>();
@@ -111,6 +173,39 @@ export function answerQuestion(
         citations: top.slice(0, 5).map(cite),
       };
     }
+  }
+
+  // 4b) recent-changes: 今天 / 本周 / 最近 谁动了什么
+  if (/今天|本周|最近|谁动|谁改/.test(question)) {
+    const now = new Date();
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    if (/本周/.test(question)) {
+      // monday = 1 ... sunday = 0, normalize to monday
+      const dow = (start.getDay() + 6) % 7; // 0..6 from monday
+      start.setDate(start.getDate() - dow);
+    }
+    let progressTotal = 0;
+    const touched = new Map<string, GraphNode>();
+    for (const t of repo.queryNodes("attackTicket")) {
+      if (new Date(t.updatedAt) >= start) touched.set(t.id, t);
+      for (const p of repo.listProgress(t.id)) {
+        if (new Date(p.updatedAt) >= start) { progressTotal++; touched.set(t.id, t); }
+      }
+    }
+    const tickets = [...touched.values()]
+      .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+      .slice(0, 5);
+    const windowName = /本周/.test(question) ? "本周" : /今天/.test(question) ? "今天" : "最近";
+    if (tickets.length === 0 && progressTotal === 0) {
+      return { question, intent: "recent-changes",
+        answer: `${windowName}暂无攻关单变动。`, citations: [] };
+    }
+    const lines = tickets.map(t => `· ${summarize(t)}（${t.properties["状态"] ?? "未知"}）`);
+    return {
+      question, intent: "recent-changes",
+      answer: `${windowName}共 ${progressTotal} 条进展、${touched.size} 个攻关单变动：\n${lines.join("\n")}`,
+      citations: tickets.map(cite),
+    };
   }
 
   // 5) fallback: full-text search across all nodeTypes
