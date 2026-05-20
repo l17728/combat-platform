@@ -1461,10 +1461,10 @@ export interface DailyReport {
 
 ### 27.6 验收标准
 
-- [ ] shared `DailyReport`/`DailyReportSection`/`DailyReportEntry` 契约生效（类型测试，tsc-clean），现有不破坏
-- [ ] `GET /api/daily-report?date=YYYY-MM-DD`：sections 仅含当日有进展的 ticket，entries 按 seqNo asc，`latestStatus` 取当日最后条；summary 正确（ticketsTouched/entriesTotal/openByStatus）；缺省 `date`→今日；无效 date→缺省今日（不 400）
-- [ ] 只读：调用前后 `audit_log` 行数不变；同输入同输出
-- [ ] `/daily-report` 页：DatePicker 默认今日；预览渲染（日期/ticket/进展条目/摘要）；空日 `role="status"` 文案；AppShell+首页入口集成
-- [ ] 「复制到剪贴板」按钮：成功复制中文纯文本日报；`message.success("已复制")`
-- [ ] 既有断言加法不破坏（`home-card-*`、AppShell nav 既有项不变）
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] shared `DailyReport`/`DailyReportSection`/`DailyReportEntry` 契约生效（shared 类型测试 16/16，tsc RED→GREEN），现有不破坏
+- [x] `GET /api/daily-report?date=YYYY-MM-DD`：sections 仅含当日有进展的 ticket，entries 按 seqNo asc，`latestStatus` 取当日最后条；summary 正确（daily-report.e2e 用例1）
+- [x] 只读：audit_log 行数不变 + 同输入同输出（用例3）；缺省/无效 date → 今日不 400（用例4）；空日 sections=[] + openByStatus 仍全局（用例2）
+- [x] `/daily-report` 页：DatePicker 默认今日；预览渲染日期/ticket/进展条目/摘要；空日 `role="status"` 「该日无进展记录」（FE-DR1/DR2）；AppShell+首页入口集成
+- [x] 「复制到剪贴板」按钮成功复制中文纯文本日报（FE-DR1：经 `Object.defineProperty` 剪贴板桩 + window.__copied 直接断言，避免 AntD 提示生命周期不稳）
+- [x] 既有断言加法不破坏（home-card-*、AppShell nav 既有项不变，e2e 34/34 含全部既有用例）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared16/backend87/FEunit13/e2e34）；完成后部署测试服务器
