@@ -15,6 +15,7 @@ const MODULES = [
   { to: "/weights", title: "权重文件", desc: "模型权重文件元数据 + 存储链接登记（李嘉⑥）" },
   { to: "/daily-report", title: "攻关日报", desc: "自动汇总当日各攻关单进展，复制到剪贴板（待外发渠道接入）" },
   { to: "/reminders", title: "跟催提醒", desc: "问题单跟催 / FE Deadline 提醒（当前为 stub 渠道）" },
+  { to: "/hermes", title: "Hermes 问答", desc: "中文规则问答 MVP：状态/负责人/问题单/负载/全文（无 LLM 凭据可用）" },
 ];
 
 export function HomePage() {

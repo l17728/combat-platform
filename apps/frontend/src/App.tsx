@@ -12,6 +12,7 @@ import { SearchPage } from "./pages/SearchPage.js";
 import { DailyReportPage } from "./pages/DailyReportPage.js";
 import { RemindersPage } from "./pages/RemindersPage.js";
 import { ConflictsPage } from "./pages/ConflictsPage.js";
+import { HermesPage } from "./pages/HermesPage.js";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="/daily-report" element={<DailyReportPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
           <Route path="/conflicts" element={<ConflictsPage />} />
+          <Route path="/hermes" element={<HermesPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>

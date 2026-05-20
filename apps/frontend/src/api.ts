@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -137,6 +137,12 @@ export class Api {
   }
   rebuildKG(): Promise<RebuildKGResult> {
     return this.req<RebuildKGResult>(`/api/kg/rebuild`, { method: "POST" });
+  }
+  hermesAsk(question: string): Promise<HermesAnswer> {
+    return this.req<HermesAnswer>(`/api/hermes/ask`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
   }
 }
 export const api = new Api("");
