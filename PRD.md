@@ -1721,3 +1721,80 @@ expanded?: { node: GraphNode; depth: number; viaEdgeType: string; viaField: stri
 - [x] `depth=99` clamp 到 5；`depth=0` / 非数字 → 默认 1
 - [x] RelatedPage 深度 Select 切换 → 拉取新数据 + 扩展面板渲染
 - [x] 既有 36 e2e + 新增 FE-DP1 共 37 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
+
+---
+
+## 33. 增量 16：冲突 / 重叠检测（兑现 §4.3 / §11 Phase 2「冲突边红色高亮」）
+
+> 兑现 §4.3 + §11 Phase 2 残留：自动检测同人多活跃单（负荷）、同问题单号（重叠），建派生 `CONFLICTS_WITH` / `OVERLAPS_WITH` 边，关联页红色高亮，并提供 `/conflicts` 汇总面。**派生边、可全量重建、不接受直接写入**（与 KG 派生原则一致：§0.4 / §0.7）。
+
+### 33.1 契约（@combat/shared）
+
+```ts
+export interface ConflictItem {
+  edgeType: "CONFLICTS_WITH" | "OVERLAPS_WITH";
+  reason: string;        // 中文人类可读理由
+  node: GraphNode;       // 冲突对端
+}
+export interface ConflictRow {
+  edgeType: "CONFLICTS_WITH" | "OVERLAPS_WITH";
+  reason: string;
+  source: GraphNode;
+  target: GraphNode;
+}
+export interface ScanConflictsResult { conflicts: number; overlaps: number; }
+```
+`RelatedResult` 追加可选字段 `conflicts?: ConflictItem[]`（仅在节点有冲突时出现；保持 1-跳响应字节级兼容）。
+
+### 33.2 后端 — `apps/backend/src/conflicts.ts`
+
+- `syncConflicts(repo)`：
+  1. 删除所有既有 `CONFLICTS_WITH` 和 `OVERLAPS_WITH` 边（派生数据，全量重建）。
+  2. **Rule 1 同人多活跃单**：取所有 `attackTicket` 节点，按 `当前处理人` 属性分组（非空），若同人下 `状态 ∈ {待响应, 处理中, 进行中}` 的活跃单 ≥ 2 个，则两两建 `CONFLICTS_WITH` 边，`properties.reason = "同负责人多并发：" + 人员名`。
+  3. **Rule 2 同问题单号**：取所有 `attackTicket`，按 `问题单号` 属性分组（非空），若同问题单号下 ≥ 2 个工单，两两建 `OVERLAPS_WITH` 边，`properties.reason = "同问题单：" + 单号`。
+  4. 一条无向规则两端各建一条有向边（避免 RelatedPage 只能看到一向）。
+  5. 返回 `{ conflicts, overlaps }` 计数。
+- `POST /api/conflicts/scan` → 调用 `syncConflicts` 并返回计数。
+- `GET /api/conflicts` → 返回 `ConflictRow[]`（按 edgeType 分组后由前端拆分到 Tabs）。
+- `/api/related/:nodeType/:id` 响应追加 `conflicts?: ConflictItem[]`（仅在该节点是 conflict 边端点之一时出现）。
+
+### 33.3 前端
+
+- `api.scanConflicts(): Promise<ScanConflictsResult>` / `api.listConflicts(): Promise<ConflictRow[]>`。
+- 新页 `/conflicts`（`apps/frontend/src/pages/ConflictsPage.tsx`）：
+  - 顶部 `重新扫描` 按钮（红色 danger），右侧显示「冲突 N · 重叠 M」。
+  - AntD Tabs：「冲突（同负责人）」/「重叠（同问题单）」两个 Tab，各自 Table 列：`源节点 / 目标节点 / 理由`，可点击跳关联页。
+- `AppShell` 加 `/conflicts` 导航项（标签：「冲突」，红色 dot 当 count>0）。
+- `HomePage` 加 `home-card-conflicts`（红色描边）。
+- `RelatedPage`：当 `data.conflicts && length>0`，在最末渲染红色虚线边框区（`#cf1322`）「冲突 / 重叠」，每条目展示对端节点链接 + `[edgeType 中文标签 · reason]`。
+
+### 33.4 测试
+
+- 后端 e2e (`conflicts.e2e.test.ts`) 至少 4 项：
+  1. 同人两单 active → CONFLICTS_WITH 双向出现，reason 含人员名。
+  2. 同问题单号两单 → OVERLAPS_WITH 双向出现，reason 含单号。
+  3. 把其中一单 `状态=已解决` → 重扫后该单不再出现于 CONFLICTS_WITH（活跃过滤生效）。
+  4. RelatedPage payload 在该节点上含 `conflicts`，无冲突的孤立节点不含。
+- 前端 e2e (`conflicts.spec.ts`) 路由 mock：扫描按钮、Tabs 切换、行点击跳关联页、RelatedPage 红色区可见。
+
+### 33.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 边存储 | 当作派生边写入 `edges` 表（清旧重建） | 复用现有 traversal/index；与 KG 派生原则一致 |
+| 边方向 | 双向各建一条（A→B 与 B→A） | RelatedPage 任一端都能看见对端，无需特殊查询 |
+| 检测面 | Rule 1 同人活跃 + Rule 2 同问题单号 | §4.3 子集；SLA/优先级依赖需更多字段→后续 |
+| 活跃状态集 | `{待响应, 处理中, 进行中}` | 与 §4.4 一致 |
+| 扫描触发 | 手动按钮（MVP） | 简单可控；定时器→后续 |
+| `状态` 字段取值面 | 兼容 attackTicket.json 里 `状态` 当前枚举 + retired enum | 现表 retired=true，但属性值仍按字符串读 |
+| 重启幂等 | scan 删旧建新 | 全量派生；多次扫描结果一致 |
+
+### 33.6 验收
+
+- [ ] `ConflictItem` / `ConflictRow` / `ScanConflictsResult` 契约 tsc-clean；既有契约不破坏
+- [ ] `POST /api/conflicts/scan` 同人 2 活跃单 → conflicts ≥ 2；同问题单号 2 单 → overlaps ≥ 2
+- [ ] 把活跃单转为 `已解决` 再 scan → 该单不再在 CONFLICTS_WITH 边
+- [ ] `GET /api/related/...` 在涉及节点上含 `conflicts`；无关节点不含（向后兼容）
+- [ ] `/conflicts` 页 Tabs/扫描按钮/点击跳关联页全部可用
+- [ ] RelatedPage 红色「冲突 / 重叠」区在涉冲突节点上渲染
+- [ ] 既有 37 e2e + 新增 FE-CF1 全部绿（零回归）；`test:all` 连续两次全绿；部署
