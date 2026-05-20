@@ -96,3 +96,15 @@ export interface RelationProposal {
   decidedAt?: string;
   createdAt: string;
 }
+
+export interface DailyReportEntry {
+  seqNo: number; statusSnapshot: string; content: string; updatedBy: string; at: string;
+}
+export interface DailyReportSection {
+  ticketId: string; 标题: string; latestStatus: string; entries: DailyReportEntry[];
+}
+export interface DailyReport {
+  date: string;
+  sections: DailyReportSection[];
+  summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
+}

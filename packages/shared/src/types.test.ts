@@ -5,6 +5,7 @@ import type { FieldSchema, Repository, SchemaRegistry, FieldOp } from "./index.j
 import type { LeaderboardEntry, PersonHonor } from "./index.js";
 import type { RelationProposal, RelationProposalStatus, RelationProposer } from "./index.js";
 import type { DashboardSummary } from "./index.js";
+import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -152,5 +153,19 @@ describe("dashboard contract", () => {
     };
     expect(d.tickets.open).toBe(2);
     expect(d.contributions.topContributors[0].贡献人).toBe("张三");
+  });
+});
+
+describe("daily-report contracts", () => {
+  it("DailyReport shape", () => {
+    const e: DailyReportEntry = { seqNo: 1, statusSnapshot: "进行中", content: "进展X", updatedBy: "甲", at: "2026-05-20T01:02:03Z" };
+    const s: DailyReportSection = { ticketId: "t1", 标题: "T1", latestStatus: "进行中", entries: [e] };
+    const r: DailyReport = {
+      date: "2026-05-20",
+      sections: [s],
+      summary: { ticketsTouched: 1, entriesTotal: 1, openByStatus: { 进行中: 1 } },
+    };
+    expect(r.sections[0].entries[0].statusSnapshot).toBe("进行中");
+    expect(r.sections[0].标题).toBe("T1");
   });
 });
