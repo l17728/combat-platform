@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -147,6 +147,15 @@ export class Api {
   graphSnapshot(nodeType: string, id: string, depth = 1): Promise<GraphSnapshot> {
     const qs = depth > 1 ? `?depth=${depth}` : "";
     return this.req<GraphSnapshot>(`/api/graph/snapshot/${nodeType}/${id}${qs}`, {});
+  }
+  listAudit(filter: { action?: string; entityType?: string; entityId?: string; limit?: number } = {}): Promise<AuditLogEntry[]> {
+    const p = new URLSearchParams();
+    if (filter.action) p.set("action", filter.action);
+    if (filter.entityType) p.set("entityType", filter.entityType);
+    if (filter.entityId) p.set("entityId", filter.entityId);
+    if (filter.limit) p.set("limit", String(filter.limit));
+    const qs = p.toString();
+    return this.req<AuditLogEntry[]>(`/api/audit${qs ? "?" + qs : ""}`, {});
   }
 }
 export const api = new Api("");

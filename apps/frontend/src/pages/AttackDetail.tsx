@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Descriptions, Timeline, Input, Button, message, List } from "antd";
+import { Descriptions, Timeline, Input, Button, message, List, Typography } from "antd";
 import { api } from "../api.js";
-import type { GraphNode, ProgressLog, HelperRecommendation } from "@combat/shared";
+import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry } from "@combat/shared";
 
 export function AttackDetail() {
   const { id = "" } = useParams();
@@ -10,11 +10,13 @@ export function AttackDetail() {
   const [seq, setSeq] = useState<ProgressLog[]>([]);
   const [text, setText] = useState("");
   const [helpers, setHelpers] = useState<HelperRecommendation[] | null>(null);
+  const [audit, setAudit] = useState<AuditLogEntry[]>([]);
   const refresh = useCallback(() => {
     api.getNode(id).then(setNode).catch(() => message.error("攻关单加载失败"));
     api.listProgress(id).then(setSeq).catch(() => message.error("进展加载失败"));
     api.recommendHelpers(id).then(setHelpers)
       .catch(() => { setHelpers([]); message.error("找帮手加载失败"); });
+    api.listAudit({ entityId: id, limit: 30 }).then(setAudit).catch(() => setAudit([]));
   }, [id]);
   useEffect(() => { refresh(); }, [refresh]);
   const add = async () => {
@@ -52,6 +54,20 @@ export function AttackDetail() {
         onChange={e => setText(e.target.value)} rows={2} />
       <Button type="primary" onClick={add} style={{ margin: "8px 0" }}>追加进展</Button>
       <Timeline items={[...seq].reverse().map(p => ({ children: `#${p.seqNo} [${p.statusSnapshot}] ${p.content}` }))} />
+      <div aria-label="audit-section" style={{ marginTop: 24, borderTop: "1px dashed #888", paddingTop: 12 }}>
+        <Typography.Title level={5}>审计 ({audit.length})</Typography.Title>
+        {audit.length === 0 ? <Typography.Text type="secondary">暂无审计记录</Typography.Text> :
+          <List size="small" dataSource={audit} rowKey="id"
+            renderItem={(a) => (
+              <List.Item>
+                <Typography.Text style={{ fontFamily: "monospace", fontSize: 12 }}>
+                  [{a.performedAt}] {a.action} by {a.performedBy}：
+                  {typeof a.changes === "string" ? a.changes : JSON.stringify(a.changes)}
+                </Typography.Text>
+              </List.Item>
+            )} />
+        }
+      </div>
     </div>
   );
 }
