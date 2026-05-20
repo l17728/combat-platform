@@ -28,9 +28,23 @@ describe("FileSchemaRegistry", () => {
     expect(r.ok).toBe(false);
     expect(r.errors.join()).toContain("未知节点类型");
   });
-  it("reload throws a descriptive error on a malformed schema file", () => {
-    const dir = mkdtempSync(join(tmpdir(), "combat-bad-"));
-    writeFileSync(join(dir, "broken.json"), "{ not json");
-    expect(() => new FileSchemaRegistry(dir)).toThrow(/不是合法 JSON/);
+  it("reload is tolerant (§13#9): a single malformed file is skipped with a warn, not thrown; ALL-malformed throws", async () => {
+    const { vi } = await import("vitest");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // single broken file alongside no valid → throws (all files failed)
+    const onlyBad = mkdtempSync(join(tmpdir(), "combat-bad1-"));
+    writeFileSync(join(onlyBad, "broken.json"), "{ not json");
+    expect(() => new FileSchemaRegistry(onlyBad)).toThrow(/无可解析|无可解析的 schema/);
+    // broken alongside a valid file → constructs successfully, valid is usable
+    const mixed = mkdtempSync(join(tmpdir(), "combat-mix-"));
+    writeFileSync(join(mixed, "broken.json"), "{ not json");
+    writeFileSync(join(mixed, "ok.json"), JSON.stringify({
+      nodeType: "ok", label: "OK", identityKeys: [], derivedToKG: true,
+      fields: [{ name: "x", type: "string", label: "x" }],
+    }));
+    const reg = new FileSchemaRegistry(mixed);
+    expect(reg.getNodeSchema("ok")).toBeDefined();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

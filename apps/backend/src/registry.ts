@@ -8,23 +8,25 @@ export class FileSchemaRegistry implements SchemaRegistry {
   constructor(private dir: string) { this.reload(); }
 
   reload(): void {
-    const nodeTypes: NodeSchema[] = readdirSync(this.dir)
-      .filter(f => f.endsWith(".json"))
-      .map(f => {
-        let raw: unknown;
-        try {
-          raw = JSON.parse(readFileSync(join(this.dir, f), "utf8"));
-        } catch (e) {
-          throw new Error(`Schema 配置文件 ${f} 不是合法 JSON: ${(e as Error).message}`);
-        }
-        const r = raw as { nodeType?: unknown; fields?: unknown };
-        if (typeof r.nodeType !== "string" || !Array.isArray(r.fields)) {
-          throw new Error(`Schema 配置文件 ${f} 缺少必需的 nodeType 或 fields`);
-        }
+    // Tolerant reload (§13#9 fix, §30): per-file try/catch — a broken sibling
+    // logs a warning and is skipped, leaving the rest of the registry usable.
+    // Only throw if NO files parsed (preserves the "no schemas at all" signal).
+    const files = readdirSync(this.dir).filter(f => f.endsWith(".json"));
+    const nodeTypes: NodeSchema[] = [];
+    for (const f of files) {
+      try {
+        const raw = JSON.parse(readFileSync(join(this.dir, f), "utf8")) as { nodeType?: unknown; fields?: unknown };
+        if (typeof raw.nodeType !== "string" || !Array.isArray(raw.fields))
+          throw new Error(`缺少必需的 nodeType 或 fields`);
         const ns = raw as NodeSchema;
         ns.fields = ns.fields.map(fd => ({ ...fd, id: fd.id ?? fd.name }));
-        return ns;
-      });
+        nodeTypes.push(ns);
+      } catch (e) {
+        console.warn(`Schema 配置文件 ${f} 解析失败，跳过：${(e as Error).message}`);
+      }
+    }
+    if (files.length > 0 && nodeTypes.length === 0)
+      throw new Error(`config/schemas 下无可解析的 schema 文件（共 ${files.length} 个，全部损坏）`);
     this.config = { version: Date.now(), nodeTypes, edgeTypes: [] };
   }
   getConfig(): EntitySchemaConfig { return this.config; }
@@ -82,16 +84,20 @@ export class FileSchemaRegistry implements SchemaRegistry {
     }
 
     writeFileSync(file, JSON.stringify(schema, null, 2));
-    // Tracked PRD §13: reload() re-parses ALL *.json in the dir, so an unrelated
-    // broken sibling config can trigger a false rollback of THIS valid change.
-    // Acceptable at current few-schema scope; revisit (per-file validate) before growth.
+    // §13#9 fix (§30): validate ONLY the just-written file; do NOT roll back this
+    // valid change just because an unrelated sibling is broken. Self-validation
+    // catches the (defensive) case where serialization produced something we
+    // can't read back. Sibling failures become tolerant warnings via reload().
     try {
-      this.reload();
+      const verify = JSON.parse(readFileSync(file, "utf8")) as { nodeType?: unknown; fields?: unknown };
+      if (typeof verify.nodeType !== "string" || !Array.isArray(verify.fields))
+        throw new Error("写后自校验：缺少 nodeType 或 fields");
     } catch (e) {
       writeFileSync(file, prev);
       this.reload();
-      throw new Error(`Schema 变更后重载失败，已回滚: ${(e as Error).message}`);
+      throw new Error(`Schema 变更写盘后自校验失败，已回滚: ${(e as Error).message}`);
     }
+    this.reload(); // tolerant — sibling breakage warns but does not throw
     const updated = this.getNodeSchema(nodeType);
     if (!updated) throw new Error(`Schema 重载后未找到 nodeType: ${nodeType}（配置文件 nodeType 字段需与文件名一致）`);
     return updated;

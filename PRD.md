@@ -594,7 +594,7 @@ UI 层      : 视图渲染引擎（表格↔布局↔图↔时间线，配置驱
 | 6 | 发布包/权重文件归档：仅元数据登记还是文件托管？ | 李嘉⑤⑥ | **已解决（§25）**：增量7 交付**元数据+链接登记**（`releasePackage` / `weightFile` 两 nodeType），文件托管后续按需评估 |
 | 7 | 字段 id 生成策略（新字段 slug 派生算法/唯一化/中文）？ | §14 增量1 | 现有字段 id=原名；新字段：名字派生 slug + 冲突加序号；最终化 §14.2 |
 | 8 | 跨颗粒度锚点的权威清单（问题单号/OSM/事件单号/domain id/客户）？ | §14 增量3d | **已解决（§21.1）**：锁定 `问题单号`（含 OSM/关联需求·问题单）/`事件单号`/`domain`/`客户`（含 涉及/影响客户），配置可扩展 |
-| 9 | `applyFieldOp` 回滚粒度：`reload()` 全目录重解析，无关 sibling 配置损坏会误回滚本次有效变更 | §14.2B 增量1 已交付（单/少 schema 可接受） | schema 增多前改为"仅校验被写文件"再 reload；现以注释+本条跟踪 |
+| 9 | `applyFieldOp` 回滚粒度：`reload()` 全目录重解析，无关 sibling 配置损坏会误回滚本次有效变更 | §14.2B 增量1 已交付 | **已解决（§30）**：增量12 把 reload 改为容错（跳过损坏 sibling+warn），applyFieldOp 仅校验被写文件 |
 
 ---
 
@@ -1601,3 +1601,30 @@ export interface DailyReport {
 - [x] /reminders 页无需改动即可展示 CCB 提醒行（架构验证：数据驱动 UI；既有 FE-RM1/RM2 仍绿）
 - [x] §28.5 决策表 ②CCB 提醒已更新为「§29 已交付」
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared18/backend99/FEunit13/e2e36）；完成后部署测试服务器
+
+---
+
+## 30. 增量12：§13#9 reload 回滚粒度修补 开发依据
+
+> 解决 §13#9：`applyFieldOp` 的 `reload()` 重解析全目录，无关 sibling 配置损坏会触发**误回滚本次有效变更**。修补策略：①把 `reload()` 改为**容错**——sibling 文件解析失败时 `console.warn` 跳过，注册表保留其余可解析 nodeType；仅当**全部**文件解析失败才抛错（启动时仍能给出明确信号）；②`applyFieldOp` 写盘后**仅校验被写文件**，如果该文件本身解析合法→提交；reload 因 sibling 失败的，不再回滚本次变更。**纯加固**：现有所有 schema 操作行为不变；只是当系统中存在多 schema 且某个 sibling 损坏时，仍能正确推进**有效**变更。
+
+### 30.1 后端
+
+`apps/backend/src/registry.ts` 修改：
+- `reload()`：把 `.map(...).throw on bad)` 改为 `.flatMap(...)`：每个文件用 `try/catch` 包裹，损坏文件 `console.warn(\`Schema 配置文件 ${f} 解析失败，跳过：${msg}\`)` 并返回 `[]`，合法文件返回 `[ns]`。仅当**所有**文件失败 → 抛 `Error("config/schemas 下无可解析的 schema 文件")`。
+- `applyFieldOp`：在 `writeFileSync(file, ...)` 之后、`reload()` 之前，新增**自校验**——`try { JSON.parse(readFileSync(file)) }` + 结构检查（nodeType/fields），失败立即 `writeFileSync(file, prev)` 抛错（我们写的东西必须可解析；理论不会发生，防御）。**自校验通过**则 `reload()`（已容错）：reload 不再抛错（最多 warn），变更落地。删除既有 `try { reload } catch { rollback }`，由自校验承担"本次变更安全"的判断。
+
+### 30.2 测试
+
+后端 e2e（新 `apps/backend/test/registry-resilience.e2e.test.ts`）：①tmpdir 含合法 `attackTicket.json` + 损坏 `bad.json`（非 JSON）→ `new FileSchemaRegistry(tmpdir)` 不抛错；`getNodeSchema("attackTicket")` 返回合法；②对 attackTicket 发 `PATCH setConcept` 成功；③全部文件损坏 → 构造抛错（启动失败信号保留）；④`applyFieldOp` 写出的新文件即使 sibling 损坏也成功；⑤回归：所有现有 schema 操作 e2e（concept/anchor/aliases/setAnchor 等）保持绿。
+
+无前端改动；无 shared 改动。
+
+### 30.3 验收
+
+- [ ] `reload()` 容错：sibling 损坏 → `console.warn` 跳过，其余 nodeType 可用
+- [ ] 全部文件损坏 → 构造抛错（明确信号保留）
+- [ ] `applyFieldOp` 自校验合法 + sibling 损坏 → 变更落地（不误回滚）
+- [ ] 现有 registry/concept/anchor/aliases e2e 保持绿（回归无损）
+- [ ] §13#9 标记**已解决**
+- [ ] `npm run test:all` 连续两次全绿；完成后部署
