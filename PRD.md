@@ -2086,4 +2086,71 @@ export type HermesIntent =
 - [x] HermesPage 占位符扩展可见
 - [x] 既有 55 e2e 零回归 + 后端新增 4 e2e（hermes-v2）；`test:all` 连续两次全绿；待部署
 
+---
+
+## 38. 增量 21：KG 图形视图 MVP（兑现 §8.3 Graph viz 一部分）
+
+> §8.3 列出 D3.js / vis-network 作为图可视化选型，但都引入新 dep。**MVP 用纯 SVG 径向布局**，零新 dep；可视化 4 类派生边（REF / ANCHORED_TO / CONFLICTS_WITH / OVERLAPS_WITH），点击节点钻取。日后接入 D3/vis-network 时只需替换 viewer 组件，对外契约 `GraphSnapshot` 不变。
+
+### 38.1 契约（@combat/shared）
+
+```ts
+export interface GraphSnapshotNode { id: string; nodeType: string; label: string; }
+export interface GraphSnapshotEdge { source: string; target: string; edgeType: string; }
+export interface GraphSnapshot { rootId: string; nodes: GraphSnapshotNode[]; edges: GraphSnapshotEdge[]; }
+```
+
+### 38.2 后端
+
+`apps/backend/src/graph.ts`：
+- `buildSnapshot(repo, rootId, maxDepth): GraphSnapshot`
+  - BFS 起点 root，遍历出 + 入边类型 `{REF, ANCHORED_TO, CONFLICTS_WITH, OVERLAPS_WITH}`
+  - 节点 dedup（按 id），边 dedup（按 source+target+edgeType）
+  - label 复用 §35 `summarize()`
+- 路由 `GET /api/graph/snapshot/:nodeType/:id?depth=N`：clamp depth ∈ [1,3]（默认 1）；node 不存在 → 404
+
+### 38.3 前端
+
+- `apps/frontend/src/pages/GraphPage.tsx`：
+  - 调 `api.graphSnapshot(nodeType, id, depth)`；顶部深度 Select(1/2/3)
+  - **径向布局**：root 在中心 (0,0)；其余节点按邻居均分圆周（半径 = 180px × depth）；如果有更多 ring（depth>1 时），按 BFS 层放在外圈
+  - 边线段直接 SVG line，颜色按 edgeType：
+    - REF: `#1677ff` 蓝
+    - ANCHORED_TO: `#722ed1` 紫
+    - CONFLICTS_WITH: `#cf1322` 红
+    - OVERLAPS_WITH: `#fa8c16` 橙
+  - 节点圆 + label；点击节点 → 跳 `/graph/<nodeType>/<id>`（重新中心）
+  - 容器 `aria-label="graph-svg"` 供 e2e 锁定
+- RelatedPage 顶部加「图形视图」链接到 `/graph/<nodeType>/<id>`
+- AppShell **不**加菜单（图形是从 Related 钻取，不是顶级入口）
+
+### 38.4 测试
+
+后端 e2e (`graph.e2e.test.ts`) 至少 3 个：
+1. 单节点：rootId + 0 邻居 → `{rootId, nodes:[1], edges:[]}`
+2. REF + ANCHORED_TO 都纳入 + depth=2 BFS：建 attackTicket A ref→person + anchor 问题单号；asks depth=2 from A 应含 person、anchor、共享 anchor 的另一单
+3. depth clamp：`depth=99` → 同 depth=3 输出；`depth=0` / 非数字 → 默认 1
+
+前端 e2e (`graph.spec.ts`) FE-GR1：路由 mock GraphSnapshot 返回 root + 2 邻居 + 2 边 → 访问 `/graph/attackTicket/t1` → 断言 `graph-svg` 容器、3 个 SVG circle、2 条 line 可见
+
+### 38.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 渲染库 | 纯 SVG | 零 dep；可视化只要"能看到关系"；炫酷动画 YAGNI |
+| 布局算法 | 径向（root center + concentric rings） | 简单、确定性、可测；force-directed 留后续 |
+| 边类型 | 4 类派生（REF/ANCHORED_TO/CONFLICTS_WITH/OVERLAPS_WITH） | 与 §32 / §33 derived 边一致；不含 CONTRIBUTED_TO（contribution 已有专用 view） |
+| 深度上限 | clamp [1,3] | 防屏幕爆炸；MVP；可扩 |
+| 入口 | RelatedPage 链接（不上顶级菜单） | 钻取式，不是首页门 |
+
+### 38.6 验收
+
+- [ ] `GraphSnapshot` / `GraphSnapshotNode/Edge` 契约 tsc-clean
+- [ ] `GET /api/graph/snapshot/:nodeType/:id` depth=1/2/3 返回符合契约；depth=99 clamp；depth=0 默认 1
+- [ ] 节点 dedup + 边 dedup
+- [ ] `/graph/:nodeType/:id` SVG 渲染（节点圆 + 边线 + 4 类边色 + 点击钻取）
+- [ ] RelatedPage 入口可达 `/graph/...`
+- [ ] 既有 55 e2e 零回归 + 后端新增 3 e2e + FE-GR1；`test:all` 连续两次全绿；部署
+
+
 
