@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DB } from "./db.js";
-import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus } from "@combat/shared";
+import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus, Reminder, ReminderStatus } from "@combat/shared";
 
 export class SqliteRepository implements Repository {
   constructor(private db: DB) {}
@@ -151,5 +151,44 @@ export class SqliteRepository implements Repository {
       const result = this.db.prepare(`DELETE FROM nodes WHERE id=?`).run(id);
       if (result.changes > 0) this.audit("DELETE", "node", id, { id }, actor);
     })();
+  }
+
+  createReminder(p: Omit<Reminder,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): Reminder {
+    const now = new Date().toISOString();
+    const row: Reminder = { ...p, id: randomUUID(), status: "待发送", createdAt: now };
+    this.db.transaction(() => {
+      this.db.prepare(`INSERT INTO notifications VALUES (@id,@k,@t,@rpid,@rn,@sub,@body,@st,@db,@da,@ca)`)
+        .run({ id: row.id, k: row.kind, t: row.ticketId,
+          rpid: row.recipientPersonId ?? null, rn: row.recipientName,
+          sub: row.subject, body: row.body, st: row.status, db: null, da: null, ca: now });
+      this.audit("CREATE", "reminder", row.id, { kind: row.kind, ticketId: row.ticketId }, actor);
+    })();
+    return row;
+  }
+  private mapReminder(r: any): Reminder {
+    return { id: r.id, kind: r.kind, ticketId: r.ticket_id,
+      recipientPersonId: r.recipient_person_id ?? undefined, recipientName: r.recipient_name ?? "",
+      subject: r.subject ?? "", body: r.body ?? "",
+      status: r.status, decidedBy: r.decided_by ?? undefined,
+      decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
+  }
+  listReminders(opts: { status?: ReminderStatus } = {}): Reminder[] {
+    const rows = this.db.prepare(`SELECT * FROM notifications ORDER BY created_at DESC`).all() as any[];
+    return rows.map(r => this.mapReminder(r)).filter(p => !opts.status || p.status === opts.status);
+  }
+  getReminder(id: string): Reminder | undefined {
+    const r = this.db.prepare(`SELECT * FROM notifications WHERE id=?`).get(id) as any;
+    return r ? this.mapReminder(r) : undefined;
+  }
+  updateReminderStatus(id: string, status: ReminderStatus, decidedBy: string, actor: string): Reminder {
+    const cur = this.getReminder(id);
+    if (!cur) throw new Error(`reminder ${id} not found`);
+    const at = new Date().toISOString();
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE notifications SET status=?, decided_by=?, decided_at=? WHERE id=?`)
+        .run(status, decidedBy, at, id);
+      this.audit("UPDATE", "reminder", id, { status, decidedBy }, actor);
+    })();
+    return { ...cur, status, decidedBy, decidedAt: at };
   }
 }
