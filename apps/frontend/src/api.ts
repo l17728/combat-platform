@@ -98,9 +98,10 @@ export class Api {
   getDashboard(): Promise<DashboardSummary> {
     return this.req<DashboardSummary>(`/api/dashboard`, {});
   }
-  importXlsx(file: File): Promise<{ created: number }> {
+  importXlsx(file: File, type?: string): Promise<{ created: number; updated: number }> {
     const fd = new FormData(); fd.append("file", file);
-    return this.req<{ created: number }>(`/api/import`, { method: "POST", body: fd });
+    const qs = type ? `?type=${encodeURIComponent(type)}` : "";
+    return this.req<{ created: number; updated: number }>(`/api/import${qs}`, { method: "POST", body: fd });
   }
 }
 export const api = new Api("");
