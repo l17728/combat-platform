@@ -1530,7 +1530,7 @@ export interface DailyReport {
 |---|---|---|
 | 队列形态 | 通知 outbox（notifications 表，append+审计）+ ChannelAdapter | 镜像 3c proposals 模式；外发与生成解耦，便于后续插拔 SMTP/IM |
 | 默认 channel | StubChannelAdapter（仅置 `已发送`，不真发） | §13#2 通道未定；不假装外发，但 outbox 已可作为信源 |
-| 规则集 | ①问题单跟催(N天无进展) + ③FE Deadline 临近；**②CCB 提醒延后** | ②需新 schema 字段（是否需CCB），属用户决策；待你定 |
+| 规则集 | ①问题单跟催(N天无进展) + ③FE Deadline 临近 + **②CCB 提醒（§29 已交付）** | ②已加 `是否需CCB` enum 字段 + CCB 规则；李嘉①②③ 全部到位 |
 | 阈值 | STALE_DAYS=3、DEADLINE_WARN_DAYS=3 | 经验默认；后续可配置 |
 | 幂等 | 同 (kind,ticketId,recipient) 7 天内已生成则跳过 | 避免重复打扰 |
 | 调度 | 手工触发（前端按钮） | YAGNI；定时器待外发渠道接入 |
@@ -1545,3 +1545,59 @@ export interface DailyReport {
 - [x] `POST /api/reminders/:id/ignore`：`已忽略`+audit；非待发送→409（用例5）
 - [x] `/reminders` 页：扫描+列+发送/忽略+空态 `暂无待发送提醒`（FE-RM1/FE-RM2）；AppShell+首页入口集成；卡片描述显式标注 stub 渠道
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared17/backend93/FEunit13/e2e36）；完成后部署测试服务器
+
+---
+
+## 29. 增量11：CCB 提醒规则（Phase 3.4 李嘉②）开发依据
+
+> 兑现 §10 Phase 3.4 + 李嘉② "CCB 提醒：需要 CCB 的问题单提醒上会"。补齐增量10 延后的②规则——通过新增配置字段 `是否需CCB` + rules.ts 加 1 条规则，复用增量10 全部 outbox/channel/UI 基础设施。**纯加法**：架构、表结构、路由、前端页面**零变化**；仅扩展枚举与配置。再次证伪 §0.4 配置驱动 + 模块化规则引擎设计。**§28.5 决策表 ②CCB 提醒延后 由本节正式解决**。
+
+### 29.0 范围与定向
+
+交付 ①`attackTicket.json` 新字段 `{ id:"是否需CCB", type:"enum", enumValues:["是","否"] }`（不 required，默认未设）；②`ReminderKind` 扩展加 `"CCB 提醒"`；③`rules.ts` 加 CCB 规则：`是否需CCB === "是"` + 状态 ∈ {待响应,处理中,进行中} + 当前处理人 存在 → emit「CCB 提醒」（recipient=当前处理人；subject/body 含标题/攻关单号）；④复用增量10 的 outbox + 7天幂等窗口 + stub channel + /reminders UI（**零前端代码改动**）。YAGNI：不引入"CCB 已开"时间戳（用户在 /reminders 标记忽略即可）。
+
+### 29.1 配置 + 契约改动
+
+- `config/schemas/attackTicket.json` 追加字段 `{ "id":"是否需CCB", "name":"是否需CCB", "type":"enum", "label":"是否需CCB", "enumValues":["是","否"] }`（不 required，纯加法）。
+- `packages/shared/src/types.ts` `ReminderKind` 由 `"问题单跟催" | "FE Deadline 提醒"` 扩展为 `"问题单跟催" | "FE Deadline 提醒" | "CCB 提醒"`。
+
+### 29.2 后端
+
+- `apps/backend/src/rules.ts` `scanReminders`：在既有两规则后增加第三规则（同 OPEN 集 + 当前处理人解析复用）：
+  ```ts
+  if (String(t.properties["是否需CCB"] ?? "").trim() === "是") {
+    drafts.push({
+      kind: "CCB 提醒", ticketId: t.id,
+      recipientPersonId: handler.id, recipientName: handler.name,
+      subject: `[CCB] 攻关单「${title}」需上 CCB 评审`,
+      body: `攻关单「${title}」（${t.properties["攻关单号"] ?? t.id}）状态「${status}」标记为需要 CCB 评审，请安排上会。`,
+    });
+  }
+  ```
+- `apps/backend/src/reminders.ts` 不改（router/idempotency 自动适用）。
+- 既有 7 天幂等窗口 + `(kind,ticketId,recipientPersonId)` 三元组天然防重，无需额外修改。
+
+### 29.3 前端
+
+**零改动**：增量10 的 `/reminders` 页是数据驱动的——`Reminder.kind` 作为字符串显示，新增枚举项无需 UI 改动；EntityTable 的 enum 字段渲染由 `是否需CCB` 的 `enumValues` 配置驱动，用户在 /attack 攻关单详情/编辑表上即可下拉选「是」/「否」。
+
+### 29.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`ReminderKind` 扩展类型测试（"CCB 提醒" 可赋值给 `Reminder.kind`），tsc-clean。
+- 后端 e2e（新 `apps/backend/test/ccb-reminder.e2e.test.ts`）：①ticket 是否需CCB="是" + 状态进行中 + 当前处理人=甲 → scan 出 1 条 `CCB 提醒` reicipient=甲、body 含"CCB 评审"；②是否需CCB="否" → 不生成；③是否需CCB 未设 → 不生成；④是否需CCB="是" 但状态=已解决 → 不生成；⑤是否需CCB="是" 无 当前处理人 → 不生成；⑥幂等（同 ticket+CCB 连续 scan 第二次 created:0）。
+- 既有 reminders.e2e 仍全绿（向后兼容验证）。
+- 前端 Playwright：无新增。既有 FE-RM1/RM2 仍绿。
+- 全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 29.5 §28.5 决策表同步
+
+§28.5 「规则集」行原文：「①问题单跟催(N天无进展) + ③FE Deadline 临近；**②CCB 提醒延后**」 → 更新为：「①问题单跟催 + ③FE Deadline + **②CCB 提醒（§29 已交付）**」。
+
+### 29.6 验收标准
+
+- [ ] `ReminderKind` 扩展（shared 类型测试 + tsc-clean），现有不破坏
+- [ ] `attackTicket.json` 加 `是否需CCB` enum；现存 ticket 不受影响（不 required）
+- [ ] `scanReminders` CCB 规则：=是+状态open+有处理人 → emit；其它分支不 emit；7天幂等
+- [ ] /reminders 页无需改动即可展示 CCB 提醒行（架构验证：数据驱动 UI）
+- [ ] §28.5 决策表 ②CCB 提醒由「延后」更新为「已交付」
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
