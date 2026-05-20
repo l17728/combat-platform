@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -106,6 +106,23 @@ export class Api {
     const fd = new FormData(); fd.append("file", file);
     const qs = type ? `?type=${encodeURIComponent(type)}` : "";
     return this.req<{ created: number; updated: number }>(`/api/import${qs}`, { method: "POST", body: fd });
+  }
+  listReminders(status?: string): Promise<Reminder[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    return this.req<Reminder[]>(`/api/reminders${qs}`, {});
+  }
+  scanReminders(): Promise<{ created: number }> {
+    return this.req<{ created: number }>(`/api/reminders/scan`, { method: "POST" });
+  }
+  sendReminder(id: string, decidedBy: string): Promise<Reminder> {
+    return this.req<Reminder>(`/api/reminders/${id}/send`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decidedBy }) });
+  }
+  ignoreReminder(id: string, decidedBy: string): Promise<Reminder> {
+    return this.req<Reminder>(`/api/reminders/${id}/ignore`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ decidedBy }) });
   }
 }
 export const api = new Api("");
