@@ -4,7 +4,7 @@ import { ConfigProvider } from "antd";
 import App from "./App.js";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ConfigProvider autoInsertSpaceInButton={false}>
+    <ConfigProvider button={{ autoInsertSpace: false }}>
       <App />
     </ConfigProvider>
   </React.StrictMode>
