@@ -2008,3 +2008,82 @@ dashboard 区扩展（保持既有 Row + Descriptions 不动）：
 - [x] 首页态势区可见冲突计数 + 今日动态 + 最近活跃列表
 - [x] 既有 54 e2e + 新增 FE-D2 共 55 e2e 全部绿（零回归）；`test:all` 连续两次全绿（含 reset:schemas 防漂移）；待部署
 
+---
+
+## 37. 增量 20：Hermes 意图扩展 v2（兑现 §10 Phase 3.1 深化）
+
+> §35 MVP 已覆盖 status/owner/ticket-by-pb/person-workload/fallback-search 5 类。本增量再补 3 类高频问句：贡献查询 / 近期变更 / 找帮手——后两类直接复用既有 `recentActivity` 计算与 `recommendHelpers()`，零新查询路径。
+
+### 37.1 契约（@combat/shared）
+
+`HermesIntent` 联合类型**追加**：
+```ts
+export type HermesIntent =
+  | "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search"
+  | "contribution-by-person"      // X 贡献了什么 / X 做了什么贡献
+  | "recent-changes"              // 今天 / 本周 / 最近 谁动了什么
+  | "find-helpers";               // PB-xxx 找谁帮忙 / X 找谁帮忙
+```
+`HermesAnswer` / `HermesCitation` 不变。
+
+### 37.2 后端 `apps/backend/src/hermes.ts` 扩 answerQuestion
+
+意图优先级（先匹配先返回，新意图插入到 fallback 之前）：
+
+1. ticket-by-pb（已有）
+2. **find-helpers**（新）：包含「找谁帮忙」/「找帮手」/「谁能帮」+ PB 号 或 标题片段：
+   - 若有 PB 号：通过 anchor 节点反查到 attackTicket（任一），取该 ticket id 调 `recommendHelpers(repo, id, 5)`。
+   - 否则按标题模糊匹配定位 attackTicket。
+   - 没匹配到 ticket → 答「请先指明问题单号或攻关单标题」+ 0 引用。
+   - 返回每个 helper：`「<name>（分数 N）：理由 1; 理由 2」`，引用项是 person 节点。
+3. owner（已有）
+4. status（已有）
+5. **contribution-by-person**（新）：包含「贡献」+ 人名（最后一个非疑问词）：
+   - `queryNodes("contribution")` 按 `贡献人 === name` 过滤，列出 Top 5：`贡献等级 · 贡献类型 · 贡献描述`
+   - citations: contribution 节点 → `/related/contribution/<id>`
+6. person-workload（已有）
+7. **recent-changes**（新）：包含「今天」/「本周」/「最近」/「谁动」/「谁改」：
+   - 窗口默认本日 00:00→ 现在；含「本周」改为周一→现在。
+   - 取 attackTicket 按 updatedAt 过滤 + `listProgress` 落在窗口内的 entries 数总和。
+   - 答：`<窗口名> 共 N 条进展、M 个攻关单变动；最近：<标题>(状态)、…`
+   - citations: 变动 ticket Top 5
+8. fallback-search（兜底）
+
+### 37.3 前端
+
+- `HermesPage` 占位符示例扩展：
+  ```
+  · PB-12345 涉及哪些单？
+  · 断网攻关 谁负责？
+  · 数据迁移攻关 现在状态
+  · 张三 贡献了什么？
+  · 最近谁动了什么？
+  · PB-12345 找谁帮忙？
+  ```
+- `INTENT_LABEL` / `INTENT_COLOR` 加 3 个键。
+
+### 37.4 测试
+
+后端 `apps/backend/test/hermes-v2.e2e.test.ts` 至少 3 个：
+1. contribution-by-person：建 1 person + 2 贡献 → ask 「张三 贡献了什么」 → answer 含两个贡献描述
+2. recent-changes：建 2 ticket + 追加 1 progress → ask 「今天谁动了什么」 → answer 含 2 ticket、≥1 条进展
+3. find-helpers：seed 共享问题单号 + 历史贡献 → ask 「PB-xxx 找谁帮忙」 → answer 含 helper name + 分数；空 PB+无匹配 → 提示
+
+前端：现有 FE-HM1 + 路由 mock 已足够覆盖新颜色/标签；无新 e2e（intent 来自 mock）。
+
+### 37.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 新意图触发字 | 中文关键词集 | 简单；后续接 LLM 时只改 classifier 内部 |
+| 时间窗口 | 今天 = 本地 00:00→ 现在；本周 = 周一 00:00→ 现在 | 与既有 today.* 一致；MVP |
+| find-helpers 入口 | 复用 `recommendHelpers()` | 零代码重复 |
+
+### 37.6 验收
+
+- [ ] HermesIntent 联合类型扩 3 项；既有 5 类不破坏
+- [ ] contribution-by-person / recent-changes / find-helpers 各 1 个 e2e 通过
+- [ ] HermesPage 占位符扩展可见
+- [ ] 既有 55 e2e + 后端新增 3 e2e；零回归；`test:all` 连续两次全绿；部署
+
+
