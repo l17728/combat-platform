@@ -15,6 +15,7 @@ import { makeConflictsRouter } from "./conflicts.js";
 import { makeKGRouter } from "./kg-rebuild.js";
 import { makeHermesRouter } from "./hermes.js";
 import { makeGraphRouter } from "./graph.js";
+import { makeAuditRouter } from "./audit.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) 
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
   app.use("/api", makeHermesRouter(deps.repo, deps.registry));
   app.use("/api", makeGraphRouter(deps.repo));
+  app.use("/api", makeAuditRouter(deps.repo));
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: err.message });
   });

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DB } from "./db.js";
-import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus, Reminder, ReminderStatus } from "@combat/shared";
+import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus, Reminder, ReminderStatus, AuditLogEntry } from "@combat/shared";
 
 export class SqliteRepository implements Repository {
   constructor(private db: DB) {}
@@ -11,6 +11,31 @@ export class SqliteRepository implements Repository {
     ).run({ id: randomUUID(), action: entry.action, entityType: entry.entityType,
       entityId: entry.entityId, changes: JSON.stringify(entry.changes),
       by: entry.actor, at: new Date().toISOString() });
+  }
+
+  listAuditLog(filter: { action?: string; entityType?: string; entityId?: string; limit?: number }): AuditLogEntry[] {
+    const where: string[] = [];
+    const params: Record<string, string> = {};
+    if (filter.action) { where.push("action = @action"); params.action = filter.action; }
+    if (filter.entityType) { where.push("entityType = @entityType"); params.entityType = filter.entityType; }
+    if (filter.entityId) { where.push("entityId = @entityId"); params.entityId = filter.entityId; }
+    const rawLimit = Number(filter.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit >= 1
+      ? Math.min(500, Math.floor(rawLimit))
+      : 100;
+    const sql = `SELECT * FROM audit_log${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY performedAt DESC, id LIMIT ${limit}`;
+    const rows = this.db.prepare(sql).all(params) as Array<{
+      id: string; action: string; entityType: string; entityId: string;
+      changes: string; performedBy: string; performedAt: string;
+    }>;
+    return rows.map(r => {
+      let changes: unknown = r.changes;
+      try { changes = JSON.parse(r.changes); } catch { /* keep raw string */ }
+      return {
+        id: r.id, action: r.action, entityType: r.entityType, entityId: r.entityId,
+        changes, performedBy: r.performedBy, performedAt: r.performedAt,
+      };
+    });
   }
 
   private audit(action: string, entityType: string, entityId: string, changes: unknown, actor: string) {
