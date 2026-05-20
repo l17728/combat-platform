@@ -239,9 +239,10 @@ describe("KG rebuild contract (§34)", () => {
 describe("Hermes contract (§35)", () => {
   it("HermesAnswer + HermesCitation + HermesIntent shapes", () => {
     const c: HermesCitation = { nodeId: "t1", nodeType: "attackTicket", summary: "断网攻关", link: "/attack/t1" };
-    const intents: HermesIntent[] = ["status", "owner", "ticket-by-pb", "person-workload", "fallback-search"];
+    const intents: HermesIntent[] = ["status", "owner", "ticket-by-pb", "person-workload", "fallback-search",
+      "contribution-by-person", "recent-changes", "find-helpers"];
     const a: HermesAnswer = { question: "X 谁负责", intent: "owner", answer: "甲负责。", citations: [c] };
     expect(a.citations[0].summary).toBe("断网攻关");
-    expect(intents.length).toBe(5);
+    expect(intents.length).toBe(8);
   });
 });

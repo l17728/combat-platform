@@ -64,7 +64,9 @@ export interface ConflictRow { edgeType: ConflictEdgeType; reason: string; sourc
 export interface ScanConflictsResult { conflicts: number; overlaps: number; }
 export interface RebuildKGResult { refEdges: number; anchorEdges: number; conflicts: number; overlaps: number; durationMs: number; }
 
-export type HermesIntent = "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search";
+export type HermesIntent =
+  | "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search"
+  | "contribution-by-person" | "recent-changes" | "find-helpers";
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {
