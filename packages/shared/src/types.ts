@@ -77,6 +77,9 @@ export interface DashboardSummary {
   tickets: { total: number; byStatus: Record<string, number>; open: number; resolved: number };
   contributions: { total: number; topContributors: { 贡献人: string; count: number }[] };
   proposalsPending: number;
+  conflicts: { count: number; topReasons: string[] };
+  today: { progressEntries: number; ticketsTouched: number };
+  recentActivity: { ticketId: string; 标题: string; 状态: string; lastChangedAt: string }[];
 }
 export interface LeaderboardEntry {
   贡献人: string;

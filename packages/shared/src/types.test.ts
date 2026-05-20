@@ -152,9 +152,15 @@ describe("dashboard contract", () => {
       tickets: { total: 3, byStatus: { 进行中: 2, 已解决: 1 }, open: 2, resolved: 1 },
       contributions: { total: 4, topContributors: [{ 贡献人: "张三", count: 3 }] },
       proposalsPending: 1,
+      conflicts: { count: 2, topReasons: ["同负责人多并发：甲"] },
+      today: { progressEntries: 5, ticketsTouched: 3 },
+      recentActivity: [{ ticketId: "t1", 标题: "断网攻关", 状态: "进行中", lastChangedAt: "2026-05-20T10:00:00Z" }],
     };
     expect(d.tickets.open).toBe(2);
     expect(d.contributions.topContributors[0].贡献人).toBe("张三");
+    expect(d.conflicts.count).toBe(2);
+    expect(d.today.progressEntries).toBe(5);
+    expect(d.recentActivity[0].标题).toBe("断网攻关");
   });
 });
 
