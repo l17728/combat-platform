@@ -52,6 +52,17 @@ export function HomePage() {
             </Link>
           </Col>
         ))}
+        <Col span={8} key="/conflicts">
+          <Link to="/conflicts">
+            <Card hoverable
+              aria-label="home-card-conflicts"
+              title={<span style={{ color: "#cf1322" }}>冲突 / 重叠</span>}
+              style={{ border: "1px solid #cf1322" }}
+            >
+              同负责人多并发 / 同问题单号重叠的攻关单红色高亮
+            </Card>
+          </Link>
+        </Col>
       </Row>
     </div>
   );

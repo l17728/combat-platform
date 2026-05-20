@@ -11,6 +11,7 @@ import { ProposalsPage } from "./pages/ProposalsPage.js";
 import { SearchPage } from "./pages/SearchPage.js";
 import { DailyReportPage } from "./pages/DailyReportPage.js";
 import { RemindersPage } from "./pages/RemindersPage.js";
+import { ConflictsPage } from "./pages/ConflictsPage.js";
 
 export default function App() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/weights" element={<EntityTable nodeType="weightFile" />} />
           <Route path="/daily-report" element={<DailyReportPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route path="/conflicts" element={<ConflictsPage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>

@@ -90,6 +90,21 @@ export function RelatedPage() {
             )} />
         </div>
       )}
+      {data?.conflicts && data.conflicts.length > 0 && (
+        <div aria-label="conflicts-panel" style={{ marginTop: 24, borderTop: "2px dashed #cf1322", paddingTop: 12 }}>
+          <Typography.Title level={5} style={{ color: "#cf1322" }}>冲突 / 重叠</Typography.Title>
+          <List size="small" dataSource={data.conflicts}
+            rowKey={(c) => c.node.id + c.edgeType + c.reason}
+            renderItem={(c) => (
+              <List.Item>
+                <Link to={detailLink(c.node)}>{label(c.node)}</Link>
+                <span style={{ marginLeft: 8, color: "#cf1322" }}>
+                  [{c.edgeType === "CONFLICTS_WITH" ? "冲突" : "重叠"} · {c.reason}]
+                </span>
+              </List.Item>
+            )} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -6,6 +6,7 @@ export interface RelatedResult {
   candidates?: { proposalId: string; relationType: string; confidence: number; rationale: string; node: GraphNode }[];
   coAnchored?: { anchorKind: string; anchorKey: string; node: GraphNode }[];
   expanded?: ExpandedItem[];
+  conflicts?: ConflictItem[];
 }
 
 export class Api {
@@ -127,6 +128,12 @@ export class Api {
     return this.req<Reminder>(`/api/reminders/${id}/ignore`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ decidedBy }) });
+  }
+  scanConflicts(): Promise<ScanConflictsResult> {
+    return this.req<ScanConflictsResult>(`/api/conflicts/scan`, { method: "POST" });
+  }
+  listConflicts(): Promise<ConflictRow[]> {
+    return this.req<ConflictRow[]>(`/api/conflicts`, {});
   }
 }
 export const api = new Api("");
