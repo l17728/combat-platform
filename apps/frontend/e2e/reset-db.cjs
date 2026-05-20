@@ -17,6 +17,9 @@ for (const f of ["combat.sqlite", "combat.sqlite-wal", "combat.sqlite-shm"]) {
 // so every run starts from the pristine committed schema (cross-run
 // determinism + no shared dev-config corruption). cwd here = apps/backend.
 try {
-  execSync("git checkout -- config/schemas/attackTicket.json config/schemas/person.json config/schemas/contribution.json",
+  // Restore the entire schemas dir generically — catches any new nodeType
+  // (releasePackage / weightFile / future additions) without needing to update
+  // this list each time.
+  execSync("git checkout -- config/schemas/",
     { cwd: join(process.cwd(), "..", ".."), stdio: "ignore" });
 } catch { /* ignore (e.g. files unchanged) */ }

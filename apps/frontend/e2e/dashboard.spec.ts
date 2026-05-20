@@ -6,9 +6,9 @@ test("FE-D1 homepage dashboard reflects data; module cards still present/usable"
   await page.goto("/");
   const dash = page.getByLabel("dashboard");
   await expect(dash.getByText("攻关单总数")).toBeVisible();
-  // exact:true → match only the Statistic title "进行中", not the
-  // Descriptions content "进行中: N　已解决: M" which contains it as substring.
-  await expect(dash.getByText("进行中", { exact: true })).toBeVisible();
+  // §36 added recent-activity Tag elements that contain "进行中" exactly —
+  // use first() to pin to the Statistic title and avoid strict-mode multi-match.
+  await expect(dash.getByText("进行中", { exact: true }).first()).toBeVisible();
   await expect(dash.getByText("状态分布")).toBeVisible();
   await expect(page.getByLabel("home-card-/attack")).toBeVisible();
   await expect(page.getByLabel("home-card-/search")).toBeVisible();

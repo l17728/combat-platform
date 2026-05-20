@@ -1,13 +1,25 @@
 import { describe, it, expect } from "vitest";
 import { FileSchemaRegistry } from "../src/registry.js";
-import { join } from "node:path";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 
-const CONFIG_DIR = join(process.cwd(), "..", "..", "config", "schemas");
+// Use a frozen snapshot of the seed config — copy all *.json from config/schemas
+// into a per-test temp dir so concurrent tests (e.g. schema PATCH e2e) cannot
+// mutate what this suite reads. cwd-independent via import.meta.url.
+const SEED_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
+function snapshotSeed(): string {
+  const dst = mkdtempSync(join(tmpdir(), "combat-seed-"));
+  for (const f of readdirSync(SEED_DIR)) {
+    if (!f.endsWith(".json")) continue;
+    writeFileSync(join(dst, f), readFileSync(join(SEED_DIR, f)));
+  }
+  return dst;
+}
 
 describe("FileSchemaRegistry", () => {
-  const reg = new FileSchemaRegistry(CONFIG_DIR);
+  const reg = new FileSchemaRegistry(snapshotSeed());
   it("loads attackTicket schema from config dir", () => {
     expect(reg.getNodeSchema("attackTicket")?.label).toBe("攻关单");
   });

@@ -2001,10 +2001,10 @@ dashboard 区扩展（保持既有 Row + Descriptions 不动）：
 
 ### 36.6 验收
 
-- [ ] DashboardSummary 三段新字段 tsc-clean；既有 FE-D1 不破坏
-- [ ] 空 db → 新字段 0/空数组
-- [ ] 同人 2 active → conflicts.count ≥ 1，reason 含「同负责人多并发」
-- [ ] 当日 progress 计入 today.progressEntries；recentActivity 按 updatedAt 倒序
-- [ ] 首页态势区可见冲突计数 + 今日动态 + 最近活跃列表
-- [ ] 既有 54 e2e + 新增 FE-D2 共 55 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
+- [x] DashboardSummary 三段新字段 tsc-clean；既有 FE-D1 调整为 first() 不破坏（recent-activity 出现多个 "进行中" Tag 是预期）
+- [x] 空 db → 新字段 0/空数组
+- [x] 同人 2 active → conflicts.count ≥ 1，reason 含「同负责人多并发」
+- [x] 当日 progress 计入 today.progressEntries；recentActivity 按 updatedAt 倒序
+- [x] 首页态势区可见冲突计数 + 今日动态 + 最近活跃列表
+- [x] 既有 54 e2e + 新增 FE-D2 共 55 e2e 全部绿（零回归）；`test:all` 连续两次全绿（含 reset:schemas 防漂移）；待部署
 
