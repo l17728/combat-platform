@@ -29,7 +29,11 @@ export function openDb(path: string): DB {
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(nodeType);
     CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(sourceId);
+    CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(targetId);
+    CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(edgeType);
     CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log(ownerId, seqNo);
+    CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
+    CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
   `);
   return db;
 }

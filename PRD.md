@@ -1628,3 +1628,37 @@ export interface DailyReport {
 - [x] 现有 registry/concept/anchor/aliases/ref/proposals 等 e2e 全部保持绿（backend 103/103，零回归）
 - [x] §13#9 已标记**已解决**
 - [x] `npm run test:all` 连续两次全绿（shared18/backend103/FEunit13/e2e36）；完成后部署
+
+---
+
+## 31. 增量13：SQL WHERE 推下 + 索引利用 开发依据
+
+> 解决 3c/8/10 评审一致定位的"门后真问题"：`queryEdges`/`listProposals`/`listReminders` 一律 `SELECT *` + JS 端 filter，索引（`idx_edges_source` 已建却用不上）形同虚设；多 schema/边/通知累积后端到端响应时间线性退化。**纯性能加固**：行为字节级不变（既有 103 测试为回归保障）；仅改 SQL 构造 + 增加索引。
+
+### 31.1 后端
+
+- `apps/backend/src/db.ts` 加索引：
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(targetId);
+  CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(edgeType);
+  CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
+  CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+  ```
+  既有 `idx_edges_source ON edges(sourceId)`/`idx_nodes_type ON nodes(nodeType)` 保留。
+
+- `apps/backend/src/repository.ts`:
+  - `queryEdges(opts)`：按 opts 构造 WHERE（sourceId/targetId/edgeType 任意组合或全 undefined）+ 参数化 prepared statement；空 opts 即 `SELECT *`。
+  - `listProposals(opts)`：`status` 推下到 WHERE；无 status 即全表（小表，影响小，索引仍可被规划器用）。
+  - `listReminders(opts)`：同上 + 保留 `ORDER BY created_at DESC`。
+
+### 31.2 测试
+
+无新 e2e：既有 103 backend 测试**重度**使用这三方法（refs/anchors/related/concept/recommend/dashboard/proposals/reminders/import-upsert/archive 全部）——任何返回集差异都会立即体现。`npm run test:all` 两次全绿即回归证明。
+
+### 31.3 验收
+
+- [ ] `db.ts` 加 4 个新索引；现有索引保留
+- [ ] `queryEdges` 改 SQL WHERE；空/单参/多参组合均正确
+- [ ] `listProposals` / `listReminders` 改 SQL WHERE；`createdAt DESC` 保留
+- [ ] 既有 103 backend e2e + 全部 shared/frontend/playwright 测试**零回归**
+- [ ] `npm run test:all` 连续两次全绿；完成后部署

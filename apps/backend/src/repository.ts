@@ -69,12 +69,15 @@ export class SqliteRepository implements Repository {
   }
 
   queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): GraphEdge[] {
-    const rows = this.db.prepare(`SELECT * FROM edges`).all() as any[];
+    // §31: push filters to SQL WHERE so idx_edges_source/idx_edges_target/idx_edges_type apply.
+    const wh: string[] = [], params: unknown[] = [];
+    if (opts.sourceId) { wh.push("sourceId=?"); params.push(opts.sourceId); }
+    if (opts.targetId) { wh.push("targetId=?"); params.push(opts.targetId); }
+    if (opts.edgeType) { wh.push("edgeType=?"); params.push(opts.edgeType); }
+    const sql = `SELECT * FROM edges${wh.length ? " WHERE " + wh.join(" AND ") : ""}`;
+    const rows = this.db.prepare(sql).all(...params) as any[];
     return rows.map(r => ({ id: r.id, edgeType: r.edgeType, sourceId: r.sourceId,
-      targetId: r.targetId, properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }))
-      .filter(e => (!opts.sourceId || e.sourceId === opts.sourceId)
-        && (!opts.targetId || e.targetId === opts.targetId)
-        && (!opts.edgeType || e.edgeType === opts.edgeType));
+      targetId: r.targetId, properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
   }
 
   deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void {
@@ -125,8 +128,11 @@ export class SqliteRepository implements Repository {
       decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
   }
   listProposals(opts: { status?: RelationProposalStatus } = {}): RelationProposal[] {
-    const rows = this.db.prepare(`SELECT * FROM proposals`).all() as any[];
-    return rows.map(r => this.mapProposal(r)).filter(p => !opts.status || p.status === opts.status);
+    // §31: push status to SQL WHERE (idx_proposals_status).
+    const rows = opts.status
+      ? this.db.prepare(`SELECT * FROM proposals WHERE status=?`).all(opts.status) as any[]
+      : this.db.prepare(`SELECT * FROM proposals`).all() as any[];
+    return rows.map(r => this.mapProposal(r));
   }
   getProposal(id: string): RelationProposal | undefined {
     const r = this.db.prepare(`SELECT * FROM proposals WHERE id=?`).get(id) as any;
@@ -173,8 +179,11 @@ export class SqliteRepository implements Repository {
       decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
   }
   listReminders(opts: { status?: ReminderStatus } = {}): Reminder[] {
-    const rows = this.db.prepare(`SELECT * FROM notifications ORDER BY created_at DESC`).all() as any[];
-    return rows.map(r => this.mapReminder(r)).filter(p => !opts.status || p.status === opts.status);
+    // §31: push status to SQL WHERE (idx_notifications_status); keep ORDER BY.
+    const rows = opts.status
+      ? this.db.prepare(`SELECT * FROM notifications WHERE status=? ORDER BY created_at DESC`).all(opts.status) as any[]
+      : this.db.prepare(`SELECT * FROM notifications ORDER BY created_at DESC`).all() as any[];
+    return rows.map(r => this.mapReminder(r));
   }
   getReminder(id: string): Reminder | undefined {
     const r = this.db.prepare(`SELECT * FROM notifications WHERE id=?`).get(id) as any;
