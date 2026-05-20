@@ -14,6 +14,7 @@ const MODULES = [
   { to: "/releases", title: "发布包", desc: "版本发布包元数据 + 下载链接登记（李嘉⑤）" },
   { to: "/weights", title: "权重文件", desc: "模型权重文件元数据 + 存储链接登记（李嘉⑥）" },
   { to: "/daily-report", title: "攻关日报", desc: "自动汇总当日各攻关单进展，复制到剪贴板（待外发渠道接入）" },
+  { to: "/reminders", title: "跟催提醒", desc: "问题单跟催 / FE Deadline 提醒（当前为 stub 渠道）" },
 ];
 
 export function HomePage() {
