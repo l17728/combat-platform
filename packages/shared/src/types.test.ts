@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -219,5 +219,13 @@ describe("conflict / overlap contract (§33)", () => {
     expect(r.edgeType).toBe("OVERLAPS_WITH");
     const s: ScanConflictsResult = { conflicts: 2, overlaps: 1 };
     expect(s.conflicts + s.overlaps).toBe(3);
+  });
+});
+
+describe("KG rebuild contract (§34)", () => {
+  it("RebuildKGResult shape", () => {
+    const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
+    expect(r.refEdges + r.anchorEdges).toBe(12);
+    expect(r.durationMs).toBeGreaterThan(0);
   });
 });

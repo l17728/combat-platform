@@ -62,6 +62,7 @@ export type ConflictEdgeType = "CONFLICTS_WITH" | "OVERLAPS_WITH";
 export interface ConflictItem { edgeType: ConflictEdgeType; reason: string; node: GraphNode; }
 export interface ConflictRow { edgeType: ConflictEdgeType; reason: string; source: GraphNode; target: GraphNode; }
 export interface ScanConflictsResult { conflicts: number; overlaps: number; }
+export interface RebuildKGResult { refEdges: number; anchorEdges: number; conflicts: number; overlaps: number; durationMs: number; }
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
