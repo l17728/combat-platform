@@ -1862,3 +1862,83 @@ export interface RebuildKGResult {
 - [x] 冲突边在 rebuild 后自动重建（与 `/api/conflicts/scan` 一致）
 - [x] `/conflicts` 页「全量重建 KG」按钮可点击并显示结果
 - [x] 既有 39 e2e + 新增 FE-KG1 共 40 e2e 全部绿（零回归）；`test:all` 连续两次全绿；待部署
+
+---
+
+## 35. 增量 18：Hermes 只读问答 MVP（兑现 §1.4 P0-④ / §10 Phase 3.1）
+
+> 兑现 §1.4 P0-④「Hermes Agent 问答分析」与 §10 Phase 3.1。**无 LLM 凭据**前提下交付**规则版**意图分类引擎：解析常见中文问句，映射到现有只读 API（`queryNodes` / `related` / `progress`），返回中文答案 + 引用节点链接。日后接入 LLM 时只需替换意图解析层，对外契约 / UI 不变（§14.4 LLM 只提议、不直写 KG 不破坏：Hermes 一直是只读）。
+
+### 35.1 契约（@combat/shared）
+
+```ts
+export interface HermesCitation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;       // 人类可读标题（标题 / 攻关单号 / name / key 等）
+  link: string;          // 前端跳转 URL，如 /attack/<id> 或 /related/<nodeType>/<id>
+}
+export type HermesIntent =
+  | "status"             // X 现在状态 / 进展
+  | "owner"              // X 是谁负责
+  | "ticket-by-pb"       // 问题单号 PB-xxx 下的攻关单
+  | "person-workload"    // 谁负载最重 / 谁活跃单最多
+  | "fallback-search";   // 兜底全文检索
+export interface HermesAnswer {
+  question: string;
+  intent: HermesIntent;
+  answer: string;        // 中文回答（multi-line allowed）
+  citations: HermesCitation[];
+}
+```
+
+### 35.2 后端 — `apps/backend/src/hermes.ts`
+
+`answerQuestion(repo, registry, question): HermesAnswer`：
+
+1. 规范化输入：`trim` + 去除前后中英文标点 + 不区分大小写。
+2. **意图匹配（按优先级顺序，先匹配先返回）**：
+   - **ticket-by-pb**：正则 `/(PB-?\d+)|问题单号.*?[：:\s]([A-Z0-9-]+)/i` 命中 → 在所有 attackTicket 里筛 `问题单号` 精确匹配；列出标题 + 当前处理人 + 状态。
+   - **owner**：包含「谁负责」/「谁在做」/「谁的」/「owner」+ 一个引号或裸词 → 在 attackTicket.标题 模糊匹配；返回 `<标题>` 的当前处理人是 `<人>`，状态 `<状态>`。
+   - **status**：包含「状态」/「进展」/「怎么样」/「现在」+ 标题片段 → 在 attackTicket.标题 模糊匹配，输出最近一条 progress（无则报"暂无进展"）。
+   - **person-workload**：包含「负载最重」/「最忙」/「活跃单最多」 → group active attackTickets by 当前处理人，按数量降序输出 Top 5。
+   - **fallback-search**：以上不命中 → 既有 `/api/query/search?q=` 取 top 5，列出 summary。
+3. citations 至多 5 条，按相关度从高到低；link 规则：attackTicket → `/attack/<id>`；其他 → `/related/<nodeType>/<id>`；anchor 节点跳本身关联页。
+4. 路由 `POST /api/hermes/ask`：body `{ question: string }`，返回 `HermesAnswer`；`question` 空 → 400 `{error:"question 必填"}`。
+
+### 35.3 前端 — `apps/frontend/src/pages/HermesPage.tsx`
+
+- 顶部 `Input.TextArea`（中文 placeholder 示例：「PB-12345 涉及哪些单？」「断网攻关谁在做？」「谁现在最忙？」），右侧「提问」按钮（primary）。
+- 回答区：`Card` 显示 `HermesAnswer.intent` 中文标签 + `answer` 文本（保留换行）；下方 `List` 渲染 `citations`，每项可点击跳 `link`。
+- 历史列表（本地内存，单次会话）：左侧 `List` 显示已问问题，点击回显答案。
+- `AppShell` 加 nav「Hermes 问答」；`HomePage` 加 `home-card-hermes` 卡片。
+
+### 35.4 测试
+
+后端 `apps/backend/test/hermes.e2e.test.ts`，至少 5 个意图各 1 个测试：
+1. PB 意图：建两个共问题单号 attackTicket → ask `PB-123 涉及哪些单？` → answer 含两个标题 + 2 个 citations
+2. owner 意图：建 attackTicket(标题=断网攻关, 当前处理人=甲) → ask `断网攻关谁负责？` → answer 含「甲」
+3. status 意图：建 ticket + 追加 progress → ask `断网攻关 现在状态` → answer 含 latest progress.content
+4. person-workload：建 3 active tickets 同人 + 1 active 单他人 → ask `谁现在最忙？` → 第一名是「3 单的那个人」
+5. fallback：ask 一个完全不相关的字 → 走 search
+
+前端 `apps/frontend/e2e/hermes.spec.ts`：路由 mock `/api/hermes/ask` 返回固定 HermesAnswer（intent=owner，answer="..."，citations=2 个），访问 `/hermes`，TextArea 输入，点提问，断言 answer 文本 + 引用链接可见。
+
+### 35.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| LLM 接入 | MVP 不接入；规则匹配 | 无凭据；§14.4 LLM 永远只提议、不直写——Hermes 改 LLM 实现时对外契约不变 |
+| 意图集 | 5 类（status/owner/ticket-by-pb/person-workload/fallback-search） | 覆盖最常见 P0 问句；可逐步扩展 |
+| 引用上限 | 5 条 | UI 简洁 |
+| 状态机 | 单 turn 一问一答 | MVP；多轮上下文留后续 |
+| 模糊匹配 | 子串包含（`includes`） | 简单稳；中文不分词；后续可换 |
+
+### 35.6 验收
+
+- [ ] `HermesAnswer` / `HermesCitation` / `HermesIntent` 契约 tsc-clean
+- [ ] 5 类意图 e2e 全部通过
+- [ ] 空问题 → 400 中文错误
+- [ ] `/hermes` 页 TextArea+提问按钮+回答+引用链接可用
+- [ ] AppShell + HomePage 入口可达 `/hermes`
+- [ ] 既有 52 e2e + 新增 FE-HM1 共 53 e2e 全部绿（零回归）；`test:all` 连续两次全绿；部署
