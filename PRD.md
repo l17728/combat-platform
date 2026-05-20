@@ -1468,3 +1468,80 @@ export interface DailyReport {
 - [x] 「复制到剪贴板」按钮成功复制中文纯文本日报（FE-DR1：经 `Object.defineProperty` 剪贴板桩 + window.__copied 直接断言，避免 AntD 提示生命周期不稳）
 - [x] 既有断言加法不破坏（home-card-*、AppShell nav 既有项不变，e2e 34/34 含全部既有用例）
 - [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared16/backend87/FEunit13/e2e34）；完成后部署测试服务器
+
+---
+
+## 28. 增量10：跟催/提醒引擎（Phase 3.4 上半）开发依据
+
+> 兑现 §10 Phase 3.4 + 李嘉①③（②CCB 提醒延后——需新字段决策，见 §28.5）。本增量交付**规则引擎 + 通知 outbox + 可插拔 ChannelAdapter（默认 stub：记录但不真发）**——架构同 3c 提议队列（scan → 待发送 → 决定 发送/忽略）。**真实外发** 待 §13#2 通道确认（邮件 SMTP / eSpace / welink）后另增量挂接相应 adapter；本增量产出的 outbox 已可作为信源（用户可在 /reminders 页人工查看待催并复制内容到任意 IM）。**写权威路径**：notifications 表+审计；规则计算只读。
+
+### 28.0 范围与定向
+
+交付 ①`notifications` 表（id, kind, ticket_id, recipient_person_id?, subject, body, status, decided_by?, decided_at?, created_at；append+audit）；②`Reminder*` 契约；③可插拔 `ChannelAdapter`（内置 `StubChannelAdapter`：`send()` 解析为 `已发送` 时间戳并 audit，不外发）；④规则引擎 2 条（**问题单跟催**：状态∈{待响应,处理中,进行中} + 距今 ProgressLog 末次更新 ≥`STALE_DAYS=3` → 发给 `当前处理人`；**FE Deadline 提醒**：`客户要求解决时间` 在未来 ≤`DEADLINE_WARN_DAYS=3` 天 + 状态未闭环 → 发给 `当前处理人`）；⑤API：`POST /api/reminders/scan`（幂等：同 (kind,ticketId) 待发送或最近已发送/已忽略 不重复生成）、`GET /api/reminders?status=`、`POST /api/reminders/:id/send`（走 ChannelAdapter，stub 仅置 `已发送`）、`POST /api/reminders/:id/ignore`；⑥前端 `/reminders` 队列页（镜像 `/proposals`）+ AppShell 导航 + HomePage 卡片。**YAGNI**：不做 CCB 规则（②，待 schema 字段决策）、不做真实 SMTP/eSpace/welink 接入（待 §13#2）、不做定时调度（手工触发 scan；定时器待外发渠道接入）、不做 i18n。
+
+### 28.1 契约（@combat/shared）
+
+- `ReminderStatus = "待发送" | "已发送" | "已忽略"`（中文字面，规范）。
+- `ReminderKind = "问题单跟催" | "FE Deadline 提醒"`（规则名作为类型）。
+- `Reminder`：`{ id; kind: ReminderKind; ticketId: string; recipientPersonId?: string; recipientName: string; subject: string; body: string; status: ReminderStatus; decidedBy?: string; decidedAt?: string; createdAt: string }`。
+- `Repository` 增（纯加法、镜像 3c proposals）：`createReminder(p, actor): Reminder`、`listReminders(opts?:{status?:ReminderStatus}): Reminder[]`、`getReminder(id): Reminder | undefined`、`updateReminderStatus(id, status, decidedBy, actor): Reminder`。
+- `ChannelAdapter` 接口：`send(r: Reminder, actor: string): { sentAt: string } | Promise<...>`（同步实现允许；stub 直接返回当前时间）；`StubChannelAdapter` 默认 export。
+
+### 28.2 后端
+
+- `apps/backend/src/db.ts`：新增 DDL（同 proposals 形态）：
+  ```sql
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY, kind TEXT NOT NULL, ticket_id TEXT NOT NULL,
+    recipient_person_id TEXT, recipient_name TEXT,
+    subject TEXT, body TEXT,
+    status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
+  ```
+- `apps/backend/src/repository.ts`：实现 §28.1 4 方法（事务 + audit）；`mapReminder` 与 proposals 同形态。
+- 新模块 `apps/backend/src/rules.ts`：`scanReminders(repo, registry, now): { kind; ticketId; recipientPersonId?; recipientName; subject; body }[]` 确定性、只读：
+  - **问题单跟催**：对每个 `attackTicket` 状态∈OPEN：取最近 `progress.updatedAt` 或 `node.updatedAt`，若 `now - lastAt ≥ STALE_DAYS*86400000` → emit；recipient = REF(field=当前处理人) 解析（若不存在则跳过）；subject/body 含 ticket 标题/编号/已停滞天数。
+  - **FE Deadline 提醒**：对每个 `attackTicket` 状态∈OPEN + `客户要求解决时间` 可解析为日期且 `0 ≤ deadline - now ≤ DEADLINE_WARN_DAYS*86400000` → emit；recipient 同上；subject/body 含剩余天数。
+- 新模块 `apps/backend/src/channel.ts`：`ChannelAdapter` 接口 + `StubChannelAdapter`（send 返回 `{ sentAt: now.toISOString() }`，并由 repo audit 记录）。
+- 新模块 `apps/backend/src/reminders.ts`：
+  - `POST /api/reminders/scan`：跑 `scanReminders`；对每个 candidate `(kind,ticketId,recipientPersonId)` 三元组：若 `listReminders` 中已有该三元组 status∈{待发送,已发送,已忽略}**最近 7 天**记录 → 跳过（避免噪声重发）；否则 `createReminder({status:"待发送", ...})`；返回 `{ created: n }`。
+  - `GET /api/reminders?status=`：默认按 createdAt desc 全部。
+  - `POST /api/reminders/:id/send`：404/409 同 proposals/decide；`channel.send(r)` 成功后 `updateReminderStatus("已发送", decidedBy)`；audit。
+  - `POST /api/reminders/:id/ignore`：404/409；`updateReminderStatus("已忽略", decidedBy)`。
+  - 注入 `ChannelAdapter`（默认 `StubChannelAdapter`）。
+- `app.ts`：`app.use("/api", makeRemindersRouter(deps.repo, deps.registry));`（daily-report 之后、错误中间件前）。
+
+### 28.3 前端
+
+- `apps/frontend/src/api.ts`：`listReminders(status?)`、`scanReminders()`、`sendReminder(id, decidedBy)`、`ignoreReminder(id, decidedBy)`。
+- 新页 `apps/frontend/src/pages/RemindersPage.tsx`：标题「跟催/提醒队列」；顶部「扫描提醒」按钮 + 状态过滤；表格列 kind/ticketId/recipientName/subject/createdAt + 每行「发送(stub)」「忽略」按钮（`aria-label` 同 proposals 风格）；空态 `<p role="status">暂无待发送提醒</p>`。
+- `AppShell` + `HomePage` 加导航 + 卡片：「跟催提醒」`/reminders`（置于「攻关日报」之后）。
+- 描述文案显式标注 stub：「（当前为 stub 渠道：点'发送'仅标记已发送并记录；接入 SMTP/IM 后真实外发）」。
+
+### 28.4 测试（TDD + 前后台全 e2e + 覆盖审计门）
+
+- shared：`ReminderStatus`/`ReminderKind`/`Reminder` + Repository 契约类型测试 tsc-clean。
+- 后端 e2e（新 `apps/backend/test/reminders.e2e.test.ts`）：①问题单跟催规则：建 ticket 状态进行中 + 当前处理人 + 直接 SQL 插入旧 progress(updatedAt 7 天前)→`scan`→出 1 条 `问题单跟催`；②FE Deadline 规则：建 ticket 客户要求解决时间 = 今天+2天 + 状态进行中→`scan`→出 1 条 `FE Deadline 提醒`；③幂等：连续两次 scan，二次 `created:0`；④`send` stub：状态→已发送，channel 调用计数（注入测试 channel）；⑤`ignore`：状态→已忽略；⑥`send`/`ignore` 在非待发送上→409；⑦不存在 id→404；⑧解析失败（无当前处理人、客户要求解决时间不可解析）→该规则跳过该 ticket。
+- 前端 Playwright（新 `apps/frontend/e2e/reminders.spec.ts`）：mock 路由提供 1 条 `待发送`→`/reminders` 渲染→点「发送(stub)」→该行消失（refresh 后 `待发送` 列表空）；空态 mock 验证 role=status。
+- 全功能 Playwright e2e 覆盖审计门 + `npm run test:all` 连续两次全绿。
+
+### 28.5 关键设计决策（补充 §6/§13）
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 队列形态 | 通知 outbox（notifications 表，append+审计）+ ChannelAdapter | 镜像 3c proposals 模式；外发与生成解耦，便于后续插拔 SMTP/IM |
+| 默认 channel | StubChannelAdapter（仅置 `已发送`，不真发） | §13#2 通道未定；不假装外发，但 outbox 已可作为信源 |
+| 规则集 | ①问题单跟催(N天无进展) + ③FE Deadline 临近；**②CCB 提醒延后** | ②需新 schema 字段（是否需CCB），属用户决策；待你定 |
+| 阈值 | STALE_DAYS=3、DEADLINE_WARN_DAYS=3 | 经验默认；后续可配置 |
+| 幂等 | 同 (kind,ticketId,recipient) 7 天内已生成则跳过 | 避免重复打扰 |
+| 调度 | 手工触发（前端按钮） | YAGNI；定时器待外发渠道接入 |
+| welinkcli 抓群消息 | 不在 10 | §13#3 未定；规则不依赖 IM 输入 |
+
+### 28.6 验收标准
+
+- [ ] shared `Reminder*` 契约 + Repository 通知方法（类型测试，tsc-clean），现有不破坏
+- [ ] `POST /api/reminders/scan`：问题单跟催 + FE Deadline 两规则确定性产出；幂等（7天窗口内相同三元组不重复）；解析失败的 ticket 跳过；同输入同输出
+- [ ] `GET /api/reminders?status=` 列表与过滤；createdAt desc
+- [ ] `POST /api/reminders/:id/send`：调用 ChannelAdapter；stub → 置 `已发送`+audit；非待发送→409；不存在→404
+- [ ] `POST /api/reminders/:id/ignore`：置 `已忽略`+audit；非待发送→409；不存在→404
+- [ ] `/reminders` 页：扫描+列+发送/忽略可用；空态可见；AppShell+首页入口集成；卡片描述显式标注 stub 渠道
+- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
