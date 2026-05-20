@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -227,5 +227,15 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Hermes contract (§35)", () => {
+  it("HermesAnswer + HermesCitation + HermesIntent shapes", () => {
+    const c: HermesCitation = { nodeId: "t1", nodeType: "attackTicket", summary: "断网攻关", link: "/attack/t1" };
+    const intents: HermesIntent[] = ["status", "owner", "ticket-by-pb", "person-workload", "fallback-search"];
+    const a: HermesAnswer = { question: "X 谁负责", intent: "owner", answer: "甲负责。", citations: [c] };
+    expect(a.citations[0].summary).toBe("断网攻关");
+    expect(intents.length).toBe(5);
   });
 });

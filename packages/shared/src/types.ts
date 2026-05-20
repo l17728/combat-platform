@@ -63,6 +63,10 @@ export interface ConflictItem { edgeType: ConflictEdgeType; reason: string; node
 export interface ConflictRow { edgeType: ConflictEdgeType; reason: string; source: GraphNode; target: GraphNode; }
 export interface ScanConflictsResult { conflicts: number; overlaps: number; }
 export interface RebuildKGResult { refEdges: number; anchorEdges: number; conflicts: number; overlaps: number; durationMs: number; }
+
+export type HermesIntent = "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search";
+export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
+export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
