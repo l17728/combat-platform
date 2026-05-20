@@ -14,9 +14,14 @@ test("FE-DP1 RelatedPage depth Select triggers expanded panel render", async ({ 
     }),
   }));
   await page.goto("/related/attackTicket/n1");
-  // Select depth=2 (triggers re-fetch but our mock returns the same expanded payload either way)
-  await page.getByLabel("depth-select").click();
-  await page.getByText("2", { exact: true }).click();
+  // Select depth=2 via keyboard — AntD's option popup is virtualized and click-flaky in
+  // Playwright; focusing the combobox + ArrowDown + Enter is deterministic and avoids
+  // the wrapper/input dual-label strict-mode clash.
+  const combo = page.locator('input[aria-label="depth-select"]');
+  await combo.focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
   const panel = page.getByLabel("expanded-panel");
   await expect(panel.getByRole("heading", { name: /扩展.*深度 2/ })).toBeVisible();
   await expect(panel.getByText("深度人A")).toBeVisible();
