@@ -1,10 +1,11 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
   incoming: { field: string; concept: string; node: GraphNode }[];
   candidates?: { proposalId: string; relationType: string; confidence: number; rationale: string; node: GraphNode }[];
   coAnchored?: { anchorKind: string; anchorKey: string; node: GraphNode }[];
+  expanded?: ExpandedItem[];
 }
 
 export class Api {
@@ -68,9 +69,12 @@ export class Api {
   getPersonHonor(name: string): Promise<PersonHonor> {
     return this.req<PersonHonor>(`/api/honor/person/${encodeURIComponent(name)}`, {});
   }
-  getRelated(nodeType: string, id: string, opts: { includeCandidates?: boolean } = {}): Promise<RelatedResult> {
-    const qs = opts.includeCandidates ? "?includeCandidates=1" : "";
-    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}${qs}`, {});
+  getRelated(nodeType: string, id: string, opts: { includeCandidates?: boolean; depth?: number } = {}): Promise<RelatedResult> {
+    const p = new URLSearchParams();
+    if (opts.includeCandidates) p.set("includeCandidates", "1");
+    if (opts.depth && opts.depth > 1) p.set("depth", String(opts.depth));
+    const qs = p.toString();
+    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}${qs ? "?" + qs : ""}`, {});
   }
   listProposals(status?: string): Promise<RelationProposal[]> {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
