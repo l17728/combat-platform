@@ -71,6 +71,16 @@ export type HermesIntent =
 export interface GraphSnapshotNode { id: string; nodeType: string; label: string; }
 export interface GraphSnapshotEdge { source: string; target: string; edgeType: string; }
 export interface GraphSnapshot { rootId: string; nodes: GraphSnapshotNode[]; edges: GraphSnapshotEdge[]; }
+
+export interface AuditLogEntry {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  changes: unknown;
+  performedBy: string;
+  performedAt: string;
+}
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {

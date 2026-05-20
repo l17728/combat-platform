@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -233,6 +233,17 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Audit log contract (§39)", () => {
+  it("AuditLogEntry shape", () => {
+    const e: AuditLogEntry = {
+      id: "a1", action: "UPDATE", entityType: "node", entityId: "n1",
+      changes: { 状态: "进行中" }, performedBy: "甲", performedAt: "2026-05-21T01:02:03Z",
+    };
+    expect(e.action).toBe("UPDATE");
+    expect((e.changes as Record<string, string>).状态).toBe("进行中");
   });
 });
 
