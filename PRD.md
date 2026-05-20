@@ -2152,5 +2152,70 @@ export interface GraphSnapshot { rootId: string; nodes: GraphSnapshotNode[]; edg
 - [x] RelatedPage 入口可达 `/graph/...`
 - [x] 既有 55 e2e 零回归 + 后端新增 3 e2e（graph）+ FE-GR1；`test:all` 连续两次全绿；待部署
 
+---
+
+## 39. 增量 22：审计日志查看器（兑现 §11 Phase 1「audit_log 留痕」可视化）
+
+> `audit_log` 表早已记录所有写操作（CREATE/UPDATE/DELETE/MERGE/ESCALATE/SCHEMA），但**没有只读出口**，运维 / 复盘只能直查 SQLite。本增量加 `/api/audit` 只读 API + `/audit` 页（带过滤）+ AttackDetail 内嵌该单审计条目区。
+
+### 39.1 契约（@combat/shared）
+
+```ts
+export interface AuditLogEntry {
+  id: string;
+  action: string;            // CREATE / UPDATE / DELETE / MERGE / ESCALATE / SCHEMA…
+  entityType: string;        // node / edge / schema / progress / proposal / reminder
+  entityId: string;          // 主体 id（schema 类型时是 nodeType）
+  changes: unknown;          // 反序列化后的对象（任意结构）
+  performedBy: string;
+  performedAt: string;       // ISO
+}
+```
+
+### 39.2 后端
+
+`Repository` 接口增 `listAuditLog(filter: { action?, entityType?, entityId?, limit? }): AuditLogEntry[]`，SqliteRepository 用 prepared statement + WHERE 拼接 + `LIMIT`（clamp [1, 500]，默认 100），按 `performedAt DESC, id` 排序。`changes` 字段从 TEXT 反序列化为 unknown（`JSON.parse`，解析失败保留原字符串）。
+
+路由 `apps/backend/src/audit.ts`：`GET /api/audit?action=...&entityType=...&entityId=...&limit=N` 返回 `AuditLogEntry[]`。
+
+### 39.3 前端
+
+- `apps/frontend/src/pages/AuditPage.tsx`：
+  - 顶部过滤表单：`action`（select：全部/CREATE/UPDATE/DELETE/MERGE/SCHEMA/ESCALATE）+ `entityType` (string input) + `entityId` (string input) + 「查询」按钮 + 「重置」按钮
+  - Table 列：时间 / 操作 / 实体类型 / 实体 ID（短显示 + 复制按钮）/ 操作人 / 变更（JSON pre 展开 / 折叠）
+  - 默认进入页拉取最近 100 条
+- `AttackDetail` 末尾追加 `aria-label="audit-section"` 区，调 `api.listAudit({ entityId: id, limit: 30 })`，按时间倒序 List 显示 `[时间] action by performer：changes(JSON 摘要)`
+- AppShell nav 加「审计日志」入口；HomePage 加 `home-card-audit`
+
+### 39.4 测试
+
+后端 `apps/backend/test/audit.e2e.test.ts` 至少 3 个：
+1. 建 node 触发 CREATE → GET /api/audit 含该条；按 entityId 过滤精确
+2. 更新该 node 触发 UPDATE → 历史含 CREATE + UPDATE 两条；按 action=UPDATE 过滤只有 1 条
+3. limit clamp：limit=999 ≤ 500；limit=0/NaN → default 100
+
+前端 `apps/frontend/e2e/audit.spec.ts` FE-AU1：路由 mock 返回 3 条 audit；访问 `/audit`，断言 table 渲染 3 行；select action=UPDATE 触发新请求；reset 恢复。/audit 加入 console-clean.spec.ts PAGES。
+
+### 39.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| API 形态 | 只读 GET，无写 | audit_log 不可篡改 |
+| changes 表达 | 反序列化为对象，UI JSON pre 展开 | 已序列化字符串读起来差 |
+| 过滤组合 | action + entityType + entityId（AND） | 覆盖最常用筛选 |
+| 排序 | performedAt DESC | 最新在最上 |
+| limit | clamp [1, 500] 默认 100 | 防 DOS；MVP 不分页 |
+| 入口 | AppShell + 首页卡片 + AttackDetail 内嵌 | 运维入口 + 单据上下文 |
+
+### 39.6 验收
+
+- [ ] `AuditLogEntry` 契约 tsc-clean
+- [ ] `GET /api/audit` 默认/过滤/limit clamp 行为正确（3 个 e2e）
+- [ ] AttackDetail 末尾该单审计条目区可见
+- [ ] `/audit` 页过滤表单 + table 可用
+- [ ] AppShell + HomePage 入口可达 `/audit`
+- [ ] 既有 56 e2e 零回归 + 后端 3 e2e + FE-AU1 + console-clean /audit；`test:all` 连续两次全绿；部署
+
+
 
 
