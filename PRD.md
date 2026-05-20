@@ -1383,11 +1383,11 @@ Phase-1 MVP 把范围收敛到"导入+只读+进展"，缺少手工建/改记录
 
 ### 26.5 验收标准
 
-- [ ] `POST /api/import?type=<nodeType>`（默认 attackTicket 向后兼容）；未知 type → 400
-- [ ] 首次导入新数据 → `{created:N, updated:0}`；再次导入相同 identityKey 行 → `{created:0, updated:N}`；混合 → 各自计数正确
-- [ ] UPDATE 合并属性（既有字段保留，新值覆盖；如 `当前处理人` 改值，`syncRefEdges` 重建 REF）
-- [ ] `?type=releasePackage` 与 `?type=weightFile` 导入按 identityKey upsert 生效（架构验证：泛型导入对新 nodeType 自动适用）
-- [ ] validateNode 失败行不计入 created/updated（既有行为保留）
-- [ ] attackTicket：ASSIGNED_TO `攻关申请人` 边 upsert 幂等（每节点至多 1 条）
-- [ ] `ImportPage`：nodeType 选择可用；上传成功显示「导入新增 N · 已更新 M」；失败路径不变
-- [ ] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿；完成后部署测试服务器
+- [x] `POST /api/import?type=<nodeType>`（默认 attackTicket 向后兼容）；未知 type → 400（import-upsert.e2e 用例4）
+- [x] 首次导入新数据 → `{created:N, updated:0}`；再次导入相同 identityKey 行 → `{created:0, updated:N}`（用例1）；混合 → 各自计数正确（用例2）
+- [x] UPDATE 合并属性（既有字段保留，新值覆盖；`当前处理人` 改值 → `syncRefEdges` 重建 REF；`问题单号` 改值 → ANCHORED_TO 重定向）（用例6）
+- [x] `?type=releasePackage` 按 `版本号` upsert；`?type=weightFile` 按 `名称` upsert（用例3 架构验证：泛型导入对增量7 的新 nodeType 自动适用）
+- [x] validateNode 失败行不计入 created/updated（用例5 — VL-2 缺 标题+状态 被跳过）
+- [x] attackTicket：ASSIGNED_TO `攻关申请人` 边 upsert 幂等（每节点至多 1 条；用例7）
+- [x] `ImportPage`：nodeType Select 可用（FE-IU1 经 `getByRole(combobox)`）；上传成功显示「导入新增 N · 已更新 M」；既有失败路径不变（coverage GAP Import 仍绿，已适配 `?type=` 查询匹配）
+- [x] 全功能 e2e 覆盖审计门通过；`npm run test:all` 连续两次全绿（shared15/backend83/FEunit13/e2e32）；完成后部署测试服务器
