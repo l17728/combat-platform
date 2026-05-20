@@ -32,8 +32,10 @@ test("GAP AttackDetail: Descriptions render, related-link, empty-progress no-op"
   const t = await (await request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: "覆盖详情单", 状态: "进行中" } })).json();
   await request.post(`${API}/api/nodes/${t.id}/progress`, { data: { content: "进展甲", statusSnapshot: "进行中", actor: "seed" } });
   await page.goto(`/attack/${t.id}`);
-  await expect(page.getByText("标题")).toBeVisible();          // GAP-16 AD-1 Descriptions label
-  await expect(page.getByText("进展甲", { exact: false })).toBeVisible(); // AD-2 timeline
+  // first(): §39 audit-section embeds CREATE/UPDATE entries whose JSON contains
+  // "标题" — multi-match without first(). The Descriptions label is the natural first hit.
+  await expect(page.getByText("标题").first()).toBeVisible();          // GAP-16 AD-1 Descriptions label
+  await expect(page.getByText("进展甲", { exact: false }).first()).toBeVisible(); // AD-2 timeline
   // GAP-15 AD-6: empty progress-input + 追加进展 is a no-op (no #2 entry)
   await page.getByRole("button", { name: "追加进展" }).click();
   await expect(page.getByText("#2", { exact: false })).toHaveCount(0);

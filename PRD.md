@@ -2209,12 +2209,12 @@ export interface AuditLogEntry {
 
 ### 39.6 验收
 
-- [ ] `AuditLogEntry` 契约 tsc-clean
-- [ ] `GET /api/audit` 默认/过滤/limit clamp 行为正确（3 个 e2e）
-- [ ] AttackDetail 末尾该单审计条目区可见
-- [ ] `/audit` 页过滤表单 + table 可用
-- [ ] AppShell + HomePage 入口可达 `/audit`
-- [ ] 既有 56 e2e 零回归 + 后端 3 e2e + FE-AU1 + console-clean /audit；`test:all` 连续两次全绿；部署
+- [x] `AuditLogEntry` 契约 tsc-clean
+- [x] `GET /api/audit` 默认/过滤/limit clamp 行为正确（3 个 e2e）
+- [x] AttackDetail 末尾该单审计条目区可见（attack/coverage 测试用 first() 适配避免与 Descriptions/Timeline 冲突）
+- [x] `/audit` 页过滤表单 + table 可用
+- [x] AppShell + HomePage 入口可达 `/audit`
+- [x] 既有 56 e2e 零回归 + 后端 3 e2e + FE-AU1 + console-clean /audit 共 58 e2e；`test:all` 连续两次全绿；待部署
 
 
 

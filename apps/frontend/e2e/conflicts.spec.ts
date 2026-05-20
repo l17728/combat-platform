@@ -42,8 +42,8 @@ test("FE-CF1 ConflictsPage Tabs + scan button + counts", async ({ page }) => {
   await expect(page.getByRole("link", { name: "A" })).toBeVisible();
   await expect(page.getByRole("link", { name: "B" })).toBeVisible();
 
-  // Counts header is visible.
-  await expect(page.getByText(/冲突\s*1\s*·\s*重叠\s*1/)).toBeVisible();
+  // Counts header is visible (scope to aria-label to avoid post-scan "上次扫描" text).
+  await expect(page.getByLabel("conflicts-counts")).toContainText(/冲突\s*1\s*·\s*重叠\s*1/);
 
   // Switch to 重叠 Tab.
   await overlapTab.click();
@@ -54,7 +54,7 @@ test("FE-CF1 ConflictsPage Tabs + scan button + counts", async ({ page }) => {
   const scanReq = page.waitForRequest(req => /\/api\/conflicts\/scan$/.test(req.url()) && req.method() === "POST");
   await page.getByRole("button", { name: /重新扫描/ }).click();
   await scanReq;
-  await expect(page.getByText(/冲突\s*1\s*·\s*重叠\s*1/)).toBeVisible();
+  await expect(page.getByLabel("conflicts-counts")).toContainText(/冲突\s*1\s*·\s*重叠\s*1/);
 });
 
 // 16-T3 FE-CF2: RelatedPage red conflicts panel renders when payload has conflicts.
