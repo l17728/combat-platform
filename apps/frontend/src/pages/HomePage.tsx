@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, Row, Col, Statistic, Descriptions, message } from "antd";
+import { Card, Row, Col, Statistic, Descriptions, List, Tag, Typography, message } from "antd";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import type { DashboardSummary } from "@combat/shared";
@@ -43,6 +43,35 @@ export function HomePage() {
               {dash.contributions.topContributors.map(c => `${c.贡献人}×${c.count}`).join("　") || "无"}
             </Descriptions.Item>
           </Descriptions>
+          <div aria-label="dashboard-extras" style={{ marginTop: 12 }}>
+            <Descriptions size="small" column={1}>
+              <Descriptions.Item label={<span style={{ color: "#cf1322" }}>冲突 / 重叠</span>}>
+                <span style={{ color: "#cf1322" }}>{dash.conflicts.count} 对</span>
+                {dash.conflicts.topReasons.length > 0 && (
+                  <Typography.Text type="secondary" style={{ marginLeft: 8 }}>
+                    （{dash.conflicts.topReasons.slice(0, 3).join("　")}）
+                  </Typography.Text>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="今日动态">
+                {dash.today.progressEntries} 条进展 / {dash.today.ticketsTouched} 个攻关单
+              </Descriptions.Item>
+            </Descriptions>
+            {dash.recentActivity.length > 0 && (
+              <div aria-label="recent-activity" style={{ marginTop: 8 }}>
+                <Typography.Text strong>最近活跃攻关单</Typography.Text>
+                <List size="small" dataSource={dash.recentActivity}
+                  rowKey={(r) => r.ticketId}
+                  renderItem={(r) => (
+                    <List.Item>
+                      <Link to={`/attack/${r.ticketId}`}>{r.标题}</Link>
+                      <Tag style={{ marginLeft: 8 }}>{r.状态 || "未填"}</Tag>
+                      <Typography.Text type="secondary" style={{ marginLeft: 8 }}>{r.lastChangedAt}</Typography.Text>
+                    </List.Item>
+                  )} />
+              </div>
+            )}
+          </div>
         </div>
       )}
       <Row gutter={[16, 16]}>
