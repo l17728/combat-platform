@@ -128,6 +128,16 @@ export interface EmailSendResult {
 }
 
 // Role tokens are ASCII (HTTP header transport must be ASCII); UI shows ROLE_LABELS.
+// §52: manual ad-hoc annotated KG link (一条带备注的关联线) — per-record, not a
+// schema-level field rule. Surfaced in the related union alongside structured edges.
+export interface ManualLinkView {
+  edgeId: string;
+  direction: "out" | "in";
+  sourceField?: string;
+  reason: string;
+  node: GraphNode;
+}
+
 export type Role = "normal" | "leader" | "admin";
 export const PRIVILEGED_ROLES: Role[] = ["leader", "admin"];
 export const ROLE_LABELS: Record<Role, string> = { normal: "普通", leader: "Leader", admin: "管理员" };

@@ -2804,3 +2804,24 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - [ ] oncall:current 日期派生 + CLI
 - [ ] 荣誉 groupBy=team 聚合 + person 团队字段 + CLI 透传
 - [ ] 无前端改动；既有 e2e 零回归；test:all 两次绿；部署
+
+---
+
+## 52. 增量 35：手工备注关联线（ad-hoc schemaless KG link，并集呈现）— 仅后端
+
+> 用户澄清：管理员对**单条记录的某个字段**手工拉一条**带备注的关联线**连到另一条数据（只连这一条，非字段级 schema 规则）；该 ad-hoc 链接存入知识图谱，查询/分析时以**传统查询 ∪ KG**并集呈现。本增量补此后端机制（无前端 UI）。
+
+### 52.1 契约
+`ManualLinkView { edgeId, direction:"out"|"in", sourceField?, reason, node }`；`RelatedResult` 在涉及节点上追加 `manualLinks?`（仅非空时出现，向后兼容）。`Repository` 增 `deleteEdgeById(id,actor):boolean`。
+
+### 52.2 后端
+- 边类型复用 §2.4 通用 `RELATES_TO`，属性 `{ reason(备注), sourceField?, manual:true }`。
+- `POST /api/relations/manual {sourceId,targetId,sourceField?,reason}` → 校验两节点存在、非自身 → 建边 + 审计；`GET /api/relations/manual?nodeId=` 列出双向；`DELETE /api/relations/manual/:edgeId`。
+- `/api/related/:type/:id` 响应并集追加 `manualLinks`（结构化边 ∪ 锚点 ∪ 候选 ∪ 手工备注线）。
+- CLI：`relations:link --from --to [--field] --reason`、`relations:list --node`、`relations:unlink <edgeId>`。
+
+### 52.3 验收
+- [x] 人工任意两记录拉线+备注+源字段 → 入 KG；related 并集呈现 manualLinks（双向）
+- [x] list/unlink + 校验(自身400/不存在404)
+- [x] CLI relations:link/list/unlink
+- [x] 无前端；既有 e2e 零回归；test:all 两次绿；部署

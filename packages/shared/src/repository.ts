@@ -12,6 +12,7 @@ export interface Repository {
   queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): GraphEdge[];
   /** Supply at least one filter field — an empty opts matches and deletes ALL edges. */
   deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void;
+  deleteEdgeById(id: string, actor: string): boolean;
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog;
   listProgress(ownerId: string): ProgressLog[];
   deleteNode(id: string, actor: string): void;

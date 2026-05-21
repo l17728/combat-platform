@@ -125,6 +125,17 @@ export class SqliteRepository implements Repository {
     })();
   }
 
+  deleteEdgeById(id: string, actor: string): boolean {
+    const row = this.db.prepare(`SELECT id, edgeType, sourceId, targetId FROM edges WHERE id=?`).get(id) as
+      { id: string; edgeType: string; sourceId: string; targetId: string } | undefined;
+    if (!row) return false;
+    this.db.transaction(() => {
+      this.db.prepare(`DELETE FROM edges WHERE id=?`).run(id);
+      this.audit("DELETE", "edge", id, { edgeType: row.edgeType, sourceId: row.sourceId, targetId: row.targetId }, actor);
+    })();
+    return true;
+  }
+
   appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog {
     let p!: ProgressLog;
     this.db.transaction(() => {

@@ -171,6 +171,14 @@ export const COMMANDS: CliCommand[] = [
     build: (_pos, opts) => ({ method: "PUT", path: "/api/escalation/config", body: jsonOpt(opts, "data") }) },
   { name: "escalation:scan", summary: "扫描超期活跃攻关单并上升", usage: "escalation:scan",
     build: () => ({ method: "POST", path: "/api/escalation/scan" }) },
+
+  // ---- manual ad-hoc annotated links (§52) ----
+  { name: "relations:link", summary: "手工拉一条带备注的关联线（任意两记录，不依赖 schema）", usage: "relations:link --from <id> --to <id> [--field <字段>] --reason <备注>",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/relations/manual", body: { sourceId: str(opts.from), targetId: str(opts.to), sourceField: str(opts.field), reason: str(opts.reason) } }) },
+  { name: "relations:list", summary: "列出某节点的手工关联线", usage: "relations:list --node <id>",
+    build: (_pos, opts) => ({ method: "GET", path: `/api/relations/manual${qs({ nodeId: str(opts.node) })}` }) },
+  { name: "relations:unlink", summary: "删除一条手工关联线", usage: "relations:unlink <edgeId>",
+    build: (pos) => { requirePos(pos, 1, "relations:unlink <edgeId>"); return { method: "DELETE", path: `/api/relations/manual/${encodeURIComponent(pos[0])}` }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {
