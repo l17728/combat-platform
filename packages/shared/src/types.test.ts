@@ -7,7 +7,7 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -233,6 +233,15 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Merge preview contract (§40)", () => {
+  it("MergePreview shape", () => {
+    const mk = (id: string) => ({ id, nodeType: "person", properties: { name: id }, createdAt: "t", updatedAt: "t" });
+    const p: MergePreview = { from: mk("a"), to: mk("b"), unionedFields: ["email"], edgesToMigrate: 2 };
+    expect(p.unionedFields).toContain("email");
+    expect(p.edgesToMigrate).toBe(2);
   });
 });
 

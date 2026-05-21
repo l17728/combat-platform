@@ -81,6 +81,13 @@ export interface AuditLogEntry {
   performedBy: string;
   performedAt: string;
 }
+
+export interface MergePreview {
+  from: GraphNode;
+  to: GraphNode;
+  unionedFields: string[];
+  edgesToMigrate: number;
+}
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {
