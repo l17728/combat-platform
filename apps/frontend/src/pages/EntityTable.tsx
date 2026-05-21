@@ -1,8 +1,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Table, Input, Button, Space, Popconfirm, message, Modal, Select } from "antd";
+import { Table, Input, Button, Space, Popconfirm, message, Modal, Select, Segmented, Card, Row, Col, Typography } from "antd";
 import { api } from "../api.js";
 import type { GraphNode, NodeSchema, FieldSchema } from "@combat/shared";
+
+// §47: pick a human title field for card layout (first required string, then common names).
+function titleField(fields: FieldSchema[]): string | undefined {
+  const req = fields.find(f => f.required && f.type === "string");
+  if (req) return req.id;
+  return (fields.find(f => ["标题", "name", "组名", "经验", "告警问题", "事件标题", "事项描述", "问题说明"].includes(f.id)) ?? fields[0])?.id;
+}
 
 function RefCell({ nodeType, rowId, fieldId, value }: { nodeType: string; rowId: string; fieldId: string; value: string }) {
   const [to, setTo] = useState(`/related/${nodeType}/${rowId}`);
@@ -34,6 +41,7 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   const [cp, setCp] = useState<{ id: string; text: string } | null>(null);
   const [an, setAn] = useState<{ id: string; text: string } | null>(null);
   const [filter, setFilter] = useState("");
+  const [viewMode, setViewMode] = useState<"表格" | "卡片">("表格");
 
   const activeFields = (s: NodeSchema | null): FieldSchema[] => (s?.fields ?? []).filter(f => !f.retired);
   const refresh = useCallback(async () => {
@@ -110,6 +118,8 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   return (
     <div style={{ padding: 16 }}>
       <h2>{schema?.label ?? nodeType}（可编辑）</h2>
+      <Segmented aria-label="view-mode" value={viewMode} onChange={(v) => setViewMode(v as "表格" | "卡片")}
+        options={["表格", "卡片"]} style={{ marginBottom: 12, marginRight: 12 }} />
       {filterField && <Input.Search aria-label="status-filter" placeholder={`按${filterField}过滤`} allowClear
         onSearch={setFilter} style={{ width: 220, marginBottom: 12 }} />}
       <Space style={{ marginBottom: 12 }}>
@@ -127,7 +137,35 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
               <Button onClick={() => setDraft(null)}>取消</Button>
             </>}
       </Space>
-      <Table rowKey="id" columns={columns} pagination={false} dataSource={data} />
+      {viewMode === "表格" ? (
+        <Table rowKey="id" columns={columns} pagination={false} dataSource={data} />
+      ) : (
+        <Row gutter={[16, 16]} aria-label="card-grid">
+          {data.length === 0 && <Col span={24}><Typography.Text type="secondary">暂无数据</Typography.Text></Col>}
+          {data.map(r => {
+            const tf = titleField(fields);
+            const title = tf ? String(r.properties[tf] ?? r.id) : r.id;
+            return (
+              <Col span={8} key={r.id}>
+                <Card aria-label="entity-card" title={title} size="small"
+                  extra={<Popconfirm title="删除该记录？" okText="OK" onConfirm={() => delRow(r.id)}>
+                    <Button aria-label={`card-del-${r.id}`} size="small" danger>删除</Button>
+                  </Popconfirm>}>
+                  {fields.filter(f => f.id !== tf && String(r.properties[f.id] ?? "") !== "").map(f => (
+                    <div key={f.id} style={{ marginBottom: 4 }}>
+                      <Typography.Text type="secondary">{f.label}：</Typography.Text>
+                      {f.type === "ref"
+                        ? <RefCell nodeType={nodeType} rowId={r.id} fieldId={f.id} value={String(r.properties[f.id])} />
+                        : <span>{String(r.properties[f.id])}</span>}
+                    </div>
+                  ))}
+                  <Link to={`/related/${nodeType}/${r.id}`} aria-label={`card-related-${r.id}`}>关联全景</Link>
+                </Card>
+              </Col>
+            );
+          })}
+        </Row>
+      )}
       <Modal title="新增字段" open={addOpen} okText="添加" onCancel={() => setAddOpen(false)}
         onOk={async () => { await patch({ op: "addField", field: { name: nf.name, label: nf.label || nf.name, type: nf.type as FieldSchema["type"] } }); setAddOpen(false); setNf({ name: "", label: "", type: "string" }); }}>
         <Space direction="vertical" style={{ width: "100%" }}>

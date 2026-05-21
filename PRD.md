@@ -2670,9 +2670,9 @@ CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:con
 - console-clean 不新增路由（同页切换）。
 
 ### 47.3 验收
-- [ ] EntityTable 表格↔卡片 Segmented 切换，数据一致
-- [ ] 卡片展示标题+关键字段，ref 可跳转
-- [ ] FE-VM1 e2e；既有 e2e 零回归；test:all 两次绿；部署
+- [x] EntityTable 表格↔卡片 Segmented 切换，数据一致
+- [x] 卡片展示标题+关键字段，ref 可跳转
+- [x] FE-VM1 e2e；既有 e2e 零回归；test:all 两次绿；待部署
 
 ---
 
