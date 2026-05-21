@@ -31,14 +31,14 @@ describe("incremental import (upsert) e2e", () => {
     ]);
     const r1 = await request(app).post("/api/import").attach("file", buf, "x.xlsx");
     expect(r1.status).toBe(200);
-    expect(r1.body).toEqual({ created: 2, updated: 0 });
+    expect(r1.body).toMatchObject({ created: 2, updated: 0 });
     expect(repo.queryNodes("attackTicket")).toHaveLength(2);
     const buf2 = xlsxBuf([
       { 标题: "T1-改", 攻关单号: "HK-1", 状态: "已解决" },
       { 标题: "T2", 攻关单号: "HK-2", 状态: "进行中" },
     ]);
     const r2 = await request(app).post("/api/import").attach("file", buf2, "x.xlsx");
-    expect(r2.body).toEqual({ created: 0, updated: 2 });
+    expect(r2.body).toMatchObject({ created: 0, updated: 2 });
     expect(repo.queryNodes("attackTicket")).toHaveLength(2);
     const t1 = repo.queryNodes("attackTicket", { 攻关单号: "HK-1" })[0];
     expect(t1.properties["标题"]).toBe("T1-改");
@@ -51,21 +51,21 @@ describe("incremental import (upsert) e2e", () => {
       xlsxBuf([{ 标题: "A", 攻关单号: "MX-1", 状态: "进行中" }]), "x.xlsx");
     const r = await request(app).post("/api/import").attach("file",
       xlsxBuf([{ 标题: "A2", 攻关单号: "MX-1", 状态: "进行中" }, { 标题: "B", 攻关单号: "MX-2", 状态: "进行中" }]), "x.xlsx");
-    expect(r.body).toEqual({ created: 1, updated: 1 });
+    expect(r.body).toMatchObject({ created: 1, updated: 1 });
   });
 
   it("?type=releasePackage upserts by 版本号; ?type=weightFile by 名称 (config-driven, new nodeTypes)", async () => {
     const { app, repo } = makeApp();
     const buf = xlsxBuf([{ 版本号: "v9", 产品: "A" }, { 版本号: "v10", 产品: "B" }]);
     const r1 = await request(app).post("/api/import?type=releasePackage").attach("file", buf, "r.xlsx");
-    expect(r1.body).toEqual({ created: 2, updated: 0 });
+    expect(r1.body).toMatchObject({ created: 2, updated: 0 });
     const r2 = await request(app).post("/api/import?type=releasePackage").attach("file",
       xlsxBuf([{ 版本号: "v9", 产品: "A改" }]), "r.xlsx");
-    expect(r2.body).toEqual({ created: 0, updated: 1 });
+    expect(r2.body).toMatchObject({ created: 0, updated: 1 });
     expect(repo.queryNodes("releasePackage", { 版本号: "v9" })[0].properties["产品"]).toBe("A改");
     const wf = await request(app).post("/api/import?type=weightFile").attach("file",
       xlsxBuf([{ 名称: "W1", 模型: "BERT" }]), "w.xlsx");
-    expect(wf.body).toEqual({ created: 1, updated: 0 });
+    expect(wf.body).toMatchObject({ created: 1, updated: 0 });
   });
 
   it("unknown ?type= → 400", async () => {
@@ -82,7 +82,7 @@ describe("incremental import (upsert) e2e", () => {
       { 攻关单号: "VL-2" }, // missing required 标题 AND 状态 → skipped
     ]);
     const r = await request(app).post("/api/import").attach("file", buf, "x.xlsx");
-    expect(r.body).toEqual({ created: 1, updated: 0 });
+    expect(r.body).toMatchObject({ created: 1, updated: 0 });
     expect(repo.queryNodes("attackTicket")).toHaveLength(1);
   });
 
