@@ -84,5 +84,25 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     res.status(201).json(repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
   });
 
+  // §41: atomic state transition — update 状态 + append a status-snapshotted
+  // ProgressLog so every status change is traceable in the append-only series.
+  r.post("/nodes/:id/transition", (req, res) => {
+    const node = repo.getNode(req.params.id);
+    if (!node) return res.status(404).json({ error: "not found" });
+    if (node.nodeType !== "attackTicket") return res.status(400).json({ error: "仅攻关单支持状态流转" });
+    const toStatus = String(req.body?.toStatus ?? "").trim();
+    const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
+    const schema = registry.getNodeSchema(node.nodeType);
+    const statusField = schema?.fields.find(f => f.id === "状态");
+    const allowed = statusField?.enumValues ?? [];
+    if (!toStatus || !allowed.includes(toStatus))
+      return res.status(400).json({ error: `非法目标状态：${toStatus || "(空)"}` });
+    const fromStatus = String(node.properties["状态"] ?? "");
+    const updated = repo.updateNode(node.id, { 状态: toStatus }, "api");
+    const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
+    const progress = repo.appendProgress(node.id, content, toStatus, "api");
+    res.json({ node: updated, progress });
+  });
+
   return r;
 }
