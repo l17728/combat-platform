@@ -2510,6 +2510,95 @@ export interface HttpRequest {
 - [x] CLI→真实后端 import 闭环 e2e（导入后能读回）；本地实测 export 落盘 28727 bytes、import created:1
 - [x] 既有 62 e2e 零回归；后端 cli 测试增补（12，backend 155）；`test:all` 连续两次全绿；待部署
 
+---
+
+## 45. 增量 28：Email 通知能力（兑现 §13#2 通知通道之 Email 子集）
+
+> 用户需求：把 app 内信息通过 **Email** 发给相关人员。可配置 SMTP 服务器地址/用户名/密码/发件人；发送时可查询用户 email（person 已有 `email` 字段）；可增删改查**邮件群组**。welinkcli 仍待凭据，本增量只做 Email。**遵循 CLI 核心原则**：邮件相关 API 同步实现 CLI 命令。
+
+### 45.1 契约（@combat/shared）
+
+```ts
+export interface SmtpConfig {
+  host: string; port: number; secure: boolean;     // secure=true → 465/SSL
+  username: string; password: string;
+  fromEmail: string; fromName?: string;
+}
+export type SmtpConfigMasked = Omit<SmtpConfig, "password"> & { passwordSet: boolean };
+export interface EmailSendRequest {
+  to?: string[];            // 原始邮箱
+  groupNames?: string[];    // 邮件群组名 → 展开成员
+  personNames?: string[];   // 人员姓名/工号 → 查 person.email
+  subject: string; body: string;
+}
+export interface EmailSendResult {
+  recipients: string[];     // 去重后的最终收件人
+  ok: boolean; messageId?: string; error?: string;
+}
+```
+
+### 45.2 数据/存储
+
+- 新建通用键值表 `app_settings(key TEXT PRIMARY KEY, value TEXT)`；`Repository.getSetting(key)/setSetting(key,value,actor)`（setSetting 审计 `SETTING`）。SMTP 配置存 key `"smtp"`（JSON）。
+- 新建配置 `config/schemas/emailGroup.json`：`组名`(required, identity) + `成员邮箱`(string, 逗号分隔) + `描述`。邮件群组即 nodeType，复用泛型 CRUD/CLI/EntityTable（**零后端代码新增**，配置驱动证伪）。
+- person 已有 `email` 字段（无需改）。
+
+### 45.3 后端
+
+- 依赖：`nodemailer`（+ `@types/nodemailer`）。
+- `apps/backend/src/mailer.ts`：`interface MailSender { send(cfg, msg): Promise<{messageId}> }`；`NodemailerSender` 实 nodemailer createTransport；`createApp` 增可选 `mailSender` 注入（测试用 fake，生产用 nodemailer）。
+- `apps/backend/src/email.ts` 路由：
+  - `GET /api/email/config` → `SmtpConfigMasked`（不回传 password，回 `passwordSet`）
+  - `PUT /api/email/config` → 存 SMTP；body 含 password 才更新密码，空/缺则保留旧密码
+  - `POST /api/email/test` body `{ to }` → 用当前配置发一封测试邮件，返回 EmailSendResult
+  - `POST /api/email/send` body `EmailSendRequest` → 解析收件人（to + groupNames 展开 + personNames 查 email）去重 → 发送；无配置 → 400「未配置 SMTP」；无收件人 → 400
+- recipient 解析：group 名→查 emailGroup 节点 `成员邮箱` 拆逗号；person 名/工号→查 person `email`；全部 trim + 去空 + 去重 + 简单 email 正则过滤。
+
+### 45.4 CLI（核心原则）
+
+`email:config-get`、`email:config-set --data '<json>'`、`email:test --to <邮箱>`、`email:send --to a,b --groups g1,g2 --persons 张三 --subject S --body B`（逗号分隔转数组）。邮件群组用既有 `nodes:*`（nodeType=emailGroup）。
+
+### 45.5 前端
+
+- 新页 `/email`（`EmailPage.tsx`）：
+  - **SMTP 配置**卡：host/port/secure(Switch)/username/password/fromEmail/fromName + 保存；password 占位「已设置则留空保持不变」；「发送测试」按钮（输入 to）
+  - **撰写发送**卡：收件人 = 多选（来源：person 列表中有 email 的 + emailGroup 列表）+ 自由输入邮箱；subject + body（TextArea）+ 发送；结果显示最终收件人 + 成功/失败
+- 邮件群组管理：复用 `EntityTable nodeType="emailGroup"`，路由 `/emailgroups`
+- AppShell nav 加「邮件」「邮件群组」；HomePage 加 `home-card-email`
+
+### 45.6 测试
+
+后端 `email.e2e.test.ts`（注入 fake MailSender，记录发送）≥ 5：
+1. config PUT→GET 掩码：GET 不含 password，含 passwordSet=true；PUT 不带 password 时保留旧密码（再 test 仍能发）
+2. send 解析 to + group 展开 + person email：建 emailGroup(成员邮箱="a@x.com,b@x.com") + person(email="c@x.com")，send {groupNames:["G"],personNames:["张三"],to:["d@x.com"]} → recipients 去重含 4 个；fake sender 收到
+3. 未配置 SMTP → /send 400
+4. 无有效收件人 → 400
+5. emailGroup CRUD 走泛型 nodes API（建/查）
+CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:config-set` build PUT。
+
+前端 `email.spec.ts` FE-EM1（route-mock）：填 SMTP 配置保存→提示成功；撰写选收件人+主题+正文→发送→显示最终收件人。/email、/emailgroups 加入 console-clean。
+
+### 45.7 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 邮件库 | nodemailer | Node SMTP 事实标准；Linux 部署 OK |
+| 配置存储 | 通用 app_settings 键值表 | 不为单功能建专表；后续其它设置复用 |
+| 密码处理 | 服务端明文存、GET 掩码、PUT 空则保留 | 内部运维工具；用户明确要存密码 |
+| 邮件群组 | 配置驱动 nodeType | 复用 CRUD/CLI/UI，零后端码 |
+| 发送可测性 | MailSender 注入 | 无真实 SMTP 也能确定性 e2e |
+| 收件人解析 | to + groups + persons 合并去重 | 满足"查询用户 email + 群组" |
+
+### 45.8 验收
+
+- [ ] 契约 tsc-clean；`app_settings` 表 + getSetting/setSetting
+- [ ] SMTP 配置 PUT/GET（掩码、空密码保留）
+- [ ] `/api/email/send` 解析 to+group+person 去重并经 MailSender 发送；未配置/无收件人 → 400
+- [ ] emailGroup 配置驱动 CRUD 可用
+- [ ] CLI：email:config-get/set、email:test、email:send 可用且 build 正确
+- [ ] 前端 /email 配置+撰写发送、/emailgroups CRUD 可用
+- [ ] 既有 62 e2e 零回归 + 后端 email/cli e2e + FE-EM1 + console-clean(/email,/emailgroups)；`test:all` 两次全绿；部署
+
 
 
 
