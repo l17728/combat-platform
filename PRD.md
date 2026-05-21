@@ -2272,12 +2272,12 @@ export interface MergePreview {
 
 ### 40.6 验收
 
-- [ ] `MergePreview` 契约 tsc-clean
-- [ ] `GET /api/merge/preview` 返回 unionedFields + edgesToMigrate；非 person / 自身 → 400
-- [ ] `POST /api/merge/person` 合并后 from 消失、to 获并集字段、边迁移、审计 MERGE
-- [ ] `/merge` 页两 Select + 预览 + Popconfirm 不可逆合并可用
-- [ ] AppShell + HomePage 入口可达 `/merge`
-- [ ] 既有 58 e2e 零回归 + 后端 3 e2e + FE-MG1 + console-clean /merge；`test:all` 连续两次全绿；部署
+- [x] `MergePreview` 契约 tsc-clean
+- [x] `GET /api/merge/preview` 返回 unionedFields + edgesToMigrate；非 person / 自身 → 400
+- [x] `POST /api/merge/person` 合并后 from 消失、to 获并集字段、边迁移、审计 MERGE
+- [x] `/merge` 页两 Select + 预览 + Popconfirm 不可逆合并可用
+- [x] AppShell + HomePage 入口可达 `/merge`
+- [x] 既有 58 e2e 零回归 + 后端 3 e2e + FE-MG1 + console-clean /merge 共 60 e2e；`test:all` 连续两次全绿；待部署
 
 
 
