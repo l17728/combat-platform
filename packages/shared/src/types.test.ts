@@ -7,7 +7,8 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview } from "./index.js";
+import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "./index.js";
+import { ATTACK_STATUSES } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -233,6 +234,18 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Status transition contract (§41)", () => {
+  it("ATTACK_STATUSES canonical + TransitionResult shape", () => {
+    expect(ATTACK_STATUSES).toContain("已解决");
+    expect(ATTACK_STATUSES.length).toBe(5);
+    const tr: TransitionResult = {
+      node: { id: "t1", nodeType: "attackTicket", properties: { 状态: "已解决" }, createdAt: "t", updatedAt: "t" },
+      progress: { id: "p1", ownerId: "t1", seqNo: 1, content: "状态变更：进行中→已解决", statusSnapshot: "已解决", updatedBy: "api", updatedAt: "t" },
+    };
+    expect(tr.progress.statusSnapshot).toBe("已解决");
   });
 });
 
