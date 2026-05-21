@@ -21,7 +21,8 @@ test("FE-RM1 reminders queue: render + send (stub)", async ({ page }) => {
       }]) });
   });
   await page.goto("/");
-  await page.getByRole("link", { name: "跟催提醒", exact: true }).first().click();
+  // navigate via home card (robust: long top-nav overflows into AntD "..." menu).
+  await page.getByLabel("home-card-/reminders").click();
   await expect(page).toHaveURL(/\/reminders$/);
   await expect(page.getByText("问题单跟催")).toBeVisible();
   await page.getByLabel("send-r1").click();

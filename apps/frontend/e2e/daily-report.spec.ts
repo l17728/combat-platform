@@ -20,7 +20,7 @@ test("FE-DR1 daily-report: nav, mocked render, copy-to-clipboard", async ({ page
     });
   });
   await page.goto("/");
-  await page.getByRole("link", { name: "攻关日报", exact: true }).first().click();
+  await page.getByLabel("home-card-/daily-report").click();
   await expect(page).toHaveURL(/\/daily-report$/);
   await expect(page.getByText("日报演示单DR")).toBeVisible();
   await expect(page.getByText("进展甲DR", { exact: false })).toBeVisible();

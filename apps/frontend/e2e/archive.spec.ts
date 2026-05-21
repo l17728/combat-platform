@@ -3,7 +3,7 @@ const API = "http://localhost:3001";
 
 test("FE-AR1 发布包: nav → create row → 信息检索 hit", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "发布包", exact: true }).first().click();
+  await page.getByLabel("home-card-/releases").click();
   await expect(page).toHaveURL(/\/releases$/);
   await page.getByLabel("new-row").click();
   const ver = "vAR-" + Date.now();
