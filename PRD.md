@@ -2279,6 +2279,67 @@ export interface MergePreview {
 - [x] AppShell + HomePage 入口可达 `/merge`
 - [x] 既有 58 e2e 零回归 + 后端 3 e2e + FE-MG1 + console-clean /merge 共 60 e2e；`test:all` 连续两次全绿；待部署
 
+---
+
+## 41. 增量 24：攻关单状态流转（兑现"进度 append-only、状态变更可追溯"核心原则）
+
+> 当前改 `状态` 只能在 EntityTable inline 编辑，**不会留下流转痕迹**——违背 §2.3「ProgressLog 带状态快照、可追溯」。本增量加一个原子流转端点：更新 `状态` 的同时自动追加一条 ProgressLog（状态快照 = 目标状态，内容含「X→Y」+ 备注），并在 AttackDetail 提供流转 UI。
+
+### 41.1 契约（@combat/shared）
+
+```ts
+export const ATTACK_STATUSES = ["待响应", "处理中", "进行中", "已解决", "已关闭"] as const;
+export type AttackStatus = typeof ATTACK_STATUSES[number];
+export interface TransitionResult { node: GraphNode; progress: ProgressLog; }
+```
+
+### 41.2 后端 路由（`apps/backend/src/routes.ts` 内新增）
+
+`POST /api/nodes/:id/transition` body `{ toStatus: string; note?: string }`：
+- 节点不存在 → 404；非 `attackTicket` → 400「仅攻关单支持状态流转」
+- `toStatus` 不在该 nodeType `状态` 字段 enumValues → 400「非法目标状态」（从 registry 取，尊重配置驱动；不硬编码）
+- 读当前 `状态` 作为 `fromStatus`
+- `repo.updateNode(id, { 状态: toStatus }, "api")`（复用既有校验 + 审计 UPDATE）
+- `repo.appendProgress(id, "状态变更：<from>→<to>" + (note? "；" + note : ""), toStatus, "api")`
+- 返回 `{ node, progress }`
+- 单进程同步 better-sqlite3 → update + append 之间无交错（与 §40 merge 一致的原子性假设）
+
+### 41.3 前端 `AttackDetail`
+
+- 在「进展序列」上方加流转区 `aria-label="transition"`：
+  - 状态 `Select`（aria-label="transition-status"，选项来自 `ATTACK_STATUSES`）
+  - 备注 `Input`（aria-label="transition-note"，可选）
+  - 「流转」按钮 → `api.transition(id, toStatus, note)` → 成功 message + refresh（节点 + 进展时间线一并更新）
+- 复用现有 `refresh()`
+
+### 41.4 测试
+
+后端 `apps/backend/test/transition.e2e.test.ts` 至少 3 个：
+1. 正常流转：建 `进行中` 单 → transition→`已解决` → 节点状态变 `已解决`；progress 末条 statusSnapshot=`已解决`、content 含「进行中→已解决」
+2. 带备注：note 出现在 progress.content
+3. 校验：非法状态 → 400；非 attackTicket（person）→ 400
+
+前端：复用 attack.spec.ts 流程 or 新增最小断言；§41 不强制新增 FE spec（流转是 updateNode+appendProgress 组合，已有 FE-1..4 覆盖追加进展）。新增 1 个 FE-TR1 验证流转按钮触发请求 + 时间线出现新状态。
+
+### 41.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 原子流转 vs 两次调用 | 后端单端点 | update+progress 原子、单次审计语义清晰 |
+| 目标状态校验 | 从 registry enumValues 动态取 | 配置驱动；不硬编码（§0.4） |
+| 进展内容格式 | `状态变更：X→Y；备注` | 人类可读、可追溯 |
+| 适用实体 | 仅 attackTicket | 任务/单据状态机；person 无状态 |
+
+### 41.6 验收
+
+- [ ] `ATTACK_STATUSES` / `TransitionResult` 契约 tsc-clean
+- [ ] `POST /api/nodes/:id/transition` 更新状态 + 原子追加 progress（快照=目标态，含 X→Y）
+- [ ] note 写入 progress.content
+- [ ] 非法状态 / 非 attackTicket → 400
+- [ ] AttackDetail 流转 UI（Select + 备注 + 流转）可用，时间线即时更新
+- [ ] 既有 60 e2e 零回归 + 后端 3 e2e + FE-TR1；`test:all` 连续两次全绿；部署
+
+
 
 
 
