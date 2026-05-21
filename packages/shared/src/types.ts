@@ -92,6 +92,20 @@ export interface MergePreview {
 export const ATTACK_STATUSES = ["待响应", "处理中", "进行中", "已解决", "已关闭"] as const;
 export type AttackStatus = typeof ATTACK_STATUSES[number];
 export interface TransitionResult { node: GraphNode; progress: ProgressLog; }
+
+export interface ImportRowResult {
+  rowIndex: number;
+  action: "create" | "update" | "skip";
+  reason?: string;
+  summary: string;
+}
+export interface ImportPreview {
+  nodeType: string;
+  willCreate: number;
+  willUpdate: number;
+  skipped: number;
+  rows: ImportRowResult[];
+}
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {

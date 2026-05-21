@@ -9,6 +9,7 @@ import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
 import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "./index.js";
 import { ATTACK_STATUSES } from "./index.js";
+import type { ImportPreview } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -234,6 +235,20 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Import preview contract (§42)", () => {
+  it("ImportPreview + ImportRowResult shape", () => {
+    const p: ImportPreview = {
+      nodeType: "attackTicket", willCreate: 1, willUpdate: 0, skipped: 1,
+      rows: [
+        { rowIndex: 0, action: "create", summary: "新单" },
+        { rowIndex: 1, action: "skip", reason: "标题: 必填", summary: "(空)" },
+      ],
+    };
+    expect(p.skipped).toBe(1);
+    expect(p.rows.find(r => r.action === "skip")?.reason).toContain("标题");
   });
 });
 
