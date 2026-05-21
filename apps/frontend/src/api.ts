@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -107,10 +107,16 @@ export class Api {
     const qs = date ? `?date=${encodeURIComponent(date)}` : "";
     return this.req<DailyReport>(`/api/daily-report${qs}`, {});
   }
-  importXlsx(file: File, type?: string): Promise<{ created: number; updated: number }> {
+  importXlsx(file: File, type?: string): Promise<{ created: number; updated: number; skipped?: number; skippedRows?: ImportRowResult[] }> {
     const fd = new FormData(); fd.append("file", file);
     const qs = type ? `?type=${encodeURIComponent(type)}` : "";
-    return this.req<{ created: number; updated: number }>(`/api/import${qs}`, { method: "POST", body: fd });
+    return this.req(`/api/import${qs}`, { method: "POST", body: fd });
+  }
+  importPreview(file: File, type?: string): Promise<ImportPreview> {
+    const fd = new FormData(); fd.append("file", file);
+    const p = new URLSearchParams({ dryRun: "1" });
+    if (type) p.set("type", type);
+    return this.req<ImportPreview>(`/api/import?${p.toString()}`, { method: "POST", body: fd });
   }
   listReminders(status?: string): Promise<Reminder[]> {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
