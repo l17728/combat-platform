@@ -2504,11 +2504,11 @@ export interface HttpRequest {
 
 ### 44.5 验收
 
-- [ ] `HttpRequest.uploadFile/saveTo` tsc-clean；既有命令不受影响
-- [ ] `import`/`export` 命令进注册表，`help` 收录
-- [ ] build 正确（dryRun query、type、uploadFile/saveTo）；缺参报错
-- [ ] CLI→真实后端 import 闭环 e2e（导入后能读回）
-- [ ] 既有 62 e2e 零回归；后端 cli 测试增补；`test:all` 连续两次全绿；部署
+- [x] `HttpRequest.uploadFile/saveTo` tsc-clean；既有命令不受影响
+- [x] `import`/`export` 命令进注册表，`help` 收录
+- [x] build 正确（dryRun query、type、uploadFile/saveTo）；缺参报错
+- [x] CLI→真实后端 import 闭环 e2e（导入后能读回）；本地实测 export 落盘 28727 bytes、import created:1
+- [x] 既有 62 e2e 零回归；后端 cli 测试增补（12，backend 155）；`test:all` 连续两次全绿；待部署
 
 
 
