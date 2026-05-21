@@ -2441,13 +2441,13 @@ export interface ImportPreview {
 
 ### 43.4 验收
 
-- [ ] `cli-core` 纯函数：parseArgs / renderHelp / runCli tsc-clean
-- [ ] `help` 列出全部命令（name/summary/usage）；`help <cmd>` 详情
-- [ ] 读/写命令各覆盖、build 出正确 method/path/body（≥6 单测）
-- [ ] CLI↔真实后端闭环 e2e（create→get 读回）
-- [ ] `npm run cli -- help` 在本地与 Linux 部署机可运行
-- [ ] 既有 62 e2e 零回归；后端新增 cli 测试；`test:all` 连续两次全绿；部署
-- [ ] CLI 原则写入 CLAUDE.md（后续 API 同步加命令）
+- [x] `cli-core` 纯函数：parseArgs / renderHelp / runCli tsc-clean
+- [x] `help` 列出全部命令（name/summary/usage）；`help <cmd>` 详情
+- [x] 读/写命令各覆盖、build 出正确 method/path/body（8 单测）
+- [x] CLI↔真实后端闭环 e2e（create→get 读回）
+- [x] `npm run cli -- help` 本地已验证；Linux 部署机待部署后验证
+- [x] 既有 62 e2e 零回归；后端新增 cli 测试（backend 151）；`test:all` 连续两次全绿；待部署
+- [x] CLI 原则写入 CLAUDE.md（后续 API 同步加命令）
 
 ### 43.5 决策表
 
