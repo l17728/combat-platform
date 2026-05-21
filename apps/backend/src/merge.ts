@@ -1,4 +1,20 @@
-import type { Repository } from "@combat/shared";
+import type { Repository, MergePreview } from "@combat/shared";
+
+// Read-only computation of what mergePerson(fromId → toId) would do: which
+// fields get unioned onto `to`, and how many edges migrate (excluding from↔to).
+export function previewMerge(repo: Repository, fromId: string, toId: string): MergePreview {
+  const from = repo.getNode(fromId), to = repo.getNode(toId);
+  if (!from || !to) throw new Error("预览失败：节点不存在");
+  const unionedFields: string[] = [];
+  for (const [k, v] of Object.entries(from.properties)) {
+    if (v === undefined || v === "") continue;
+    if (to.properties[k] === undefined || to.properties[k] === "") unionedFields.push(k);
+  }
+  let edgesToMigrate = 0;
+  for (const e of repo.queryEdges({ sourceId: fromId })) if (e.targetId !== toId) edgesToMigrate++;
+  for (const e of repo.queryEdges({ targetId: fromId })) if (e.sourceId !== toId) edgesToMigrate++;
+  return { from, to, unionedFields, edgesToMigrate };
+}
 
 // Phase-1 assumption (same as registry.applyFieldOp / PRD §13): single-process
 // synchronous better-sqlite3 — this sequence + the caller's updateProposalStatus
