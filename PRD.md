@@ -2712,3 +2712,20 @@ export interface EscalationConfig { rules: EscalationRule[]; }
 - [x] CLI escalation:config-get/set/scan
 - [x] 前端 /escalation 配置+扫描+列表、/oncall 表
 - [x] 既有 e2e 零回归；test:all 两次绿；待部署
+
+---
+
+## 49. 增量 32：attackTicket 字段补全（覆盖 req.md 攻关单详情全字段）
+
+> §11 Phase1「字段覆盖 req.md 实际字段」此前部分覆盖。req.md 真实攻关单详情含约 20+ 字段，现 seed 缺：事件单号、影响及现存风险、局点、根因服务、当前处理部门、攻关发起说明、攻关响应时长、攻关时长、挂起开始时间、总挂起时长、解除挂起时间、结束攻关时间、日报发布数量、攻关成员。配置驱动——仅改 `config/schemas/attackTicket.json`，零代码。
+
+### 49.1 新增字段（attackTicket.json，全部非 required，保持既有创建/导入兼容）
+- `事件单号`[anchor 事件单号]、`影响及现存风险`、`局点`、`根因服务`、`当前处理部门`、`攻关发起说明`、`攻关响应时长`、`攻关时长`、`挂起开始时间`(datetime)、`总挂起时长`、`解除挂起时间`(datetime)、`结束攻关时间`(datetime)、`日报发布数量`(number)、`攻关成员`。
+- `事件单号` 加 anchor「事件单号」→ 与 p3Incident 跨 view 关联。
+
+### 49.2 验收
+- [ ] attackTicket schema 含上述新字段；既有创建/导入/e2e 不破坏
+- [ ] 事件单号 anchor → 与 p3Incident 共享事件单号 coAnchored 互见
+- [ ] test:all 两次绿；部署
+
+> 注：welinkcli（§13#3 抓群自动日报/找人）、eSpace 通道（§13#2）、RBAC 权限模型（§13#4 贡献等级仅 Leader）三项需外部凭据/身份认证方案，**待用户提供后实现**，非本轮可补。
