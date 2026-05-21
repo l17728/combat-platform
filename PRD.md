@@ -2456,8 +2456,59 @@ export interface ImportPreview {
 | CLI 形态 | HTTP 客户端（非直连 repo） | 对任意运行中后端（含部署机）通用；与 UI 同源数据 |
 | help 输出 | JSON 目录（默认）| agent 友好、可解析；人读也清晰 |
 | http 注入 | 是 | 纯函数核心可单测，零网络耦合 |
-| import/export | 暂缓（文件/二进制） | 多部分上传 CLI 较繁；记录后续 `--file` |
+| import/export | 暂缓（文件/二进制）→ §44 补全 | 多部分上传 CLI 较繁；记录后续 `--file`（增量 27 已补） |
 | 入口 | `npm run cli --` + tsx | 与现有 tsx 运行链一致，Linux 直跑 |
+
+---
+
+## 44. 增量 27：CLI import/export 补全（兑现"每个 API 都有 CLI"原则）
+
+> §43 CLI 暂缓了文件/二进制端点。CLI 核心原则要求**每个后台 API 都有命令**——本增量补 `import`（多部分上传 + dryRun 预览）与 `export`（二进制落盘），关闭 §43 自己留的缺口（举一反三）。
+
+### 44.1 cli-core 扩展
+
+`HttpRequest` 追加可选字段（向后兼容，既有命令不受影响）：
+```ts
+export interface HttpRequest {
+  method: string; path: string; body?: unknown;
+  uploadFile?: string;   // 本地文件路径 → multipart field "file"
+  saveTo?: string;       // 二进制响应写入此本地路径
+}
+```
+新增命令：
+- `import <nodeType> --file <path> [--dryRun]` → `{ method:"POST", path:"/api/import?type=<nodeType>[&dryRun=1]", uploadFile:<path> }`；缺 `--file` 报错
+- `export <nodeType> --out <path>` → `{ method:"GET", path:"/api/export/<nodeType>", saveTo:<path> }`；缺 `--out` 报错
+两命令进 `COMMANDS`，`help` 自动收录。
+
+### 44.2 cli.ts 真实 http 扩展
+
+- `uploadFile`：`readFileSync` → `Blob` → `FormData.append("file", blob, filename)` → fetch POST（不手设 content-type，让 fetch 带 boundary）
+- `saveTo`：fetch → `arrayBuffer()` → `writeFileSync(saveTo, Buffer)`；返回 `{ saved: <path>, bytes: N }`
+- 其余（JSON）路径不变
+
+### 44.3 测试
+
+`cli.e2e.test.ts` 追加：
+1. `import attackTicket --file /x.xlsx --dryRun` → build `POST /api/import?type=attackTicket&dryRun=1` + uploadFile 设对
+2. `export releasePackage --out /tmp/r.xlsx` → build `GET /api/export/releasePackage` + saveTo 设对
+3. `import` 缺 `--file` → 抛错；`export` 缺 `--out` → 抛错
+4. CLI→真实后端闭环：构造 xlsx buffer，注入的 http 适配 uploadFile→supertest `.attach`，`import` 后 `nodes:list` 能读回导入的节点
+
+### 44.4 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 上传 | FormData blob，fetch 自带 boundary | 标准、跨 Linux node 18+ |
+| 下载 | arrayBuffer 落盘，返回 {saved,bytes} | agent 可知落点；不污染 stdout 二进制 |
+| 契约扩展 | HttpRequest 加可选字段 | 向后兼容，既有命令零改 |
+
+### 44.5 验收
+
+- [ ] `HttpRequest.uploadFile/saveTo` tsc-clean；既有命令不受影响
+- [ ] `import`/`export` 命令进注册表，`help` 收录
+- [ ] build 正确（dryRun query、type、uploadFile/saveTo）；缺参报错
+- [ ] CLI→真实后端 import 闭环 e2e（导入后能读回）
+- [ ] 既有 62 e2e 零回归；后端 cli 测试增补；`test:all` 连续两次全绿；部署
 
 
 
