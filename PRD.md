@@ -2332,12 +2332,12 @@ export interface TransitionResult { node: GraphNode; progress: ProgressLog; }
 
 ### 41.6 验收
 
-- [ ] `ATTACK_STATUSES` / `TransitionResult` 契约 tsc-clean
-- [ ] `POST /api/nodes/:id/transition` 更新状态 + 原子追加 progress（快照=目标态，含 X→Y）
-- [ ] note 写入 progress.content
-- [ ] 非法状态 / 非 attackTicket → 400
-- [ ] AttackDetail 流转 UI（Select + 备注 + 流转）可用，时间线即时更新
-- [ ] 既有 60 e2e 零回归 + 后端 3 e2e + FE-TR1；`test:all` 连续两次全绿；部署
+- [x] `ATTACK_STATUSES` / `TransitionResult` 契约 tsc-clean
+- [x] `POST /api/nodes/:id/transition` 更新状态 + 原子追加 progress（快照=目标态，含 X→Y）
+- [x] note 写入 progress.content
+- [x] 非法状态 / 非 attackTicket → 400
+- [x] AttackDetail 流转 UI（Select + 备注 + 流转）可用，时间线即时更新
+- [x] 既有 60 e2e 零回归 + 后端 3 e2e + FE-TR1 共 61 e2e；`test:all` 连续两次全绿；待部署
 
 
 
