@@ -127,6 +127,11 @@ export interface EmailSendResult {
   error?: string;
 }
 
+// Role tokens are ASCII (HTTP header transport must be ASCII); UI shows ROLE_LABELS.
+export type Role = "normal" | "leader" | "admin";
+export const PRIVILEGED_ROLES: Role[] = ["leader", "admin"];
+export const ROLE_LABELS: Record<Role, string> = { normal: "普通", leader: "Leader", admin: "管理员" };
+
 export interface EscalationRule { 事件级别: string; slaHours: number; 上升角色: string; }
 export interface EscalationConfig { rules: EscalationRule[]; }
 export interface EscalationScanResult { overdue: number; escalated: number; }

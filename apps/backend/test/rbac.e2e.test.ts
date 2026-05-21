@@ -1,0 +1,58 @@
+import { describe, it, expect } from "vitest";
+import request from "supertest";
+import { openDb } from "../src/db.js";
+import { SqliteRepository } from "../src/repository.js";
+import { FileSchemaRegistry } from "../src/registry.js";
+import { createApp } from "../src/app.js";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
+function make() {
+  const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-rbac-")), "t.sqlite")));
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }) };
+}
+
+describe("§50 轻量角色门禁 RBAC", () => {
+  it("X-Role 普通 + 贡献等级 → 403", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/nodes/contribution")
+      .set("X-Role", "normal")
+      .send({ 贡献人: "甲", 贡献类型: "发现", 贡献等级: "核心", 贡献描述: "x" });
+    expect(r.status).toBe(403);
+    expect(r.body.error).toContain("Leader");
+  });
+
+  it("X-Role Leader + 贡献等级 → 201", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/nodes/contribution")
+      .set("X-Role", "leader")
+      .send({ 贡献人: "甲", 贡献类型: "发现", 贡献等级: "核心", 贡献描述: "x" });
+    expect(r.status).toBe(201);
+  });
+
+  it("X-Role 普通但不含贡献等级 → 201（仅等级受限）", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/nodes/contribution")
+      .set("X-Role", "normal")
+      .send({ 贡献人: "乙", 贡献类型: "设计", 贡献描述: "无等级" });
+    expect(r.status).toBe(201);
+  });
+
+  it("无 X-Role 头 + 贡献等级 → 201（系统可信，不破坏 CLI/导入/既有测试）", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/nodes/contribution")
+      .send({ 贡献人: "丙", 贡献类型: "实施", 贡献等级: "关键", 贡献描述: "系统写入" });
+    expect(r.status).toBe(201);
+  });
+
+  it("PUT contribution 普通改贡献等级 → 403", async () => {
+    const { app } = make();
+    const c = (await request(app).post("/api/nodes/contribution")
+      .send({ 贡献人: "丁", 贡献类型: "协调", 贡献描述: "d" })).body;
+    const r = await request(app).put(`/api/nodes/${c.id}`).set("X-Role", "normal").send({ 贡献等级: "核心" });
+    expect(r.status).toBe(403);
+  });
+});

@@ -1,7 +1,21 @@
 import { Router } from "express";
-import type { Repository, SchemaRegistry } from "@combat/shared";
+import type { Repository, SchemaRegistry, Role } from "@combat/shared";
+import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
+
+// §50: gate 贡献等级 标定 to privileged roles. Absent X-Role header = trusted
+// system access (CLI / import / tests) → allowed. Returns an error string to
+// send as 403, or null when allowed.
+function gradeGate(req: { headers: Record<string, unknown>; body: unknown }, nodeType: string): string | null {
+  if (nodeType !== "contribution") return null;
+  const grade = String((req.body as Record<string, unknown>)?.["贡献等级"] ?? "").trim();
+  if (!grade) return null;
+  const role = req.headers["x-role"];
+  if (role === undefined) return null; // trusted (no role asserted)
+  if (PRIVILEGED_ROLES.includes(String(role) as Role)) return null;
+  return "仅 Leader 可标定贡献等级";
+}
 
 export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
@@ -41,6 +55,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
 
   r.post("/nodes/:nodeType", (req, res) => {
     const { nodeType } = req.params;
+    const gate = gradeGate(req, nodeType);
+    if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const node = repo.createNode(nodeType, req.body, "api");
@@ -63,6 +79,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   r.put("/nodes/:id", (req, res) => {
     const cur = repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
+    const gate = gradeGate(req, cur.nodeType);
+    if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const updated = repo.updateNode(req.params.id, req.body, "api");
