@@ -16,6 +16,8 @@ test("FE-H4..H6 record contribution -> weighted leaderboard -> personal profile 
     data: { 标题: "荣誉攻关单", 攻关单号: "HK-1", 状态: "进行中" },
   })).json();
 
+  // §50: setting 贡献等级 requires a privileged role; act as Leader.
+  await page.addInitScript(() => localStorage.setItem("combat-role", "leader"));
   await page.goto("/contributions");
   await page.getByLabel("new-row").click();
   await page.getByLabel("draft-贡献人").fill("赵六");

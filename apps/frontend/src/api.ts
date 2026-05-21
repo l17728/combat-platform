@@ -18,6 +18,9 @@ export class Api {
   }
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
+    // §50: attach the interactive user's role so the backend can gate sensitive ops.
+    const role = (typeof localStorage !== "undefined" && localStorage.getItem("combat-role")) || "normal";
+    init = { ...init, headers: { ...(init.headers ?? {}), "X-Role": role } };
     const r = await this.f(`${this.base}${path}`, init);
     if (!r.ok) {
       const body = await r.json().catch(() => null);

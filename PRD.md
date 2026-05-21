@@ -2761,8 +2761,8 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - console-clean 不新增路由。
 
 ### 50.6 验收
-- [ ] Role 契约 + PRIVILEGED_ROLES
-- [ ] 后端贡献等级门禁（普通 403 / Leader 201 / 无头放行）
-- [ ] 前端角色 Select + X-Role 头注入 + 403 提示
-- [ ] CLI COMBAT_ROLE 注入
-- [ ] 既有 e2e 零回归；test:all 两次绿；部署
+- [x] Role 契约（ASCII token）+ PRIVILEGED_ROLES + ROLE_LABELS
+- [x] 后端贡献等级门禁（普通 403 / Leader 201 / 无头放行）
+- [x] 前端角色 Select + X-Role 头注入 + 403 提示
+- [x] CLI COMBAT_ROLE 注入
+- [x] 既有 e2e 零回归（honor 改为 Leader 角色）；test:all 两次绿；待部署

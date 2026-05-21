@@ -7,6 +7,8 @@ import { basename } from "node:path";
 import { runCli, type HttpFn } from "./cli-core.js";
 
 const BASE = process.env.COMBAT_API ?? "http://localhost:3001";
+const ROLE = process.env.COMBAT_ROLE; // §50: optional; absent → trusted system access
+const roleHeader = (): Record<string, string> => (ROLE ? { "X-Role": ROLE } : {});
 
 const httpFetch: HttpFn = async ({ method, path, body, uploadFile, saveTo }) => {
   // §44: multipart upload (import)
@@ -14,7 +16,7 @@ const httpFetch: HttpFn = async ({ method, path, body, uploadFile, saveTo }) => 
     const buf = readFileSync(uploadFile);
     const fd = new FormData();
     fd.append("file", new Blob([buf]), basename(uploadFile));
-    const res = await fetch(`${BASE}${path}`, { method, body: fd });
+    const res = await fetch(`${BASE}${path}`, { method, body: fd, headers: roleHeader() });
     const text = await res.text();
     let parsed: unknown = text; try { parsed = text ? JSON.parse(text) : null; } catch { /* raw */ }
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${JSON.stringify(parsed)}`);
@@ -22,7 +24,7 @@ const httpFetch: HttpFn = async ({ method, path, body, uploadFile, saveTo }) => 
   }
   // §44: binary download to file (export)
   if (saveTo) {
-    const res = await fetch(`${BASE}${path}`, { method });
+    const res = await fetch(`${BASE}${path}`, { method, headers: roleHeader() });
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
     const ab = await res.arrayBuffer();
     writeFileSync(saveTo, Buffer.from(ab));
@@ -30,7 +32,7 @@ const httpFetch: HttpFn = async ({ method, path, body, uploadFile, saveTo }) => 
   }
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+    headers: { ...(body !== undefined ? { "content-type": "application/json" } : {}), ...roleHeader() },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();

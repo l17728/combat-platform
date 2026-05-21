@@ -1,7 +1,9 @@
-import React from "react";
-import { Layout, Menu } from "antd";
+import React, { useState } from "react";
+import { Layout, Menu, Select } from "antd";
 import { Link, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
+import type { Role } from "@combat/shared";
+import { ROLE_LABELS } from "@combat/shared";
 
 const VIEW_TABLES = [
   { key: "/incidents", label: <Link to="/incidents">现网问题跟踪</Link> },
@@ -42,11 +44,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const selected = ITEMS.map(i => i.key)
     .filter(k => (k === "/" ? loc.pathname === "/" : loc.pathname.startsWith(k)))
     .sort((a, b) => b.length - a.length)[0] ?? "/";
+  const [role, setRole] = useState<Role>(
+    () => (typeof localStorage !== "undefined" && (localStorage.getItem("combat-role") as Role)) || "normal");
+  const changeRole = (r: Role) => { setRole(r); localStorage.setItem("combat-role", r); };
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Layout.Header style={{ display: "flex", alignItems: "center" }}>
         <div style={{ color: "#fff", fontWeight: 700, marginRight: 24 }}>作战平台</div>
-        <Menu theme="dark" mode="horizontal" selectedKeys={[selected]} items={ITEMS} style={{ flex: 1 }} />
+        <Menu theme="dark" mode="horizontal" selectedKeys={[selected]} items={ITEMS} style={{ flex: 1, minWidth: 0 }} />
+        <Select aria-label="role-select" size="small" value={role} onChange={changeRole} style={{ width: 110, marginLeft: 12 }}
+          options={(Object.keys(ROLE_LABELS) as Role[]).map(r => ({ value: r, label: `角色:${ROLE_LABELS[r]}` }))} />
       </Layout.Header>
       <Layout.Content>{children}</Layout.Content>
     </Layout>
