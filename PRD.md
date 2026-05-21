@@ -2397,12 +2397,12 @@ export interface ImportPreview {
 
 ### 42.6 验收
 
-- [ ] `ImportPreview` / `ImportRowResult` 契约 tsc-clean
-- [ ] `?dryRun=1` 返回逐行计划且**不写库**
-- [ ] 校验失败行计入 skipped 且带字段级原因
-- [ ] 提交响应追加 `skipped` + `skippedRows`，既有 `created/updated` 不变
-- [ ] ImportPage「预览(不写入)」表格 + 导入后跳过提示可用
-- [ ] 既有 61 e2e 零回归 + 后端 3 e2e + FE-IM2；`test:all` 连续两次全绿；部署
+- [x] `ImportPreview` / `ImportRowResult` 契约 tsc-clean
+- [x] `?dryRun=1` 返回逐行计划且**不写库**
+- [x] 校验失败行计入 skipped 且带字段级原因
+- [x] 提交响应追加 `skipped` + `skippedRows`，既有 `created/updated` 不变（既有 upsert 测试改 toMatchObject）
+- [x] ImportPage「预览(不写入)」表格 + 导入后跳过提示可用（独立预览 Upload，保留立即导入 Upload 不破坏 FE-5/FE-IU1）
+- [x] 既有 61 e2e 零回归 + 后端 3 e2e + FE-IM2 共 62 e2e；`test:all` 连续两次全绿；待部署
 
 
 
