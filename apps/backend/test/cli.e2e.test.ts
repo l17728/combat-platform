@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import * as XLSX from "xlsx";
+import { writeFileSync, mkdtempSync as mkdtemp } from "node:fs";
 import { runCli, renderHelp, parseArgs, COMMANDS, type HttpFn, type HttpRequest } from "../src/cli-core.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
@@ -66,6 +68,47 @@ describe("§43 CLI core", () => {
     const p = parseArgs(["a", "b", "--depth", "2", "--candidates"]);
     expect(p.positional).toEqual(["a", "b"]);
     expect(p.opts).toEqual({ depth: "2", candidates: true });
+  });
+
+  it("import builds multipart upload request with dryRun query (§44)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["import", "attackTicket", "--file", "/x.xlsx", "--dryRun"], http);
+    expect(calls[0].method).toBe("POST");
+    expect(calls[0].path).toBe("/api/import?type=attackTicket&dryRun=1");
+    expect(calls[0].uploadFile).toBe("/x.xlsx");
+  });
+
+  it("export builds GET with saveTo (§44)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["export", "releasePackage", "--out", "/tmp/r.xlsx"], http);
+    expect(calls[0]).toEqual({ method: "GET", path: "/api/export/releasePackage", saveTo: "/tmp/r.xlsx" });
+  });
+
+  it("import without --file / export without --out throw (§44)", async () => {
+    await expect(runCli(["import", "attackTicket"], recorder().http)).rejects.toThrow(/--file/);
+    await expect(runCli(["export", "attackTicket"], recorder().http)).rejects.toThrow(/--out/);
+  });
+
+  it("CLI ↔ real backend import closed loop: import file then list reads it back (§44)", async () => {
+    const repo = new SqliteRepository(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite")));
+    const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
+    // write a real xlsx fixture
+    const ws = XLSX.utils.json_to_sheet([{ 标题: "CLI导入单", 状态: "进行中" }]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "S");
+    const dir = mkdtemp(join(tmpdir(), "combat-cli-xlsx-"));
+    const fixture = join(dir, "in.xlsx");
+    writeFileSync(fixture, XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+    // http adapter: handle uploadFile via supertest .attach
+    const http: HttpFn = async ({ method, path, body, uploadFile }) => {
+      const apiPath = `/api${path.replace(/^\/api/, "")}`;
+      if (uploadFile) return (await request(app).post(apiPath).attach("file", uploadFile)).body;
+      const m = method.toLowerCase() as "get" | "post" | "put" | "delete";
+      return (await (request(app) as any)[m](apiPath).send(body)).body;
+    };
+    const imp = (await runCli(["import", "attackTicket", "--file", fixture], http)) as { created: number };
+    expect(imp.created).toBe(1);
+    const list = (await runCli(["nodes:list", "attackTicket"], http)) as { properties: Record<string, unknown> }[];
+    expect(list.some(n => n.properties["标题"] === "CLI导入单")).toBe(true);
   });
 
   it("CLI ↔ real backend closed loop: create then read back", async () => {

@@ -3,7 +3,11 @@
 // shell. Pure logic with an injected `http` fn → fully unit-testable, zero net
 // coupling. Adding a new API ⇒ add one entry to COMMANDS (definition-of-done).
 
-export interface HttpRequest { method: string; path: string; body?: unknown; }
+export interface HttpRequest {
+  method: string; path: string; body?: unknown;
+  uploadFile?: string;   // §44: local file path → multipart "file" field
+  saveTo?: string;       // §44: write binary response body to this local path
+}
 export type HttpFn = (req: HttpRequest) => Promise<unknown>;
 
 export interface ParsedArgs { positional: string[]; opts: Record<string, string | boolean>; }
@@ -128,6 +132,18 @@ export const COMMANDS: CliCommand[] = [
     build: (pos, opts) => { requirePos(pos, 1, "reminders:send <id> --by <人>"); return { method: "POST", path: `/api/reminders/${encodeURIComponent(pos[0])}/send`, body: { decidedBy: str(opts.by) } }; } },
   { name: "reminders:ignore", summary: "忽略一条提醒", usage: "reminders:ignore <id> --by <人>",
     build: (pos, opts) => { requirePos(pos, 1, "reminders:ignore <id> --by <人>"); return { method: "POST", path: `/api/reminders/${encodeURIComponent(pos[0])}/ignore`, body: { decidedBy: str(opts.by) } }; } },
+
+  // ---- file I/O (§44) ----
+  { name: "import", summary: "从 Excel 导入（--dryRun 仅预览不写库）", usage: "import <nodeType> --file <path.xlsx> [--dryRun]",
+    build: (pos, opts) => { requirePos(pos, 1, "import <nodeType> --file <path>");
+      const file = str(opts.file);
+      if (!file) throw new Error("缺少 --file <path.xlsx>");
+      return { method: "POST", path: `/api/import${qs({ type: pos[0], dryRun: opts.dryRun ? "1" : undefined })}`, uploadFile: file }; } },
+  { name: "export", summary: "导出某类型为 Excel 到本地文件", usage: "export <nodeType> --out <path.xlsx>",
+    build: (pos, opts) => { requirePos(pos, 1, "export <nodeType> --out <path>");
+      const out = str(opts.out);
+      if (!out) throw new Error("缺少 --out <path.xlsx>");
+      return { method: "GET", path: `/api/export/${encodeURIComponent(pos[0])}`, saveTo: out }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {
