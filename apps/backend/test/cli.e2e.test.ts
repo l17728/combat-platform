@@ -80,6 +80,14 @@ describe("§43 CLI core", () => {
       host: "smtp.x.com", port: 465, secure: true, username: "u", password: "p", fromEmail: "a@x.com" } });
   });
 
+  it("escalation:scan + config-set build correctly (§48)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["escalation:scan"], http);
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/escalation/scan" });
+    await runCli(["escalation:config-set", "--data", '{"rules":[{"事件级别":"P1","slaHours":2,"上升角色":"X"}]}'], http);
+    expect(calls[1]).toEqual({ method: "PUT", path: "/api/escalation/config", body: { rules: [{ 事件级别: "P1", slaHours: 2, 上升角色: "X" }] } });
+  });
+
   it("unknown command throws with available-commands hint", async () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });

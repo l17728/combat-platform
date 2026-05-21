@@ -126,6 +126,10 @@ export interface EmailSendResult {
   messageId?: string;
   error?: string;
 }
+
+export interface EscalationRule { 事件级别: string; slaHours: number; 上升角色: string; }
+export interface EscalationConfig { rules: EscalationRule[]; }
+export interface EscalationScanResult { overdue: number; escalated: number; }
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {

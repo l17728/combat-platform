@@ -1,0 +1,65 @@
+import { Router } from "express";
+import type { Repository, EscalationConfig, EscalationScanResult } from "@combat/shared";
+
+const ACTIVE = new Set(["待响应", "处理中", "进行中"]);
+const DEFAULT_CONFIG: EscalationConfig = {
+  rules: [
+    { 事件级别: "P1", slaHours: 2, 上升角色: "运维Leader" },
+    { 事件级别: "P2", slaHours: 8, 上升角色: "运维Leader" },
+    { 事件级别: "P3", slaHours: 24, 上升角色: "值班接口人" },
+    { 事件级别: "P4A", slaHours: 4, 上升角色: "值班接口人" },
+  ],
+};
+
+function readConfig(repo: Repository): EscalationConfig {
+  const raw = repo.getSetting("escalation");
+  if (!raw) return DEFAULT_CONFIG;
+  try { return JSON.parse(raw) as EscalationConfig; } catch { return DEFAULT_CONFIG; }
+}
+
+/**
+ * §48: scan active attackTickets; for any whose age exceeds its 事件级别 SLA and
+ * which has not been escalated yet (no prior ESCALATE audit), record an ESCALATE
+ * audit + an ESCALATED_TO edge to the current owner (if resolvable). Idempotent
+ * via the audit check — re-scanning does not double-escalate.
+ */
+export function scanEscalation(repo: Repository): EscalationScanResult {
+  const cfg = readConfig(repo);
+  const byLevel = new Map(cfg.rules.map(r => [r.事件级别, r]));
+  const now = Date.now();
+  let overdue = 0, escalated = 0;
+  for (const t of repo.queryNodes("attackTicket")) {
+    const status = String(t.properties["状态"] ?? "");
+    if (!ACTIVE.has(status)) continue;
+    const lvl = String(t.properties["事件级别"] ?? "").trim();
+    const rule = byLevel.get(lvl);
+    if (!rule) continue;
+    const ageMs = now - new Date(t.createdAt).getTime();
+    if (ageMs <= rule.slaHours * 3600 * 1000) continue;
+    overdue++;
+    const already = repo.listAuditLog({ entityId: t.id, action: "ESCALATE" }).length > 0;
+    if (already) continue;
+    // resolve current owner person via REF edge (field 当前处理人) for the ESCALATED_TO edge
+    const ownerRef = repo.queryEdges({ sourceId: t.id, edgeType: "REF" })
+      .find(e => String(e.properties["field"]) === "当前处理人");
+    if (ownerRef) repo.createEdge("ESCALATED_TO", t.id, ownerRef.targetId,
+      { level: lvl, 上升角色: rule.上升角色, at: new Date().toISOString() }, "system");
+    repo.logAudit({ action: "ESCALATE", entityType: "node", entityId: t.id,
+      changes: { 事件级别: lvl, slaHours: rule.slaHours, 上升角色: rule.上升角色, ageHours: Math.round(ageMs / 3600000) }, actor: "system" });
+    escalated++;
+  }
+  return { overdue, escalated };
+}
+
+export function makeEscalationRouter(repo: Repository): Router {
+  const r = Router();
+  r.get("/escalation/config", (_req, res) => res.json(readConfig(repo)));
+  r.put("/escalation/config", (req, res) => {
+    const rules = Array.isArray(req.body?.rules) ? req.body.rules : null;
+    if (!rules) return res.status(400).json({ error: "rules 数组必填" });
+    repo.setSetting("escalation", JSON.stringify({ rules }), "api");
+    res.json(readConfig(repo));
+  });
+  r.post("/escalation/scan", (_req, res) => res.json(scanEscalation(repo)));
+  return r;
+}

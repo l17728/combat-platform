@@ -1,0 +1,12 @@
+{
+  "nodeType": "oncall",
+  "label": "Oncall 排班",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "fields": [
+    { "id": "domain", "name": "domain", "type": "string", "label": "domain", "required": true, "anchor": "domain" },
+    { "id": "值班人", "name": "值班人", "type": "ref", "refType": "person", "label": "值班人", "concept": "负责人" },
+    { "id": "起", "name": "起", "type": "date", "label": "起始日期" },
+    { "id": "止", "name": "止", "type": "date", "label": "结束日期" }
+  ]
+}

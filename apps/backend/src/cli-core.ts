@@ -163,6 +163,14 @@ export const COMMANDS: CliCommand[] = [
       const out = str(opts.out);
       if (!out) throw new Error("缺少 --out <path.xlsx>");
       return { method: "GET", path: `/api/export/${encodeURIComponent(pos[0])}`, saveTo: out }; } },
+
+  // ---- escalation / SLA (§48) ----
+  { name: "escalation:config-get", summary: "查看 SLA 上升责任矩阵配置", usage: "escalation:config-get",
+    build: () => ({ method: "GET", path: "/api/escalation/config" }) },
+  { name: "escalation:config-set", summary: "设置 SLA 责任矩阵（rules 数组）", usage: "escalation:config-set --data '{\"rules\":[...]}'",
+    build: (_pos, opts) => ({ method: "PUT", path: "/api/escalation/config", body: jsonOpt(opts, "data") }) },
+  { name: "escalation:scan", summary: "扫描超期活跃攻关单并上升", usage: "escalation:scan",
+    build: () => ({ method: "POST", path: "/api/escalation/scan" }) },
 ];
 
 export function renderHelp(commandName?: string): unknown {
