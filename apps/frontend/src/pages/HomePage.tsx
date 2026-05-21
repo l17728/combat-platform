@@ -18,6 +18,8 @@ const MODULES = [
   { to: "/hermes", title: "Hermes 问答", desc: "中文规则问答 MVP：状态/负责人/问题单/负载/全文（无 LLM 凭据可用）" },
   { to: "/audit", title: "审计日志", desc: "所有写操作的留痕（CREATE/UPDATE/DELETE/SCHEMA）" },
   { to: "/merge", title: "人员合并", desc: "实体解析手动层：合并同一人的多条记录（不可逆）" },
+  { to: "/email", title: "邮件", desc: "SMTP 配置 + 发送通知邮件" },
+  { to: "/emailgroups", title: "邮件群组", desc: "增删改查邮件群组" },
 ];
 
 export function HomePage() {

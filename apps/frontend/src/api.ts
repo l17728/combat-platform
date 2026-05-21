@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -176,6 +176,27 @@ export class Api {
     return this.req<TransitionResult>(`/api/nodes/${id}/transition`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ toStatus, note }),
+    });
+  }
+  getEmailConfig(): Promise<SmtpConfigMasked> {
+    return this.req<SmtpConfigMasked>(`/api/email/config`, {});
+  }
+  putEmailConfig(cfg: Partial<SmtpConfig>): Promise<SmtpConfigMasked> {
+    return this.req<SmtpConfigMasked>(`/api/email/config`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify(cfg),
+    });
+  }
+  testEmail(to: string): Promise<EmailSendResult> {
+    return this.req<EmailSendResult>(`/api/email/test`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ to }),
+    });
+  }
+  sendEmail(req: EmailSendRequest): Promise<EmailSendResult> {
+    return this.req<EmailSendResult>(`/api/email/send`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(req),
     });
   }
 }

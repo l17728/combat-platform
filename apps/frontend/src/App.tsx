@@ -16,6 +16,7 @@ import { HermesPage } from "./pages/HermesPage.js";
 import { GraphPage } from "./pages/GraphPage.js";
 import { AuditPage } from "./pages/AuditPage.js";
 import { MergePage } from "./pages/MergePage.js";
+import { EmailPage } from "./pages/EmailPage.js";
 
 export default function App() {
   return (
@@ -41,6 +42,8 @@ export default function App() {
           <Route path="/audit" element={<AuditPage />} />
           <Route path="/merge" element={<MergePage />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/email" element={<EmailPage />} />
+          <Route path="/emailgroups" element={<EntityTable nodeType="emailGroup" />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
