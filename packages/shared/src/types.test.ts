@@ -9,7 +9,7 @@ import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
 import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "./index.js";
 import { ATTACK_STATUSES } from "./index.js";
-import type { ImportPreview } from "./index.js";
+import type { ImportPreview, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "./index.js";
 
 describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
@@ -235,6 +235,19 @@ describe("KG rebuild contract (§34)", () => {
     const r: RebuildKGResult = { refEdges: 7, anchorEdges: 5, conflicts: 1, overlaps: 2, durationMs: 12 };
     expect(r.refEdges + r.anchorEdges).toBe(12);
     expect(r.durationMs).toBeGreaterThan(0);
+  });
+});
+
+describe("Email contract (§45)", () => {
+  it("SmtpConfig / masked / send req+result shapes", () => {
+    const cfg: SmtpConfig = { host: "smtp.x.com", port: 465, secure: true, username: "u", password: "p", fromEmail: "a@x.com", fromName: "作战" };
+    const masked: SmtpConfigMasked = { host: cfg.host, port: cfg.port, secure: cfg.secure, username: cfg.username, fromEmail: cfg.fromEmail, fromName: cfg.fromName, passwordSet: true };
+    expect(masked.passwordSet).toBe(true);
+    expect("password" in masked).toBe(false);
+    const req: EmailSendRequest = { to: ["a@x.com"], groupNames: ["G"], personNames: ["张三"], subject: "S", body: "B" };
+    const res: EmailSendResult = { recipients: ["a@x.com"], ok: true, messageId: "m1" };
+    expect(req.subject).toBe("S");
+    expect(res.ok).toBe(true);
   });
 });
 

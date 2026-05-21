@@ -27,6 +27,7 @@ export function openDb(path: string): DB {
       recipient_person_id TEXT, recipient_name TEXT,
       subject TEXT, body TEXT,
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
+    CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
     CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(nodeType);
     CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(sourceId);
     CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(targetId);

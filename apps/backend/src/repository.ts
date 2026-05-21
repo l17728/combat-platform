@@ -42,6 +42,16 @@ export class SqliteRepository implements Repository {
     this.logAudit({ action, entityType, entityId, changes, actor });
   }
 
+  getSetting(key: string): string | null {
+    const row = this.db.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key) as { value: string } | undefined;
+    return row ? row.value : null;
+  }
+  setSetting(key: string, value: string, actor: string): void {
+    this.db.prepare(`INSERT INTO app_settings (key, value) VALUES (@k, @v)
+      ON CONFLICT(key) DO UPDATE SET value = @v`).run({ k: key, v: value });
+    this.audit("SETTING", "setting", key, { key }, actor);
+  }
+
   createNode(nodeType: string, properties: Record<string, unknown>, actor: string): GraphNode {
     const now = new Date().toISOString();
     const node: GraphNode = { id: randomUUID(), nodeType, properties, createdAt: now, updatedAt: now };

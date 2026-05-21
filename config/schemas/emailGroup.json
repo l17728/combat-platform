@@ -1,0 +1,11 @@
+{
+  "nodeType": "emailGroup",
+  "label": "邮件群组",
+  "identityKeys": ["组名"],
+  "derivedToKG": false,
+  "fields": [
+    { "id": "组名", "name": "组名", "type": "string", "label": "组名", "required": true },
+    { "id": "成员邮箱", "name": "成员邮箱", "type": "string", "label": "成员邮箱（逗号分隔）" },
+    { "id": "描述", "name": "描述", "type": "string", "label": "描述" }
+  ]
+}

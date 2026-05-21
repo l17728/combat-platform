@@ -17,6 +17,8 @@ export interface Repository {
   deleteNode(id: string, actor: string): void;
   logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): void;
   listAuditLog(filter: { action?: string; entityType?: string; entityId?: string; limit?: number }): AuditLogEntry[];
+  getSetting(key: string): string | null;
+  setSetting(key: string, value: string, actor: string): void;
   createProposal(p: Omit<RelationProposal, "id" | "status" | "decidedBy" | "decidedAt" | "createdAt">, actor: string): RelationProposal;
   listProposals(opts?: { status?: RelationProposalStatus }): RelationProposal[];
   getProposal(id: string): RelationProposal | undefined;

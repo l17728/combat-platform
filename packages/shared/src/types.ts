@@ -106,6 +106,26 @@ export interface ImportPreview {
   skipped: number;
   rows: ImportRowResult[];
 }
+
+export interface SmtpConfig {
+  host: string; port: number; secure: boolean;
+  username: string; password: string;
+  fromEmail: string; fromName?: string;
+}
+export type SmtpConfigMasked = Omit<SmtpConfig, "password"> & { passwordSet: boolean };
+export interface EmailSendRequest {
+  to?: string[];
+  groupNames?: string[];
+  personNames?: string[];
+  subject: string;
+  body: string;
+}
+export interface EmailSendResult {
+  recipients: string[];
+  ok: boolean;
+  messageId?: string;
+  error?: string;
+}
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
 export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
 export interface QueryContext {
