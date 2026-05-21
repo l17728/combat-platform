@@ -2404,6 +2404,61 @@ export interface ImportPreview {
 - [x] ImportPage「预览(不写入)」表格 + 导入后跳过提示可用（独立预览 Upload，保留立即导入 Upload 不破坏 FE-5/FE-IU1）
 - [x] 既有 61 e2e 零回归 + 后端 3 e2e + FE-IM2 共 62 e2e；`test:all` 连续两次全绿；待部署
 
+---
+
+## 43. 增量 26：全 API 命令行（Linux shell，agent 可自查自调）— 核心原则
+
+> **标准核心原则**（用户指令）：每个后台 API 必须有对应命令行命令，供 agent（如 Hermes）操作。CLI 是 **Linux shell 命令**（服务部署在 Linux）。CLI 提供 `help` 命令，列出所有命令的格式/用法/功能，让 agent 自查命令目录后自调用。**后续新增任何后台 API 必须在同一增量同步实现 CLI 命令**（纳入后端 definition-of-done）。
+
+### 43.1 设计
+
+- `apps/backend/src/cli-core.ts`（纯逻辑、可测）：
+  - `COMMANDS: CliCommand[]` 声明式注册表，每条 `{ name, summary, usage, build(pos, opts) → { method, path, body? } }`
+  - `parseArgs(argv) → { positional, opts }`：`--key value` / `--flag` / 位置参数
+  - `renderHelp(cmd?) → object`：无参返回全部命令的 `{name,summary,usage}` JSON 数组；带 `cmd` 返回该命令详情
+  - `runCli(argv, http) → Promise<result>`：解析 → 查命令 → `build` → `http(method, path, body)` → 返回；`help` 走 renderHelp（不发 HTTP）；未知命令报错列出可用命令
+  - `http` 注入（测试用 fake，生产用 fetch）——纯函数核心，零网络耦合，可单测
+- `apps/backend/src/cli.ts`（薄入口）：读 `COMBAT_API`（默认 `http://localhost:3001`）；`runCli(process.argv.slice(2), fetchHttp)`；打印 JSON；错误 → stderr + exit 1
+- Linux 可执行：`npm run cli -- <command> ...`（package.json script `"cli": "tsx src/cli.ts"`）；部署服务器上 `cd app/apps/backend && npm run cli -- help` 即用
+
+### 43.2 命令覆盖（与 §所有路由 1:1）
+
+读：`dashboard` `nodes:list` `nodes:get` `progress:list` `schema:get` `related` `graph` `conflicts:list` `audit:list` `merge:preview` `daily-report` `honor:leaderboard` `honor:person` `proposals:list` `reminders:list` `recommend:helpers` `search` `context`
+写：`nodes:create` `nodes:update` `nodes:delete` `nodes:transition` `progress:add` `schema:patch` `schema:scan` `conflicts:scan` `kg:rebuild` `hermes:ask` `merge:person` `proposals:scan` `proposals:decide` `reminders:scan` `reminders:send` `reminders:ignore`
+元：`help [command]`
+（`import`/`export` 涉及文件上传/二进制下载，CLI MVP 暂以提示说明走 HTTP，后续补 `--file` 流式；记录在 §43.5）
+
+### 43.3 测试
+
+`apps/backend/test/cli.e2e.test.ts`（注入 fake http，纯逻辑）≥ 6：
+1. `help` 返回所有命令，每条含 name/summary/usage；命令数 = 注册表长度
+2. `help hermes:ask` 返回该命令详情（usage 含 `<question>`）
+3. `nodes:create attackTicket --data '{"标题":"x","状态":"进行中"}'` → build 出 `POST /api/nodes/attackTicket` body 正确
+4. `hermes:ask "谁最忙"` → `POST /api/hermes/ask` body `{question:"谁最忙"}`
+5. `related attackTicket t1 --depth 2 --candidates` → `GET /api/related/attackTicket/t1?depth=2&includeCandidates=1`
+6. 未知命令 → 抛错且消息含可用命令提示
+另：1 个真链路 e2e——`runCli` 接 supertest app 包成的 http，`nodes:create` 后 `nodes:get` 能读回（验证 CLI↔真实后端闭环）。
+
+### 43.4 验收
+
+- [ ] `cli-core` 纯函数：parseArgs / renderHelp / runCli tsc-clean
+- [ ] `help` 列出全部命令（name/summary/usage）；`help <cmd>` 详情
+- [ ] 读/写命令各覆盖、build 出正确 method/path/body（≥6 单测）
+- [ ] CLI↔真实后端闭环 e2e（create→get 读回）
+- [ ] `npm run cli -- help` 在本地与 Linux 部署机可运行
+- [ ] 既有 62 e2e 零回归；后端新增 cli 测试；`test:all` 连续两次全绿；部署
+- [ ] CLI 原则写入 CLAUDE.md（后续 API 同步加命令）
+
+### 43.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| CLI 形态 | HTTP 客户端（非直连 repo） | 对任意运行中后端（含部署机）通用；与 UI 同源数据 |
+| help 输出 | JSON 目录（默认）| agent 友好、可解析；人读也清晰 |
+| http 注入 | 是 | 纯函数核心可单测，零网络耦合 |
+| import/export | 暂缓（文件/二进制） | 多部分上传 CLI 较繁；记录后续 `--file` |
+| 入口 | `npm run cli --` + tsx | 与现有 tsx 运行链一致，Linux 直跑 |
+
 
 
 
