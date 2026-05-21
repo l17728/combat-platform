@@ -15,6 +15,7 @@ import { ConflictsPage } from "./pages/ConflictsPage.js";
 import { HermesPage } from "./pages/HermesPage.js";
 import { GraphPage } from "./pages/GraphPage.js";
 import { AuditPage } from "./pages/AuditPage.js";
+import { MergePage } from "./pages/MergePage.js";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/hermes" element={<HermesPage />} />
           <Route path="/graph/:nodeType/:id" element={<GraphPage />} />
           <Route path="/audit" element={<AuditPage />} />
+          <Route path="/merge" element={<MergePage />} />
           <Route path="/import" element={<ImportPage />} />
         </Routes>
       </AppShell>

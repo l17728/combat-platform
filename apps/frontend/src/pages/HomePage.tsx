@@ -17,6 +17,7 @@ const MODULES = [
   { to: "/reminders", title: "跟催提醒", desc: "问题单跟催 / FE Deadline 提醒（当前为 stub 渠道）" },
   { to: "/hermes", title: "Hermes 问答", desc: "中文规则问答 MVP：状态/负责人/问题单/负载/全文（无 LLM 凭据可用）" },
   { to: "/audit", title: "审计日志", desc: "所有写操作的留痕（CREATE/UPDATE/DELETE/SCHEMA）" },
+  { to: "/merge", title: "人员合并", desc: "实体解析手动层：合并同一人的多条记录（不可逆）" },
 ];
 
 export function HomePage() {

@@ -18,6 +18,7 @@ const ITEMS = [
   { key: "/conflicts", label: <Link to="/conflicts"><span style={{ color: "#cf1322" }}>冲突</span></Link> },
   { key: "/hermes", label: <Link to="/hermes">Hermes 问答</Link> },
   { key: "/audit", label: <Link to="/audit">审计日志</Link> },
+  { key: "/merge", label: <Link to="/merge">人员合并</Link> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

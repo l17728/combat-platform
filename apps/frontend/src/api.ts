@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -156,6 +156,15 @@ export class Api {
     if (filter.limit) p.set("limit", String(filter.limit));
     const qs = p.toString();
     return this.req<AuditLogEntry[]>(`/api/audit${qs ? "?" + qs : ""}`, {});
+  }
+  mergePreview(fromId: string, toId: string): Promise<MergePreview> {
+    return this.req<MergePreview>(`/api/merge/preview?fromId=${encodeURIComponent(fromId)}&toId=${encodeURIComponent(toId)}`, {});
+  }
+  mergePerson(fromId: string, toId: string): Promise<GraphNode> {
+    return this.req<GraphNode>(`/api/merge/person`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fromId, toId }),
+    });
   }
 }
 export const api = new Api("");
