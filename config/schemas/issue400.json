@@ -1,0 +1,15 @@
+{
+  "nodeType": "issue400",
+  "label": "现网400问题梳理",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "客户", "name": "客户", "type": "string", "label": "客户", "required": true, "anchor": "客户" },
+    { "id": "domainId", "name": "domainId", "type": "string", "label": "domain id", "anchor": "domain" },
+    { "id": "总数", "name": "总数", "type": "number", "label": "总数" },
+    { "id": "MaaS报错信息", "name": "MaaS报错信息", "type": "string", "label": "MaaS报错信息" },
+    { "id": "数量", "name": "数量", "type": "number", "label": "数量" },
+    { "id": "model", "name": "model", "type": "string", "label": "model" },
+    { "id": "说明", "name": "说明", "type": "string", "label": "说明" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "nodeType": "alarmGovernance",
+  "label": "告警治理跟踪",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "告警问题", "name": "告警问题", "type": "string", "label": "告警问题", "required": true },
+    { "id": "问题和措施", "name": "问题和措施", "type": "string", "label": "问题和措施" },
+    { "id": "进展", "name": "进展", "type": "string", "label": "进展" },
+    { "id": "预计闭环时间", "name": "预计闭环时间", "type": "date", "label": "预计闭环时间" },
+    { "id": "状态", "name": "状态", "type": "enum", "label": "状态", "enumValues": ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "问题单需求单号", "name": "问题单需求单号", "type": "string", "label": "问题单/需求单号", "anchor": "问题单号" }
+  ]
+}

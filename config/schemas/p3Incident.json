@@ -1,0 +1,13 @@
+{
+  "nodeType": "p3Incident",
+  "label": "未闭环P3事件单",
+  "identityKeys": ["事件单号"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "事件单号", "name": "事件单号", "type": "string", "label": "事件单号", "required": true, "anchor": "事件单号" },
+    { "id": "事件标题", "name": "事件标题", "type": "string", "label": "事件标题" },
+    { "id": "事件处理人", "name": "事件处理人", "type": "ref", "refType": "person", "label": "事件处理人", "concept": "负责人" },
+    { "id": "客户级别", "name": "客户级别", "type": "string", "label": "客户级别" },
+    { "id": "当前进展", "name": "当前进展", "type": "string", "label": "当前进展" }
+  ]
+}

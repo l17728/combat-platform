@@ -1,0 +1,15 @@
+{
+  "nodeType": "dailyTask",
+  "label": "日常事项跟踪",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "事项描述", "name": "事项描述", "type": "string", "label": "事项描述", "required": true },
+    { "id": "涉及客户", "name": "涉及客户", "type": "string", "label": "涉及客户", "anchor": "客户" },
+    { "id": "进展", "name": "进展", "type": "string", "label": "进展" },
+    { "id": "计划完成时间", "name": "计划完成时间", "type": "date", "label": "计划完成时间" },
+    { "id": "优先级", "name": "优先级", "type": "enum", "label": "优先级", "enumValues": ["高", "中", "低"] },
+    { "id": "状态", "name": "状态", "type": "enum", "label": "状态", "enumValues": ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" }
+  ]
+}

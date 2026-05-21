@@ -1,0 +1,15 @@
+{
+  "nodeType": "issue5xx",
+  "label": "现网5xx问题梳理",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "domainId", "name": "domainId", "type": "string", "label": "domain id", "required": true, "anchor": "domain" },
+    { "id": "总数", "name": "总数", "type": "number", "label": "总数" },
+    { "id": "MaaS报错信息", "name": "MaaS报错信息", "type": "string", "label": "MaaS报错信息" },
+    { "id": "错误码", "name": "错误码", "type": "string", "label": "错误码" },
+    { "id": "model", "name": "model", "type": "string", "label": "model" },
+    { "id": "说明", "name": "说明", "type": "string", "label": "说明" },
+    { "id": "下一步", "name": "下一步", "type": "string", "label": "下一步" }
+  ]
+}

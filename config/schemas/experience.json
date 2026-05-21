@@ -1,0 +1,14 @@
+{
+  "nodeType": "experience",
+  "label": "经验总结",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "经验", "name": "经验", "type": "string", "label": "经验", "required": true },
+    { "id": "责任人", "name": "责任人", "type": "ref", "refType": "person", "label": "责任人", "concept": "负责人" },
+    { "id": "计划完成时间", "name": "计划完成时间", "type": "date", "label": "计划完成时间" },
+    { "id": "链接", "name": "链接", "type": "string", "label": "链接" },
+    { "id": "内容", "name": "内容", "type": "string", "label": "内容/详情" },
+    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" }
+  ]
+}

@@ -6,7 +6,9 @@ const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
 function summarize(n: GraphNode): string {
   const p = n.properties;
-  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["name"] ?? p["贡献人"] ?? p["key"] ?? n.id);
+  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["name"] ?? p["贡献人"] ?? p["key"]
+    // §46 new view nodeTypes' title-ish fields
+    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? p["组名"] ?? n.id);
 }
 function linkFor(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;

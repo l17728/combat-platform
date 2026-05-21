@@ -1,0 +1,21 @@
+{
+  "nodeType": "incidentTracking",
+  "label": "现网问题跟踪",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "问题分类", "name": "问题分类", "type": "string", "label": "问题分类" },
+    { "id": "region", "name": "region", "type": "string", "label": "region" },
+    { "id": "问题说明", "name": "问题说明", "type": "string", "label": "问题说明", "required": true },
+    { "id": "类别", "name": "类别", "type": "string", "label": "类别" },
+    { "id": "影响客户", "name": "影响客户", "type": "string", "label": "影响客户", "anchor": "客户" },
+    { "id": "发现日期", "name": "发现日期", "type": "date", "label": "发现日期" },
+    { "id": "当前进展", "name": "当前进展", "type": "string", "label": "当前进展" },
+    { "id": "风险等级", "name": "风险等级", "type": "enum", "label": "风险等级", "enumValues": ["高", "中", "低"] },
+    { "id": "状态", "name": "状态", "type": "enum", "label": "状态", "enumValues": ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
+    { "id": "运维责任人", "name": "运维责任人", "type": "ref", "refType": "person", "label": "运维责任人", "concept": "负责人" },
+    { "id": "研发责任人", "name": "研发责任人", "type": "ref", "refType": "person", "label": "研发责任人", "concept": "负责人" },
+    { "id": "关联需求问题单", "name": "关联需求问题单", "type": "string", "label": "关联需求/问题单", "anchor": "问题单号" },
+    { "id": "归属模块", "name": "归属模块", "type": "string", "label": "归属模块" }
+  ]
+}
