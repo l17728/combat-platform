@@ -2339,6 +2339,72 @@ export interface TransitionResult { node: GraphNode; progress: ProgressLog; }
 - [x] AttackDetail 流转 UI（Select + 备注 + 流转）可用，时间线即时更新
 - [x] 既有 60 e2e 零回归 + 后端 3 e2e + FE-TR1 共 61 e2e；`test:all` 连续两次全绿；待部署
 
+---
+
+## 42. 增量 25：导入 dry-run 预览 + 跳过行可见（修复静默丢行）
+
+> 现 `/import` 立即写库且 `if (!v.ok) continue` **静默丢弃校验失败行**——用户不知道哪些数据没进来，是数据丢失隐患。本增量：①加 `?dryRun=1` 只读预览（逐行 create/update/skip + 原因，不写库）；②提交路径也返回 `skipped` 计数 + 跳过原因；③前端「预览(不写入)」按钮 + 结果表。**举一反三**：把"静默丢行"整类问题（导入任何 nodeType）一次解决。
+
+### 42.1 契约（@combat/shared）
+
+```ts
+export interface ImportRowResult {
+  rowIndex: number;                       // 0-based 数据行序号
+  action: "create" | "update" | "skip";
+  reason?: string;                        // skip 时为校验错误（"; " 连接）
+  summary: string;                        // 该行人类可读标识（标题/单号/name 等）
+}
+export interface ImportPreview {
+  nodeType: string;
+  willCreate: number;
+  willUpdate: number;
+  skipped: number;
+  rows: ImportRowResult[];
+}
+```
+`/import` 提交响应在既有 `{created, updated}` 上**追加** `skipped: number` 与 `skippedRows: ImportRowResult[]`（仅含 skip 行，向后兼容：既有字段不变）。
+
+### 42.2 后端
+
+抽出纯函数 `analyzeImport(repo, registry, nodeType, rows): ImportPreview`（只读：mapColumns + validateNode + findByIdentity 判定 create/update/skip，**不写库**）。
+- `GET/POST /import?dryRun=1`：解析上传文件 → `analyzeImport` → 返回 `ImportPreview`（HTTP 200，不写库）。
+- 提交路径（无 dryRun）：先 `analyzeImport` 得到计划，再对 create/update 行执行实际写入（含 syncRef/syncAnchor/ASSIGNED_TO，与现状一致），返回 `{ created, updated, skipped, skippedRows }`。
+- skip 原因 = `registry.validateNode` 的 `errors.join("; ")`。
+
+### 42.3 前端 `ImportPage`
+
+- 现有上传组件旁加「预览(不写入)」按钮：走 `?dryRun=1`，渲染 `aria-label="import-preview"` 表格：列 `行号 / 动作 / 原因 / 摘要`（动作用中文 Tag：新增/更新/跳过；跳过红色）。
+- 实际导入完成后，若 `skipped>0`，message.warning 提示「N 行被跳过」并展示 skippedRows 表。
+- 保持既有「导入完成」「新增/已更新」提示不破坏（FE-5 / FE-IU1）。
+
+### 42.4 测试
+
+后端 `apps/backend/test/import-dryrun.e2e.test.ts` 至少 3 个：
+1. dryRun：含 1 有效新行 + 1 缺必填行的 xlsx → preview.willCreate=1, skipped=1, skip 行 reason 含字段名；**库内无新增节点**（queryNodes 仍空）
+2. dryRun update：先建一条 identity 命中的，再 dryRun 同 identity → willUpdate=1
+3. 提交返回 skipped + skippedRows：实际 POST（无 dryRun）→ `{created,updated,skipped,skippedRows}`，created 行确实入库
+
+前端 `apps/frontend/e2e/import-dryrun.spec.ts` FE-IM2：route-mock `/import?dryRun=1` 返回固定 preview，点「预览(不写入)」→ 断言预览表渲染含 新增/跳过 行。/import 已在 console-clean。
+
+### 42.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| dryRun 触发 | query `?dryRun=1` | 复用同一上传端点，少一个路由 |
+| analyze 纯函数 | 抽离只读判定 | dryRun 与 commit 共用，杜绝逻辑分叉 |
+| 静默丢行修复 | 返回 skipped + 原因 | 数据可见性；举一反三覆盖所有 nodeType |
+| 向后兼容 | 既有 created/updated 不动，追加字段 | 不破坏 FE-5/FE-IU1 |
+
+### 42.6 验收
+
+- [ ] `ImportPreview` / `ImportRowResult` 契约 tsc-clean
+- [ ] `?dryRun=1` 返回逐行计划且**不写库**
+- [ ] 校验失败行计入 skipped 且带字段级原因
+- [ ] 提交响应追加 `skipped` + `skippedRows`，既有 `created/updated` 不变
+- [ ] ImportPage「预览(不写入)」表格 + 导入后跳过提示可用
+- [ ] 既有 61 e2e 零回归 + 后端 3 e2e + FE-IM2；`test:all` 连续两次全绿；部署
+
+
 
 
 
