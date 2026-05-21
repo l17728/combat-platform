@@ -2651,3 +2651,64 @@ CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:con
 - [ ] Hermes 全文检索命中新 nodeType（experience）
 - [ ] 前端 8 路由 EntityTable 渲染 + 子菜单/首页卡片可达 + console-clean 全绿
 - [ ] 既有 65 e2e 零回归；后端+前端新增 e2e；`test:all` 两次全绿；部署
+
+---
+
+## 47. 增量 30：多形态视图切换（表格 ↔ 卡片）（兑现 §3.3/§11 Phase2 视图切换）
+
+> §11 Phase2「同一数据可在表格/布局/图/时间线间切换且一致」此前只有表格 + 独立图页 + 详情时间线，缺**统一切换器与卡片/布局形态**。本增量给 `EntityTable` 加 `表格 ↔ 卡片` Segmented 切换，同一数据两形态一致；图谱保留 RelatedPage 的「📊 图形视图」入口，时间线保留 AttackDetail，形成完整四形态闭环。
+
+### 47.1 前端
+- `EntityTable` 顶部加 AntD `Segmented`（aria-label="view-mode"，选项 表格/卡片）。
+- 卡片形态：`Row/Col` 栅格，每节点一张 `Card`，标题取该 nodeType 第一个 required string 字段（或 标题/name/组名等回退），正文列出前若干非空字段 `label: value`；ref 字段保持可跳关联页；提供「编辑」「删除」按钮复用既有逻辑（或卡片只读 + 跳详情，MVP 卡片只读 + 删除）。
+- 切换不重新请求，纯前端渲染同一 `rows`，保证数据一致。
+- 默认表格；切到卡片再切回表格数据不变。
+
+### 47.2 测试
+- 单测：渲染 mode=card 时出现卡片容器。
+- e2e `view-mode.spec.ts` FE-VM1：/attack 切到卡片→断言卡片(aria-label="entity-card")出现且含某行标题；切回表格→表头出现。
+- console-clean 不新增路由（同页切换）。
+
+### 47.3 验收
+- [ ] EntityTable 表格↔卡片 Segmented 切换，数据一致
+- [ ] 卡片展示标题+关键字段，ref 可跳转
+- [ ] FE-VM1 e2e；既有 e2e 零回归；test:all 两次绿；部署
+
+---
+
+## 48. 增量 31：SLA 上升 + 责任矩阵 + Oncall（兑现 §2.7/§5.1/§5.2 自动化）
+
+> §5 自动化规则引擎（责任矩阵 / Oncall 排班 / SLA 超时自动上升）此前未实现。复用既有 settings(app_settings) + reminders/notification 基础设施做 MVP，不引新表。
+
+### 48.1 责任矩阵 / SLA 配置（app_settings key "escalation"）
+```ts
+export interface EscalationRule { 事件级别: string; slaHours: number; 上升角色: string; }
+export interface EscalationConfig { rules: EscalationRule[]; }
+```
+- 默认种子：P4A→4h、P3→24h、P2→8h、P1→2h（可配）。
+- API：`GET /api/escalation/config`、`PUT /api/escalation/config`；CLI：`escalation:config-get/set`。
+
+### 48.2 SLA 扫描上升（POST /api/escalation/scan）
+- 遍历活跃 attackTicket（状态 ∈ 待响应/处理中/进行中）；按 `事件级别` 查 SLA 小时数；若 `now - createdAt > slaHours` 且尚未上升 → 写 `ESCALATED_TO` 边（目标=当前处理人或上升角色占位）+ 生成一条 `Reminder`(kind 复用或新增「SLA上升」) + 审计 `ESCALATE`。
+- 幂等：已有 ESCALATED_TO 边的单不重复上升（或按 level 递增，MVP 单级）。
+- 返回 `{ escalated: number }`。
+- CLI：`escalation:scan`。
+
+### 48.3 Oncall 排班（MVP 最小）
+- emailGroup 已证伪"配置驱动 nodeType"。Oncall 同法：新增 `config/schemas/oncall.json`（nodeType oncall：domain、值班人[ref person]、起、止）。仅登记 + 泛型 CRUD/CLI，自动化轮换留后续（记录在案）。
+
+### 48.4 前端
+- `/escalation` 页：SLA 配置表（事件级别/slaHours/上升角色 增删）+「扫描上升」按钮 + 已上升列表；AppShell nav + 首页卡片。
+- Oncall 走 `/oncall` EntityTable（复用泛型）。
+
+### 48.5 测试
+- 后端 e2e：配置 PUT/GET；建超期 P4A 单(createdAt 回拨)→scan→escalated≥1 + ESCALATED_TO 边 + 审计 ESCALATE；未超期不升；二次 scan 幂等。CLI build。
+- 前端 e2e FE-ES1：/escalation 配置+扫描+列表（route-mock）。console-clean 加 /escalation /oncall。
+
+### 48.6 验收
+- [ ] EscalationConfig GET/PUT + 默认种子
+- [ ] scan 对超期活跃单上升（ESCALATED_TO + Reminder + 审计 ESCALATE），未超期不升，幂等
+- [ ] oncall 配置驱动 CRUD
+- [ ] CLI escalation:config-get/set/scan
+- [ ] 前端 /escalation 配置+扫描+列表、/oncall 表
+- [ ] 既有 e2e 零回归；test:all 两次绿；部署
