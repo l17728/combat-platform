@@ -1,11 +1,33 @@
 import { Router } from "express";
-import type { Repository, DailyReport, DailyReportSection } from "@combat/shared";
+import type { Repository, DailyReport, DailyReportSection, DailyReportPublishResult } from "@combat/shared";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const todayUTC = () => new Date().toISOString().slice(0, 10);
 
+/** §51.1: tickets with progress on `date` get 日报发布数量 +1, audited. Returns counts. */
+function publishDailyReport(repo: Repository, date: string, actor: string): DailyReportPublishResult {
+  let ticketsTouched = 0;
+  for (const t of repo.queryNodes("attackTicket")) {
+    const hasProgress = repo.listProgress(t.id).some(p => p.updatedAt.startsWith(date));
+    if (!hasProgress) continue;
+    ticketsTouched++;
+    const cur = Number(t.properties["日报发布数量"] ?? 0) || 0;
+    repo.updateNode(t.id, { 日报发布数量: cur + 1 }, actor);
+    repo.logAudit({ action: "DAILY_REPORT_PUBLISH", entityType: "node", entityId: t.id,
+      changes: { date, 日报发布数量: cur + 1 }, actor });
+  }
+  return { date, ticketsTouched, published: ticketsTouched };
+}
+
 export function makeDailyReportRouter(repo: Repository): Router {
   const r = Router();
+
+  r.post("/daily-report/publish", (req, res) => {
+    const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+    const raw = String(first(req.query.date) ?? "");
+    const date = ISO_DATE.test(raw) ? raw : todayUTC();
+    res.json(publishDailyReport(repo, date, "api"));
+  });
   r.get("/daily-report", (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const raw = String(first(req.query.date) ?? "");

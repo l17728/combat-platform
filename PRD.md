@@ -2799,11 +2799,11 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - CLI：daily-report:publish / jobs:tick / oncall:current / honor:leaderboard --groupBy build 正确。
 
 ### 51.6 验收
-- [ ] 日报 publish 自增 日报发布数量 + 审计 + CLI
-- [ ] jobs:tick 汇总跑 conflicts/escalation/reminders + server 定时 + CLI
-- [ ] oncall:current 日期派生 + CLI
-- [ ] 荣誉 groupBy=team 聚合 + person 团队字段 + CLI 透传
-- [ ] 无前端改动；既有 e2e 零回归；test:all 两次绿；部署
+- [x] 日报 publish 自增 日报发布数量 + 审计 + CLI
+- [x] jobs:tick 汇总跑 conflicts/escalation/reminders + server 定时 + CLI
+- [x] oncall:current 日期派生 + CLI
+- [x] 荣誉 groupBy=team 聚合 + person 团队字段 + CLI 透传
+- [x] 无前端改动；既有 e2e 零回归；test:all 两次绿；部署
 
 ---
 

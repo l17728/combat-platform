@@ -88,6 +88,18 @@ describe("§43 CLI core", () => {
     expect(calls[1]).toEqual({ method: "PUT", path: "/api/escalation/config", body: { rules: [{ 事件级别: "P1", slaHours: 2, 上升角色: "X" }] } });
   });
 
+  it("§51 automation commands build correctly", async () => {
+    const { http, calls } = recorder();
+    await runCli(["daily-report:publish", "--date", "2026-05-22"], http);
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/daily-report/publish?date=2026-05-22" });
+    await runCli(["jobs:tick"], http);
+    expect(calls[1]).toEqual({ method: "POST", path: "/api/jobs/tick" });
+    await runCli(["oncall:current", "--domain", "ModelArts"], http);
+    expect(calls[2]).toEqual({ method: "GET", path: "/api/oncall/current?domain=ModelArts" });
+    await runCli(["honor:leaderboard", "--groupBy", "team"], http);
+    expect(calls[3]).toEqual({ method: "GET", path: "/api/honor/leaderboard?groupBy=team" });
+  });
+
   it("unknown command throws with available-commands hint", async () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });

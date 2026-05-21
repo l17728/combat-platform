@@ -6,6 +6,7 @@
   "fields": [
     { "id": "name", "name": "name", "type": "string", "label": "姓名", "required": true },
     { "id": "employeeId", "name": "employeeId", "type": "string", "label": "工号" },
-    { "id": "email", "name": "email", "type": "string", "label": "邮箱" }
+    { "id": "email", "name": "email", "type": "string", "label": "邮箱" },
+    { "id": "团队", "name": "团队", "type": "string", "label": "团队" }
   ]
 }

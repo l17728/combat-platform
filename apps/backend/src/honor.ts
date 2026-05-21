@@ -9,8 +9,30 @@ export function makeHonorRouter(repo: Repository): Router {
 
   r.get("/honor/leaderboard", (req, res) => {
     const period = typeof req.query.period === "string" ? req.query.period : "";
+    const groupBy = typeof req.query.groupBy === "string" ? req.query.groupBy : "";
     const rows = repo.queryNodes("contribution")
       .filter(c => !period || String(c.properties["周期"] ?? "") === period);
+
+    // §51.4: team aggregation — resolve each contributor name to their person's 团队.
+    if (groupBy === "team") {
+      const teamByName = new Map<string, string>();
+      for (const p of repo.queryNodes("person")) {
+        const name = String(p.properties["name"] ?? "");
+        if (name) teamByName.set(name, String(p.properties["团队"] ?? "").trim());
+      }
+      const byTeam: Record<string, { team: string; score: number; 贡献数: number }> = {};
+      for (const c of rows) {
+        const person = String(c.properties["贡献人"] ?? "");
+        if (!person) continue;
+        const team = teamByName.get(person) || "未分组";
+        const level = String(c.properties["贡献等级"] ?? "");
+        const e = (byTeam[team] ??= { team, score: 0, 贡献数: 0 });
+        e.贡献数 += 1;
+        e.score += WEIGHT[level] ?? 1;
+      }
+      return res.json(Object.values(byTeam).sort((a, b) => b.score - a.score));
+    }
+
     const by: Record<string, { 贡献人: string; score: number; 贡献数: number;
       byLevel: Record<string, number>; byType: Record<string, number> }> = {};
     for (const c of rows) {

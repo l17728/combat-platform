@@ -5,25 +5,29 @@ import { StubChannelAdapter } from "./channel.js";
 
 const WINDOW_MS = 7 * 86400000;
 
+/** Scan + create reminders with 7-day dedup window. Returns count created. Reused by jobs:tick. */
+export function scanAndCreateReminders(repo: Repository, registry: SchemaRegistry): number {
+  const now = Date.now();
+  const recent = new Set(repo.listReminders()
+    .filter(e => (now - Date.parse(e.createdAt)) <= WINDOW_MS)
+    .map(e => `${e.kind}|${e.ticketId}|${e.recipientPersonId ?? ""}`));
+  let created = 0;
+  for (const d of scanReminders(repo, registry, now)) {
+    const k = `${d.kind}|${d.ticketId}|${d.recipientPersonId ?? ""}`;
+    if (recent.has(k)) continue;
+    recent.add(k);
+    repo.createReminder(d, "scan");
+    created++;
+  }
+  return created;
+}
+
 export function makeRemindersRouter(repo: Repository, registry: SchemaRegistry,
                                     channel: ChannelAdapter = new StubChannelAdapter()): Router {
   const r = Router();
 
   r.post("/reminders/scan", (_req, res) => {
-    const now = Date.now();
-    const existing = repo.listReminders();
-    const recent = new Set(existing
-      .filter(e => (now - Date.parse(e.createdAt)) <= WINDOW_MS)
-      .map(e => `${e.kind}|${e.ticketId}|${e.recipientPersonId ?? ""}`));
-    let created = 0;
-    for (const d of scanReminders(repo, registry, now)) {
-      const k = `${d.kind}|${d.ticketId}|${d.recipientPersonId ?? ""}`;
-      if (recent.has(k)) continue;
-      recent.add(k);
-      repo.createReminder(d, "scan");
-      created++;
-    }
-    res.json({ created });
+    res.json({ created: scanAndCreateReminders(repo, registry) });
   });
 
   r.get("/reminders", (req, res) => {

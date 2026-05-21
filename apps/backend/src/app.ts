@@ -19,6 +19,8 @@ import { makeAuditRouter } from "./audit.js";
 import { makeMergeRouter } from "./merge-route.js";
 import { makeEscalationRouter } from "./escalation.js";
 import { makeRelationsRouter } from "./relations.js";
+import { makeJobsRouter } from "./jobs.js";
+import { makeOncallRouter } from "./oncall.js";
 import { makeEmailRouter } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
 
@@ -45,6 +47,8 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeMergeRouter(deps.repo));
   app.use("/api", makeEscalationRouter(deps.repo));
   app.use("/api", makeRelationsRouter(deps.repo));
+  app.use("/api", makeJobsRouter(deps.repo, deps.registry));
+  app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: err.message });

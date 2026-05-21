@@ -203,6 +203,9 @@ export interface DailyReport {
   sections: DailyReportSection[];
   summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
 }
+export interface DailyReportPublishResult { date: string; ticketsTouched: number; published: number; }
+export interface JobsTickResult { conflicts: number; overlaps: number; escalated: number; reminders: number; }
+export interface OncallCurrentRow { domain: string; 值班人: string[]; }
 
 export type ReminderStatus = "待发送" | "已发送" | "已忽略";
 export type ReminderKind = "问题单跟催" | "FE Deadline 提醒" | "CCB 提醒";
