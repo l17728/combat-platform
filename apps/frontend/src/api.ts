@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -164,6 +164,12 @@ export class Api {
     return this.req<GraphNode>(`/api/merge/person`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ fromId, toId }),
+    });
+  }
+  transition(id: string, toStatus: string, note?: string): Promise<TransitionResult> {
+    return this.req<TransitionResult>(`/api/nodes/${id}/transition`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ toStatus, note }),
     });
   }
 }

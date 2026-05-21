@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Descriptions, Timeline, Input, Button, message, List, Typography } from "antd";
+import { Descriptions, Timeline, Input, Button, message, List, Typography, Select, Space } from "antd";
 import { api } from "../api.js";
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry } from "@combat/shared";
+import { ATTACK_STATUSES } from "@combat/shared";
 
 export function AttackDetail() {
   const { id = "" } = useParams();
@@ -23,6 +24,16 @@ export function AttackDetail() {
     if (!text) return;
     await api.appendProgress(id, text, String(node?.properties["状态"] ?? ""));
     setText(""); message.success("已追加进展"); refresh();
+  };
+  const [toStatus, setToStatus] = useState<string | undefined>();
+  const [note, setNote] = useState("");
+  const doTransition = async () => {
+    if (!toStatus) { message.warning("请选择目标状态"); return; }
+    try {
+      await api.transition(id, toStatus, note || undefined);
+      message.success(`已流转到「${toStatus}」`);
+      setToStatus(undefined); setNote(""); refresh();
+    } catch (e) { message.error(String((e as Error).message)); }
   };
   return (
     <div style={{ padding: 16 }}>
@@ -49,6 +60,17 @@ export function AttackDetail() {
         {Object.entries(node?.properties ?? {}).map(([k, v]) =>
           <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>)}
       </Descriptions>
+      <div aria-label="transition" style={{ marginTop: 24 }}>
+        <h3 style={{ marginBottom: 8 }}>状态流转</h3>
+        <Space>
+          <Select aria-label="transition-status" placeholder="目标状态" style={{ width: 140 }}
+            value={toStatus} onChange={setToStatus}
+            options={ATTACK_STATUSES.map(s => ({ value: s, label: s }))} />
+          <Input aria-label="transition-note" placeholder="备注（可选）" style={{ width: 280 }}
+            value={note} onChange={e => setNote(e.target.value)} />
+          <Button type="primary" onClick={doTransition}>流转</Button>
+        </Space>
+      </div>
       <h3 style={{ marginTop: 24 }}>进展序列</h3>
       <Input.TextArea aria-label="progress-input" value={text}
         onChange={e => setText(e.target.value)} rows={2} />
