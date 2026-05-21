@@ -56,6 +56,27 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
     expect(repo.getNode(refs[0].targetId)!.properties["name"]).toBe("甲运维");
   });
 
+  it("§49 attackTicket 事件单号 ↔ p3Incident 共享 → coAnchored 互见", async () => {
+    const { app } = makeApp();
+    const EV = "EV-VIEW-77";
+    const tk = (await request(app).post("/api/nodes/attackTicket").send({
+      标题: "带事件单号的攻关", 状态: "进行中", 事件单号: EV,
+    })).body;
+    const p3 = (await request(app).post("/api/nodes/p3Incident").send({
+      事件单号: EV, 事件标题: "P3 同事件单",
+    })).body;
+    const r = await request(app).get(`/api/related/attackTicket/${tk.id}`);
+    expect((r.body.coAnchored ?? []).map((c: any) => c.node.id)).toContain(p3.id);
+  });
+
+  it("§49 attackTicket 含 req.md 详情新字段（日报发布数量/根因服务/事件单号 等）", async () => {
+    const { app } = makeApp();
+    const s = (await request(app).get("/api/schema/attackTicket")).body;
+    const ids = s.fields.map((f: any) => f.id);
+    for (const f of ["事件单号", "根因服务", "局点", "当前处理部门", "日报发布数量", "攻关成员", "影响及现存风险"])
+      expect(ids).toContain(f);
+  });
+
   it("Hermes 全文检索覆盖新 nodeType（experience）", async () => {
     const { app } = makeApp();
     await request(app).post("/api/nodes/experience").send({ 经验: "断连根因排查经验XYZ" });

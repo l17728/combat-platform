@@ -19,6 +19,20 @@
     { "id": "是否已解决", "name": "是否已解决", "type": "string", "label": "是否已解决" },
     { "id": "攻关有效性", "name": "攻关有效性", "type": "string", "label": "攻关有效性" },
     { "id": "问题单号", "name": "问题单号", "type": "string", "label": "问题单号", "anchor": "问题单号" },
-    { "id": "是否需CCB", "name": "是否需CCB", "type": "enum", "label": "是否需CCB", "enumValues": ["是", "否"] }
+    { "id": "是否需CCB", "name": "是否需CCB", "type": "enum", "label": "是否需CCB", "enumValues": ["是", "否"] },
+    { "id": "事件单号", "name": "事件单号", "type": "string", "label": "事件单号", "anchor": "事件单号" },
+    { "id": "影响及现存风险", "name": "影响及现存风险", "type": "string", "label": "影响及现存风险" },
+    { "id": "局点", "name": "局点", "type": "string", "label": "局点" },
+    { "id": "根因服务", "name": "根因服务", "type": "string", "label": "根因服务" },
+    { "id": "当前处理部门", "name": "当前处理部门", "type": "string", "label": "当前处理部门" },
+    { "id": "攻关发起说明", "name": "攻关发起说明", "type": "string", "label": "攻关发起说明" },
+    { "id": "攻关响应时长", "name": "攻关响应时长", "type": "string", "label": "攻关响应时长" },
+    { "id": "攻关时长", "name": "攻关时长", "type": "string", "label": "攻关时长" },
+    { "id": "挂起开始时间", "name": "挂起开始时间", "type": "datetime", "label": "挂起开始时间" },
+    { "id": "总挂起时长", "name": "总挂起时长", "type": "string", "label": "总挂起时长" },
+    { "id": "解除挂起时间", "name": "解除挂起时间", "type": "datetime", "label": "解除挂起时间" },
+    { "id": "结束攻关时间", "name": "结束攻关时间", "type": "datetime", "label": "结束攻关时间" },
+    { "id": "日报发布数量", "name": "日报发布数量", "type": "number", "label": "日报发布数量" },
+    { "id": "攻关成员", "name": "攻关成员", "type": "string", "label": "攻关成员" }
   ]
 }
