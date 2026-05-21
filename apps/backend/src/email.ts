@@ -1,0 +1,123 @@
+// §45: Email notification API — SMTP config (masked GET, password-preserving PUT),
+// test send, and recipient-resolving send (to[] + emailGroup expansion + person email).
+import { Router } from "express";
+import type { Repository, SchemaRegistry, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "@combat/shared";
+import type { MailSender } from "./mailer.js";
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+const EMPTY_MASK: SmtpConfigMasked = {
+  host: "", port: 465, secure: true, username: "", fromEmail: "", passwordSet: false,
+};
+
+function readConfig(repo: Repository): SmtpConfig | null {
+  const raw = repo.getSetting("smtp");
+  if (!raw) return null;
+  try { return JSON.parse(raw) as SmtpConfig; } catch { return null; }
+}
+
+function mask(cfg: SmtpConfig): SmtpConfigMasked {
+  const { password, ...rest } = cfg;
+  return { ...rest, passwordSet: !!password };
+}
+
+/** trim → drop empties → email-regex filter → dedup (preserving first-seen order). */
+function normalizeRecipients(raw: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of raw) {
+    const v = String(r ?? "").trim();
+    if (!v || !EMAIL_RE.test(v)) continue;
+    if (seen.has(v)) continue;
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
+function resolveRecipients(repo: Repository, req: EmailSendRequest): string[] {
+  const raw: string[] = [];
+  for (const t of req.to ?? []) raw.push(t);
+  for (const name of req.groupNames ?? []) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) continue;
+    for (const g of repo.queryNodes("emailGroup", { 组名: trimmed })) {
+      const members = String(g.properties["成员邮箱"] ?? "");
+      for (const m of members.split(",")) raw.push(m);
+    }
+  }
+  for (const name of req.personNames ?? []) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) continue;
+    const persons = repo.queryNodes("person").filter(
+      p => String(p.properties["name"] ?? "") === trimmed || String(p.properties["employeeId"] ?? "") === trimmed,
+    );
+    for (const p of persons) raw.push(String(p.properties["email"] ?? ""));
+  }
+  return normalizeRecipients(raw);
+}
+
+export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mailSender: MailSender): Router {
+  const r = Router();
+
+  r.get("/email/config", (_req, res) => {
+    const cfg = readConfig(repo);
+    res.json(cfg ? mask(cfg) : EMPTY_MASK);
+  });
+
+  r.put("/email/config", (req, res) => {
+    const body = (req.body ?? {}) as Partial<SmtpConfig>;
+    const old = readConfig(repo);
+    const password = body.password && String(body.password).length > 0
+      ? String(body.password)
+      : (old?.password ?? "");
+    const cfg: SmtpConfig = {
+      host: String(body.host ?? ""),
+      port: Number(body.port ?? 465),
+      secure: body.secure === undefined ? true : !!body.secure,
+      username: String(body.username ?? ""),
+      password,
+      fromEmail: String(body.fromEmail ?? ""),
+      fromName: body.fromName !== undefined ? String(body.fromName) : undefined,
+    };
+    repo.setSetting("smtp", JSON.stringify(cfg), "api");
+    res.json(mask(cfg));
+  });
+
+  r.post("/email/test", async (req, res) => {
+    const cfg = readConfig(repo);
+    if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
+    const to = String((req.body ?? {}).to ?? "").trim();
+    const recipients = to ? [to] : [];
+    try {
+      const { messageId } = await mailSender.send(cfg, {
+        to: recipients, subject: "作战管理工具 测试邮件", body: "这是一封来自作战管理工具的测试邮件。",
+      });
+      const result: EmailSendResult = { recipients, ok: true, messageId };
+      res.json(result);
+    } catch (e) {
+      const result: EmailSendResult = { recipients, ok: false, error: (e as Error).message };
+      res.json(result);
+    }
+  });
+
+  r.post("/email/send", async (req, res) => {
+    const cfg = readConfig(repo);
+    if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
+    const body = (req.body ?? {}) as EmailSendRequest;
+    const recipients = resolveRecipients(repo, body);
+    if (recipients.length === 0) return res.status(400).json({ error: "无有效收件人" });
+    try {
+      const { messageId } = await mailSender.send(cfg, {
+        to: recipients, subject: String(body.subject ?? ""), body: String(body.body ?? ""),
+      });
+      const result: EmailSendResult = { recipients, ok: true, messageId };
+      res.json(result);
+    } catch (e) {
+      const result: EmailSendResult = { recipients, ok: false, error: (e as Error).message };
+      res.json(result);
+    }
+  });
+
+  return r;
+}

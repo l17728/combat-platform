@@ -17,8 +17,11 @@ import { makeHermesRouter } from "./hermes.js";
 import { makeGraphRouter } from "./graph.js";
 import { makeAuditRouter } from "./audit.js";
 import { makeMergeRouter } from "./merge-route.js";
+import { makeEmailRouter } from "./email.js";
+import { NodemailerSender, type MailSender } from "./mailer.js";
 
-export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) {
+export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender }) {
+  const mailSender = deps.mailSender ?? new NodemailerSender();
   const app = express();
   app.use(express.json());
   app.use("/api", makeRouter(deps.repo, deps.registry));
@@ -38,6 +41,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry }) 
   app.use("/api", makeGraphRouter(deps.repo));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));
+  app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     res.status(500).json({ error: err.message });
   });

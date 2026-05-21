@@ -60,6 +60,26 @@ describe("§43 CLI core", () => {
     expect(calls[0].path).toBe("/api/related/attackTicket/t1?depth=2&includeCandidates=1");
   });
 
+  it("email:send builds POST /api/email/send with comma-split arrays (§45)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["email:send", "--to", "a@x.com,b@x.com", "--groups", "G1,G2", "--persons", "张三,李四", "--subject", "S", "--body", "B"], http);
+    expect(calls[0]).toEqual({ method: "POST", path: "/api/email/send", body: {
+      to: ["a@x.com", "b@x.com"], groupNames: ["G1", "G2"], personNames: ["张三", "李四"], subject: "S", body: "B" } });
+  });
+
+  it("email:send omits absent list opts as undefined (§45)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["email:send", "--to", "a@x.com", "--subject", "S", "--body", "B"], http);
+    expect(calls[0].body).toEqual({ to: ["a@x.com"], groupNames: undefined, personNames: undefined, subject: "S", body: "B" });
+  });
+
+  it("email:config-set builds PUT /api/email/config with parsed JSON (§45)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["email:config-set", "--data", '{"host":"smtp.x.com","port":465,"secure":true,"username":"u","password":"p","fromEmail":"a@x.com"}'], http);
+    expect(calls[0]).toEqual({ method: "PUT", path: "/api/email/config", body: {
+      host: "smtp.x.com", port: 465, secure: true, username: "u", password: "p", fromEmail: "a@x.com" } });
+  });
+
   it("unknown command throws with available-commands hint", async () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });

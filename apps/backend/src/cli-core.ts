@@ -48,6 +48,13 @@ function str(v: string | boolean | undefined): string | undefined {
 function requirePos(pos: string[], n: number, usage: string): void {
   if (pos.length < n) throw new Error(`参数不足，用法：${usage}`);
 }
+/** Comma-separated option → trimmed non-empty string[]; undefined when not provided. */
+function csv(v: string | boolean | undefined): string[] | undefined {
+  const s = str(v);
+  if (s === undefined) return undefined;
+  const arr = s.split(",").map(x => x.trim()).filter(x => x.length > 0);
+  return arr.length > 0 ? arr : undefined;
+}
 function jsonOpt(opts: Record<string, string | boolean>, key: string): unknown {
   const raw = str(opts[key]);
   if (raw === undefined) throw new Error(`缺少 --${key} <json>`);
@@ -132,6 +139,18 @@ export const COMMANDS: CliCommand[] = [
     build: (pos, opts) => { requirePos(pos, 1, "reminders:send <id> --by <人>"); return { method: "POST", path: `/api/reminders/${encodeURIComponent(pos[0])}/send`, body: { decidedBy: str(opts.by) } }; } },
   { name: "reminders:ignore", summary: "忽略一条提醒", usage: "reminders:ignore <id> --by <人>",
     build: (pos, opts) => { requirePos(pos, 1, "reminders:ignore <id> --by <人>"); return { method: "POST", path: `/api/reminders/${encodeURIComponent(pos[0])}/ignore`, body: { decidedBy: str(opts.by) } }; } },
+
+  // ---- email (§45) ----
+  { name: "email:config-get", summary: "查看 SMTP 配置（密码掩码）", usage: "email:config-get",
+    build: () => ({ method: "GET", path: "/api/email/config" }) },
+  { name: "email:config-set", summary: "设置 SMTP 配置（password 空则保留旧密码）", usage: "email:config-set --data '<json>'",
+    build: (_pos, opts) => ({ method: "PUT", path: "/api/email/config", body: jsonOpt(opts, "data") }) },
+  { name: "email:test", summary: "用当前配置发一封测试邮件", usage: "email:test --to <邮箱>",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/email/test", body: { to: str(opts.to) } }) },
+  { name: "email:send", summary: "发送邮件（收件人 = to + 群组展开 + 人员邮箱，去重）", usage: "email:send [--to a,b] [--groups g1,g2] [--persons 张三,李四] --subject S --body B",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/email/send", body: {
+      to: csv(opts.to), groupNames: csv(opts.groups), personNames: csv(opts.persons),
+      subject: str(opts.subject), body: str(opts.body) } }) },
 
   // ---- file I/O (§44) ----
   { name: "import", summary: "从 Excel 导入（--dryRun 仅预览不写库）", usage: "import <nodeType> --file <path.xlsx> [--dryRun]",
