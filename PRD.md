@@ -2766,3 +2766,41 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - [x] 前端角色 Select + X-Role 头注入 + 403 提示
 - [x] CLI COMBAT_ROLE 注入
 - [x] 既有 e2e 零回归（honor 改为 Leader 角色）；test:all 两次绿；待部署
+
+---
+
+## 51. 增量 34：后台自动化机制补全（仅后端，无前端 UI）
+
+> 用户指令：后台机制全部实现，前台 UI 暂不做。补齐 §11 Phase3 / §5.3 中属于后台机制的几项。全部含 CLI（核心原则），不加前端页面。
+
+### 51.1 日报发布数量自增（§11 Phase3「自动日报…计入日报发布数量」）
+- `POST /api/daily-report/publish?date=YYYY-MM-DD`：对当日有进展的每个 attackTicket，其 `日报发布数量`(number)+1，审计 `DAILY_REPORT_PUBLISH`，返回 `{ date, ticketsTouched, published }`。
+- CLI：`daily-report:publish [--date]`。
+
+### 51.2 定时任务机制（§5.3 定时扫描）
+- `tickScheduledJobs(repo, registry)`：依次跑 `syncConflicts` + `scanEscalation` + `scanReminders`，返回各计数汇总 `{ conflicts, overlaps, escalated, reminders }`。
+- `POST /api/jobs/tick`：手动触发，返回汇总（可测）。
+- `server.ts`：`setInterval(tick, 1h)` 启动定时（仅生产入口，createApp 不启定时，测试不受影响）。
+- CLI：`jobs:tick`。
+
+### 51.3 Oncall 当前值班推导（§5.3 Oncall 轮换）
+- `GET /api/oncall/current?domain=`：在 oncall 节点中按 domain 过滤，取今天落在 [起,止] 区间者，返回当前值班人列表（按 domain 分组或单 domain）。日期派生，无状态写入。
+- CLI：`oncall:current [--domain]`。
+
+### 51.4 荣誉团队聚合（数据基础 + 后端）
+- person 增 `团队` 字段（配置）。`GET /api/honor/leaderboard?groupBy=team`：按贡献人所属 person 的 `团队` 聚合加权得分；无 groupBy 时维持按人（向后兼容）。
+- CLI：既有 `honor:leaderboard` 加 `--groupBy team` 透传。
+
+### 51.5 测试（全后端 e2e + CLI build）
+- 日报发布：建单+当日进展→publish→该单 日报发布数量=1；二次 publish=2；审计留痕。
+- jobs:tick：造冲突+超期单→tick→汇总含 conflicts≥1、escalated≥1。
+- oncall:current：建今天区间内/外的 oncall→current 只返回区间内值班人。
+- 团队聚合：两人不同团队各核心贡献→groupBy=team 返回团队加权。
+- CLI：daily-report:publish / jobs:tick / oncall:current / honor:leaderboard --groupBy build 正确。
+
+### 51.6 验收
+- [ ] 日报 publish 自增 日报发布数量 + 审计 + CLI
+- [ ] jobs:tick 汇总跑 conflicts/escalation/reminders + server 定时 + CLI
+- [ ] oncall:current 日期派生 + CLI
+- [ ] 荣誉 groupBy=team 聚合 + person 团队字段 + CLI 透传
+- [ ] 无前端改动；既有 e2e 零回归；test:all 两次绿；部署
