@@ -2605,3 +2605,49 @@ CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:con
 
 
 
+
+---
+
+## 46. 增量 29：req.md 作战表 + 经验总结 view（兑现 §0.2 一模型多 view / §3.2 内置 view）
+
+> 此前只建了 attackTicket 等少数 nodeType；req.md 的 7 张作战表 + 经验总结尚未纳入。本增量把它们建为**配置驱动 nodeType**（零后端新代码）——泛型 CRUD/导入/导出/CLI/Hermes 检索/关联(coAnchored)自动覆盖。通过 ref→person(concept 负责人) 与 anchor(问题单号/事件单号/domain/客户) 让新表**自动参与跨 view 关联**，真正落地"一模型多 view"。
+
+### 46.1 新增 nodeType（config/schemas/*.json，全部配置驱动）
+
+| nodeType | label | 关键字段（ref/anchor 标注） |
+|---|---|---|
+| incidentTracking | 现网问题跟踪 | 问题说明(req) · 影响客户[anchor 客户] · 风险等级(enum) · 状态(enum) · 运维责任人/研发责任人[ref person,concept 负责人] · 关联需求问题单[anchor 问题单号] |
+| changeIssue | 变更相关问题 | 问题说明(req) · 严重程度 · 状态(enum) · 研发责任人[ref person] · 关联需求问题单[anchor 问题单号] |
+| alarmGovernance | 告警治理跟踪 | 告警问题(req) · 问题和措施 · 状态(enum) · 责任人[ref person] · 问题单需求单号[anchor 问题单号] |
+| p3Incident | 未闭环P3事件单 | 事件单号(req,identity)[anchor 事件单号] · 事件标题 · 事件处理人[ref person] · 客户级别 |
+| dailyTask | 日常事项跟踪 | 事项描述(req) · 涉及客户[anchor 客户] · 优先级(enum) · 状态(enum) · 责任人[ref person] |
+| issue400 | 现网400问题梳理 | 客户(req)[anchor 客户] · domainId[anchor domain] · MaaS报错信息 · model · 说明 |
+| issue5xx | 现网5xx问题梳理 | domainId(req)[anchor domain] · MaaS报错信息 · 错误码 · model · 下一步 |
+| experience | 经验总结 | 经验(req) · 责任人[ref person] · 计划完成时间 · 链接 · 内容（作为 Hermes 文档检索的 Document） |
+
+状态 enum 复用 `待响应/处理中/进行中/已解决/已关闭`；优先级/风险等级 enum `高/中/低`。
+
+### 46.2 后端
+
+**零新代码**——仅新增 8 份配置。验证：
+- 配置全部可被 FileSchemaRegistry 加载（registry coverage 测试）。
+- 跨 view 关联：incidentTracking 与 attackTicket 共享 `问题单号` anchor → `/api/related` coAnchored 互见。
+- ref→person：现网问题的 运维责任人 写入即建 person + REF 边（concept 负责人），与 attackTicket 当前处理人 在 related 同 concept 归并。
+- Hermes 全文检索自动覆盖新 nodeType（fallback-search 命中 experience/incidentTracking）。
+- 泛型导入/导出/CLI `nodes:*` 自动支持新 nodeType。
+
+### 46.3 前端
+
+- App.tsx 注册 8 路由：`/incidents /changes /alarms /p3 /daily /issue400 /issue5xx /experience` → `<EntityTable nodeType=...>`。
+- AppShell 增二级子菜单「作战表」收纳新 8 项（保持既有顶层 首页/贡献录入/导入/关系审批 等扁平项不动，导航回归测试不破）。
+- HomePage 增 8 张卡片。
+- console-clean PAGES 追加 8 路由。
+
+### 46.4 验收
+
+- [ ] 8 份配置加载通过；registry coverage 测试列出全部 nodeType
+- [ ] 现网问题 ↔ 攻关单 共享问题单号 → coAnchored 互见（跨 view 关联 e2e）
+- [ ] ref 责任人写入建 person + REF（concept 负责人）
+- [ ] Hermes 全文检索命中新 nodeType（experience）
+- [ ] 前端 8 路由 EntityTable 渲染 + 子菜单/首页卡片可达 + console-clean 全绿
+- [ ] 既有 65 e2e 零回归；后端+前端新增 e2e；`test:all` 两次全绿；部署
