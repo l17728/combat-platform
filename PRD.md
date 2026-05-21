@@ -2216,6 +2216,70 @@ export interface AuditLogEntry {
 - [x] AppShell + HomePage 入口可达 `/audit`
 - [x] 既有 56 e2e 零回归 + 后端 3 e2e + FE-AU1 + console-clean /audit 共 58 e2e；`test:all` 连续两次全绿；待部署
 
+---
+
+## 40. 增量 23：手动人员合并（兑现 §2.4 实体解析 manual 层）
+
+> §0.3 / §2.4 实体解析按置信度降序：精确 ID → 别名 → 模糊(+人审) → **手动**。前三层已通过 ref 解析 + SAME_AS 提议审批覆盖；**手动合并**这一兜底层缺失——用户明知两个 person 是同一人时无法直接合并。后端 `mergePerson()` 已实现（并集字段、迁移边、删源、审计 MERGE），仅缺直接入口。本增量补 preview + commit API + `/merge` 页。
+
+### 40.1 契约（@combat/shared）
+
+```ts
+export interface MergePreview {
+  from: GraphNode;             // 将被合并（消失）的人
+  to: GraphNode;               // 保留的规范人
+  unionedFields: string[];     // from 上、to 缺失或空 → 将补到 to 的字段 id
+  edgesToMigrate: number;      // 将从 from 迁移到 to 的边数（排除 from↔to 直连）
+}
+```
+
+### 40.2 后端 `apps/backend/src/merge.ts` + 路由
+
+- 新增 `previewMerge(repo, fromId, toId): MergePreview`：只读计算 unionedFields + edgesToMigrate，不写库。
+- 路由 `apps/backend/src/merge-route.ts`：
+  - `GET /api/merge/preview?fromId=&toId=`：两 id 必填且都为 `person` 节点，否则 400；返回 `MergePreview`
+  - `POST /api/merge/person` body `{ fromId, toId }`：校验同上 → 调既有 `mergePerson(repo, fromId, toId, "ui")` → 返回合并后的规范 `to` 节点
+  - `fromId === toId` → 400「不能与自身合并」
+
+### 40.3 前端 `apps/frontend/src/pages/MergePage.tsx`
+
+- 加载所有 person（`api.listNodes("person")`）
+- 两个 AntD Select：「被合并（消失）」`from` + 「保留（规范）」`to`，选项 label = name(+employeeId)
+- 「预览」按钮 → 调 preview，展示：将补字段列表 + 迁移边数 + from/to 名称
+- 「确认合并」按钮（danger）外包 Popconfirm（中文不可逆警告「合并不可逆，from 将被删除并把所有关系迁移到 to，确认？」）→ 调 POST → 成功 message + 清空选择 + 刷新 person 列表
+- `aria-label="merge-from" / "merge-to" / "merge-preview" / "merge-confirm"` 供 e2e
+
+- AppShell nav 加「人员合并」；HomePage 加 `home-card-merge`
+
+### 40.4 测试
+
+后端 `apps/backend/test/merge.e2e.test.ts` 至少 3 个：
+1. preview：建两 person（A 有 email，B 有 employeeId）+ A 当 attackTicket 当前处理人 → preview(fromId=A,toId=B) 显示 unionedFields 含 email，edgesToMigrate ≥ 1
+2. commit：POST merge → A 节点消失（getNode 404/null）；B 拿到 A 的 email；A 的 REF 入边迁移到 B；audit 出现 MERGE
+3. 校验：fromId===toId → 400；非 person 节点 → 400
+
+前端 `apps/frontend/e2e/merge.spec.ts` FE-MG1：路由 mock person 列表 + preview + commit，选两人 → 预览显示字段 → 确认（Popconfirm）→ 成功提示。/merge 加入 console-clean。
+
+### 40.5 决策表
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| 复用 mergePerson | 是 | 已实现并经 SAME_AS 审批验证；本增量只补直接入口 |
+| 不可逆确认 | Popconfirm 中文警告 | §2.4 合并不可逆；防误操作 |
+| 字段并集策略 | to 缺失/空 → 取 from（既有逻辑） | 与 mergePerson 一致 |
+| 仅限 person | 是 | §2.4 仅 person 自动/手动合并；task/attackTicket 不合并 |
+| preview 只读 | 是 | 让用户先看清后果再 commit |
+
+### 40.6 验收
+
+- [ ] `MergePreview` 契约 tsc-clean
+- [ ] `GET /api/merge/preview` 返回 unionedFields + edgesToMigrate；非 person / 自身 → 400
+- [ ] `POST /api/merge/person` 合并后 from 消失、to 获并集字段、边迁移、审计 MERGE
+- [ ] `/merge` 页两 Select + 预览 + Popconfirm 不可逆合并可用
+- [ ] AppShell + HomePage 入口可达 `/merge`
+- [ ] 既有 58 e2e 零回归 + 后端 3 e2e + FE-MG1 + console-clean /merge；`test:all` 连续两次全绿；部署
+
+
 
 
 
