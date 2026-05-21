@@ -18,6 +18,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **When a problem is found, fix the entire class of problems, not just the single instance.** Reason from one failure to all similar latent failures (举一反三), trace every divergent/leaf-node issue, and keep resolving until the problem space converges (no remaining related failures). This is a standing directive from the user.
 
+## Core Principle: CLI for Every Backend API (agent-operable)
+
+**Every backend HTTP API MUST have a corresponding command-line command.** The CLI is **Linux shell commands** (the service deploys to Linux) and is how agents (e.g. Hermes) drive the system programmatically. The CLI provides a `help` command that lists every command's format, usage, and function — so an agent can self-query the catalog and then self-invoke; `help <command>` shows per-command detail. **When implementing ANY new backend API, synchronously implement its CLI command in the same increment** — this is part of the backend definition-of-done, never deferred. The CLI is a thin HTTP client over the existing API (`apps/backend/src/cli-core.ts` declarative registry + `cli.ts` fetch entry); run via `npm run cli -- <command> [args] [--opts]` (reads `COMBAT_API`, default `http://localhost:3001`). This is a standing directive from the user ("实现所有后台API的命令行，方便agent…后续实现一个后台API需要同步实现命令行").
+
 ## Core Principle: Deploy to Test Server After Green
 
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle. This is a standing directive.
