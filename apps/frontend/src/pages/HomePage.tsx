@@ -20,6 +20,14 @@ const MODULES = [
   { to: "/merge", title: "人员合并", desc: "实体解析手动层：合并同一人的多条记录（不可逆）" },
   { to: "/email", title: "邮件", desc: "SMTP 配置 + 发送通知邮件" },
   { to: "/emailgroups", title: "邮件群组", desc: "增删改查邮件群组" },
+  { to: "/incidents", title: "现网问题跟踪", desc: "现网问题作战表（跨 view 关联：客户/问题单号锚点）" },
+  { to: "/changes", title: "变更相关问题", desc: "变更问题作战表" },
+  { to: "/alarms", title: "告警治理跟踪", desc: "告警治理作战表" },
+  { to: "/p3", title: "未闭环P3事件单", desc: "P3 事件单作战表（事件单号锚点）" },
+  { to: "/daily", title: "日常事项跟踪", desc: "日常事项作战表" },
+  { to: "/issue400", title: "现网400问题梳理", desc: "400 问题梳理（domain/客户锚点）" },
+  { to: "/issue5xx", title: "现网5xx问题梳理", desc: "5xx 问题梳理（domain 锚点）" },
+  { to: "/experience", title: "经验总结", desc: "经验沉淀，供 Hermes 检索（Document）" },
 ];
 
 export function HomePage() {

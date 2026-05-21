@@ -3,9 +3,21 @@ import { Layout, Menu } from "antd";
 import { Link, useLocation } from "react-router-dom";
 import type { ReactNode } from "react";
 
+const VIEW_TABLES = [
+  { key: "/incidents", label: <Link to="/incidents">现网问题跟踪</Link> },
+  { key: "/changes", label: <Link to="/changes">变更相关问题</Link> },
+  { key: "/alarms", label: <Link to="/alarms">告警治理跟踪</Link> },
+  { key: "/p3", label: <Link to="/p3">未闭环P3事件单</Link> },
+  { key: "/daily", label: <Link to="/daily">日常事项跟踪</Link> },
+  { key: "/issue400", label: <Link to="/issue400">现网400问题梳理</Link> },
+  { key: "/issue5xx", label: <Link to="/issue5xx">现网5xx问题梳理</Link> },
+  { key: "/experience", label: <Link to="/experience">经验总结</Link> },
+];
+
 const ITEMS = [
   { key: "/", label: <Link to="/">首页</Link> },
   { key: "/attack", label: <Link to="/attack">攻关作战台</Link> },
+  { key: "views", label: "作战表", children: VIEW_TABLES },
   { key: "/honor", label: <Link to="/honor">荣誉殿堂</Link> },
   { key: "/contributions", label: <Link to="/contributions">贡献录入</Link> },
   { key: "/import", label: <Link to="/import">导入</Link> },

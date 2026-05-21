@@ -44,6 +44,14 @@ export default function App() {
           <Route path="/import" element={<ImportPage />} />
           <Route path="/email" element={<EmailPage />} />
           <Route path="/emailgroups" element={<EntityTable nodeType="emailGroup" />} />
+          <Route path="/incidents" element={<EntityTable nodeType="incidentTracking" filterField="状态" />} />
+          <Route path="/changes" element={<EntityTable nodeType="changeIssue" filterField="状态" />} />
+          <Route path="/alarms" element={<EntityTable nodeType="alarmGovernance" filterField="状态" />} />
+          <Route path="/p3" element={<EntityTable nodeType="p3Incident" />} />
+          <Route path="/daily" element={<EntityTable nodeType="dailyTask" filterField="状态" />} />
+          <Route path="/issue400" element={<EntityTable nodeType="issue400" />} />
+          <Route path="/issue5xx" element={<EntityTable nodeType="issue5xx" />} />
+          <Route path="/experience" element={<EntityTable nodeType="experience" />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
