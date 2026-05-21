@@ -2591,13 +2591,13 @@ CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:con
 
 ### 45.8 验收
 
-- [ ] 契约 tsc-clean；`app_settings` 表 + getSetting/setSetting
-- [ ] SMTP 配置 PUT/GET（掩码、空密码保留）
-- [ ] `/api/email/send` 解析 to+group+person 去重并经 MailSender 发送；未配置/无收件人 → 400
-- [ ] emailGroup 配置驱动 CRUD 可用
-- [ ] CLI：email:config-get/set、email:test、email:send 可用且 build 正确
-- [ ] 前端 /email 配置+撰写发送、/emailgroups CRUD 可用
-- [ ] 既有 62 e2e 零回归 + 后端 email/cli e2e + FE-EM1 + console-clean(/email,/emailgroups)；`test:all` 两次全绿；部署
+- [x] 契约 tsc-clean；`app_settings` 表 + getSetting/setSetting
+- [x] SMTP 配置 PUT/GET（掩码、空密码保留）
+- [x] `/api/email/send` 解析 to+group+person 去重并经 MailSender 发送；未配置/无收件人 → 400
+- [x] emailGroup 配置驱动 CRUD 可用（零后端码，复用泛型）
+- [x] CLI：email:config-get/set、email:test、email:send 可用且 build 正确
+- [x] 前端 /email 配置+撰写发送、/emailgroups CRUD 可用
+- [x] 既有 62 e2e 零回归 + 后端 email(8)/cli(+3) e2e + FE-EM1 + console-clean(/email,/emailgroups) 共 65 e2e；`test:all` 两次全绿（backend 166）；待部署
 
 
 
