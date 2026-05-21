@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult, EscalationConfig, EscalationScanResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -198,6 +198,17 @@ export class Api {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify(req),
     });
+  }
+  getEscalationConfig(): Promise<EscalationConfig> {
+    return this.req<EscalationConfig>(`/api/escalation/config`, {});
+  }
+  putEscalationConfig(cfg: EscalationConfig): Promise<EscalationConfig> {
+    return this.req<EscalationConfig>(`/api/escalation/config`, {
+      method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(cfg),
+    });
+  }
+  scanEscalation(): Promise<EscalationScanResult> {
+    return this.req<EscalationScanResult>(`/api/escalation/scan`, { method: "POST" });
   }
 }
 export const api = new Api("");

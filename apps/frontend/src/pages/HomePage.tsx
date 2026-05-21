@@ -28,6 +28,8 @@ const MODULES = [
   { to: "/issue400", title: "现网400问题梳理", desc: "400 问题梳理（domain/客户锚点）" },
   { to: "/issue5xx", title: "现网5xx问题梳理", desc: "5xx 问题梳理（domain 锚点）" },
   { to: "/experience", title: "经验总结", desc: "经验沉淀，供 Hermes 检索（Document）" },
+  { to: "/escalation", title: "SLA上升", desc: "责任矩阵 + 超期攻关单自动上升（ESCALATED_TO + 审计）" },
+  { to: "/oncall", title: "Oncall 排班", desc: "domain 值班登记（配置驱动）" },
 ];
 
 export function HomePage() {

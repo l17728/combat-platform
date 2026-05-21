@@ -17,6 +17,7 @@ import { GraphPage } from "./pages/GraphPage.js";
 import { AuditPage } from "./pages/AuditPage.js";
 import { MergePage } from "./pages/MergePage.js";
 import { EmailPage } from "./pages/EmailPage.js";
+import { EscalationPage } from "./pages/EscalationPage.js";
 
 export default function App() {
   return (
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="/daily" element={<EntityTable nodeType="dailyTask" filterField="状态" />} />
           <Route path="/issue400" element={<EntityTable nodeType="issue400" />} />
           <Route path="/issue5xx" element={<EntityTable nodeType="issue5xx" />} />
+          <Route path="/escalation" element={<EscalationPage />} />
+          <Route path="/oncall" element={<EntityTable nodeType="oncall" />} />
           <Route path="/experience" element={<EntityTable nodeType="experience" />} />
         </Routes>
       </AppShell>

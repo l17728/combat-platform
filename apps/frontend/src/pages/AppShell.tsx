@@ -31,6 +31,8 @@ const ITEMS = [
   { key: "/hermes", label: <Link to="/hermes">Hermes 问答</Link> },
   { key: "/audit", label: <Link to="/audit">审计日志</Link> },
   { key: "/merge", label: <Link to="/merge">人员合并</Link> },
+  { key: "/escalation", label: <Link to="/escalation">SLA上升</Link> },
+  { key: "/oncall", label: <Link to="/oncall">Oncall</Link> },
   { key: "/email", label: <Link to="/email">邮件</Link> },
   { key: "/emailgroups", label: <Link to="/emailgroups">邮件群组</Link> },
 ];

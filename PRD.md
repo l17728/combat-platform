@@ -2706,9 +2706,9 @@ export interface EscalationConfig { rules: EscalationRule[]; }
 - 前端 e2e FE-ES1：/escalation 配置+扫描+列表（route-mock）。console-clean 加 /escalation /oncall。
 
 ### 48.6 验收
-- [ ] EscalationConfig GET/PUT + 默认种子
-- [ ] scan 对超期活跃单上升（ESCALATED_TO + Reminder + 审计 ESCALATE），未超期不升，幂等
-- [ ] oncall 配置驱动 CRUD
-- [ ] CLI escalation:config-get/set/scan
-- [ ] 前端 /escalation 配置+扫描+列表、/oncall 表
-- [ ] 既有 e2e 零回归；test:all 两次绿；部署
+- [x] EscalationConfig GET/PUT + 默认种子
+- [x] scan 对超期活跃单上升（ESCALATED_TO + 审计 ESCALATE），未超期不升，幂等
+- [x] oncall 配置驱动 CRUD
+- [x] CLI escalation:config-get/set/scan
+- [x] 前端 /escalation 配置+扫描+列表、/oncall 表
+- [x] 既有 e2e 零回归；test:all 两次绿；待部署
