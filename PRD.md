@@ -2645,12 +2645,12 @@ CLI：`email:send` build 出 POST /api/email/send body 数组正确；`email:con
 
 ### 46.4 验收
 
-- [ ] 8 份配置加载通过；registry coverage 测试列出全部 nodeType
-- [ ] 现网问题 ↔ 攻关单 共享问题单号 → coAnchored 互见（跨 view 关联 e2e）
-- [ ] ref 责任人写入建 person + REF（concept 负责人）
-- [ ] Hermes 全文检索命中新 nodeType（experience）
-- [ ] 前端 8 路由 EntityTable 渲染 + 子菜单/首页卡片可达 + console-clean 全绿
-- [ ] 既有 65 e2e 零回归；后端+前端新增 e2e；`test:all` 两次全绿；部署
+- [x] 8 份配置加载通过；registry coverage 测试列出全部 nodeType
+- [x] 现网问题 ↔ 攻关单 共享问题单号 → coAnchored 互见（跨 view 关联 e2e）
+- [x] ref 责任人写入建 person + REF（concept 负责人）
+- [x] Hermes 全文检索命中新 nodeType（experience）
+- [x] 前端 8 路由 EntityTable 渲染 + 子菜单/首页卡片可达 + console-clean 全绿
+- [x] 既有 65 e2e 零回归；后端 views(4) + 前端 FE-VW1 + console-clean(8) 共 74 e2e；`test:all` 两次全绿（backend 170）；待部署
 
 ---
 
