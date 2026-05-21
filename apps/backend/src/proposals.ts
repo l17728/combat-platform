@@ -36,13 +36,23 @@ export function makeProposalsRouter(repo: Repository, registry: SchemaRegistry):
     const { decision, decidedBy, patch } = req.body ?? {};
     if (!decidedBy || typeof decidedBy !== "string")
       return res.status(400).json({ error: "decidedBy 必填" });
-    if (decision === "拒绝")
+    // H1 fix: accept both bare (通过/拒绝) and past-tense (已通过/已拒绝) so CLI/UI agree.
+    const d = String(decision ?? "");
+    if (d === "拒绝" || d === "已拒绝")
       return res.json(repo.updateProposalStatus(p.id, "已拒绝", decidedBy, decidedBy));
-    if (decision === "通过" || decision === "修正") {
-      const target = decision === "修正" && patch?.targetNodeId ? patch.targetNodeId : p.targetNodeId;
-      if (decision === "修正" && patch?.targetNodeId && !repo.getNode(patch.targetNodeId))
+    if (d === "通过" || d === "已通过" || d === "修正") {
+      const corrected = d === "修正" && patch?.targetNodeId;
+      const target = corrected ? patch.targetNodeId : p.targetNodeId;
+      if (corrected && !repo.getNode(patch.targetNodeId))
         return res.status(400).json({ error: `patch.targetNodeId 不存在: ${patch.targetNodeId}` });
-      if (p.relationType === "SAME_AS") mergePerson(repo, p.sourceNodeId, target, decidedBy);
+      // M6 fix: SAME_AS merge only when both ends are person nodes.
+      if (p.relationType === "SAME_AS") {
+        const s = repo.getNode(p.sourceNodeId), t = repo.getNode(target);
+        if (!s || !t) return res.status(400).json({ error: "合并节点不存在" });
+        if (s.nodeType !== "person" || t.nodeType !== "person")
+          return res.status(400).json({ error: "SAME_AS 仅支持 person 合并" });
+        mergePerson(repo, p.sourceNodeId, target, decidedBy);
+      }
       return res.json(repo.updateProposalStatus(p.id, "已通过", decidedBy, decidedBy));
     }
     return res.status(400).json({ error: "decision ∈ {通过,拒绝,修正}" });

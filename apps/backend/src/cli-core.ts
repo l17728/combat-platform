@@ -129,7 +129,7 @@ export const COMMANDS: CliCommand[] = [
     build: (_pos, opts) => ({ method: "POST", path: "/api/merge/person", body: { fromId: str(opts.from), toId: str(opts.to) } }) },
   { name: "proposals:scan", summary: "扫描生成候选关系提议", usage: "proposals:scan",
     build: () => ({ method: "POST", path: "/api/proposals/scan" }) },
-  { name: "proposals:decide", summary: "审批一条提议", usage: "proposals:decide <id> --decision <已通过|已拒绝|已忽略> --by <人> [--target <id>]",
+  { name: "proposals:decide", summary: "审批一条提议", usage: "proposals:decide <id> --decision <通过|拒绝|修正> --by <人> [--target <id>]",
     build: (pos, opts) => { requirePos(pos, 1, "proposals:decide <id> --decision <d> --by <人>");
       const patch = str(opts.target) ? { targetNodeId: str(opts.target) } : undefined;
       return { method: "POST", path: `/api/proposals/${encodeURIComponent(pos[0])}/decide`, body: { decision: str(opts.decision), decidedBy: str(opts.by), patch } }; } },

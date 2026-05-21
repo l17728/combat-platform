@@ -35,6 +35,17 @@ export function rebuildKG(repo: Repository, registry: SchemaRegistry): RebuildKG
 
   const { conflicts, overlaps } = syncConflicts(repo);
 
+  // M1 fix: reclaim orphan anchor nodes — created on demand by syncAnchorEdges;
+  // after rebuild any anchor with no ANCHORED_TO inbound edge is garbage that would
+  // otherwise pollute queries / full-text search / dashboard.
+  const anchorKinds = new Set<string>();
+  for (const ns of registry.getConfig().nodeTypes)
+    for (const f of ns.fields) if (f.anchor) anchorKinds.add(f.anchor);
+  for (const kind of anchorKinds)
+    for (const anchor of repo.queryNodes(kind))
+      if (repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" }).length === 0)
+        repo.deleteNode(anchor.id, actor);
+
   return {
     refEdges: repo.queryEdges({ edgeType: "REF" }).length,
     anchorEdges: repo.queryEdges({ edgeType: "ANCHORED_TO" }).length,

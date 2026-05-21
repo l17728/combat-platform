@@ -9,7 +9,10 @@ export function validateNode(schema: NodeSchema, props: Record<string, unknown>)
       errors.push(`字段「${f.label}」必填`);
       continue;
     }
-    if (v !== undefined && f.type === "enum" && f.enumValues && !f.enumValues.includes(String(v))) {
+    // M2 fix: an optional enum left blank (undefined/null/"") is valid — only a
+    // non-empty value must be in the enum. (Excel empty cells arrive as "" and
+    // were wrongly rejected, silently skipping valid import rows.)
+    if (v !== undefined && v !== null && v !== "" && f.type === "enum" && f.enumValues && !f.enumValues.includes(String(v))) {
       errors.push(`字段「${f.label}」取值非法: ${String(v)}`);
     }
   }

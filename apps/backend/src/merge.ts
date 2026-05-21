@@ -1,4 +1,5 @@
 import type { Repository, MergePreview } from "@combat/shared";
+import { syncConflicts } from "./conflicts.js";
 
 // Read-only computation of what mergePerson(fromId → toId) would do: which
 // fields get unioned onto `to`, and how many edges migrate (excluding from↔to).
@@ -28,12 +29,32 @@ export function mergePerson(repo: Repository, fromId: string, toId: string, acto
   for (const [k, v] of Object.entries(dup.properties))
     if (canon.properties[k] === undefined || canon.properties[k] === "") unioned[k] = v;
   if (Object.keys(unioned).length) repo.updateNode(toId, unioned, actor);
-  // skip a direct from↔to edge so the re-point can't create a toId→toId self-loop
-  for (const e of repo.queryEdges({ sourceId: fromId }))
-    if (e.targetId !== toId) repo.createEdge(e.edgeType, toId, e.targetId, e.properties, actor);
-  for (const e of repo.queryEdges({ targetId: fromId }))
-    if (e.sourceId !== toId) repo.createEdge(e.edgeType, e.sourceId, toId, e.properties, actor);
+  // H2 fix: re-point from's edges onto `to`, but DEDUP — skip creating an edge
+  // that `to` already has (same edgeType + peer + field), so repeated merges or
+  // shared references don't pile up duplicate edges. (Person merge only touches
+  // incoming REF/ASSIGNED_TO/ESCALATED_TO/RELATES_TO; re-pointing is correct —
+  // re-deriving would wrongly re-create the deleted person from stale name strings.)
+  const sig = (edgeType: string, peer: string, field: unknown) => `${edgeType}|${peer}|${String(field ?? "")}`;
+  const existing = new Set<string>();
+  for (const e of repo.queryEdges({ sourceId: toId })) existing.add(sig(e.edgeType, e.targetId, e.properties["field"]));
+  for (const e of repo.queryEdges({ targetId: toId })) existing.add(sig(e.edgeType, e.sourceId, e.properties["field"]));
+  for (const e of repo.queryEdges({ sourceId: fromId })) {
+    if (e.targetId === toId) continue; // avoid self-loop
+    const s = sig(e.edgeType, e.targetId, e.properties["field"]);
+    if (existing.has(s)) continue;
+    existing.add(s);
+    repo.createEdge(e.edgeType, toId, e.targetId, e.properties, actor);
+  }
+  for (const e of repo.queryEdges({ targetId: fromId })) {
+    if (e.sourceId === toId) continue;
+    const s = sig(e.edgeType, e.sourceId, e.properties["field"]);
+    if (existing.has(s)) continue;
+    existing.add(s);
+    repo.createEdge(e.edgeType, e.sourceId, toId, e.properties, actor);
+  }
   repo.deleteNode(fromId, actor);
+  // recompute conflict edges in case a re-pointed REF changed an owner grouping
+  syncConflicts(repo);
   // PRD §2.2: merge is a first-class audited business event (records the
   // actual surviving target — also the trace for a 修正-corrected target).
   repo.logAudit({ action: "MERGE", entityType: "node", entityId: toId,

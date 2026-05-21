@@ -26,6 +26,12 @@ function resolvePerson(repo: Repository, name?: string, employeeId?: string): st
     const hit = repo.queryNodes("person", { employeeId }).at(0);
     if (hit) return hit.id;
   }
+  // M3 fix: when no employeeId, dedup by name before creating — repeated imports
+  // of a name-only person must reuse the same node (was creating duplicates).
+  if (name) {
+    const byName = repo.queryNodes("person").find(n => String(n.properties["name"] ?? "") === name);
+    if (byName) return byName.id;
+  }
   return repo.createNode("person", { name: name ?? employeeId, employeeId }, "import").id;
 }
 
