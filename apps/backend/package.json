@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cli": "tsx src/cli.ts"
   },
   "dependencies": {
     "@combat/shared": "*",
