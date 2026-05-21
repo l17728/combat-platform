@@ -2729,3 +2729,40 @@ export interface EscalationConfig { rules: EscalationRule[]; }
 - [x] test:all 两次绿；待部署
 
 > 注：welinkcli（§13#3 抓群自动日报/找人）、eSpace 通道（§13#2）、RBAC 权限模型（§13#4 贡献等级仅 Leader）三项需外部凭据/身份认证方案，**待用户提供后实现**，非本轮可补。
+
+---
+
+## 50. 增量 33：轻量角色门禁 RBAC MVP（兑现 §13#4 贡献等级仅 Leader 可标定）
+
+> §13#4 权限模型此前推迟（无登录体系）。本增量做**可升级的最小角色门禁**：用 `X-Role` 请求头表达角色，后端在敏感操作上强制；**无 X-Role 头视为可信系统访问**（CLI/导入/测试不受影响），前端交互用户始终携带角色头。明确这是 MVP，非认证；接入真实登录后只需让登录态注入 X-Role。
+
+### 50.1 契约（@combat/shared）
+```ts
+export type Role = "普通" | "Leader" | "管理员";
+export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
+```
+
+### 50.2 后端门禁
+- 读 `X-Role` 头（缺省 = 可信，等价管理员）。
+- 规则：`POST /api/nodes/contribution` 与 `PUT /api/nodes/:id`（contribution 节点）中，若提交含**非空 `贡献等级`** 且 `X-Role` 头存在但不属于 `PRIVILEGED_ROLES` → `403 {error:"仅 Leader 可标定贡献等级"}`。
+- 无 X-Role 头 → 放行（CLI/导入/系统/既有测试不破坏）。
+
+### 50.3 前端
+- `AppShell` 头部加角色 `Select`（普通/Leader/管理员），持久化 localStorage `combat-role`，默认「普通」。
+- `api.req` 给所有请求带 `X-Role: <当前角色>` 头。
+- 贡献录入（contribution EntityTable）：非特权角色提交含 贡献等级 → 后端 403 → 前端提示「仅 Leader 可标定贡献等级」。
+
+### 50.4 CLI
+- `cli.ts` httpFetch 读 `COMBAT_ROLE` 环境变量（缺省不带头=可信），带上 `X-Role`。agent 默认可信。
+
+### 50.5 测试
+- 后端 e2e：X-Role:普通 + 贡献等级 → 403；X-Role:Leader → 201；普通但不含贡献等级 → 201；无头 + 贡献等级 → 201（系统可信）。既有 contribution 测试（无头）不破坏。
+- 前端 e2e FE-RB1：角色 Select 存在；切到普通后录贡献含等级→提示 403 文案（route-mock 403）。
+- console-clean 不新增路由。
+
+### 50.6 验收
+- [ ] Role 契约 + PRIVILEGED_ROLES
+- [ ] 后端贡献等级门禁（普通 403 / Leader 201 / 无头放行）
+- [ ] 前端角色 Select + X-Role 头注入 + 403 提示
+- [ ] CLI COMBAT_ROLE 注入
+- [ ] 既有 e2e 零回归；test:all 两次绿；部署
