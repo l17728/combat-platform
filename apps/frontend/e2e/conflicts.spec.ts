@@ -38,17 +38,18 @@ test("FE-CF1 ConflictsPage Tabs + scan button + counts", async ({ page }) => {
   await expect(conflictTab).toBeVisible();
   await expect(overlapTab).toBeVisible();
 
-  // Default tab (冲突) shows A / B titles.
-  await expect(page.getByRole("link", { name: "A" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "B" })).toBeVisible();
+  // Default tab (冲突) shows A / B titles. exact:true so single-letter names don't
+  // substring-match nav links like "SLA上升" / "Oncall".
+  await expect(page.getByRole("link", { name: "A", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "B", exact: true })).toBeVisible();
 
   // Counts header is visible (scope to aria-label to avoid post-scan "上次扫描" text).
   await expect(page.getByLabel("conflicts-counts")).toContainText(/冲突\s*1\s*·\s*重叠\s*1/);
 
   // Switch to 重叠 Tab.
   await overlapTab.click();
-  await expect(page.getByRole("link", { name: "C" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "D" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "C", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "D", exact: true })).toBeVisible();
 
   // Click the rescan button — assert the post request is fired and counts still visible.
   const scanReq = page.waitForRequest(req => /\/api\/conflicts\/scan$/.test(req.url()) && req.method() === "POST");

@@ -38,7 +38,8 @@ export function EscalationPage() {
         <Button type="primary" onClick={save}>保存矩阵</Button>
         <Button aria-label="scan-escalation" danger onClick={scan}>扫描上升</Button>
       </Space>
-      <Table aria-label="escalation-rules" rowKey={(_, i) => String(i)} pagination={false} dataSource={rules}
+      <Table aria-label="escalation-rules" rowKey="_k" pagination={false}
+        dataSource={rules.map((r, i) => ({ ...r, _k: i }))}
         columns={[
           { title: "事件级别", dataIndex: "事件级别", render: (v: string, _r, i) =>
             <Input aria-label={`rule-level-${i}`} value={v} style={{ width: 100 }} onChange={e => setRule(i, { 事件级别: e.target.value })} /> },
