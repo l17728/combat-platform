@@ -55,7 +55,8 @@ test("GAP Import: failure path shows error message", async ({ page }) => {
   await page.setInputFiles("input[type=file]", {
     name: "any.xlsx", mimeType: "application/octet-stream", buffer: Buffer.from("x"),
   });
-  await expect(page.getByText("导入失败，请重试")).toBeVisible();
+  // 现在错误提示带后端详情：导入失败：HTTP 500 boom
+  await expect(page.getByText(/导入失败：.*boom/)).toBeVisible();
 });
 
 test("GAP PersonHonor: heading, list fields, and no-link contribution", async ({ page, request }) => {
