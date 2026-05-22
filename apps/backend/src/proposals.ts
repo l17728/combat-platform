@@ -2,26 +2,35 @@ import { Router } from "express";
 import type { Repository, SchemaRegistry } from "@combat/shared";
 import { HeuristicRelationProposer } from "./proposer.js";
 import { mergePerson } from "./merge.js";
+import { log } from "./logger.js";
+
+const PROPOSERS = [new HeuristicRelationProposer()];
+
+/** §55.2: reconciliation scan — generate dedup/link proposals, persisting only new
+ *  triples (待审批/已拒绝 are "seen" so rejected ones aren't re-raised). Reused by the
+ *  manual route and the periodic jobs tick. Returns the count of newly-created proposals. */
+export function runProposalScan(repo: Repository, registry: SchemaRegistry): number {
+  const seen = new Set(repo.listProposals()
+    .filter(p => p.status === "待审批" || p.status === "已拒绝")
+    .map(p => `${p.sourceNodeId}|${p.targetNodeId}|${p.relationType}`));
+  let created = 0;
+  for (const pr of PROPOSERS)
+    for (const d of pr.propose(repo, registry)) {
+      const k = `${d.sourceNodeId}|${d.targetNodeId}|${d.relationType}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      repo.createProposal(d, "scan");
+      created++;
+    }
+  if (created) log.info("reconcile.scan", { created });
+  return created;
+}
 
 export function makeProposalsRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
-  const proposers = [new HeuristicRelationProposer()];
 
   r.post("/proposals/scan", (_req, res) => {
-    const existing = repo.listProposals();
-    const seen = new Set(existing
-      .filter(p => p.status === "待审批" || p.status === "已拒绝")
-      .map(p => `${p.sourceNodeId}|${p.targetNodeId}|${p.relationType}`));
-    let created = 0;
-    for (const pr of proposers)
-      for (const d of pr.propose(repo, registry)) {
-        const k = `${d.sourceNodeId}|${d.targetNodeId}|${d.relationType}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        repo.createProposal(d, "scan");
-        created++;
-      }
-    res.json({ created });
+    res.json({ created: runProposalScan(repo, registry) });
   });
 
   r.get("/proposals", (req, res) => {

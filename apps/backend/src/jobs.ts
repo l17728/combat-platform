@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, JobsTickResult } from "@combat/shared"
 import { syncConflicts } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
+import { runProposalScan } from "./proposals.js";
 import { log } from "./logger.js";
 
 /**
@@ -15,7 +16,8 @@ export function tickScheduledJobs(repo: Repository, registry: SchemaRegistry): J
   const { conflicts, overlaps } = syncConflicts(repo);
   const { escalated } = scanEscalation(repo);
   const reminders = scanAndCreateReminders(repo, registry);
-  const result = { conflicts, overlaps, escalated, reminders };
+  const proposals = runProposalScan(repo, registry);
+  const result = { conflicts, overlaps, escalated, reminders, proposals };
   log.info("jobs.tick", { ...result, ms: Date.now() - t0 });
   return result;
 }

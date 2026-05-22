@@ -22,13 +22,23 @@ export class HeuristicRelationProposer implements RelationProposer {
     const out: ProposalDraft[] = [];
     for (const rt of [...refTypes].sort()) {
       const nodes = repo.queryNodes(rt)
-        .map(n => ({ id: n.id, key: norm(String(n.properties["name"] ?? n.id)) }))
+        .map(n => ({ id: n.id, key: norm(String(n.properties["name"] ?? n.id)),
+          emp: norm(String(n.properties["employeeId"] ?? "")) }))
         .sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : (a.id < b.id ? -1 : 1));
       for (let i = 0; i < nodes.length; i++)
         for (let j = i + 1; j < nodes.length; j++) {
           const A = nodes[i], B = nodes[j];
-          if (!A.key || !B.key || A.key === B.key) continue;
+          if (!A.key || !B.key) continue;
           const dist = levenshtein(A.key, B.key);
+          // §55.1: identical normalized name is a strong duplicate signal — propose
+          // SAME_AS (conf 1.0) UNLESS both carry an employeeId and they differ
+          // (then they are distinct people, not a dup).
+          if (dist === 0) {
+            if (A.emp && B.emp && A.emp !== B.emp) continue;
+            out.push({ sourceNodeId: A.id, targetNodeId: B.id, relationType: "SAME_AS",
+              confidence: 1, proposerSource: this.source, rationale: `完全同名:${A.key}` });
+            continue;
+          }
           const maxLen = Math.max(A.key.length, B.key.length);
           if (dist > this.threshold) continue;
           out.push({ sourceNodeId: A.id, targetNodeId: B.id, relationType: "SAME_AS",

@@ -2884,3 +2884,26 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - [x] CLI commands:list/create/delete/run
 - [x] 前端页面 新建/运行/删除 + 首页卡片 + 路由
 - [x] 既有 e2e 零回归；test:all 两次绿；部署
+
+---
+
+## 55. 增量 41：跨 view 记录对账分析（查重 + 关联候选 → 管理者确认）— 后端
+
+> 用户需求：各 view 独立录入会产生重复/应关联未关联的记录；需要一个**可定期或手动启动**的后台对账任务，分析后把发现的问题（疑似重复、应合并）提交**管理者确认**（关联/合并）。复用既有「关系提议队列 + 人工审批 + mergePerson」闭环，补齐分析触发与查重盲区。
+
+### 55.1 查重盲区修复（proposer）
+- 现 `HeuristicRelationProposer` 跳过**完全同名**（`A.key === B.key` continue），只提近似名。补：对**规范化后完全同名**的 person 也提 `SAME_AS`（confidence 1.0，rationale「完全同名」），除非二者 employeeId 均存在且不同（判定为不同人，跳过）。近似名（编辑距离≤阈值）维持。
+
+### 55.2 对账分析纳入定期/手动任务
+- 抽出 `runProposalScan(repo, registry): number`（去重持久化逻辑，原在 `/proposals/scan` 路由内联），路由与 jobs 共用。
+- `tickScheduledJobs` 增跑 `runProposalScan`，`JobsTickResult` 增 `proposals` 字段。→ 每小时定时 + 手动 `POST /api/jobs/tick`（CLI `jobs:tick`）+ 既有手动 `POST /api/proposals/scan`（CLI `proposals:scan`）均可触发对账。
+- 发现的候选进入既有「待审批」提议队列；管理者经 `/proposals`（或 CLI `proposals:list`/`proposals:decide`）确认 → `通过` 触发 `mergePerson` 合并去重，`拒绝` 抑制该三元组。
+
+### 55.3 说明：应关联未关联已由派生 KG 覆盖
+- 跨 view 同 `问题单号`/`客户`/`domain` 等通过锚点自动 co-anchored，同一人多 view 引用经 REF + SAME_AS 合并后边迁移统一——「该关联的进行关联」已由结构化派生机制保证；本增量聚焦补齐「查重」触发与同名盲区。
+
+### 55.4 验收
+- [ ] 完全同名 person → 提 SAME_AS（employeeId 冲突则不提）
+- [ ] jobs:tick 汇总含 proposals；定期+手动均触发对账
+- [ ] 端到端：两 view 各自录入同一人 → tick → 提议入队 → 管理者通过 → 合并去重
+- [ ] 既有 e2e 零回归；test:all 两次绿；部署
