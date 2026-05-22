@@ -2880,7 +2880,7 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - 前端浏览器 e2e：进页 → 新建一条包装 `nodes:list attackTicket --状态 {st}` 的命令 → 运行填 `st=进行中` → 见结果 → 删除。
 
 ### 54.5 验收
-- [ ] CRUD + 参数抽取 + run 解析 + 校验
-- [ ] CLI commands:list/create/delete/run
-- [ ] 前端页面 新建/运行/删除 + 首页卡片 + 路由
-- [ ] 既有 e2e 零回归；test:all 两次绿；部署
+- [x] CRUD + 参数抽取 + run 解析 + 校验
+- [x] CLI commands:list/create/delete/run
+- [x] 前端页面 新建/运行/删除 + 首页卡片 + 路由
+- [x] 既有 e2e 零回归；test:all 两次绿；部署
