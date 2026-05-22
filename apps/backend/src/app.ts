@@ -24,11 +24,13 @@ import { makeOncallRouter } from "./oncall.js";
 import { makeCustomCommandsRouter } from "./custom-commands.js";
 import { makeEmailRouter } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
+import { requestLogger, log } from "./logger.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender }) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
   const app = express();
   app.use(express.json());
+  app.use(requestLogger());
   app.use("/api", makeRouter(deps.repo, deps.registry));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
   app.use("/api", makeHonorRouter(deps.repo));
@@ -52,7 +54,8 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeCustomCommandsRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
-  app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    log.error("http.error", { path: req.path, error: err.message });
     res.status(500).json({ error: err.message });
   });
   return app;

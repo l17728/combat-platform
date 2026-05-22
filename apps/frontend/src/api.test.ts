@@ -77,6 +77,33 @@ describe("Api client", () => {
     await api.getRelated("person", "p1", { includeCandidates: true });
     expect(calls[0]).toBe("http://x/api/related/person/p1?includeCandidates=1");
   });
+  it("req() returns text (not JSON) when the response Content-Type is not JSON (export/runRaw safety)", async () => {
+    const fm = vi.fn(async () => new Response("binary-xlsx-bytes", { status: 200, headers: { "content-type": "application/octet-stream" } }));
+    const api = new Api("http://x", fm as any);
+    const out = await api.runRaw({ method: "GET", path: "/api/export/attackTicket" });
+    expect(out).toBe("binary-xlsx-bytes"); // would have thrown if it tried r.json()
+  });
+  it("custom-command CRUD + run hit the right endpoints", async () => {
+    const calls: any[] = [];
+    const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify({ id: "c1", resolved: "x", request: { method: "GET", path: "/api/nodes/attackTicket" } }), { status: 200, headers: { "content-type": "application/json" } }); });
+    const api = new Api("http://x", fm as any);
+    await api.listCommands();
+    expect(calls[0][0]).toBe("http://x/api/commands");
+    await api.createCommand({ name: "n", template: "dashboard" });
+    expect(calls[1][1].method).toBe("POST");
+    expect(JSON.parse(calls[1][1].body)).toEqual({ name: "n", template: "dashboard", description: undefined });
+    await api.runCommand("c1", { 状态: "进行中" });
+    expect(calls[2][0]).toBe("http://x/api/commands/c1/run");
+    expect(JSON.parse(calls[2][1].body)).toEqual({ args: { 状态: "进行中" } });
+    await api.deleteCommand("c1");
+    expect(calls[3][0]).toBe("http://x/api/commands/c1");
+    expect(calls[3][1].method).toBe("DELETE");
+  });
+  it("req() surfaces backend error detail in the thrown message", async () => {
+    const fm = vi.fn(async () => new Response(JSON.stringify({ error: "name 必填" }), { status: 400, headers: { "content-type": "application/json" } }));
+    const api = new Api("http://x", fm as any);
+    await expect(api.createCommand({ name: "", template: "" })).rejects.toThrow(/name 必填/);
+  });
   it("listProposals / scanProposals / decideProposal hit the proposal endpoints", async () => {
     const calls: any[] = [];
     const fm = vi.fn(async (u: string, i: any) => { calls.push([u, i]); return new Response(JSON.stringify([]), { status: 200 }); });

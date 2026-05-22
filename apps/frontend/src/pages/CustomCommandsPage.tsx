@@ -19,6 +19,8 @@ export function CustomCommandsPage() {
   useEffect(() => { load(); }, [load]);
 
   const create = async () => {
+    if (!name.trim()) { message.warning("请填写命令名称"); return; }
+    if (!template.trim()) { message.warning("请填写命令模板"); return; }
     try {
       await api.createCommand({ name, template, description: description || undefined });
       message.success("命令已保存");
@@ -42,6 +44,7 @@ export function CustomCommandsPage() {
     if (!running) return;
     try {
       const { request } = await api.runCommand(running.id, args);
+      if (!request?.path) { message.error("命令解析失败：未返回可执行请求"); return; }
       const out = await api.runRaw(request);
       setResult(JSON.stringify(out, null, 2));
       message.success("执行完成");

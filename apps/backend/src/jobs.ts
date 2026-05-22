@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, JobsTickResult } from "@combat/shared"
 import { syncConflicts } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
+import { log } from "./logger.js";
 
 /**
  * §51.2: run all scheduled background scans once (conflicts + escalation + reminders)
@@ -10,10 +11,13 @@ import { scanAndCreateReminders } from "./reminders.js";
  * setInterval around this so createApp (and tests) stay timer-free.
  */
 export function tickScheduledJobs(repo: Repository, registry: SchemaRegistry): JobsTickResult {
+  const t0 = Date.now();
   const { conflicts, overlaps } = syncConflicts(repo);
   const { escalated } = scanEscalation(repo);
   const reminders = scanAndCreateReminders(repo, registry);
-  return { conflicts, overlaps, escalated, reminders };
+  const result = { conflicts, overlaps, escalated, reminders };
+  log.info("jobs.tick", { ...result, ms: Date.now() - t0 });
+  return result;
 }
 
 export function makeJobsRouter(repo: Repository, registry: SchemaRegistry): Router {

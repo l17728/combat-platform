@@ -57,7 +57,7 @@ export function ImportPage() {
               setDone(true);
               setSkipped(r.skipped && r.skippedRows ? r.skippedRows : null);
               setPreview(null);
-            } catch { message.error("导入失败，请重试"); }
+            } catch (e) { message.error(`导入失败：${String((e as Error).message)}`); }
             return false;
           }} showUploadList={false}>
             <Button>选择 Excel 文件</Button>
@@ -68,7 +68,7 @@ export function ImportPage() {
               const p = await api.importPreview(file as unknown as File, type);
               setPreview(p.rows);
               message.info(`预览：将新增 ${p.willCreate} · 更新 ${p.willUpdate} · 跳过 ${p.skipped}（未写入）`);
-            } catch { message.error("预览失败"); }
+            } catch (e) { message.error(`预览失败：${String((e as Error).message)}`); }
             return false;
           }} showUploadList={false}>
             <Button aria-label="preview-upload">预览(不写入)</Button>

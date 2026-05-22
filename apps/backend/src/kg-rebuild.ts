@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, RebuildKGResult } from "@combat/shared
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { syncConflicts } from "./conflicts.js";
+import { log } from "./logger.js";
 
 const DERIVED_EDGE_TYPES = ["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"] as const;
 
@@ -15,6 +16,7 @@ const DERIVED_EDGE_TYPES = ["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WI
 export function rebuildKG(repo: Repository, registry: SchemaRegistry): RebuildKGResult {
   const t0 = Date.now();
   const actor = "system:rebuild-kg";
+  log.info("kg.rebuild.start", {});
 
   for (const edgeType of DERIVED_EDGE_TYPES) {
     repo.deleteEdges({ edgeType }, actor);
@@ -46,19 +48,26 @@ export function rebuildKG(repo: Repository, registry: SchemaRegistry): RebuildKG
       if (repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" }).length === 0)
         repo.deleteNode(anchor.id, actor);
 
-  return {
+  const result = {
     refEdges: repo.queryEdges({ edgeType: "REF" }).length,
     anchorEdges: repo.queryEdges({ edgeType: "ANCHORED_TO" }).length,
     conflicts,
     overlaps,
     durationMs: Date.now() - t0,
   };
+  log.info("kg.rebuild.done", result);
+  return result;
 }
 
 export function makeKGRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
   r.post("/kg/rebuild", (_req, res) => {
-    res.json(rebuildKG(repo, registry));
+    try {
+      res.json(rebuildKG(repo, registry));
+    } catch (e) {
+      log.error("kg.rebuild.fail", { error: (e as Error).message });
+      res.status(500).json({ error: `KG 重建失败：${(e as Error).message}` });
+    }
   });
   return r;
 }

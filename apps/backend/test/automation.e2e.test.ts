@@ -15,7 +15,6 @@ function make() {
   const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-auto-")), "t.sqlite")));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, registry: new FileSchemaRegistry(CFG) };
 }
-const today = () => new Date().toISOString().slice(0, 10);
 
 describe("增量34 后台自动化机制（§51, 仅后端）", () => {
   it("51.1 日报发布：当日有进展的单 日报发布数量+1，二次累加，审计留痕", async () => {
@@ -25,13 +24,14 @@ describe("增量34 后台自动化机制（§51, 仅后端）", () => {
     // 另造一个当日无进展的单 → 不应被计入
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "无进展单", 状态: "进行中" });
 
-    const r1 = await request(app).post(`/api/daily-report/publish?date=${today()}`);
+    // 不传 date → 默认按 Asia/Shanghai 当天；进展也是"此刻"记录，落在同一本地日
+    const r1 = await request(app).post(`/api/daily-report/publish`);
     expect(r1.status).toBe(200);
     expect(r1.body.ticketsTouched).toBe(1);
     expect(r1.body.published).toBe(1);
     expect(Number((await request(app).get(`/api/nodes/${t.id}`)).body.properties["日报发布数量"])).toBe(1);
 
-    const r2 = await request(app).post(`/api/daily-report/publish?date=${today()}`);
+    const r2 = await request(app).post(`/api/daily-report/publish`);
     expect(r2.body.published).toBe(1);
     expect(Number((await request(app).get(`/api/nodes/${t.id}`)).body.properties["日报发布数量"])).toBe(2);
 

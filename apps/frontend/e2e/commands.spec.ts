@@ -55,6 +55,20 @@ test("FE-CC1 CustomCommandsPage create + run + delete", async ({ page }) => {
   await expect(page.getByLabel("commands-table").getByText("暂无自定义命令")).toBeVisible();
 });
 
+// FE-CC3 校验：未填名称/模板时点击保存 → 前端拦截，不发起创建请求
+test("FE-CC3 create validation blocks empty submit", async ({ page }) => {
+  let createCalls = 0;
+  await page.route("**/api/commands", route => {
+    if (route.request().method() === "POST") createCalls++;
+    return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
+  });
+  await page.goto("/commands");
+  // 直接点保存（name/template 均空）→ 应被前端校验拦截
+  await page.getByLabel("cmd-create").click();
+  await expect(page.getByText("请填写命令名称")).toBeVisible();
+  expect(createCalls).toBe(0);
+});
+
 // FE-CC2 首页卡片存在
 test("FE-CC2 home card present", async ({ page }) => {
   await page.route("**/api/dashboard", route => route.fulfill({ status: 200, contentType: "application/json",

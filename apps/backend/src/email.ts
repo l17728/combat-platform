@@ -3,6 +3,7 @@
 import { Router } from "express";
 import type { Repository, SchemaRegistry, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "@combat/shared";
 import type { MailSender } from "./mailer.js";
+import { log, asyncHandler } from "./logger.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -84,24 +85,25 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
     res.json(mask(cfg));
   });
 
-  r.post("/email/test", async (req, res) => {
+  r.post("/email/test", asyncHandler(async (req, res) => {
     const cfg = readConfig(repo);
     if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
     const to = String((req.body ?? {}).to ?? "").trim();
-    const recipients = to ? [to] : [];
+    if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "to 必须是有效邮箱" });
+    const recipients = [to];
     try {
       const { messageId } = await mailSender.send(cfg, {
         to: recipients, subject: "作战管理工具 测试邮件", body: "这是一封来自作战管理工具的测试邮件。",
       });
-      const result: EmailSendResult = { recipients, ok: true, messageId };
-      res.json(result);
+      log.info("email.test", { recipients: recipients.length, ok: true, messageId });
+      res.json({ recipients, ok: true, messageId } as EmailSendResult);
     } catch (e) {
-      const result: EmailSendResult = { recipients, ok: false, error: (e as Error).message };
-      res.json(result);
+      log.error("email.test", { recipients: recipients.length, ok: false, error: (e as Error).message });
+      res.json({ recipients, ok: false, error: (e as Error).message } as EmailSendResult);
     }
-  });
+  }));
 
-  r.post("/email/send", async (req, res) => {
+  r.post("/email/send", asyncHandler(async (req, res) => {
     const cfg = readConfig(repo);
     if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
     const body = (req.body ?? {}) as EmailSendRequest;
@@ -111,13 +113,13 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
       const { messageId } = await mailSender.send(cfg, {
         to: recipients, subject: String(body.subject ?? ""), body: String(body.body ?? ""),
       });
-      const result: EmailSendResult = { recipients, ok: true, messageId };
-      res.json(result);
+      log.info("email.send", { recipients: recipients.length, ok: true, messageId });
+      res.json({ recipients, ok: true, messageId } as EmailSendResult);
     } catch (e) {
-      const result: EmailSendResult = { recipients, ok: false, error: (e as Error).message };
-      res.json(result);
+      log.error("email.send", { recipients: recipients.length, ok: false, error: (e as Error).message });
+      res.json({ recipients, ok: false, error: (e as Error).message } as EmailSendResult);
     }
-  });
+  }));
 
   return r;
 }

@@ -46,8 +46,10 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   const activeFields = (s: NodeSchema | null): FieldSchema[] => (s?.fields ?? []).filter(f => !f.retired);
   const refresh = useCallback(async () => {
     setFilter("");
-    setSchema(await api.getSchema(nodeType));
-    setRows(await api.listNodes(nodeType));
+    try {
+      setSchema(await api.getSchema(nodeType));
+      setRows(await api.listNodes(nodeType));
+    } catch (e) { message.error(`加载失败：${String((e as Error).message)}`); }
   }, [nodeType]);
   useEffect(() => { refresh(); }, [refresh]);
 

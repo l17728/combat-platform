@@ -1,5 +1,6 @@
 import type { Repository, MergePreview } from "@combat/shared";
 import { syncConflicts } from "./conflicts.js";
+import { log } from "./logger.js";
 
 // Read-only computation of what mergePerson(fromId → toId) would do: which
 // fields get unioned onto `to`, and how many edges migrate (excluding from↔to).
@@ -25,6 +26,8 @@ export function mergePerson(repo: Repository, fromId: string, toId: string, acto
   if (fromId === toId) return;
   const dup = repo.getNode(fromId), canon = repo.getNode(toId);
   if (!dup || !canon) throw new Error("合并失败：节点不存在");
+  log.info("merge.start", { fromId, toId, actor });
+  let migrated = 0;
   const unioned: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(dup.properties))
     if (canon.properties[k] === undefined || canon.properties[k] === "") unioned[k] = v;
@@ -44,6 +47,7 @@ export function mergePerson(repo: Repository, fromId: string, toId: string, acto
     if (existing.has(s)) continue;
     existing.add(s);
     repo.createEdge(e.edgeType, toId, e.targetId, e.properties, actor);
+    migrated++;
   }
   for (const e of repo.queryEdges({ targetId: fromId })) {
     if (e.sourceId === toId) continue;
@@ -51,6 +55,7 @@ export function mergePerson(repo: Repository, fromId: string, toId: string, acto
     if (existing.has(s)) continue;
     existing.add(s);
     repo.createEdge(e.edgeType, e.sourceId, toId, e.properties, actor);
+    migrated++;
   }
   repo.deleteNode(fromId, actor);
   // recompute conflict edges in case a re-pointed REF changed an owner grouping
@@ -59,4 +64,5 @@ export function mergePerson(repo: Repository, fromId: string, toId: string, acto
   // actual surviving target — also the trace for a 修正-corrected target).
   repo.logAudit({ action: "MERGE", entityType: "node", entityId: toId,
     changes: { fromId, toId, unioned }, actor });
+  log.info("merge.done", { fromId, toId, edgesMigrated: migrated, fieldsUnioned: Object.keys(unioned).length });
 }

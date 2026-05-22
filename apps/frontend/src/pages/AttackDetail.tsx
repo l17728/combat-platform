@@ -22,8 +22,10 @@ export function AttackDetail() {
   useEffect(() => { refresh(); }, [refresh]);
   const add = async () => {
     if (!text) return;
-    await api.appendProgress(id, text, String(node?.properties["状态"] ?? ""));
-    setText(""); message.success("已追加进展"); refresh();
+    try {
+      await api.appendProgress(id, text, String(node?.properties["状态"] ?? ""));
+      setText(""); message.success("已追加进展"); refresh();
+    } catch (e) { message.error(String((e as Error).message)); }
   };
   const [toStatus, setToStatus] = useState<string | undefined>();
   const [note, setNote] = useState("");

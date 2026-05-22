@@ -27,7 +27,13 @@ export class Api {
       const detail = body?.error ?? (Array.isArray(body?.errors) ? body.errors.join("; ") : "");
       throw new Error(`HTTP ${r.status}${detail ? ` ${detail}` : ` ${r.url || path}`}`);
     }
-    return r.json() as Promise<T>;
+    // Most endpoints return JSON, but some (export) return a binary/text body.
+    // Read as text and try to parse JSON; fall back to raw text so a non-JSON
+    // success (e.g. xlsx via runRaw) doesn't throw a parse error.
+    const ct = r.headers.get("content-type") ?? "";
+    if (ct.includes("application/json")) return r.json() as Promise<T>;
+    const txt = await r.text();
+    try { return JSON.parse(txt) as T; } catch { return txt as unknown as T; }
   }
 
   listNodes(nodeType: string, filter: Record<string, string> = {}): Promise<GraphNode[]> {

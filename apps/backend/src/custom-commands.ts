@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import type { Repository, CustomCommand } from "@combat/shared";
 import { COMMANDS, parseArgs } from "./cli-core.js";
+import { log } from "./logger.js";
 
 const KEY = "customCommands";
 
@@ -61,15 +62,18 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     const args = (req.body?.args ?? {}) as Record<string, unknown>;
     const missing = cmd.params.filter(p => args[p] === undefined || args[p] === null || String(args[p]) === "");
     if (missing.length) return res.status(400).json({ error: `缺少参数：${missing.join(", ")}` });
-    // substitute {p} → value, then parse + build the underlying CLI command's request
-    const resolved = cmd.template.replace(/\{([^}]+)\}/g, (_, p) => String(args[String(p).trim()]));
-    const [first, ...rest] = resolved.split(/\s+/);
+    // Tokenize the TEMPLATE first, then substitute {p} within each token — so a param
+    // value containing spaces stays a single argument rather than being re-split.
+    const tokens = cmd.template.split(/\s+/).filter(Boolean)
+      .map(tok => tok.replace(/\{([^}]+)\}/g, (_, p) => String(args[String(p).trim()] ?? "")));
+    const resolved = tokens.join(" ");
+    const [first, ...rest] = tokens;
     const def = COMMANDS.find(c => c.name === first);
-    if (!def) return res.status(400).json({ error: `未知命令：${first}` });
+    if (!def) { log.warn("command.run.unknown", { id: cmd.id, first }); return res.status(400).json({ error: `未知命令：${first}` }); }
     const { positional, opts } = parseArgs(rest);
     let request;
     try { request = def.build(positional, opts); }
-    catch (e) { return res.status(400).json({ error: (e as Error).message }); }
+    catch (e) { log.warn("command.run.build_fail", { id: cmd.id, error: (e as Error).message }); return res.status(400).json({ error: (e as Error).message }); }
     repo.logAudit({ action: "CUSTOM_COMMAND_RUN", entityType: "setting", entityId: cmd.id, changes: { resolved }, actor: "api" });
     res.json({ resolved, request });
   });

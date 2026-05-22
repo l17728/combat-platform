@@ -46,7 +46,10 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   r.get("/nodes/:nodeType", (req, res) => {
     const { nodeType } = req.params;
     if (registry.getNodeSchema(nodeType)) {
-      const filter = { ...req.query } as Record<string, unknown>;
+      // Express parses repeated query params as arrays; queryNodes does strict === on
+      // string property values, so collapse each param to its first scalar value.
+      const filter: Record<string, string> = {};
+      for (const [k, v] of Object.entries(req.query)) filter[k] = Array.isArray(v) ? String(v[0]) : String(v);
       return res.json(repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
     }
     const single = repo.getNode(nodeType);

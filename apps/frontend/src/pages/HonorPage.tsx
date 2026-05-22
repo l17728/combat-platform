@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Input } from "antd";
+import { Table, Input, message } from "antd";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
 import type { LeaderboardEntry } from "@combat/shared";
@@ -7,7 +7,10 @@ import type { LeaderboardEntry } from "@combat/shared";
 export function HonorPage() {
   const [rows, setRows] = useState<LeaderboardEntry[]>([]);
   const [period, setPeriod] = useState("");
-  useEffect(() => { api.getLeaderboard(period || undefined).then(setRows); }, [period]);
+  useEffect(() => {
+    api.getLeaderboard(period || undefined).then(setRows)
+      .catch(e => message.error(`排行榜加载失败：${String((e as Error).message)}`));
+  }, [period]);
   const columns = [
     { title: "名次", dataIndex: "__rank", render: (_: unknown, __: LeaderboardEntry, i: number) => i + 1 },
     { title: "贡献人", dataIndex: "贡献人",

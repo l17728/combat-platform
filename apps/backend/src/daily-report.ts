@@ -1,14 +1,17 @@
 import { Router } from "express";
 import type { Repository, DailyReport, DailyReportSection, DailyReportPublishResult } from "@combat/shared";
+import { localDateOf, localToday } from "./date-util.js";
+import { log } from "./logger.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const todayUTC = () => new Date().toISOString().slice(0, 10);
+const todayUTC = () => localToday();
 
-/** §51.1: tickets with progress on `date` get 日报发布数量 +1, audited. Returns counts. */
+/** §51.1: tickets with progress on `date` (Asia/Shanghai calendar day) get
+ *  日报发布数量 +1, audited. Returns counts. */
 function publishDailyReport(repo: Repository, date: string, actor: string): DailyReportPublishResult {
   let ticketsTouched = 0;
   for (const t of repo.queryNodes("attackTicket")) {
-    const hasProgress = repo.listProgress(t.id).some(p => p.updatedAt.startsWith(date));
+    const hasProgress = repo.listProgress(t.id).some(p => localDateOf(p.updatedAt) === date);
     if (!hasProgress) continue;
     ticketsTouched++;
     const cur = Number(t.properties["日报发布数量"] ?? 0) || 0;
@@ -16,6 +19,7 @@ function publishDailyReport(repo: Repository, date: string, actor: string): Dail
     repo.logAudit({ action: "DAILY_REPORT_PUBLISH", entityType: "node", entityId: t.id,
       changes: { date, 日报发布数量: cur + 1 }, actor });
   }
+  log.info("daily_report.publish", { date, ticketsTouched, published: ticketsTouched });
   return { date, ticketsTouched, published: ticketsTouched };
 }
 
@@ -36,7 +40,7 @@ export function makeDailyReportRouter(repo: Repository): Router {
     const sections: DailyReportSection[] = [];
     for (const t of tickets) {
       const todays = repo.listProgress(t.id)
-        .filter(p => p.updatedAt.startsWith(date))
+        .filter(p => localDateOf(p.updatedAt) === date)
         .sort((a, b) => a.seqNo - b.seqNo);
       if (todays.length === 0) continue;
       const last = todays[todays.length - 1];

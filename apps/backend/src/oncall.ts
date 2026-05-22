@@ -1,15 +1,15 @@
 import { Router } from "express";
 import type { Repository, OncallCurrentRow } from "@combat/shared";
-
-const todayUTC = () => new Date().toISOString().slice(0, 10);
+import { localToday } from "./date-util.js";
 
 /**
  * §51.3: derive who is on call today from oncall nodes. A node is current when
- * today ∈ [起, 止] (inclusive, lexicographic on ISO date works). Date-derived,
+ * today ∈ [起, 止] (inclusive, lexicographic on ISO date works). "Today" is the
+ * Asia/Shanghai calendar date (起/止 are entered as local dates). Date-derived,
  * no state written. Optionally filtered by domain. Grouped by domain.
  */
 export function currentOncall(repo: Repository, domain?: string): OncallCurrentRow[] {
-  const day = todayUTC();
+  const day = localToday();
   const byDomain = new Map<string, Set<string>>();
   for (const n of repo.queryNodes("oncall")) {
     const d = String(n.properties["domain"] ?? "").trim();
