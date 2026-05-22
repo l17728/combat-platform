@@ -2825,3 +2825,29 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - [x] list/unlink + 校验(自身400/不存在404)
 - [x] CLI relations:link/list/unlink
 - [x] 无前端；既有 e2e 零回归；test:all 两次绿；部署
+
+---
+
+## 53. 增量 37：字段补全 + 人员 ref 化（强化跨视图关联）— 仅后端/配置
+
+> 依据 req.md 攻关单详情真实表头（§“客户所属资源ID、租户id，故障局点”）与现网400「邮件」列，补全缺失业务字段；并把攻关单上的「攻关组长 / 攻关申请人」由纯字符串升级为 `ref→person`，使其进入派生 KG（兑现 §0 核心问题：同一人在多视图被关联）。纯配置 + 后端，无前端 UI。
+
+### 53.1 字段补全（全部非 required，导入/创建向后兼容）
+- attackTicket：新增 `资源ID`(string)、`租户ID`(string)；`局点` 增 alias `故障局点`。
+- issue400：新增 `邮件`(string)。
+- person：新增 `角色`(string，如 攻关组长/SRE/研发)。
+
+### 53.2 人员 ref 化（cross-view linking）
+- attackTicket `攻关组长` `攻关申请人`：`type:"string"` → `type:"ref", refType:"person", concept:"负责人"`（保留既有 alias）。创建/导入时按既有 ref 解析机制建 person + REF 边；`kg:rebuild` 可从存量字符串值回灌 REF 边。
+- `攻关成员`（多人逗号串）暂保持 string（ref 仅单值），列入后续多值 ref 支持。
+
+### 53.3 测试
+- 建带 `资源ID/租户ID/故障局点(alias→局点)/邮件` 的单/400 → 字段落库、alias 命中。
+- 建 attackTicket `攻关组长:"王组长"` → 自动建 person 且 `related` 可见该 REF 关联；`kg:rebuild` 后仍在。
+- 既有 attackTicket/issue400 e2e 零回归。
+
+### 53.4 验收
+- [ ] attackTicket 资源ID/租户ID + 局点 alias 故障局点
+- [ ] issue400 邮件；person 角色
+- [ ] 攻关组长/攻关申请人 ref→person + REF 边 + rebuild 回灌
+- [ ] 无前端；既有 e2e 零回归；test:all 两次绿；部署
