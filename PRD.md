@@ -2851,3 +2851,36 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - [x] issue400 邮件；person 角色
 - [x] 攻关组长/攻关申请人 ref→person + REF 边 + rebuild 回灌
 - [x] 无前端；既有 e2e 零回归；test:all 两次绿；部署
+
+---
+
+## 54. 增量 39：自定义命令（自然语言高阶命令封装成带参 UI 脚本）— 后端 + 前端
+
+> 用户需求：把常用的自然语言驱动操作（如「将 {内容} 发送邮件给 {收件人}」）由 agent 在对话中翻译成一条**带参数占位符的 CLI 模板**，保存为「自定义命令」。终端用户在自定义命令页点击 → 提示输入参数 → 系统填充模板 → 经既有 CLI/API 执行并展示结果。**存储的可执行产物是参数化 CLI 模板**（NL→模板的翻译发生在 agent 创作期），运行期确定性执行，复用全部既有 50+ CLI 命令作为执行底座。
+
+### 54.1 契约（@combat/shared）
+`CustomCommand { id, name, description?, template, params: string[], createdAt }`。`params` 由 `template` 中 `{占位符}` 自动抽取（去重、保序）。
+
+### 54.2 后端（custom-commands.ts，存 app_settings key `customCommands` JSON 数组）
+- `GET /api/commands` → 列表。
+- `POST /api/commands {name, template, description?}` → 校验 name/template 非空、template 首 token ∈ 已注册 CLI 命令名；抽取 params；存储返回。非法 → 400。
+- `DELETE /api/commands/:id` → 200/404。
+- `POST /api/commands/:id/run {args}` → 校验所有 params 均有值（缺 → 400）；将 `{p}` 替换为 `args[p]`；`parseArgs` + `COMMANDS.build` → 返回 `{ resolved, request }`（request 即 `{method, path, body?}`）。前端拿到 request 后用既有 fetch 执行并展示（后端保持纯解析，不自调用）。
+- 每步审计 `CUSTOM_COMMAND_*`。
+- CLI：`commands:list`、`commands:create --name --template [--description]`、`commands:delete <id>`、`commands:run <id> --args '<json>'`。
+
+### 54.3 前端（CustomCommandsPage，路由 `/commands`，首页卡片）
+- 列表展示 name/description/template/params。
+- 「新建命令」表单：name、description、template（textarea，提示用 `{参数}` 占位）。
+- 每条「运行」→ 弹窗按 params 逐个输入 → 「执行」→ `POST run` 得 request → 前端 fetch 执行 → 展示 JSON 结果；「删除」。
+
+### 54.4 测试
+- 后端 e2e：创建（参数抽取）、列表、校验（缺 name/template→400、未知命令→400）、run（解析 request 正确、缺参→400）、删除（200/404）。
+- CLI build 断言 4 命令。
+- 前端浏览器 e2e：进页 → 新建一条包装 `nodes:list attackTicket --状态 {st}` 的命令 → 运行填 `st=进行中` → 见结果 → 删除。
+
+### 54.5 验收
+- [ ] CRUD + 参数抽取 + run 解析 + 校验
+- [ ] CLI commands:list/create/delete/run
+- [ ] 前端页面 新建/运行/删除 + 首页卡片 + 路由
+- [ ] 既有 e2e 零回归；test:all 两次绿；部署

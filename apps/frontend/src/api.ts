@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult, EscalationConfig, EscalationScanResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult, EscalationConfig, EscalationScanResult, CustomCommand, CustomCommandRunResult } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -212,6 +212,29 @@ export class Api {
   }
   scanEscalation(): Promise<EscalationScanResult> {
     return this.req<EscalationScanResult>(`/api/escalation/scan`, { method: "POST" });
+  }
+  listCommands(): Promise<CustomCommand[]> {
+    return this.req<CustomCommand[]>(`/api/commands`, {});
+  }
+  createCommand(cmd: { name: string; template: string; description?: string }): Promise<CustomCommand> {
+    return this.req<CustomCommand>(`/api/commands`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(cmd) });
+  }
+  deleteCommand(id: string): Promise<{ ok: boolean }> {
+    return this.req<{ ok: boolean }>(`/api/commands/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+  runCommand(id: string, args: Record<string, string>): Promise<CustomCommandRunResult> {
+    return this.req<CustomCommandRunResult>(`/api/commands/${encodeURIComponent(id)}/run`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ args }) });
+  }
+  // Execute an arbitrary resolved request (from runCommand) via the same fetch pipeline.
+  runRaw(request: { method: string; path: string; body?: unknown }): Promise<unknown> {
+    const init: RequestInit = { method: request.method };
+    if (request.body !== undefined) {
+      init.headers = { "content-type": "application/json" };
+      init.body = JSON.stringify(request.body);
+    }
+    return this.req<unknown>(request.path, init);
   }
 }
 export const api = new Api("");

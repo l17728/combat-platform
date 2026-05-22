@@ -30,6 +30,7 @@ const MODULES = [
   { to: "/experience", title: "经验总结", desc: "经验沉淀，供 Hermes 检索（Document）" },
   { to: "/escalation", title: "SLA上升", desc: "责任矩阵 + 超期攻关单自动上升（ESCALATED_TO + 审计）" },
   { to: "/oncall", title: "Oncall 排班", desc: "domain 值班登记（配置驱动）" },
+  { to: "/commands", title: "自定义命令", desc: "把常用 NL 操作封装成带参数的命令模板，点击运行（§54）" },
 ];
 
 export function HomePage() {

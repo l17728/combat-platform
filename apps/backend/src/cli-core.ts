@@ -185,6 +185,16 @@ export const COMMANDS: CliCommand[] = [
     build: (_pos, opts) => ({ method: "GET", path: `/api/relations/manual${qs({ nodeId: str(opts.node) })}` }) },
   { name: "relations:unlink", summary: "删除一条手工关联线", usage: "relations:unlink <edgeId>",
     build: (pos) => { requirePos(pos, 1, "relations:unlink <edgeId>"); return { method: "DELETE", path: `/api/relations/manual/${encodeURIComponent(pos[0])}` }; } },
+
+  // ---- custom commands (§54): NL-authored parameterized CLI templates ----
+  { name: "commands:list", summary: "列出自定义命令", usage: "commands:list",
+    build: () => ({ method: "GET", path: "/api/commands" }) },
+  { name: "commands:create", summary: "新建自定义命令（template 含 {参数} 占位，首 token 须为已知命令）", usage: "commands:create --name <名> --template '<cli模板>' [--description <说明>]",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/commands", body: { name: str(opts.name), template: str(opts.template), description: str(opts.description) } }) },
+  { name: "commands:delete", summary: "删除自定义命令", usage: "commands:delete <id>",
+    build: (pos) => { requirePos(pos, 1, "commands:delete <id>"); return { method: "DELETE", path: `/api/commands/${encodeURIComponent(pos[0])}` }; } },
+  { name: "commands:run", summary: "运行自定义命令（解析为底层 request，--args JSON 提供参数值）", usage: "commands:run <id> --args '<json>'",
+    build: (pos, opts) => { requirePos(pos, 1, "commands:run <id> --args <json>"); return { method: "POST", path: `/api/commands/${encodeURIComponent(pos[0])}/run`, body: { args: jsonOpt(opts, "args") } }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

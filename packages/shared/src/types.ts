@@ -203,6 +203,8 @@ export interface DailyReport {
   sections: DailyReportSection[];
   summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
 }
+export interface CustomCommand { id: string; name: string; description?: string; template: string; params: string[]; createdAt: string; }
+export interface CustomCommandRunResult { resolved: string; request: { method: string; path: string; body?: unknown }; }
 export interface DailyReportPublishResult { date: string; ticketsTouched: number; published: number; }
 export interface JobsTickResult { conflicts: number; overlaps: number; escalated: number; reminders: number; }
 export interface OncallCurrentRow { domain: string; 值班人: string[]; }

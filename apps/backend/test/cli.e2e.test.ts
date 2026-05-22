@@ -100,6 +100,18 @@ describe("§43 CLI core", () => {
     expect(calls[3]).toEqual({ method: "GET", path: "/api/honor/leaderboard?groupBy=team" });
   });
 
+  it("§54 custom-command commands build correctly", async () => {
+    const { http, calls } = recorder();
+    await runCli(["commands:list"], http);
+    expect(calls[0]).toEqual({ method: "GET", path: "/api/commands" });
+    await runCli(["commands:create", "--name", "查单", "--template", "nodes:list attackTicket --状态 {状态}"], http);
+    expect(calls[1]).toEqual({ method: "POST", path: "/api/commands", body: { name: "查单", template: "nodes:list attackTicket --状态 {状态}", description: undefined } });
+    await runCli(["commands:run", "c1", "--args", '{"状态":"进行中"}'], http);
+    expect(calls[2]).toEqual({ method: "POST", path: "/api/commands/c1/run", body: { args: { 状态: "进行中" } } });
+    await runCli(["commands:delete", "c1"], http);
+    expect(calls[3]).toEqual({ method: "DELETE", path: "/api/commands/c1" });
+  });
+
   it("unknown command throws with available-commands hint", async () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });

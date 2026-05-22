@@ -18,6 +18,7 @@ import { AuditPage } from "./pages/AuditPage.js";
 import { MergePage } from "./pages/MergePage.js";
 import { EmailPage } from "./pages/EmailPage.js";
 import { EscalationPage } from "./pages/EscalationPage.js";
+import { CustomCommandsPage } from "./pages/CustomCommandsPage.js";
 
 export default function App() {
   return (
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/escalation" element={<EscalationPage />} />
           <Route path="/oncall" element={<EntityTable nodeType="oncall" />} />
           <Route path="/experience" element={<EntityTable nodeType="experience" />} />
+          <Route path="/commands" element={<CustomCommandsPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>
