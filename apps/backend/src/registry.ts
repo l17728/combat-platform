@@ -5,7 +5,7 @@ import { validateNode } from "./validation.js";
 
 export class FileSchemaRegistry implements SchemaRegistry {
   private config!: EntitySchemaConfig;
-  constructor(private dir: string) { this.reload(); }
+  constructor(readonly dir: string) { this.reload(); }
 
   reload(): void {
     // Tolerant reload (§13#9 fix, §30): per-file try/catch — a broken sibling

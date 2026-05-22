@@ -19,6 +19,8 @@ import { MergePage } from "./pages/MergePage.js";
 import { EmailPage } from "./pages/EmailPage.js";
 import { EscalationPage } from "./pages/EscalationPage.js";
 import { CustomCommandsPage } from "./pages/CustomCommandsPage.js";
+import { ResponsibilityPage } from "./pages/ResponsibilityPage.js";
+import { SchemaWizardPage } from "./pages/SchemaWizardPage.js";
 
 export default function App() {
   return (
@@ -57,6 +59,8 @@ export default function App() {
           <Route path="/oncall" element={<EntityTable nodeType="oncall" />} />
           <Route path="/experience" element={<EntityTable nodeType="experience" />} />
           <Route path="/commands" element={<CustomCommandsPage />} />
+          <Route path="/responsibility" element={<ResponsibilityPage />} />
+          <Route path="/schema-wizard" element={<SchemaWizardPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

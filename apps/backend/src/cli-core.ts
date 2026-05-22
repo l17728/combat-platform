@@ -186,6 +186,23 @@ export const COMMANDS: CliCommand[] = [
   { name: "relations:unlink", summary: "删除一条手工关联线", usage: "relations:unlink <edgeId>",
     build: (pos) => { requirePos(pos, 1, "relations:unlink <edgeId>"); return { method: "DELETE", path: `/api/relations/manual/${encodeURIComponent(pos[0])}` }; } },
 
+  // ---- schema wizard (§56) ----
+  { name: "schema:list", summary: "列出所有 nodeType 配置", usage: "schema:list",
+    build: () => ({ method: "GET", path: "/api/schema/list" }) },
+  { name: "schema:suggest", summary: "搜索现有字段/概念匹配（帮助建表时复用字段）", usage: "schema:suggest <keyword>",
+    build: (pos) => { requirePos(pos, 1, "schema:suggest <keyword>"); return { method: "GET", path: `/api/schema/suggest?q=${encodeURIComponent(pos.join(" "))}` }; } },
+  { name: "schema:create-nodeType", summary: "创建新表（nodeType JSON 配置）", usage: "schema:create-nodeType --data '{\"nodeType\":\"x\",\"label\":\"X\",\"fields\":[]}'",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/schema/nodeType", body: jsonOpt(opts, "data") }) },
+  { name: "schema:delete-nodeType", summary: "删除表（无数据时）", usage: "schema:delete-nodeType <nodeType>",
+    build: (pos) => { requirePos(pos, 1, "schema:delete-nodeType <nodeType>"); return { method: "DELETE", path: `/api/schema/nodeType/${encodeURIComponent(pos[0])}` }; } },
+  // ---- responsibility matrix (§57) ----
+  { name: "responsibility:diagram", summary: "生成责任矩阵 Mermaid 图（升级规则+负责边+冲突边）", usage: "responsibility:diagram",
+    build: () => ({ method: "GET", path: "/api/responsibility/diagram" }) },
+  // ---- UI pin cache (§57) ----
+  { name: "ui:pinned", summary: "列出已固定的动态 UI", usage: "ui:pinned",
+    build: () => ({ method: "GET", path: "/api/ui-cache/pinned" }) },
+  { name: "ui:unpin", summary: "取消固定某 UI", usage: "ui:unpin <id>",
+    build: (pos) => { requirePos(pos, 1, "ui:unpin <id>"); return { method: "DELETE", path: `/api/ui-cache/pinned/${encodeURIComponent(pos[0])}` }; } },
   // ---- custom commands (§54): NL-authored parameterized CLI templates ----
   { name: "commands:list", summary: "列出自定义命令", usage: "commands:list",
     build: () => ({ method: "GET", path: "/api/commands" }) },

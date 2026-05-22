@@ -1,4 +1,4 @@
-import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult, EscalationConfig, EscalationScanResult, CustomCommand, CustomCommandRunResult } from "@combat/shared";
+import type { GraphNode, ProgressLog, NodeSchema, FieldOp, LeaderboardEntry, PersonHonor, RelationProposal, QueryHit, QueryContext, HelperRecommendation, DashboardSummary, DailyReport, Reminder, ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult, ImportPreview, ImportRowResult, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult, EscalationConfig, EscalationScanResult, CustomCommand, CustomCommandRunResult, PinnedUi } from "@combat/shared";
 
 export interface RelatedResult {
   outgoing: { field: string; concept: string; node: GraphNode }[];
@@ -232,6 +232,35 @@ export class Api {
   runCommand(id: string, args: Record<string, string>): Promise<CustomCommandRunResult> {
     return this.req<CustomCommandRunResult>(`/api/commands/${encodeURIComponent(id)}/run`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ args }) });
+  }
+  // §57: responsibility matrix diagram
+  getResponsibilityDiagram(): Promise<{ mermaid: string; nodeCount: number; edgeCount: number }> {
+    return this.req(`/api/responsibility/diagram`, {});
+  }
+  // §57: schema wizard
+  listSchemas(): Promise<NodeSchema[]> {
+    return this.req<NodeSchema[]>(`/api/schema/list`, {});
+  }
+  suggestFields(q: string): Promise<unknown[]> {
+    return this.req<unknown[]>(`/api/schema/suggest?q=${encodeURIComponent(q)}`, {});
+  }
+  createNodeType(data: { nodeType: string; label: string; fields: unknown[]; identityKeys?: string[] }): Promise<NodeSchema> {
+    return this.req<NodeSchema>(`/api/schema/nodeType`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+  }
+  deleteNodeType(nodeType: string): Promise<{ ok: boolean }> {
+    return this.req<{ ok: boolean }>(`/api/schema/nodeType/${encodeURIComponent(nodeType)}`, { method: "DELETE" });
+  }
+  // §57: UI pin/unpin
+  listPinnedUi(): Promise<PinnedUi[]> {
+    return this.req<PinnedUi[]>(`/api/ui-cache/pinned`, {});
+  }
+  pinUi(data: { label: string; question: string; intent: string; uiSpec: unknown }): Promise<PinnedUi> {
+    return this.req<PinnedUi>(`/api/ui-cache/pin`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+  }
+  unpinUi(id: string): Promise<{ ok: boolean }> {
+    return this.req<{ ok: boolean }>(`/api/ui-cache/pinned/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
   // Execute an arbitrary resolved request (from runCommand) via the same fetch pipeline.
   runRaw(request: { method: string; path: string; body?: unknown }): Promise<unknown> {

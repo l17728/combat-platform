@@ -1,8 +1,18 @@
 import { Router } from "express";
-import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode } from "@combat/shared";
+import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode, UiSpec } from "@combat/shared";
 import { recommendHelpers } from "./recommend.js";
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
+
+function cacheKey(intent: string, q: string): string {
+  return `${intent}:${q.toLowerCase().replace(/\s+/g, "")}`;
+}
+function tableSpec(title: string, columns: string[], nodes: GraphNode[], pick: (n: GraphNode) => Record<string, string | number | null>): UiSpec {
+  return { widget: "TABLE", params: { title, columns, rows: nodes.map(pick) }, cacheKey: "" };
+}
+function cardSpec(title: string, nodes: GraphNode[], buildCard: (n: GraphNode) => { title: string; description?: string; link?: string; tags?: string[] }): UiSpec {
+  return { widget: "CARD_GRID", params: { title, cards: nodes.map(buildCard) }, cacheKey: "" };
+}
 
 function summarize(n: GraphNode): string {
   const p = n.properties;
@@ -71,10 +81,17 @@ export function answerQuestion(
       const name = String(h.person.properties["name"] ?? h.person.id);
       return `${i + 1}. ${name}（分数 ${h.score}）：${h.reasons.join("；")}`;
     });
+    const ck = cacheKey("find-helpers", question);
     return {
       question, intent: "find-helpers",
       answer: `《${summarize(ticket)}》推荐帮手 Top ${helpers.length}：\n${lines.join("\n")}`,
       citations: helpers.slice(0, 5).map(h => cite(h.person)),
+      uiSpec: { ...cardSpec("推荐帮手", helpers.slice(0, 5).map(h => h.person), n => ({
+        title: String(n.properties["name"] ?? n.id),
+        description: helpers.find(h => h.person.id === n.id)?.reasons.join("；"),
+        link: linkFor(n),
+        tags: [`分数 ${helpers.find(h => h.person.id === n.id)?.score ?? 0}`],
+      })), cacheKey: ck },
     };
   }
 
@@ -83,10 +100,16 @@ export function answerQuestion(
     const tickets = findTicketsByPB(repo, pb).slice(0, 10);
     if (tickets.length > 0) {
       const lines = tickets.map(t => `· ${summarize(t)}（状态：${t.properties["状态"] ?? "未知"}，负责人：${t.properties["当前处理人"] ?? "未填"}）`);
+      const ck = cacheKey("ticket-by-pb", question);
       return {
         question, intent: "ticket-by-pb",
         answer: `问题单 ${pb} 下找到 ${tickets.length} 个攻关单：\n${lines.join("\n")}`,
         citations: tickets.slice(0, 5).map(cite),
+        uiSpec: { ...tableSpec("攻关单列表", ["标题", "状态", "当前处理人"], tickets.slice(0, 10), n => ({
+          标题: String(n.properties["标题"] ?? n.id),
+          状态: String(n.properties["状态"] ?? ""),
+          当前处理人: String(n.properties["当前处理人"] ?? ""),
+        })), cacheKey: ck },
       };
     }
   }
@@ -98,10 +121,16 @@ export function answerQuestion(
     const candidates = fuzzyTicketsByTitle(repo, stripped).slice(0, 5);
     if (candidates.length > 0) {
       const lines = candidates.map(t => `· 《${summarize(t)}》当前处理人：${t.properties["当前处理人"] ?? "未填"}（状态：${t.properties["状态"] ?? "未知"}）`);
+      const ck = cacheKey("owner", question);
       return {
         question, intent: "owner",
         answer: `按标题匹配到 ${candidates.length} 个攻关单：\n${lines.join("\n")}`,
         citations: candidates.map(cite),
+        uiSpec: { ...tableSpec("负责人", ["标题", "当前处理人", "状态"], candidates, n => ({
+          标题: String(n.properties["标题"] ?? n.id),
+          当前处理人: String(n.properties["当前处理人"] ?? ""),
+          状态: String(n.properties["状态"] ?? ""),
+        })), cacheKey: ck },
       };
     }
   }
@@ -117,10 +146,21 @@ export function answerQuestion(
         const tail = latest ? `最新进展（${latest.statusSnapshot}）：${latest.content}` : "暂无进展记录";
         return `· 《${summarize(t)}》状态：${t.properties["状态"] ?? "未知"}\n  ${tail}`;
       });
+      const ck = cacheKey("status", question);
       return {
         question, intent: "status",
         answer: blocks.join("\n"),
         citations: candidates.map(cite),
+        uiSpec: { ...cardSpec("进展状态", candidates, n => {
+          const seq = repo.listProgress(n.id);
+          const latest = seq.length > 0 ? seq[seq.length - 1] : null;
+          return {
+            title: summarize(n),
+            description: latest ? `${latest.statusSnapshot}：${latest.content}` : "暂无进展",
+            link: linkFor(n),
+            tags: [String(n.properties["状态"] ?? "未知")],
+          };
+        }), cacheKey: ck },
       };
     }
   }
@@ -144,10 +184,16 @@ export function answerQuestion(
         return `· [${lvl}${ty ? "·" + ty : ""}] ${desc || summarize(c)}`;
       });
       const who = String(top[0].properties["贡献人"] ?? stripped);
+      const ck = cacheKey("contribution-by-person", question);
       return {
         question, intent: "contribution-by-person",
         answer: `${who} 贡献记录 ${matched.length} 条（取 Top ${top.length}）：\n${lines.join("\n")}`,
         citations: top.map(cite),
+        uiSpec: { ...tableSpec(`${who} 贡献`, ["贡献等级", "贡献类型", "贡献描述"], top, n => ({
+          贡献等级: String(n.properties["贡献等级"] ?? "普通"),
+          贡献类型: String(n.properties["贡献类型"] ?? ""),
+          贡献描述: String(n.properties["贡献描述"] ?? ""),
+        })), cacheKey: ck },
       };
     }
   }
@@ -167,12 +213,17 @@ export function answerQuestion(
       .slice(0, 5);
     if (ranked.length > 0) {
       const lines = ranked.map(([who, ts], i) => `${i + 1}. ${who}：${ts.length} 个活跃攻关单`);
-      // top-1 person's tickets as citations
       const top = ranked[0]?.[1] ?? [];
+      const ck = cacheKey("person-workload", question);
       return {
         question, intent: "person-workload",
         answer: `当前活跃工作量排名（Top ${ranked.length}）：\n${lines.join("\n")}`,
         citations: top.slice(0, 5).map(cite),
+        uiSpec: {
+          widget: "STATS",
+          params: { title: "人员工作量排名", items: ranked.map(([who, ts]) => ({ label: who, value: ts.length })) },
+          cacheKey: ck,
+        },
       };
     }
   }
@@ -203,10 +254,16 @@ export function answerQuestion(
         answer: `${windowName}暂无攻关单变动。`, citations: [] };
     }
     const lines = tickets.map(t => `· ${summarize(t)}（${t.properties["状态"] ?? "未知"}）`);
+    const ck = cacheKey("recent-changes", question);
     return {
       question, intent: "recent-changes",
       answer: `${windowName}共 ${progressTotal} 条进展、${touched.size} 个攻关单变动：\n${lines.join("\n")}`,
       citations: tickets.map(cite),
+      uiSpec: { ...tableSpec(`${windowName}变动`, ["标题", "状态", "最后更新"], tickets, n => ({
+        标题: String(n.properties["标题"] ?? n.id),
+        状态: String(n.properties["状态"] ?? ""),
+        最后更新: n.updatedAt.slice(0, 16).replace("T", " "),
+      })), cacheKey: ck },
     };
   }
 
@@ -227,10 +284,15 @@ export function answerQuestion(
   const top = hits.slice(0, 5);
   if (top.length > 0) {
     const lines = top.map(h => `· [${h.node.nodeType}] ${summarize(h.node)}`);
+    const ck = cacheKey("fallback-search", question);
     return {
       question, intent: "fallback-search",
       answer: `按关键词检索到 ${top.length} 条相关记录：\n${lines.join("\n")}`,
       citations: top.map(h => cite(h.node)),
+      uiSpec: { ...tableSpec("检索结果", ["类型", "摘要"], top.map(h => h.node), n => ({
+        类型: n.nodeType,
+        摘要: summarize(n),
+      })), cacheKey: ck },
     };
   }
 

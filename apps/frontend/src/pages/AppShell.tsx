@@ -31,6 +31,8 @@ const ITEMS = [
   { key: "/reminders", label: <Link to="/reminders">跟催提醒</Link> },
   { key: "/conflicts", label: <Link to="/conflicts"><span style={{ color: "#cf1322" }}>冲突</span></Link> },
   { key: "/hermes", label: <Link to="/hermes">Hermes 问答</Link> },
+  { key: "/responsibility", label: <Link to="/responsibility">责任矩阵</Link> },
+  { key: "/schema-wizard", label: <Link to="/schema-wizard">表结构管理</Link> },
   { key: "/audit", label: <Link to="/audit">审计日志</Link> },
   { key: "/merge", label: <Link to="/merge">人员合并</Link> },
   { key: "/escalation", label: <Link to="/escalation">SLA上升</Link> },

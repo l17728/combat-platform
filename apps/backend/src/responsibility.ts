@@ -1,0 +1,156 @@
+import { Router } from "express";
+import type { Repository, EscalationConfig } from "@combat/shared";
+import { log } from "./logger.js";
+
+const DEFAULT_CONFIG: EscalationConfig = {
+  rules: [
+    { 事件级别: "P1", slaHours: 2, 上升角色: "运维Leader" },
+    { 事件级别: "P2", slaHours: 8, 上升角色: "运维Leader" },
+    { 事件级别: "P3", slaHours: 24, 上升角色: "值班接口人" },
+    { 事件级别: "P4A", slaHours: 4, 上升角色: "值班接口人" },
+  ],
+};
+
+function readEscalationConfig(repo: Repository): EscalationConfig {
+  const raw = repo.getSetting("escalation");
+  if (!raw) return DEFAULT_CONFIG;
+  try {
+    return JSON.parse(raw) as EscalationConfig;
+  } catch {
+    return DEFAULT_CONFIG;
+  }
+}
+
+/** Convert a string to a safe Mermaid node ID: replace spaces and special chars with underscores */
+function safeId(s: string): string {
+  return s.replace(/[^a-zA-Z0-9一-鿿]/g, "_");
+}
+
+/** Truncate a title to max length for readability */
+function truncate(s: string, max = 20): string {
+  return s.length <= max ? s : s.slice(0, max) + "…";
+}
+
+export interface ResponsibilityDiagram {
+  mermaid: string;
+  nodeCount: number;
+  edgeCount: number;
+}
+
+/**
+ * Build the responsibility matrix Mermaid diagram.
+ *
+ * Shows three types of relationships:
+ * 1. Escalation flow from config rules: 事件级别 → 上升角色 with SLA label
+ * 2. Person assignments: ASSIGNED_TO / ESCALATED_TO edges → person handles ticket
+ * 3. Conflict relationships: CONFLICTS_WITH edges shown as dashed lines
+ */
+export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiagram {
+  const lines: string[] = ["flowchart TD"];
+  const nodeIds = new Set<string>();
+  let edgeCount = 0;
+
+  // ── 1. Escalation config rules ──────────────────────────────────────────────
+  const cfg = readEscalationConfig(repo);
+  for (const rule of cfg.rules) {
+    const levelId = safeId(rule.事件级别);
+    const roleId = safeId(rule.上升角色);
+    const label = `SLA ${rule.slaHours}h → ${rule.上升角色}`;
+    lines.push(`  ${levelId}["${rule.事件级别} 事件"] -->|"${label}"| ${roleId}["${rule.上升角色}"]`);
+    nodeIds.add(levelId);
+    nodeIds.add(roleId);
+    edgeCount++;
+  }
+
+  // ── 2. Person assignments: ASSIGNED_TO + ESCALATED_TO edges ─────────────────
+  //    Group by person to keep the diagram readable (aggregate, not enumerate all)
+  const assignedEdges = [
+    ...repo.queryEdges({ edgeType: "ASSIGNED_TO" }),
+    ...repo.queryEdges({ edgeType: "ESCALATED_TO" }),
+  ];
+
+  // Map personId → Set of ticketIds
+  const personToTickets = new Map<string, Set<string>>();
+  for (const edge of assignedEdges) {
+    const existing = personToTickets.get(edge.targetId) ?? new Set<string>();
+    existing.add(edge.sourceId);
+    personToTickets.set(edge.targetId, existing);
+  }
+
+  for (const [personId, ticketIds] of personToTickets) {
+    const person = repo.getNode(personId);
+    if (!person) continue;
+    const personName = String(person.properties["姓名"] ?? person.properties["名称"] ?? truncate(personId, 8));
+    const personNodeId = safeId("person_" + personId);
+    if (!nodeIds.has(personNodeId)) {
+      lines.push(`  ${personNodeId}(["👤 ${personName}"])`);
+      nodeIds.add(personNodeId);
+    }
+
+    // Show at most 5 tickets per person to keep diagram readable
+    const ticketArr = [...ticketIds].slice(0, 5);
+    for (const ticketId of ticketArr) {
+      const ticket = repo.getNode(ticketId);
+      if (!ticket) continue;
+      const title = truncate(String(ticket.properties["标题"] ?? ticket.properties["名称"] ?? ticketId), 20);
+      const ticketNodeId = safeId("ticket_" + ticketId);
+      if (!nodeIds.has(ticketNodeId)) {
+        lines.push(`  ${ticketNodeId}["${title}"]`);
+        nodeIds.add(ticketNodeId);
+      }
+      lines.push(`  ${personNodeId} --- |"负责"| ${ticketNodeId}`);
+      edgeCount++;
+    }
+    // If more than 5, show a summary node
+    if (ticketIds.size > 5) {
+      const moreId = safeId("more_" + personId);
+      lines.push(`  ${moreId}["...等共${ticketIds.size}个任务"]`);
+      lines.push(`  ${personNodeId} --- |"负责"| ${moreId}`);
+      nodeIds.add(moreId);
+      edgeCount++;
+    }
+  }
+
+  // ── 3. CONFLICTS_WITH edges (dashed lines) ───────────────────────────────────
+  const conflictEdges = repo.queryEdges({ edgeType: "CONFLICTS_WITH" });
+  for (const edge of conflictEdges) {
+    const srcTicket = repo.getNode(edge.sourceId);
+    const tgtTicket = repo.getNode(edge.targetId);
+    if (!srcTicket || !tgtTicket) continue;
+
+    const srcTitle = truncate(String(srcTicket.properties["标题"] ?? srcTicket.properties["名称"] ?? edge.sourceId), 20);
+    const tgtTitle = truncate(String(tgtTicket.properties["标题"] ?? tgtTicket.properties["名称"] ?? edge.targetId), 20);
+
+    const srcId = safeId("ticket_" + edge.sourceId);
+    const tgtId = safeId("ticket_" + edge.targetId);
+
+    if (!nodeIds.has(srcId)) {
+      lines.push(`  ${srcId}["${srcTitle}"]`);
+      nodeIds.add(srcId);
+    }
+    if (!nodeIds.has(tgtId)) {
+      lines.push(`  ${tgtId}["${tgtTitle}"]`);
+      nodeIds.add(tgtId);
+    }
+    lines.push(`  ${srcId} -.->|"冲突"| ${tgtId}`);
+    edgeCount++;
+  }
+
+  const nodeCount = nodeIds.size;
+  const mermaid = lines.join("\n");
+
+  log.info("responsibility.diagram", { nodeCount, edgeCount });
+
+  return { mermaid, nodeCount, edgeCount };
+}
+
+export function makeResponsibilityRouter(repo: Repository): Router {
+  const r = Router();
+
+  r.get("/responsibility/diagram", (_req, res) => {
+    const result = buildResponsibilityDiagram(repo);
+    res.json(result);
+  });
+
+  return r;
+}

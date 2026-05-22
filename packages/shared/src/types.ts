@@ -146,7 +146,27 @@ export interface EscalationRule { 事件级别: string; slaHours: number; 上升
 export interface EscalationConfig { rules: EscalationRule[]; }
 export interface EscalationScanResult { overdue: number; escalated: number; }
 export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
-export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; }
+// §57: dynamic UI widget spec — each Hermes answer may include a widget
+export type UiWidgetType = "TABLE" | "STATS" | "MERMAID" | "TIMELINE" | "CARD_GRID";
+export interface UiTableRow { [key: string]: string | number | null }
+export interface UiTableParams { title?: string; columns: string[]; rows: UiTableRow[] }
+export interface UiStatsItem { label: string; value: number | string; color?: string }
+export interface UiStatsParams { title?: string; items: UiStatsItem[] }
+export interface UiMermaidParams { title?: string; diagram: string }
+export interface UiTimelineItem { time: string; title: string; content: string; status?: string }
+export interface UiTimelineParams { title?: string; items: UiTimelineItem[] }
+export interface UiCardItem { title: string; description?: string; link?: string; tags?: string[] }
+export interface UiCardGridParams { title?: string; cards: UiCardItem[] }
+export interface UiSpec {
+  widget: UiWidgetType;
+  params: UiTableParams | UiStatsParams | UiMermaidParams | UiTimelineParams | UiCardGridParams;
+  cacheKey: string;
+}
+export interface PinnedUi {
+  id: string; label: string; question: string;
+  intent: string; uiSpec: UiSpec; pinnedAt: string;
+}
+export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; uiSpec?: UiSpec; }
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };

@@ -25,6 +25,10 @@ import { makeCustomCommandsRouter } from "./custom-commands.js";
 import { makeEmailRouter } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
 import { requestLogger, log } from "./logger.js";
+import { makeResponsibilityRouter } from "./responsibility.js";
+import { makeSchemaApiRouter } from "./schema-api.js";
+import { makeUiCacheRouter } from "./ui-cache.js";
+import { FileSchemaRegistry } from "./registry.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender }) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
@@ -54,6 +58,11 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeCustomCommandsRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
+  app.use("/api", makeResponsibilityRouter(deps.repo));
+  app.use("/api", makeUiCacheRouter(deps.repo));
+  if (deps.registry instanceof FileSchemaRegistry) {
+    app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
+  }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });
     res.status(500).json({ error: err.message });
