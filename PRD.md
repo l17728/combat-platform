@@ -2903,7 +2903,7 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - 跨 view 同 `问题单号`/`客户`/`domain` 等通过锚点自动 co-anchored，同一人多 view 引用经 REF + SAME_AS 合并后边迁移统一——「该关联的进行关联」已由结构化派生机制保证；本增量聚焦补齐「查重」触发与同名盲区。
 
 ### 55.4 验收
-- [ ] 完全同名 person → 提 SAME_AS（employeeId 冲突则不提）
-- [ ] jobs:tick 汇总含 proposals；定期+手动均触发对账
-- [ ] 端到端：两 view 各自录入同一人 → tick → 提议入队 → 管理者通过 → 合并去重
-- [ ] 既有 e2e 零回归；test:all 两次绿；部署
+- [x] 完全同名 person → 提 SAME_AS（employeeId 冲突则不提）
+- [x] jobs:tick 汇总含 proposals；定期+手动均触发对账
+- [x] 端到端：两 view 各自录入同一人 → tick → 提议入队 → 管理者通过 → 合并去重
+- [x] 既有 e2e 零回归；test:all 两次绿；部署
