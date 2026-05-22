@@ -2847,7 +2847,7 @@ export const PRIVILEGED_ROLES: Role[] = ["Leader", "管理员"];
 - 既有 attackTicket/issue400 e2e 零回归。
 
 ### 53.4 验收
-- [ ] attackTicket 资源ID/租户ID + 局点 alias 故障局点
-- [ ] issue400 邮件；person 角色
-- [ ] 攻关组长/攻关申请人 ref→person + REF 边 + rebuild 回灌
-- [ ] 无前端；既有 e2e 零回归；test:all 两次绿；部署
+- [x] attackTicket 资源ID/租户ID + 局点 alias 故障局点
+- [x] issue400 邮件；person 角色
+- [x] 攻关组长/攻关申请人 ref→person + REF 边 + rebuild 回灌
+- [x] 无前端；既有 e2e 零回归；test:all 两次绿；部署
