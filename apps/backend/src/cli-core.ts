@@ -201,6 +201,10 @@ export const COMMANDS: CliCommand[] = [
   // ---- UI pin cache (§57) ----
   { name: "ui:pinned", summary: "列出已固定的动态 UI", usage: "ui:pinned",
     build: () => ({ method: "GET", path: "/api/ui-cache/pinned" }) },
+  { name: "ui:pin", summary: "固定一个 Hermes 动态 UI（需提供完整 uiSpec JSON）", usage: "ui:pin --label <名称> --question <问题> --intent <意图> --uiSpec '<json>'",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/ui-cache/pin", body: { label: str(opts.label), question: str(opts.question), intent: str(opts.intent), uiSpec: jsonOpt(opts, "uiSpec") } }) },
+  { name: "ui:rename-pin", summary: "重命名已固定的 UI", usage: "ui:rename-pin <id> --label <新名称>",
+    build: (pos, opts) => { requirePos(pos, 1, "ui:rename-pin <id> --label <新名称>"); return { method: "PATCH", path: `/api/ui-cache/pinned/${encodeURIComponent(pos[0])}`, body: { label: str(opts.label) } }; } },
   { name: "ui:unpin", summary: "取消固定某 UI", usage: "ui:unpin <id>",
     build: (pos) => { requirePos(pos, 1, "ui:unpin <id>"); return { method: "DELETE", path: `/api/ui-cache/pinned/${encodeURIComponent(pos[0])}` }; } },
   // ---- custom commands (§54): NL-authored parameterized CLI templates ----
