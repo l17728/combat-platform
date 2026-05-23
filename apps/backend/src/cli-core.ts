@@ -65,11 +65,11 @@ export const COMMANDS: CliCommand[] = [
   // ---- reads ----
   { name: "dashboard", summary: "作战态势大盘汇总", usage: "dashboard",
     build: () => ({ method: "GET", path: "/api/dashboard" }) },
-  { name: "nodes:list", summary: "列出某类型的节点（可加 --字段 值 过滤）", usage: "nodes:list <nodeType> [--<field> <value> ...]",
+  { name: "nodes:list", summary: "列出某 nodeType 的全部节点（任意已注册 nodeType；--字段 值 等值过滤，可多个）", usage: "nodes:list <nodeType> [--<field> <value> ...]",
     build: (pos, opts) => { requirePos(pos, 1, "nodes:list <nodeType>");
       const f: Record<string, string> = {}; for (const [k, v] of Object.entries(opts)) if (typeof v === "string") f[k] = v;
       return { method: "GET", path: `/api/nodes/${encodeURIComponent(pos[0])}${qs(f)}` }; } },
-  { name: "nodes:get", summary: "按 id 取单个节点", usage: "nodes:get <id>",
+  { name: "nodes:get", summary: "按 id 取单个节点（任意 nodeType）", usage: "nodes:get <id>",
     build: (pos) => { requirePos(pos, 1, "nodes:get <id>"); return { method: "GET", path: `/api/nodes/${encodeURIComponent(pos[0])}` }; } },
   { name: "progress:list", summary: "列出某节点的进展序列", usage: "progress:list <id>",
     build: (pos) => { requirePos(pos, 1, "progress:list <id>"); return { method: "GET", path: `/api/nodes/${encodeURIComponent(pos[0])}/progress` }; } },
@@ -83,7 +83,7 @@ export const COMMANDS: CliCommand[] = [
       return { method: "GET", path: `/api/graph/snapshot/${encodeURIComponent(pos[0])}/${encodeURIComponent(pos[1])}${qs({ depth: str(opts.depth) })}` }; } },
   { name: "conflicts:list", summary: "冲突/重叠对列表", usage: "conflicts:list",
     build: () => ({ method: "GET", path: "/api/conflicts" }) },
-  { name: "audit:list", summary: "审计日志（--action --entityType --entityId --limit）", usage: "audit:list [--action A] [--entityType T] [--entityId ID] [--limit N]",
+  { name: "audit:list", summary: "审计日志（按 action/entityType/entityId 过滤；常见 action: CREATE/UPDATE/DELETE/MERGE/SCHEMA_addField/DAILY_REPORT_PUBLISH 等）", usage: "audit:list [--action A] [--entityType T] [--entityId ID] [--limit N]",
     build: (_pos, opts) => ({ method: "GET", path: `/api/audit${qs({ action: str(opts.action), entityType: str(opts.entityType), entityId: str(opts.entityId), limit: str(opts.limit) })}` }) },
   { name: "merge:preview", summary: "人员合并预览（只读）", usage: "merge:preview --from <id> --to <id>",
     build: (_pos, opts) => ({ method: "GET", path: `/api/merge/preview${qs({ fromId: str(opts.from), toId: str(opts.to) })}` }) },
@@ -101,23 +101,23 @@ export const COMMANDS: CliCommand[] = [
     build: (_pos, opts) => ({ method: "GET", path: `/api/reminders${qs({ status: str(opts.status) })}` }) },
   { name: "recommend:helpers", summary: "找帮手推荐（--limit N）", usage: "recommend:helpers <attackTicketId> [--limit N]",
     build: (pos, opts) => { requirePos(pos, 1, "recommend:helpers <id>"); return { method: "GET", path: `/api/recommend/helpers/${encodeURIComponent(pos[0])}${qs({ limit: str(opts.limit) })}` }; } },
-  { name: "search", summary: "全文检索（--type 限定类型）", usage: "search <query> [--type T]",
-    build: (pos, opts) => { requirePos(pos, 1, "search <query>"); return { method: "GET", path: `/api/query/search${qs({ q: pos.join(" "), type: str(opts.type) })}` }; } },
+  { name: "search", summary: "全文检索（--type 限定 nodeType，--limit 最多返回 N 条，默认 50，上限 200）", usage: "search <query> [--type T] [--limit N]",
+    build: (pos, opts) => { requirePos(pos, 1, "search <query>"); return { method: "GET", path: `/api/query/search${qs({ q: pos.join(" "), type: str(opts.type), limit: str(opts.limit) })}` }; } },
   { name: "context", summary: "某节点的查询上下文（关联+进展）", usage: "context <id>",
     build: (pos) => { requirePos(pos, 1, "context <id>"); return { method: "GET", path: `/api/query/context/${encodeURIComponent(pos[0])}` }; } },
 
   // ---- writes ----
-  { name: "nodes:create", summary: "创建节点", usage: "nodes:create <nodeType> --data '<json>'",
+  { name: "nodes:create", summary: "创建任意 nodeType 的节点（--data 即 JSON 化 properties，字段名按 schema）", usage: "nodes:create <nodeType> --data '<json>'",
     build: (pos, opts) => { requirePos(pos, 1, "nodes:create <nodeType> --data <json>"); return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}`, body: jsonOpt(opts, "data") }; } },
-  { name: "nodes:update", summary: "局部更新节点", usage: "nodes:update <id> --data '<json>'",
+  { name: "nodes:update", summary: "局部更新节点（merge 语义；--data 只放要改的字段）", usage: "nodes:update <id> --data '<json>'",
     build: (pos, opts) => { requirePos(pos, 1, "nodes:update <id> --data <json>"); return { method: "PUT", path: `/api/nodes/${encodeURIComponent(pos[0])}`, body: jsonOpt(opts, "data") }; } },
-  { name: "nodes:delete", summary: "删除节点", usage: "nodes:delete <id>",
+  { name: "nodes:delete", summary: "按 id 删除节点（任意 nodeType；级联删除其进展/关联边）", usage: "nodes:delete <id>",
     build: (pos) => { requirePos(pos, 1, "nodes:delete <id>"); return { method: "DELETE", path: `/api/nodes/${encodeURIComponent(pos[0])}` }; } },
-  { name: "nodes:transition", summary: "攻关单状态流转（原子追加 progress）", usage: "nodes:transition <id> --to <status> [--note <s>]",
+  { name: "nodes:transition", summary: "攻关单状态原子流转（同时追加一条状态快照 progress；--to 必须是 schema 中状态字段的合法枚举值，如 待响应/处理中/已解决/已关闭）", usage: "nodes:transition <id> --to <status> [--note <s>]",
     build: (pos, opts) => { requirePos(pos, 1, "nodes:transition <id> --to <status>"); return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/transition`, body: { toStatus: str(opts.to), note: str(opts.note) } }; } },
-  { name: "progress:add", summary: "追加一条进展", usage: "progress:add <id> --content <s> [--status <s>]",
+  { name: "progress:add", summary: "为某节点追加一条进展（append-only 时间序）；--status 同时打一个状态快照（可选）", usage: "progress:add <id> --content <s> [--status <s>]",
     build: (pos, opts) => { requirePos(pos, 1, "progress:add <id> --content <s>"); return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/progress`, body: { content: str(opts.content), statusSnapshot: str(opts.status), actor: "cli" } }; } },
-  { name: "schema:patch", summary: "schema 字段操作（addField/retire/setAlias...）", usage: "schema:patch <nodeType> --op '<json>'",
+  { name: "schema:patch", summary: "schema 字段操作（op 形如 {\"op\":\"addField\",\"field\":{...}} / {\"op\":\"retireField\",\"id\":\"...\"} / {\"op\":\"setAlias\",\"id\":\"...\",\"aliases\":[]}）", usage: "schema:patch <nodeType> --op '<json>'",
     build: (pos, opts) => { requirePos(pos, 1, "schema:patch <nodeType> --op <json>"); return { method: "PATCH", path: `/api/schema/${encodeURIComponent(pos[0])}`, body: jsonOpt(opts, "op") }; } },
   { name: "schema:scan", summary: "重新扫描 schema 配置目录", usage: "schema:scan",
     build: () => ({ method: "POST", path: "/api/schema/scan" }) },
@@ -127,6 +127,21 @@ export const COMMANDS: CliCommand[] = [
     build: () => ({ method: "POST", path: "/api/kg/rebuild" }) },
   { name: "daily-report:publish", summary: "发布当日日报：当日有进展的攻关单 日报发布数量+1", usage: "daily-report:publish [--date YYYY-MM-DD]",
     build: (_pos, opts) => ({ method: "POST", path: `/api/daily-report/publish${qs({ date: str(opts.date) })}` }) },
+
+  // ---- per-ticket daily report entries (草稿/发布工作流) ----
+  { name: "daily-report:entry-list", summary: "列出某攻关单下的所有日报条目（草稿+已发布，按创建时间倒序）", usage: "daily-report:entry-list <ticketId>",
+    build: (pos) => { requirePos(pos, 1, "daily-report:entry-list <ticketId>");
+      return { method: "GET", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports` }; } },
+  { name: "daily-report:entry-create", summary: "在某攻关单下新建一条日报条目（草稿）。type 默认 \"进展通报\"", usage: "daily-report:entry-create <ticketId> --currentProgress <s> [--nextSteps <s>] [--type <s>] [--by <人>]",
+    build: (pos, opts) => { requirePos(pos, 1, "daily-report:entry-create <ticketId> --currentProgress <s>");
+      return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports`, body: {
+        type: str(opts.type), currentProgress: str(opts.currentProgress), nextSteps: str(opts.nextSteps), createdBy: str(opts.by) } }; } },
+  { name: "daily-report:entry-publish", summary: "把某攻关单下的某条日报条目从「草稿」改为「已发布」", usage: "daily-report:entry-publish <ticketId> <entryId>",
+    build: (pos) => { requirePos(pos, 2, "daily-report:entry-publish <ticketId> <entryId>");
+      return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports/${encodeURIComponent(pos[1])}/publish` }; } },
+  { name: "daily-report:entry-delete", summary: "删除某攻关单下的某条日报条目", usage: "daily-report:entry-delete <ticketId> <entryId>",
+    build: (pos) => { requirePos(pos, 2, "daily-report:entry-delete <ticketId> <entryId>");
+      return { method: "DELETE", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports/${encodeURIComponent(pos[1])}` }; } },
   { name: "jobs:tick", summary: "手动触发后台定时任务（冲突/上升/跟催扫描汇总）", usage: "jobs:tick",
     build: () => ({ method: "POST", path: "/api/jobs/tick" }) },
   { name: "hermes:ask", summary: "Hermes 只读问答", usage: "hermes:ask <question>",
