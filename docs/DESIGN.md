@@ -140,6 +140,8 @@ D:\fighting\
 - 字段操作 API：`PATCH /api/schema/:nodeType` → `FileSchemaRegistry.applyFieldOp()` — `apps/backend/src/registry.ts:43`
 - 支持操作：`addField` / `renameLabel` / `editEnum` / `retire` / `unretire` / `setAliases` / `setConcept` / `setAnchor`
 - 动态新增表类型：`POST /api/schema/nodeType`（写 JSON 文件 + reload）— `apps/backend/src/schema-api.ts:72`
+- 容错加载：`reload()` 对单个损坏文件只发 warn 日志并跳过，仅当全部文件都解析失败时才抛错（registry.ts:25-30）
+- 字段写盘自校验 + 回滚：`applyFieldOp()` 写盘后再读一次校验 JSON 结构，失败则回滚到旧内容（registry.ts:92-101）
 
 ### 3.3 引用类型字段（零数据重复，自动建边）
 
@@ -170,8 +172,10 @@ D:\fighting\
 攻关单状态流转通过专用 API，同时追加 ProgressLog 确保可追溯：
 
 - API：`POST /api/nodes/:id/transition` body: `{toStatus, note}`
-- 合法状态集：`待响应 | 处理中 | 进行中 | 已解决 | 已关闭`（`packages/shared/src/types.ts:92`）
-- 代码：`apps/backend/src/routes.ts:111`
+- 合法状态集：`待响应 | 处理中 | 进行中 | 已解决 | 已关闭`（`packages/shared/src/types.ts:92`，常量名 `ATTACK_STATUSES`）
+- 后端处理：`apps/backend/src/routes.ts:142`（`r.post("/nodes/:id/transition", ...)`）
+- 前端入口：`apps/frontend/src/pages/AttackDetail.tsx:120`（`doTransition()`）
+- 转换原子性：单次请求内 `updateNode(状态)` 与 `appendProgress(状态变更：A→B...)` 同事务追加，保证状态与进展永不脱钩
 
 ### 3.7 进展追加（Append-Only Time Series）
 
@@ -180,15 +184,20 @@ D:\fighting\
 - 每条进展有 seqNo 序号，支持按时间顺序复盘
 - 表：`progress_log(id, ownerId, seqNo, content, statusSnapshot, updatedBy, updatedAt)`
 
-### 3.8 定时任务（手动触发，无 Auto-Scheduler）
+### 3.8 后台扫描任务（三层触发）
 
-后台所有定时任务（冲突检测、SLA 上升、跟催扫描、提议生成）均通过手动 POST 触发：
+后台扫描包括 **冲突检测、SLA 上升、跟催扫描、提议生成**，共有三种触发方式：
 
-```
-POST /api/jobs/tick  →  apps/backend/src/jobs.ts:tickScheduledJobs()
-```
+| 触发 | 频率 / 时机 | 代码位置 | 范围 |
+|---|---|---|---|
+| 提交后异步触发 | attackTicket 创建/更新/状态流转后 `setImmediate` | `apps/backend/src/routes.ts:16` (`triggerPostSaveJobs`) | conflicts + escalation + reminders |
+| 5 分钟自动扫描 | 服务启动后每 5 分钟 setInterval | `apps/backend/src/server.ts:18` | escalation + reminders |
+| 1 小时聚合 tick | 服务启动后每 1 小时 setInterval | `apps/backend/src/server.ts:28` | jobs.tick（含 proposals） |
+| 手动触发 | `POST /api/jobs/tick` 或 `POST /api/{conflicts,escalation,reminders,proposals}/scan` | `apps/backend/src/jobs.ts:14` | 全部 |
 
-生产环境的 `apps/backend/src/server.ts` 在 createApp 外包了一个 `setInterval`，但测试和 CLI 可随时手动触发，保持无副作用。
+**测试隔离**（`routes.ts:20`）：当 `NODE_ENV=test` 时跳过 post-save 触发，因为测试用例会显式调用扫描端点（否则会被前置触发"消费"掉返回 0）。
+
+`createApp()` 本身**不创建任何定时器**（保持 tests/CLI 无副作用），所有 setInterval 只挂在 `server.ts` 的 production entry。
 
 ---
 
@@ -306,6 +315,30 @@ app_settings (
   value TEXT                            -- JSON 序列化
 )
 ```
+
+#### daily_report_entry 表（攻关单日报条目）
+
+独立于 ProgressLog 的「日报草稿/已发布」工作流（前端「日报更新」Tab 使用）：
+
+```sql
+daily_report_entry (
+  id               TEXT PRIMARY KEY,
+  ticket_id        TEXT NOT NULL,          -- attackTicket.id
+  type             TEXT NOT NULL DEFAULT '进展通报',  -- 进展通报 | 风险通报
+  current_progress TEXT NOT NULL DEFAULT '',          -- 当前进展（必填）
+  next_steps       TEXT NOT NULL DEFAULT '',          -- 下一步计划
+  status           TEXT NOT NULL DEFAULT '草稿',      -- 草稿 | 已发布
+  created_by       TEXT NOT NULL DEFAULT '',
+  created_at       TEXT NOT NULL,
+  published_at     TEXT
+)
+```
+
+索引：`idx_dre_ticket ON daily_report_entry(ticket_id)`
+
+代码位置：建表 `apps/backend/src/db.ts:38`；路由 `apps/backend/src/daily-report-entry.ts`；前端入口 `apps/frontend/src/pages/AttackDetail.tsx:436`（「日报更新」Tab）。
+
+> 与 `/api/daily-report` 的关系：`/api/daily-report` 是基于 ProgressLog 时间窗的汇总视图；`daily_report_entry` 是用户在攻关单页主动撰写的结构化日报条目，二者并存。
 
 ### 4.2 NodeSchema 配置格式（完整注释）
 
@@ -552,7 +585,8 @@ app_settings (
 | 导入 `import.ts` | `/api/import` | POST（multipart, ?type=nodeType&dryRun=1） |
 | 导出 `export.ts` | `/api/export/:nodeType` | GET（返回 xlsx 文件） |
 | 大盘 `dashboard.ts` | `/api/dashboard` | GET |
-| 日报 `daily-report.ts` | `/api/daily-report` | GET(?date), POST /publish(?date) |
+| 日报汇总 `daily-report.ts` | `/api/daily-report` | GET(?date), POST /publish(?date) — 基于 ProgressLog 时间窗 |
+| 日报条目 `daily-report-entry.ts` | `/api/nodes/:id/daily-reports` | GET 列表 / POST 新建 / POST /:eid/publish 发布 / DELETE /:eid 删除 |
 | 全文检索 `query.ts` | `/api/query/search` | GET(?q, ?type, ?limit) |
 | 查询上下文 `query.ts` | `/api/query/context/:id` | GET |
 | 图快照 `graph.ts` | `/api/graph/snapshot/:nodeType/:id` | GET(?depth) |
@@ -695,6 +729,10 @@ npm run cli -- help nodes:create
 | `/commands` | CustomCommandsPage | 自定义命令管理 |
 | `/responsibility` | ResponsibilityPage | 责任矩阵 Mermaid 图 |
 | `/schema-wizard` | SchemaWizardPage | 表结构管理（新建/编辑/删除字段） |
+| `/people` | PeoplePage | 人员台（独立人员管理视图） |
+| `/domains` | DomainsPage | 领域台（即将上线 / 并行开发中） |
+| `/tasks` | TasksPage | 任务台（综合任务视图） |
+| `/settings` | SettingsPage | 配置中心（系统级偏好） |
 
 ### 7.2 核心组件
 
@@ -814,6 +852,22 @@ node scripts/deploy/deploy.mjs deploy
 
 ---
 
+## 8.6 权限模型
+
+权限通过 HTTP Header `X-Role: normal | leader | admin` 表达（轻量级，无服务端会话）：
+
+- 角色定义：`packages/shared/src/types.ts:141`（`Role` 类型、`PRIVILEGED_ROLES = ["leader", "admin"]`、`ROLE_LABELS`）
+- 前端选角：`apps/frontend/src/pages/AppShell.tsx:64`（顶栏 Select，写 localStorage `combat-role`）
+- 前端注入：`apps/frontend/src/api.ts:22`（每个 `this.req` 自动附加 `X-Role: ${localStorage.combat-role || "normal"}`）
+- 后端门控：`apps/backend/src/routes.ts:31` (`gradeGate`) — **仅对 `contribution.贡献等级` 字段标定生效**：
+  - **Leader / Admin**：可填写贡献等级（普通/关键/核心）
+  - **普通成员**：填写贡献等级返回 403「仅 Leader 可标定贡献等级」
+  - **不带 X-Role 的请求**（CLI / 导入 / 测试）：视为系统信任访问，直接放行
+
+其他写操作（攻关单、进展、状态流转、Schema 变更等）**没有**角色门控；任何已登录用户均可操作，记录留 audit_log 即可。
+
+---
+
 ## 9. 日志与观测
 
 ### 9.1 日志格式
@@ -879,3 +933,143 @@ node scripts/deploy/deploy.mjs deploy
 4. **Hermes 为规则引擎**：非 LLM 驱动，基于关键词正则匹配 8 个固定意图，自然语言理解能力有限
 5. **SQLite 单进程限制**：当前使用 better-sqlite3（同步），不支持多进程/水平扩展；生产切换 PostgreSQL 需改 repository.ts
 6. **合并不可逆**：人员合并（`POST /api/merge/person`）无撤销，执行前必须预览确认
+
+---
+
+## 12. 特性 ↔ 代码位置索引（快查表）
+
+> 这一节是文档的核心。任何一个产品特性都能通过下面表格在 1 分钟内定位到代码。
+
+### 12.1 攻关单管理
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 攻关单列表（带状态过滤） | `apps/backend/src/routes.ts:73`（`GET /nodes/:nodeType`） | `apps/frontend/src/pages/AttackList.tsx` + `EntityTable.tsx:29`（`nodeType="attackTicket"`） |
+| 攻关单详情页（聚合信息） | 多端点聚合（getNode / listProgress / recommendHelpers / listAudit） | `apps/frontend/src/pages/AttackDetail.tsx:59` |
+| 状态流转（原子追加进展） | `apps/backend/src/routes.ts:142`（`POST /nodes/:id/transition`） | `apps/frontend/src/pages/AttackDetail.tsx:120`（`doTransition`） |
+| 进展追加 | `apps/backend/src/routes.ts:134`（`POST /nodes/:id/progress`） | `apps/frontend/src/pages/AttackDetail.tsx:108`（`addProgress`） |
+| 找帮手推荐 | `apps/backend/src/recommend.ts:12`（`recommendHelpers`） + `apps/backend/src/recommend.ts:70`（路由） | `apps/frontend/src/pages/AttackDetail.tsx:370`（"找帮手" 区块） |
+| 关联全景（1 跳 + N 跳） | `apps/backend/src/related.ts:23` + `apps/backend/src/related-core.ts:3,31` | `apps/frontend/src/pages/RelatedPage.tsx` |
+| 日报条目（草稿/发布） | `apps/backend/src/daily-report-entry.ts:27`（路由） + `apps/backend/src/db.ts:38`（建表） | `apps/frontend/src/pages/AttackDetail.tsx:436`（"日报更新" Tab） |
+| 后台自动扫描（提交后触发） | `apps/backend/src/routes.ts:16`（`triggerPostSaveJobs`） | — |
+
+### 12.2 荣誉殿堂
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 贡献录入（含权限门控） | `apps/backend/src/routes.ts:86` + `routes.ts:94`（`CONTRIBUTED_TO` 边） + `routes.ts:31`（`gradeGate`） | `apps/frontend/src/pages/EntityTable.tsx`（`nodeType="contribution"`） |
+| 排行榜（人员 / 团队聚合） | `apps/backend/src/honor.ts:10`（`GET /honor/leaderboard`） | `apps/frontend/src/pages/HonorPage.tsx:7` |
+| 个人荣誉档案 | `apps/backend/src/honor.ts:52`（`GET /honor/person/:name`） | `apps/frontend/src/pages/PersonHonor.tsx` |
+| 加权得分规则（核心 8 / 关键 3 / 普通 1） | `apps/backend/src/honor.ts:5`（`WEIGHT` 表） | — |
+| Leader-only 标定贡献等级 | `apps/backend/src/routes.ts:31`（`gradeGate`） | `apps/frontend/src/api.ts:22`（自动注入 `X-Role`） |
+
+### 12.3 Schema Wizard（运行时改 schema）
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 字段操作（add/retire/alias/concept/anchor 等） | `apps/backend/src/registry.ts:43`（`applyFieldOp`） + `apps/backend/src/routes.ts:56`（路由） | `apps/frontend/src/pages/EntityTable.tsx:85-100`（表头按钮列） |
+| 创建新表（写文件 + reload） | `apps/backend/src/schema-api.ts:72`（`POST /schema/nodeType`） | `apps/frontend/src/pages/SchemaWizardPage.tsx` |
+| 字段建议（跨表复用） | `apps/backend/src/schema-api.ts:34`（`GET /schema/suggest?q=`） | `SchemaWizardPage.tsx` 字段编辑器内 |
+| 删除空表（无数据） | `apps/backend/src/schema-api.ts:149`（`DELETE /schema/nodeType/:nodeType`） | — |
+| 手动重扫目录 | `apps/backend/src/routes.ts:48`（`POST /schema/scan`） | — |
+| 写盘后自校验 + 回滚 | `apps/backend/src/registry.ts:92-101` | — |
+
+### 12.4 自动扫描类
+
+| 特性 | 后端位置 | 触发渠道 |
+|---|---|---|
+| Escalation 扫描（SLA 超时上升） | `apps/backend/src/escalation.ts:27`（`scanEscalation`） | `POST /escalation/scan`、5 分钟 setInterval、提交后 setImmediate |
+| Reminders 扫描（跟催 / Deadline / CCB） | `apps/backend/src/reminders.ts:10`（`scanAndCreateReminders`） + `apps/backend/src/rules.ts:22` | `POST /reminders/scan`、5 分钟 setInterval、提交后 setImmediate |
+| Conflicts 派生（同负责人 / 同问题单） | `apps/backend/src/conflicts.ts:39`（`syncConflicts`） | `POST /conflicts/scan`、提交后 setImmediate、`jobs:tick` |
+| Proposals 扫描（候选合并提议） | `apps/backend/src/proposals.ts:12`（`runProposalScan`） + `apps/backend/src/proposer.ts` | `POST /proposals/scan`、1 小时 setInterval |
+| 聚合 tick（一次跑所有扫描） | `apps/backend/src/jobs.ts:14`（`tickScheduledJobs`） | `POST /jobs/tick` |
+
+### 12.5 知识图谱派生 + RelatedPage
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| REF 边自动同步（写节点时） | `apps/backend/src/refs.ts:3`（`syncRefEdges`） | — |
+| ANCHORED_TO 边自动同步（写节点时） | `apps/backend/src/anchors.ts:3`（`syncAnchorEdges`） | — |
+| 全量 KG 重建 | `apps/backend/src/kg-rebuild.ts:16`（`rebuildKG`） | `apps/frontend/src/pages/RelatedPage.tsx` 重建按钮 |
+| 1 跳关联视图 | `apps/backend/src/related-core.ts:3`（`buildRelated`） | `RelatedPage.tsx`（默认） |
+| N 跳 BFS 展开 | `apps/backend/src/related-core.ts:31`（`buildExpanded`） | `RelatedPage.tsx`（`?depth=N`） |
+| 图可视化快照 | `apps/backend/src/graph.ts:17`（`buildSnapshot`） | `apps/frontend/src/pages/GraphPage.tsx` |
+| 手工标注关联线 | `apps/backend/src/relations.ts`（`RELATES_TO` 边） | `RelatedPage.tsx`（"手工关联"区块） |
+| 责任矩阵 Mermaid | `apps/backend/src/responsibility.ts:53`（`buildResponsibilityDiagram`） | `apps/frontend/src/pages/ResponsibilityPage.tsx` |
+
+### 12.6 Hermes Agent
+
+| 特性 | 代码位置 |
+|---|---|
+| 路由入口 | `apps/backend/src/hermes.ts:317`（`POST /hermes/ask`） |
+| 意图分类引擎（8 意图） | `apps/backend/src/hermes.ts:49`（`answerQuestion`） |
+| 找帮手意图 | `hermes.ts:63` |
+| 按问题单号查攻关单 | `hermes.ts:104` |
+| 谁负责 / 状态 / 进展 | `hermes.ts:123` / `:144` |
+| 贡献查询 / 工作量 / 最近变动 | `hermes.ts:174` / `:207` / `:237` |
+| 全文检索 fallback | `hermes.ts:280` |
+| 动态 UI 规范（UiSpec） | `packages/shared/src/types.ts:150`（类型） + `apps/frontend/src/components/UiWidget.tsx`（渲染） |
+| UI 固定 / 取消固定 | `apps/backend/src/ui-cache.ts:16`（后端） + `apps/frontend/src/pages/HermesPage.tsx`（前端按钮） |
+| 前端问答页 | `apps/frontend/src/pages/HermesPage.tsx` |
+
+### 12.7 导入引擎
+
+| 特性 | 代码位置 |
+|---|---|
+| 路由（multipart 上传） | `apps/backend/src/import.ts:79`（`POST /import?type=...&dryRun=...`） |
+| 列映射（schema 别名匹配） | `apps/backend/src/import.ts:11`（`mapColumns`） |
+| Identity-key 去重 | `apps/backend/src/import.ts:39`（`findByIdentity`） |
+| Dry-run 预览（read-only plan） | `apps/backend/src/import.ts:57`（`analyzeImport`） |
+| 人员 dedup（按 employeeId / name） | `apps/backend/src/import.ts:24`（`resolvePerson`） |
+| `ASSIGNED_TO` 边（攻关申请人） | `apps/backend/src/import.ts:115` |
+| 前端导入页 | `apps/frontend/src/pages/ImportPage.tsx` |
+| 前端 Schema 列建议复用 | `apps/backend/src/schema-api.ts:34` |
+
+### 12.8 责任矩阵 / 提醒中心 / 冲突中心
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 责任矩阵图 | `apps/backend/src/responsibility.ts:53` | `apps/frontend/src/pages/ResponsibilityPage.tsx` |
+| 提醒队列（待发送/已发送/已忽略） | `apps/backend/src/reminders.ts:27`（路由） | `apps/frontend/src/pages/RemindersPage.tsx` |
+| 提醒生成规则（停滞3天 / Deadline 3天内 / CCB 标志） | `apps/backend/src/rules.ts:22`（`scanReminders`） | — |
+| 7 天去重窗口 | `apps/backend/src/reminders.ts:7`（`WINDOW_MS`） | — |
+| 提醒发送（Stub 渠道） | `apps/backend/src/channel.ts`（`StubChannelAdapter`） | — |
+| 冲突中心 | `apps/backend/src/conflicts.ts:97`（路由） | `apps/frontend/src/pages/ConflictsPage.tsx` |
+| 同负责人冲突 | `apps/backend/src/conflicts.ts:46`（Rule 1） | — |
+| 同问题单重叠 | `apps/backend/src/conflicts.ts:62`（Rule 2） | — |
+
+### 12.9 CLI
+
+| 特性 | 代码位置 |
+|---|---|
+| 命令注册表（COMMANDS[]） | `apps/backend/src/cli-core.ts:64` |
+| 参数解析（`--key value`） | `apps/backend/src/cli-core.ts:22`（`parseArgs`） |
+| Help 自描述 | `apps/backend/src/cli-core.ts:221`（`renderHelp`） |
+| HTTP 客户端入口 | `apps/backend/src/cli.ts:13`（`httpFetch`） |
+| Multipart 上传（import） | `apps/backend/src/cli.ts:15-23` |
+| 二进制下载（export） | `apps/backend/src/cli.ts:26-31` |
+| `COMBAT_API` / `COMBAT_ROLE` env vars | `apps/backend/src/cli.ts:9-11` |
+| 自定义命令（NL 参数化模板） | `apps/backend/src/custom-commands.ts:28`（CRUD + run） |
+| 自定义命令运行：模板 → 解析 → 调用 | `apps/backend/src/custom-commands.ts:59`（`commands/:id/run`） |
+
+### 12.10 审计 / 合并 / 实体解析
+
+| 特性 | 后端位置 |
+|---|---|
+| 审计写入 | `apps/backend/src/repository.ts:8`（`logAudit`） |
+| 审计查询 | `apps/backend/src/audit.ts:6`（`GET /audit`） |
+| 合并预览（只读） | `apps/backend/src/merge.ts:7`（`previewMerge`） |
+| 合并执行（不可逆） | `apps/backend/src/merge.ts:25`（`mergePerson`） |
+| 合并去重（避免重复 edge） | `apps/backend/src/merge.ts:40-43` |
+| 提议审批（含 SAME_AS 合并触发） | `apps/backend/src/proposals.ts:41`（`/proposals/:id/decide`） |
+
+### 12.11 大盘 / 检索 / 值班 / 邮件
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 作战大盘汇总 | `apps/backend/src/dashboard.ts:12`（`/dashboard`） | `apps/frontend/src/pages/HomePage.tsx:37` |
+| 跨类型全文检索 | `apps/backend/src/query.ts:17`（`/query/search`） | `apps/frontend/src/pages/SearchPage.tsx` |
+| 节点查询上下文（节点 + 关联 + 进展） | `apps/backend/src/query.ts:38` | — |
+| 当前值班人（按日期派生） | `apps/backend/src/oncall.ts:11`（`currentOncall`） | EntityTable for `oncall` |
+| SMTP 配置 + 邮件发送 | `apps/backend/src/email.ts:61`（`makeEmailRouter`） + `mailer.ts` | `apps/frontend/src/pages/EmailPage.tsx` |
+| 收件人解析（to + 群组 + 人员） | `apps/backend/src/email.ts:39`（`resolveRecipients`） | — |
