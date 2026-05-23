@@ -29,8 +29,10 @@ import { makeResponsibilityRouter } from "./responsibility.js";
 import { makeSchemaApiRouter } from "./schema-api.js";
 import { makeUiCacheRouter } from "./ui-cache.js";
 import { FileSchemaRegistry } from "./registry.js";
+import { makeDailyReportEntryRouter } from "./daily-report-entry.js";
+import type { DB } from "./db.js";
 
-export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender }) {
+export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB }) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
   const app = express();
   app.use(express.json());
@@ -60,6 +62,9 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
   app.use("/api", makeResponsibilityRouter(deps.repo));
   app.use("/api", makeUiCacheRouter(deps.repo));
+  if (deps.db) {
+    app.use("/api", makeDailyReportEntryRouter(deps.db));
+  }
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
   }

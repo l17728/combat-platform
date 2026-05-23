@@ -21,6 +21,9 @@ import { EscalationPage } from "./pages/EscalationPage.js";
 import { CustomCommandsPage } from "./pages/CustomCommandsPage.js";
 import { ResponsibilityPage } from "./pages/ResponsibilityPage.js";
 import { SchemaWizardPage } from "./pages/SchemaWizardPage.js";
+import { PeoplePage } from "./pages/PeoplePage.js";
+import { TasksPage } from "./pages/TasksPage.js";
+import { SettingsPage } from "./pages/SettingsPage.js";
 
 export default function App() {
   return (
@@ -61,6 +64,9 @@ export default function App() {
           <Route path="/commands" element={<CustomCommandsPage />} />
           <Route path="/responsibility" element={<ResponsibilityPage />} />
           <Route path="/schema-wizard" element={<SchemaWizardPage />} />
+          <Route path="/people" element={<PeoplePage />} />
+          <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

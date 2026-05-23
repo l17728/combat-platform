@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Repository, EscalationConfig, EscalationScanResult } from "@combat/shared";
+import { log } from "./logger.js";
 
 const ACTIVE = new Set(["待响应", "处理中", "进行中"]);
 const DEFAULT_CONFIG: EscalationConfig = {
@@ -28,6 +29,9 @@ export function scanEscalation(repo: Repository): EscalationScanResult {
   const byLevel = new Map(cfg.rules.map(r => [r.事件级别, r]));
   const now = Date.now();
   let overdue = 0, escalated = 0;
+  // Preload to avoid N+1 inside the loop
+  const escalatedIds = new Set(repo.listAuditLog({ action: "ESCALATE" }).map(a => a.entityId));
+  const allRefEdges = repo.queryEdges({ edgeType: "REF" });
   for (const t of repo.queryNodes("attackTicket")) {
     const status = String(t.properties["状态"] ?? "");
     if (!ACTIVE.has(status)) continue;
@@ -37,17 +41,19 @@ export function scanEscalation(repo: Repository): EscalationScanResult {
     const ageMs = now - new Date(t.createdAt).getTime();
     if (ageMs <= rule.slaHours * 3600 * 1000) continue;
     overdue++;
-    const already = repo.listAuditLog({ entityId: t.id, action: "ESCALATE" }).length > 0;
+    const already = escalatedIds.has(t.id);
     if (already) continue;
     // resolve current owner person via REF edge (field 当前处理人) for the ESCALATED_TO edge
-    const ownerRef = repo.queryEdges({ sourceId: t.id, edgeType: "REF" })
+    const ownerRef = allRefEdges.filter(e => e.sourceId === t.id)
       .find(e => String(e.properties["field"]) === "当前处理人");
     if (ownerRef) repo.createEdge("ESCALATED_TO", t.id, ownerRef.targetId,
       { level: lvl, 上升角色: rule.上升角色, at: new Date().toISOString() }, "system");
     repo.logAudit({ action: "ESCALATE", entityType: "node", entityId: t.id,
       changes: { 事件级别: lvl, slaHours: rule.slaHours, 上升角色: rule.上升角色, ageHours: Math.round(ageMs / 3600000) }, actor: "system" });
+    log.warn("escalation.triggered", { ticketId: t.id, 上升角色: rule.上升角色 });
     escalated++;
   }
+  log.info("escalation.scan.done", { escalated });
   return { overdue, escalated };
 }
 

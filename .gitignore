@@ -3,9 +3,14 @@ dist/
 *.sqlite*
 apps/frontend/test-results/
 apps/frontend/playwright-report/
+test-results/
 .env
 .env.*
 .worktrees/
+.claude/
+.playwright-mcp/
 scripts/deploy/node_modules/
 scripts/deploy/app.tar.gz
+scripts/deploy/app-dist.tar.gz
+scripts/deploy/app.tar
 scripts/deploy/package-lock.json

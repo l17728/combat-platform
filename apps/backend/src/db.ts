@@ -35,6 +35,18 @@ export function openDb(path: string): DB {
     CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log(ownerId, seqNo);
     CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
     CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+    CREATE TABLE IF NOT EXISTS daily_report_entry (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT '进展通报',
+      current_progress TEXT NOT NULL DEFAULT '',
+      next_steps TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '草稿',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      published_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dre_ticket ON daily_report_entry(ticket_id);
   `);
   return db;
 }

@@ -23,6 +23,12 @@ export function makeUiCacheRouter(repo: Repository): Router {
   r.post("/ui-cache/pin", (req, res) => {
     const { label, question, intent, uiSpec } = req.body ?? {};
     if (!uiSpec) return res.status(400).json({ error: "uiSpec 必填" });
+    if (typeof uiSpec.widget !== "string" || typeof uiSpec.params !== "object" || uiSpec.params === null) {
+      return res.status(400).json({ error: "uiSpec 格式非法（需含 widget:string 和 params:object）" });
+    }
+    if (!uiSpec.cacheKey) {
+      return res.status(400).json({ error: "uiSpec.cacheKey 必填" });
+    }
     const pin: PinnedUi = {
       id: randomUUID(),
       label: String(label || question || "未命名"),
@@ -44,6 +50,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
     if (!pin) return res.status(404).json({ error: "not found" });
     if (req.body?.label) pin.label = String(req.body.label);
     writePinned(repo, pins);
+    log.info("ui.pin.rename", { id: req.params.id, label: pin.label });
     res.json(pin);
   });
 

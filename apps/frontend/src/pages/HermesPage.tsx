@@ -37,21 +37,6 @@ const PLACEHOLDER = [
   "· PB-12345 找谁帮忙？",
 ].join("\n");
 
-async function loadPinned(): Promise<PinnedUi[]> {
-  const r = await fetch("/api/ui-cache/pinned");
-  return r.ok ? r.json() : [];
-}
-async function savePin(ans: HermesAnswer): Promise<PinnedUi> {
-  const r = await fetch("/api/ui-cache/pin", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ label: ans.question, question: ans.question, intent: ans.intent, uiSpec: ans.uiSpec }),
-  });
-  if (!r.ok) throw new Error("固定失败");
-  return r.json();
-}
-async function removePin(id: string): Promise<void> {
-  await fetch(`/api/ui-cache/pinned/${id}`, { method: "DELETE" });
-}
 
 export function HermesPage() {
   const [q, setQ] = useState("");
@@ -61,7 +46,11 @@ export function HermesPage() {
   const [pinned, setPinned] = useState<PinnedUi[]>([]);
   const [showWidget, setShowWidget] = useState(true);
 
-  useEffect(() => { loadPinned().then(setPinned); }, []);
+  useEffect(() => {
+    api.listPinnedUi()
+      .then(setPinned)
+      .catch(() => message.warning("已固定项加载失败"));
+  }, []);
 
   const ask = async () => {
     const text = q.trim();
@@ -70,7 +59,7 @@ export function HermesPage() {
     try {
       const ans = await api.hermesAsk(text);
       setActive(ans);
-      setHistory(h => [ans, ...h].slice(0, 20));
+      setHistory(prev => [{ ...ans, _key: `${Date.now()}-${Math.random()}` }, ...prev.slice(0, 49)]);
       setQ("");
     } catch (e) { message.error(String((e as Error).message)); }
     finally { setLoading(false); }
@@ -79,14 +68,25 @@ export function HermesPage() {
   const pin = async (ans: HermesAnswer) => {
     if (!ans.uiSpec) { message.info("该回答无可固定的 UI 组件"); return; }
     try {
-      const p = await savePin(ans);
+      const p = await api.pinUi({
+        label: ans.question,
+        question: ans.question,
+        intent: ans.intent,
+        uiSpec: ans.uiSpec,
+      });
       setPinned(ps => [p, ...ps]);
       message.success("已固定到侧栏");
-    } catch { message.error("固定失败"); }
+    } catch {
+      message.error("固定失败，请重试");
+    }
   };
   const unpin = async (id: string) => {
-    await removePin(id);
-    setPinned(ps => ps.filter(p => p.id !== id));
+    try {
+      await api.unpinUi(id);
+      setPinned(ps => ps.filter(p => p.id !== id));
+    } catch {
+      message.error("取消固定失败，请重试");
+    }
   };
   const loadPin = (p: PinnedUi) => {
     setActive({ question: p.question, intent: p.intent as HermesIntent, answer: "", citations: [], uiSpec: p.uiSpec });
@@ -98,7 +98,7 @@ export function HermesPage() {
       <div>
         <Typography.Title level={5}>历史问题</Typography.Title>
         <List size="small" dataSource={history} locale={{ emptyText: "暂无历史" }}
-          rowKey={(h) => h.question + h.intent}
+          rowKey={(h) => (h as any)._key ?? h.question}
           renderItem={(h) => (
             <List.Item style={{ cursor: "pointer" }} onClick={() => setActive(h)}>
               <Typography.Text ellipsis>{h.question}</Typography.Text>

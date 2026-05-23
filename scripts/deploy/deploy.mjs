@@ -63,9 +63,16 @@ if (mode === "inventory") {
 }
 
 if (mode === "deploy") {
+  // Build frontend locally to avoid OOM on server (server has limited RAM with other processes)
+  console.log("[building frontend locally (avoids server OOM)...]");
+  execSync(`npm run build --workspace=@combat/frontend`, { cwd: repoRoot, stdio: "inherit" });
+  console.log("[frontend build complete]");
+
   const tar = join(here, "app.tar.gz");
   execSync(`git archive --format=tar.gz -o "${tar}" HEAD`, { cwd: repoRoot });
-  console.log("[built app.tar.gz from git HEAD]");
+  // Create separate dist archive using bash (handles paths correctly on Windows)
+  execSync(`tar -czf scripts/deploy/app-dist.tar.gz apps/frontend/dist`, { cwd: repoRoot, shell: "bash" });
+  console.log("[built app.tar.gz from git HEAD + app-dist.tar.gz from pre-built dist]");
 
   let c = await conn();
   console.log(`[connected ${USER}@${HOST}]`);
@@ -73,8 +80,9 @@ if (mode === "deploy") {
   const mk = await run(c, "mkdir -p /opt/combat && rm -rf /opt/combat/* /opt/combat/.[!.]* 2>/dev/null; test -d /opt/combat && echo READY");
   if (!/READY/.test(mk.out)) { console.error("ABORT: /opt/combat not ready", mk); process.exit(1); }
   await sftpPut(c, tar, "/tmp/combat-app.tar.gz");
+  await sftpPut(c, join(here, "app-dist.tar.gz"), "/tmp/combat-dist.tar.gz");
   await sftpPut(c, join(here, "run-deploy.sh"), "/opt/combat/run-deploy.sh");
-  const ex = await run(c, "tar xzf /tmp/combat-app.tar.gz -C /opt/combat && test -f /opt/combat/package.json && echo EXTRACT_OK");
+  const ex = await run(c, "tar xzf /tmp/combat-app.tar.gz -C /opt/combat && tar xzf /tmp/combat-dist.tar.gz -C /opt/combat && test -f /opt/combat/package.json && echo EXTRACT_OK");
   if (!/EXTRACT_OK/.test(ex.out)) { console.error("ABORT: extract failed", ex); process.exit(1); }
   console.log("[uploaded + extracted]");
   // kick off detached runner (returns immediately; survives SSH drop)

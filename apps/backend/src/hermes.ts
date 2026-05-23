@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode, UiSpec } from "@combat/shared";
 import { recommendHelpers } from "./recommend.js";
+import { log } from "./logger.js";
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
@@ -63,7 +64,11 @@ export function answerQuestion(
     let ticket: GraphNode | undefined;
     if (pb) ticket = findTicketsByPB(repo, pb)[0];
     if (!ticket) {
-      const stripped = question.replace(/[?？。，,!！找谁帮忙帮手能帮的]/g, "").replace(pb, "").trim();
+      const stripped = question
+        .replace(/找谁帮忙|找帮手|谁能帮|帮忙找|帮我找/g, "")
+        .replace(/[?？。，,!！]/g, "")
+        .replace(pb, "")
+        .trim();
       ticket = fuzzyTicketsByTitle(repo, stripped)[0];
     }
     if (!ticket) {
@@ -239,10 +244,15 @@ export function answerQuestion(
     }
     let progressTotal = 0;
     const touched = new Map<string, GraphNode>();
-    for (const t of repo.queryNodes("attackTicket")) {
-      if (new Date(t.updatedAt) >= start) touched.set(t.id, t);
+    // BUG-7: filter to recently-updated tickets first to avoid N+1 progress queries
+    const allTickets = repo.queryNodes("attackTicket");
+    const recentTickets = allTickets.filter(t => new Date(t.updatedAt) >= start);
+    for (const t of recentTickets) {
+      touched.set(t.id, t);
+    }
+    for (const t of recentTickets) {
       for (const p of repo.listProgress(t.id)) {
-        if (new Date(p.updatedAt) >= start) { progressTotal++; touched.set(t.id, t); }
+        if (new Date(p.updatedAt) >= start) progressTotal++;
       }
     }
     const tickets = [...touched.values()]
@@ -296,6 +306,7 @@ export function answerQuestion(
     };
   }
 
+  log.warn("hermes.ask.no_results", { question });
   return {
     question, intent: "fallback-search",
     answer: "暂未找到相关记录。可换关键词，或具体提及攻关单标题 / 问题单号 / 负责人。",
@@ -308,7 +319,10 @@ export function makeHermesRouter(repo: Repository, registry: SchemaRegistry): Ro
   r.post("/hermes/ask", (req, res) => {
     const q = String(req.body?.question ?? "").trim();
     if (!q) return res.status(400).json({ error: "question 必填" });
-    res.json(answerQuestion(repo, registry, q));
+    log.info("hermes.ask.start", { question: q });
+    const answer = answerQuestion(repo, registry, q);
+    log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length });
+    res.json(answer);
   });
   return r;
 }

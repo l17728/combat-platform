@@ -46,11 +46,9 @@ export function makeDashboardRouter(repo: Repository): Router {
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     let progressEntries = 0;
     const touched = new Set<string>();
-    for (const t of tks) {
-      for (const p of repo.listProgress(t.id)) {
-        const at = new Date(p.updatedAt);
-        if (at >= today && at < tomorrow) { progressEntries++; touched.add(t.id); }
-      }
+    for (const p of repo.listAllProgress()) {
+      const at = new Date(p.updatedAt);
+      if (at >= today && at < tomorrow) { progressEntries++; touched.add(p.ownerId); }
     }
     const todaySection = { progressEntries, ticketsTouched: touched.size };
 

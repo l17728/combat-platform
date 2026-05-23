@@ -73,9 +73,12 @@ describe("daily-report e2e", () => {
     expect(a.body).toEqual(b.body);
   });
 
-  it("missing or invalid date → defaults to today (UTC); does NOT 400", async () => {
+  it("missing or invalid date → defaults to today (Asia/Shanghai); does NOT 400", async () => {
     const { app } = makeApp();
-    const today = new Date().toISOString().slice(0, 10);
+    // Server uses Asia/Shanghai (UTC+8) calendar date — match that here to avoid
+    // false failure when UTC and CST are on different calendar days (16:00-24:00 UTC).
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai",
+      year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
     const r1 = await request(app).get("/api/daily-report");
     expect(r1.status).toBe(200);
     expect(r1.body.date).toBe(today);

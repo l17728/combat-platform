@@ -81,6 +81,7 @@ export function makeSchemaApiRouter(
 
       // Validate nodeType format
       if (!nodeType || !NODE_TYPE_RE.test(nodeType)) {
+        log.warn("schema.create.validation_fail", { nodeType, error: "nodeType 格式非法" });
         return res
           .status(400)
           .json({ error: "nodeType 必须以字母开头，只能包含字母和数字（camelCase）" });
@@ -88,15 +89,18 @@ export function makeSchemaApiRouter(
 
       // Validate label
       if (!label || !label.trim()) {
+        log.warn("schema.create.validation_fail", { nodeType, error: "label 不能为空" });
         return res.status(400).json({ error: "label 不能为空" });
       }
 
       // Validate fields
       if (!Array.isArray(fields) || fields.length === 0) {
+        log.warn("schema.create.validation_fail", { nodeType, error: "fields 至少需要一个字段" });
         return res.status(400).json({ error: "fields 至少需要一个字段" });
       }
       for (const f of fields) {
         if (!f.name || !f.type || !f.label) {
+          log.warn("schema.create.validation_fail", { nodeType, error: "字段缺少必填项" });
           return res
             .status(400)
             .json({ error: "每个字段必须包含 name、type 和 label" });
@@ -127,7 +131,12 @@ export function makeSchemaApiRouter(
 
       const filePath = join(schemaDir, `${nodeType}.json`);
       writeFileSync(filePath, JSON.stringify(schema, null, 2), "utf8");
-      registry.reload();
+      try {
+        registry.reload();
+      } catch (e) {
+        try { unlinkSync(filePath); } catch {}
+        throw e;
+      }
 
       log.info("schema.create", { nodeType, fieldCount: normalizedFields.length });
 
@@ -142,6 +151,11 @@ export function makeSchemaApiRouter(
     asyncHandler(async (req, res) => {
       const { nodeType } = req.params;
 
+      // BUG-1: validate nodeType to prevent path traversal
+      if (!NODE_TYPE_RE.test(nodeType)) {
+        return res.status(400).json({ error: "nodeType 格式非法" });
+      }
+
       // Check schema exists
       const existing = registry.getNodeSchema(nodeType);
       if (!existing) {
@@ -151,6 +165,7 @@ export function makeSchemaApiRouter(
       // Guard: check if any nodes of this type exist
       const nodes = repo.queryNodes(nodeType);
       if (nodes.length > 0) {
+        log.warn("schema.delete.blocked", { nodeType, nodeCount: nodes.length });
         return res
           .status(409)
           .json({ error: "该类型下有数据，无法删除" });
@@ -160,7 +175,11 @@ export function makeSchemaApiRouter(
       if (existsSync(filePath)) {
         unlinkSync(filePath);
       }
-      registry.reload();
+      try {
+        registry.reload();
+      } catch (e) {
+        throw e;
+      }
 
       log.info("schema.delete", { nodeType });
       return res.json({ ok: true, nodeType });

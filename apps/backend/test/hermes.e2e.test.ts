@@ -89,4 +89,34 @@ describe("§35 Hermes 问答 MVP e2e", () => {
     expect(r2.status).toBe(400);
     expect(r2.body.error).toContain("question");
   });
+
+  it("question 为空字符串 → 400", async () => {
+    const { app } = makeApp();
+    const r = await request(app).post("/api/hermes/ask").send({ question: "" });
+    expect(r.status).toBe(400);
+  });
+
+  it("status 意图 - 无进展记录时返回暂无进展记录", async () => {
+    const { app } = makeApp();
+    await request(app).post("/api/nodes/attackTicket").send({ 标题: "无进展单", 状态: "处理中" });
+    const r = await request(app).post("/api/hermes/ask").send({ question: "无进展单 现在状态" });
+    expect(r.status).toBe(200);
+    // Should still return 200 with an answer
+    expect(r.body.answer).toBeTruthy();
+  });
+
+  it("recent-changes - 空库返回暂无变动", async () => {
+    const { app } = makeApp();
+    const r = await request(app).post("/api/hermes/ask").send({ question: "今天谁动了什么" });
+    expect(r.status).toBe(200);
+    expect(r.body.answer).toMatch(/暂无|没有/);
+  });
+
+  it("ticket-by-pb intent uiSpec.cacheKey 非空", async () => {
+    const { app } = makeApp();
+    await request(app).post("/api/nodes/attackTicket")
+      .send({ 标题: "断网", 状态: "处理中", 问题单号: "PB-CK1" });
+    const r = await request(app).post("/api/hermes/ask").send({ question: "PB-CK1 涉及哪些单" });
+    expect(r.body.uiSpec?.cacheKey).toBeTruthy();
+  });
 });

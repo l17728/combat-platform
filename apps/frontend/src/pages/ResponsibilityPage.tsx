@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Space, Typography, Spin, Alert, Tag } from "antd";
-import mermaid from "mermaid";
 
 const API_BASE = "";
+
+let _mermaidInitialized = false;
 
 interface DiagramData {
   mermaid: string;
   nodeCount: number;
   edgeCount: number;
 }
-
-mermaid.initialize({ startOnLoad: false, theme: "default" });
 
 export function ResponsibilityPage() {
   const [data, setData] = useState<DiagramData | null>(null);
@@ -40,12 +39,17 @@ export function ResponsibilityPage() {
     fetchDiagram();
   }, [fetchDiagram]);
 
-  // Render Mermaid whenever data changes
+  // Render Mermaid whenever data changes (dynamic import keeps mermaid in its own chunk)
   useEffect(() => {
     if (!data?.mermaid) return;
     let cancelled = false;
     (async () => {
       try {
+        const { default: mermaid } = await import("mermaid");
+        if (!_mermaidInitialized) {
+          mermaid.initialize({ startOnLoad: false, theme: "default" });
+          _mermaidInitialized = true;
+        }
         const id = `resp-diagram-${Date.now()}`;
         const { svg } = await mermaid.render(id, data.mermaid);
         if (!cancelled) setSvgContent(svg);

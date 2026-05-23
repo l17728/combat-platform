@@ -4,6 +4,9 @@ import type { UiSpec, UiTableParams, UiStatsParams, UiMermaidParams, UiTimelineP
 import { Link } from "react-router-dom";
 
 function TableWidget({ params }: { params: UiTableParams }) {
+  if (!params?.columns || !params?.rows) {
+    return <Typography.Text type="secondary">数据格式错误</Typography.Text>;
+  }
   const columns = params.columns.map(col => ({
     title: col, dataIndex: col, key: col,
     render: (v: unknown) => v != null ? String(v) : "-",
@@ -18,6 +21,9 @@ function TableWidget({ params }: { params: UiTableParams }) {
 }
 
 function StatsWidget({ params }: { params: UiStatsParams }) {
+  if (!params?.items) {
+    return <Typography.Text type="secondary">数据格式错误</Typography.Text>;
+  }
   return (
     <>
       {params.title && <Typography.Title level={5} style={{ marginBottom: 8 }}>{params.title}</Typography.Title>}
@@ -35,19 +41,28 @@ function StatsWidget({ params }: { params: UiStatsParams }) {
   );
 }
 
+let _uiMermaidInitialized = false;
+
 function MermaidWidget({ params }: { params: UiMermaidParams }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    if (!params?.diagram) return;
     let cancelled = false;
     import("mermaid").then(m => {
       if (cancelled || !ref.current) return;
-      m.default.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+      if (!_uiMermaidInitialized) {
+        m.default.initialize({ startOnLoad: false, theme: "default", securityLevel: "loose" });
+        _uiMermaidInitialized = true;
+      }
       m.default.render(`mermaid-widget-${Math.random().toString(36).slice(2)}`, params.diagram)
         .then(({ svg }) => { if (!cancelled && ref.current) ref.current.innerHTML = svg; })
         .catch(() => { if (!cancelled && ref.current) ref.current.textContent = params.diagram; });
     });
     return () => { cancelled = true; };
-  }, [params.diagram]);
+  }, [params?.diagram]);
+  if (!params?.diagram) {
+    return <Typography.Text type="secondary">数据格式错误</Typography.Text>;
+  }
   return (
     <>
       {params.title && <Typography.Title level={5} style={{ marginBottom: 8 }}>{params.title}</Typography.Title>}
@@ -57,6 +72,9 @@ function MermaidWidget({ params }: { params: UiMermaidParams }) {
 }
 
 function TimelineWidget({ params }: { params: UiTimelineParams }) {
+  if (!params?.items) {
+    return <Typography.Text type="secondary">数据格式错误</Typography.Text>;
+  }
   return (
     <>
       {params.title && <Typography.Title level={5} style={{ marginBottom: 8 }}>{params.title}</Typography.Title>}
@@ -75,6 +93,9 @@ function TimelineWidget({ params }: { params: UiTimelineParams }) {
 }
 
 function CardGridWidget({ params }: { params: UiCardGridParams }) {
+  if (!params?.cards) {
+    return <Typography.Text type="secondary">数据格式错误</Typography.Text>;
+  }
   return (
     <>
       {params.title && <Typography.Title level={5} style={{ marginBottom: 8 }}>{params.title}</Typography.Title>}
@@ -97,6 +118,9 @@ function CardGridWidget({ params }: { params: UiCardGridParams }) {
 }
 
 export function UiWidget({ spec }: { spec: UiSpec }) {
+  if (!spec?.widget || !spec?.params) {
+    return <Typography.Text type="secondary">UI 数据不完整</Typography.Text>;
+  }
   switch (spec.widget) {
     case "TABLE": return <TableWidget params={spec.params as UiTableParams} />;
     case "STATS": return <StatsWidget params={spec.params as UiStatsParams} />;

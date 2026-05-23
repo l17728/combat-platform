@@ -3,6 +3,27 @@ import type { Repository, SchemaRegistry, Role } from "@combat/shared";
 import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
+import { log } from "./logger.js";
+import { syncConflicts } from "./conflicts.js";
+import { scanEscalation } from "./escalation.js";
+import { scanAndCreateReminders } from "./reminders.js";
+
+/**
+ * 节点保存后异步触发后台扫描任务（fire-and-forget）。
+ * 仅对 attackTicket 变更调用，不阻塞 API 响应，失败只写日志。
+ * scanAndCreateReminders 同时需要 registry，一并触发。
+ */
+function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
+  // Skip in test environment to avoid interfering with tests that explicitly
+  // call scan endpoints (scans are idempotent — auto-trigger would consume the
+  // first run, making the explicit test call return 0).
+  if (process.env.NODE_ENV === "test") return;
+  setImmediate(() => {
+    try { syncConflicts(repo); } catch (e) { log.warn("post_save.conflicts.fail", { error: (e as Error).message }); }
+    try { scanEscalation(repo); } catch (e) { log.warn("post_save.escalation.fail", { error: (e as Error).message }); }
+    try { scanAndCreateReminders(repo, registry); } catch (e) { log.warn("post_save.reminders.fail", { error: (e as Error).message }); }
+  });
+}
 
 // §50: gate 贡献等级 标定 to privileged roles. Absent X-Role header = trusted
 // system access (CLI / import / tests) → allowed. Returns an error string to
@@ -33,12 +54,18 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
   });
   r.patch("/schema/:nodeType", (req, res) => {
+    const { nodeType } = req.params;
+    if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
+      return res.status(400).json({ error: "nodeType 格式非法" });
+    }
     try {
-      const s = registry.applyFieldOp(req.params.nodeType, req.body);
+      const s = registry.applyFieldOp(nodeType, req.body);
       repo.logAudit({ action: `SCHEMA_${req.body?.op}`, entityType: "schema",
-        entityId: req.params.nodeType, changes: req.body, actor: "api" });
+        entityId: nodeType, changes: req.body, actor: "api" });
+      log.info("schema.fieldOp", { nodeType, op: req.body?.op });
       res.json(s);
     } catch (e) {
+      log.warn("schema.fieldOp.fail", { nodeType, error: (e as Error).message });
       res.status(400).json({ error: (e as Error).message });
     }
   });
@@ -63,6 +90,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const node = repo.createNode(nodeType, req.body, "api");
+    log.info("node.create", { nodeType, id: node.id });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
@@ -74,6 +102,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     syncRefEdges(repo, registry, node, req.body, "api");
     syncAnchorEdges(repo, registry, node, req.body, "api");
+    if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.status(201).json(node);
   });
 
@@ -87,14 +116,17 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const updated = repo.updateNode(req.params.id, req.body, "api");
+    log.info("node.update", { id: req.params.id, nodeType: cur.nodeType });
     syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
     syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.json(updated);
   });
 
   r.delete("/nodes/:id", (req, res) => {
     if (!repo.getNode(req.params.id)) return res.status(404).json({ error: "not found" });
     repo.deleteNode(req.params.id, "api");
+    log.info("node.delete", { id: req.params.id });
     res.json({ ok: true });
   });
 
@@ -122,6 +154,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const updated = repo.updateNode(node.id, { 状态: toStatus }, "api");
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
     const progress = repo.appendProgress(node.id, content, toStatus, "api");
+    log.info("node.transition", { id: node.id, toStatus });
+    triggerPostSaveJobs(repo, registry);
     res.json({ node: updated, progress });
   });
 

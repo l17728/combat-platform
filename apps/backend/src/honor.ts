@@ -51,12 +51,17 @@ export function makeHonorRouter(repo: Repository): Router {
 
   r.get("/honor/person/:name", (req, res) => {
     const name = req.params.name;
-    const list = repo.queryNodes("contribution")
-      .filter(c => String(c.properties["贡献人"] ?? "") === name)
-      .map(c => ({
-        contribution: c,
-        attackTicketId: repo.queryEdges({ sourceId: c.id, edgeType: "CONTRIBUTED_TO" })[0]?.targetId ?? null,
-      }));
+    const contributions = repo.queryNodes("contribution")
+      .filter(c => String(c.properties["贡献人"] ?? "") === name);
+    // Preload all CONTRIBUTED_TO edges to avoid N+1
+    const edgeMap = new Map<string, string>();
+    for (const e of repo.queryEdges({ edgeType: "CONTRIBUTED_TO" })) {
+      if (!edgeMap.has(e.sourceId)) edgeMap.set(e.sourceId, e.targetId);
+    }
+    const list = contributions.map(c => ({
+      contribution: c,
+      attackTicketId: edgeMap.get(c.id) ?? null,
+    }));
     res.json({ 贡献人: name, contributions: list });
   });
 

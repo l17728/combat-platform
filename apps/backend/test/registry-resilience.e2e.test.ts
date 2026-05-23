@@ -34,7 +34,8 @@ describe("§13#9 fix: tolerant reload + targeted applyFieldOp validation", () =>
     expect(warn).toHaveBeenCalled();
     const msg = warn.mock.calls.flat().join(" ");
     expect(msg).toContain("bad.json");
-    expect(msg).toContain("跳过");
+    // log.warn now emits structured JSON line with "registry.reload.skip" event (not Chinese literal "跳过")
+    expect(msg).toMatch(/registry\.reload\.skip|跳过/);
     warn.mockRestore();
     void repo;
   });

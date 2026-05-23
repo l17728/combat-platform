@@ -39,12 +39,26 @@ const ITEMS = [
   { key: "/oncall", label: <Link to="/oncall">Oncall</Link> },
   { key: "/email", label: <Link to="/email">邮件</Link> },
   { key: "/emailgroups", label: <Link to="/emailgroups">邮件群组</Link> },
+  { key: "/people", label: <Link to="/people">人员台</Link> },
+  { key: "/tasks", label: <Link to="/tasks">任务台</Link> },
+  { key: "/settings", label: <Link to="/settings">配置中心</Link> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const loc = useLocation();
-  const selected = ITEMS.map(i => i.key)
-    .filter(k => (k === "/" ? loc.pathname === "/" : loc.pathname.startsWith(k)))
+  // Get all navigable keys including submenu children
+  const allNavKeys: string[] = [];
+  for (const item of ITEMS) {
+    if ("children" in item && Array.isArray((item as any).children)) {
+      for (const child of (item as any).children) {
+        if (child.key) allNavKeys.push(child.key as string);
+      }
+    } else {
+      if (item.key) allNavKeys.push(item.key as string);
+    }
+  }
+  const selected = allNavKeys
+    .filter(k => k === "/" ? loc.pathname === "/" : loc.pathname.startsWith(k))
     .sort((a, b) => b.length - a.length)[0] ?? "/";
   const [role, setRole] = useState<Role>(
     () => (typeof localStorage !== "undefined" && (localStorage.getItem("combat-role") as Role)) || "normal");

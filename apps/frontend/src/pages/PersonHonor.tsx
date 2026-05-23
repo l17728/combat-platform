@@ -7,7 +7,7 @@ import type { PersonHonor as PH } from "@combat/shared";
 export function PersonHonor() {
   const { name = "" } = useParams();
   const [data, setData] = useState<PH | null>(null);
-  useEffect(() => { api.getPersonHonor(name).then(setData); }, [name]);
+  useEffect(() => { api.getPersonHonor(name).then(setData).catch(() => {}); }, [name]);
   return (
     <div style={{ padding: 16 }}>
       <h2>个人贡献档案：{name}</h2>

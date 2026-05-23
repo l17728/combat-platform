@@ -26,6 +26,11 @@ function safeId(s: string): string {
   return s.replace(/[^a-zA-Z0-9一-鿿]/g, "_");
 }
 
+/** Escape a string for safe embedding in Mermaid node labels and edge labels */
+function mermaidLabel(s: string): string {
+  return String(s).replace(/"/g, "'").replace(/[[\]]/g, "");
+}
+
 /** Truncate a title to max length for readability */
 function truncate(s: string, max = 20): string {
   return s.length <= max ? s : s.slice(0, max) + "…";
@@ -55,8 +60,8 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
   for (const rule of cfg.rules) {
     const levelId = safeId(rule.事件级别);
     const roleId = safeId(rule.上升角色);
-    const label = `SLA ${rule.slaHours}h → ${rule.上升角色}`;
-    lines.push(`  ${levelId}["${rule.事件级别} 事件"] -->|"${label}"| ${roleId}["${rule.上升角色}"]`);
+    const label = mermaidLabel(`SLA ${rule.slaHours}h → ${rule.上升角色}`);
+    lines.push(`  ${levelId}["${mermaidLabel(rule.事件级别)} 事件"] -->|"${label}"| ${roleId}["${mermaidLabel(rule.上升角色)}"]`);
     nodeIds.add(levelId);
     nodeIds.add(roleId);
     edgeCount++;
@@ -69,6 +74,12 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
     ...repo.queryEdges({ edgeType: "ESCALATED_TO" }),
   ];
 
+  // Preload all persons and attackTickets to avoid N+1 getNode calls
+  const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
+  for (const n of [...repo.queryNodes("person"), ...repo.queryNodes("attackTicket")]) {
+    nodeMap.set(n.id, n);
+  }
+
   // Map personId → Set of ticketIds
   const personToTickets = new Map<string, Set<string>>();
   for (const edge of assignedEdges) {
@@ -78,24 +89,24 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
   }
 
   for (const [personId, ticketIds] of personToTickets) {
-    const person = repo.getNode(personId);
+    const person = nodeMap.get(personId);
     if (!person) continue;
     const personName = String(person.properties["姓名"] ?? person.properties["名称"] ?? truncate(personId, 8));
     const personNodeId = safeId("person_" + personId);
     if (!nodeIds.has(personNodeId)) {
-      lines.push(`  ${personNodeId}(["👤 ${personName}"])`);
+      lines.push(`  ${personNodeId}(["👤 ${mermaidLabel(personName)}"])`);
       nodeIds.add(personNodeId);
     }
 
     // Show at most 5 tickets per person to keep diagram readable
     const ticketArr = [...ticketIds].slice(0, 5);
     for (const ticketId of ticketArr) {
-      const ticket = repo.getNode(ticketId);
+      const ticket = nodeMap.get(ticketId);
       if (!ticket) continue;
       const title = truncate(String(ticket.properties["标题"] ?? ticket.properties["名称"] ?? ticketId), 20);
       const ticketNodeId = safeId("ticket_" + ticketId);
       if (!nodeIds.has(ticketNodeId)) {
-        lines.push(`  ${ticketNodeId}["${title}"]`);
+        lines.push(`  ${ticketNodeId}["${mermaidLabel(title)}"]`);
         nodeIds.add(ticketNodeId);
       }
       lines.push(`  ${personNodeId} --- |"负责"| ${ticketNodeId}`);
@@ -104,7 +115,7 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
     // If more than 5, show a summary node
     if (ticketIds.size > 5) {
       const moreId = safeId("more_" + personId);
-      lines.push(`  ${moreId}["...等共${ticketIds.size}个任务"]`);
+      lines.push(`  ${moreId}["...等共${mermaidLabel(String(ticketIds.size))}个任务"]`);
       lines.push(`  ${personNodeId} --- |"负责"| ${moreId}`);
       nodeIds.add(moreId);
       edgeCount++;
@@ -114,8 +125,8 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
   // ── 3. CONFLICTS_WITH edges (dashed lines) ───────────────────────────────────
   const conflictEdges = repo.queryEdges({ edgeType: "CONFLICTS_WITH" });
   for (const edge of conflictEdges) {
-    const srcTicket = repo.getNode(edge.sourceId);
-    const tgtTicket = repo.getNode(edge.targetId);
+    const srcTicket = nodeMap.get(edge.sourceId);
+    const tgtTicket = nodeMap.get(edge.targetId);
     if (!srcTicket || !tgtTicket) continue;
 
     const srcTitle = truncate(String(srcTicket.properties["标题"] ?? srcTicket.properties["名称"] ?? edge.sourceId), 20);
@@ -125,11 +136,11 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
     const tgtId = safeId("ticket_" + edge.targetId);
 
     if (!nodeIds.has(srcId)) {
-      lines.push(`  ${srcId}["${srcTitle}"]`);
+      lines.push(`  ${srcId}["${mermaidLabel(srcTitle)}"]`);
       nodeIds.add(srcId);
     }
     if (!nodeIds.has(tgtId)) {
-      lines.push(`  ${tgtId}["${tgtTitle}"]`);
+      lines.push(`  ${tgtId}["${mermaidLabel(tgtTitle)}"]`);
       nodeIds.add(tgtId);
     }
     lines.push(`  ${srcId} -.->|"冲突"| ${tgtId}`);

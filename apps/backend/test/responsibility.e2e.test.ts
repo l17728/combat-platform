@@ -94,4 +94,34 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     expect(mermaid).toContain("冲突单A");
     expect(mermaid).toContain("冲突单B");
   });
+
+  it("ESCALATED_TO 边出现在责任矩阵中", async () => {
+    const { app, repo } = make();
+    const ticket = repo.createNode("attackTicket", { 标题: "网络故障", 状态: "处理中" }, "test");
+    const person = repo.createNode("person", { 姓名: "运维李四" }, "test");
+    repo.createEdge("ESCALATED_TO", ticket.id, person.id, {}, "test");
+    const r = await request(app).get("/api/responsibility/diagram");
+    expect(r.status).toBe(200);
+    expect(r.body.mermaid).toContain("运维李四");
+  });
+
+  it("超长标题被截断并含省略号", async () => {
+    const { app, repo } = make();
+    const longTitle = "这是一个超过二十个字符的非常非常长的攻关单标题用于测试截断逻辑";
+    const ticket = repo.createNode("attackTicket", { 标题: longTitle, 状态: "处理中" }, "test");
+    const person = repo.createNode("person", { 姓名: "负责人甲" }, "test");
+    repo.createEdge("ASSIGNED_TO", ticket.id, person.id, { role: "owner" }, "test");
+    const r = await request(app).get("/api/responsibility/diagram");
+    expect(r.body.mermaid).toContain("…");
+    expect(r.body.mermaid).not.toContain(longTitle);
+  });
+
+  it("空规则配置时返回正常", async () => {
+    const { app } = make();
+    await request(app).put("/api/escalation/config").send({ rules: [] });
+    const r = await request(app).get("/api/responsibility/diagram");
+    expect(r.status).toBe(200);
+    expect(r.body).toHaveProperty("mermaid");
+    expect(r.body).toHaveProperty("nodeCount");
+  });
 });

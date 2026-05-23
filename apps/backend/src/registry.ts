@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { SchemaRegistry, EntitySchemaConfig, NodeSchema, ValidationResult, FieldOp } from "@combat/shared";
 import { validateNode } from "./validation.js";
+import { log } from "./logger.js";
 
 export class FileSchemaRegistry implements SchemaRegistry {
   private config!: EntitySchemaConfig;
@@ -22,7 +23,7 @@ export class FileSchemaRegistry implements SchemaRegistry {
         ns.fields = ns.fields.map(fd => ({ ...fd, id: fd.id ?? fd.name }));
         nodeTypes.push(ns);
       } catch (e) {
-        console.warn(`Schema 配置文件 ${f} 解析失败，跳过：${(e as Error).message}`);
+        log.warn("registry.reload.skip", { file: f, error: (e as Error).message });
       }
     }
     if (files.length > 0 && nodeTypes.length === 0)
@@ -93,6 +94,7 @@ export class FileSchemaRegistry implements SchemaRegistry {
       if (typeof verify.nodeType !== "string" || !Array.isArray(verify.fields))
         throw new Error("写后自校验：缺少 nodeType 或 fields");
     } catch (e) {
+      log.error("registry.fieldOp.rollback", { file, error: (e as Error).message });
       writeFileSync(file, prev);
       this.reload();
       throw new Error(`Schema 变更写盘后自校验失败，已回滚: ${(e as Error).message}`);

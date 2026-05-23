@@ -6,7 +6,8 @@
   "fields": [
     { "id": "攻关单号", "name": "攻关单号", "type": "string", "label": "攻关单号" },
     { "id": "标题", "name": "标题", "type": "string", "label": "标题", "required": true, "aliases": ["title", "问题标题", "事件标题"] },
-    { "id": "问题描述", "name": "问题描述", "type": "string", "label": "问题描述" },
+    { "id": "问题描述", "name": "问题描述", "type": "string", "label": "问题描述", "aliases": ["故障现象"] },
+    { "id": "故障发生时间", "name": "故障发生时间", "type": "datetime", "label": "故障发生时间", "aliases": ["发生时间", "故障时间"] },
     { "id": "事件级别", "name": "事件级别", "type": "string", "label": "事件级别" },
     { "id": "状态", "name": "状态", "type": "enum", "label": "状态", "required": true,
       "enumValues": ["待响应", "处理中", "进行中", "已解决", "已关闭"] },

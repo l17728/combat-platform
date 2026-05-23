@@ -10,8 +10,15 @@ const todayUTC = () => localToday();
  *  日报发布数量 +1, audited. Returns counts. */
 function publishDailyReport(repo: Repository, date: string, actor: string): DailyReportPublishResult {
   let ticketsTouched = 0;
+  const allProgress = repo.listAllProgress();
+  const progressByOwner = new Map<string, typeof allProgress>();
+  for (const p of allProgress) {
+    let arr = progressByOwner.get(p.ownerId);
+    if (!arr) { arr = []; progressByOwner.set(p.ownerId, arr); }
+    arr.push(p);
+  }
   for (const t of repo.queryNodes("attackTicket")) {
-    const hasProgress = repo.listProgress(t.id).some(p => localDateOf(p.updatedAt) === date);
+    const hasProgress = (progressByOwner.get(t.id) ?? []).some(p => localDateOf(p.updatedAt) === date);
     if (!hasProgress) continue;
     ticketsTouched++;
     const cur = Number(t.properties["日报发布数量"] ?? 0) || 0;
@@ -37,9 +44,16 @@ export function makeDailyReportRouter(repo: Repository): Router {
     const raw = String(first(req.query.date) ?? "");
     const date = ISO_DATE.test(raw) ? raw : todayUTC();
     const tickets = repo.queryNodes("attackTicket");
+    const allProgress = repo.listAllProgress();
+    const progressByOwner = new Map<string, typeof allProgress>();
+    for (const p of allProgress) {
+      let arr = progressByOwner.get(p.ownerId);
+      if (!arr) { arr = []; progressByOwner.set(p.ownerId, arr); }
+      arr.push(p);
+    }
     const sections: DailyReportSection[] = [];
     for (const t of tickets) {
-      const todays = repo.listProgress(t.id)
+      const todays = (progressByOwner.get(t.id) ?? [])
         .filter(p => localDateOf(p.updatedAt) === date)
         .sort((a, b) => a.seqNo - b.seqNo);
       if (todays.length === 0) continue;

@@ -77,12 +77,16 @@ export function syncConflicts(repo: Repository): ScanConflictsResult {
 
 /** Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id. */
 export function listConflictRows(repo: Repository): ConflictRow[] {
+  // Preload all attackTicket nodes to avoid N+1 getNode calls
+  const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
+  for (const n of repo.queryNodes("attackTicket")) nodeMap.set(n.id, n);
+
   const out: ConflictRow[] = [];
   for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {
     for (const e of repo.queryEdges({ edgeType })) {
       if (e.sourceId >= e.targetId) continue; // undirected dedup
-      const source = repo.getNode(e.sourceId);
-      const target = repo.getNode(e.targetId);
+      const source = nodeMap.get(e.sourceId);
+      const target = nodeMap.get(e.targetId);
       if (!source || !target) continue;
       out.push({ edgeType, reason: String(e.properties["reason"] ?? ""), source, target });
     }

@@ -54,7 +54,17 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
   useEffect(() => { refresh(); }, [refresh]);
 
   const saveRow = async (r: GraphNode) => {
-    try { await api.updateNode(r.id, editing[r.id]); message.success("已保存");
+    const rowEdit = editing[r.id] ?? {};
+    const activeFs = activeFields(schema);
+    const missingRequired = activeFs.filter(f => {
+      const val = f.id in rowEdit ? rowEdit[f.id] : String(r.properties[f.id] ?? "");
+      return f.required && !val?.trim();
+    });
+    if (missingRequired.length > 0) {
+      message.error(`请填写必填字段：${missingRequired.map(f => f.label).join("、")}`);
+      return;
+    }
+    try { await api.updateNode(r.id, rowEdit); message.success("已保存");
       setEditing(e => { const n = { ...e }; delete n[r.id]; return n; }); await refresh(); }
     catch (err) { message.error(String((err as Error).message)); }
   };
@@ -132,10 +142,19 @@ export function EntityTable({ nodeType, filterField, linkField, linkTo }: {
         {draft === null
           ? <Button aria-label="new-row" type="primary" onClick={() => setDraft({})}>新增行</Button>
           : <>
-              {fields.map(f => <Input key={f.id} aria-label={`draft-${f.id}`} placeholder={f.label}
+              {fields.map(f => <Input key={f.id} aria-label={`draft-${f.id}`}
+                placeholder={f.required ? `${f.label} *` : f.label}
+                status={f.required && !draft[f.id]?.trim() ? "error" : undefined}
                 style={{ width: 140 }} value={draft[f.id] ?? ""}
                 onChange={e => setDraft(d => ({ ...d, [f.id]: e.target.value }))} />)}
-              <Button aria-label="create-row" type="primary" onClick={createDraft}>创建</Button>
+              <Button aria-label="create-row" type="primary" onClick={() => {
+                const missingRequired = fields.filter(f => f.required && !draft[f.id]?.trim());
+                if (missingRequired.length > 0) {
+                  message.error(`请填写必填字段：${missingRequired.map(f => f.label).join("、")}`);
+                  return;
+                }
+                createDraft();
+              }}>创建</Button>
               <Button onClick={() => setDraft(null)}>取消</Button>
             </>}
       </Space>

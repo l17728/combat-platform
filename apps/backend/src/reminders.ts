@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Repository, SchemaRegistry, ChannelAdapter } from "@combat/shared";
 import { scanReminders } from "./rules.js";
 import { StubChannelAdapter } from "./channel.js";
+import { log } from "./logger.js";
 
 const WINDOW_MS = 7 * 86400000;
 
@@ -19,6 +20,7 @@ export function scanAndCreateReminders(repo: Repository, registry: SchemaRegistr
     repo.createReminder(d, "scan");
     created++;
   }
+  log.info("reminders.scan.done", { created });
   return created;
 }
 

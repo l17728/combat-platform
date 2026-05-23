@@ -8,9 +8,9 @@ export function AttackList() {
   const [rows, setRows] = useState<GraphNode[]>([]);
   const [schema, setSchema] = useState<NodeSchema | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
-  useEffect(() => { api.getSchema("attackTicket").then(setSchema); }, []);
+  useEffect(() => { api.getSchema("attackTicket").then(setSchema).catch(() => {}); }, []);
   useEffect(() => {
-    api.listNodes("attackTicket", statusFilter ? { 状态: statusFilter } : {}).then(setRows);
+    api.listNodes("attackTicket", statusFilter ? { 状态: statusFilter } : {}).then(setRows).catch(() => {});
   }, [statusFilter]);
   const columns = (schema?.fields ?? []).map(f => ({
     title: f.label, dataIndex: f.name,

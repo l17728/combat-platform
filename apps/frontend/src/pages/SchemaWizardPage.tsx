@@ -66,6 +66,7 @@ interface FieldRow {
   label: string;
   type: FieldType;
   refType?: string;  // for type="ref" — target nodeType (no data duplication)
+  enumValues?: string[];  // for type="enum" — allowed values
   concept?: string;
   anchor?: string;
 }
@@ -268,6 +269,7 @@ export function SchemaWizardPage() {
 
   const handleReuseConceptFor = (key: string, s: SchemaSuggestion) => {
     updateFieldRow(key, {
+      name: s.fieldId,
       type: s.type,
       concept: s.concept,
       anchor: s.anchor,
@@ -296,6 +298,10 @@ export function SchemaWizardPage() {
       return;
     }
     for (const r of validFields) {
+      if (r.type === "enum" && (!r.enumValues || r.enumValues.length === 0)) {
+        message.error(`字段 "${r.label || r.name}" 类型为 enum，请填写枚举值`);
+        return;
+      }
       if (r.type === "ref" && !r.refType) {
         message.error(`字段 "${r.label || r.name}" 类型为 ref，请选择引用的目标表`);
         return;
@@ -309,7 +315,8 @@ export function SchemaWizardPage() {
         name: r.name.trim(),
         label: r.label.trim(),
         type: r.type,
-        refType: r.refType,
+        ...(r.type === "ref" ? { refType: r.refType } : {}),
+        ...(r.type === "enum" && r.enumValues?.length ? { enumValues: r.enumValues } : {}),
         concept: r.concept,
         anchor: r.anchor,
       }));
@@ -418,6 +425,22 @@ export function SchemaWizardPage() {
             onChange={(v) => updateFieldRow(row.key, { refType: v })}
             style={{ width: 140 }}
             options={schemas.map(s => ({ value: s.nodeType, label: s.label || s.nodeType }))}
+          />
+        ) : <Text type="secondary" style={{ fontSize: 11 }}>—</Text>,
+    },
+    {
+      title: "枚举值",
+      key: "enumValues",
+      render: (_: unknown, row: FieldRow) =>
+        row.type === "enum" ? (
+          <Input
+            size="small"
+            placeholder="待响应,处理中,已解决"
+            value={(row.enumValues ?? []).join(",")}
+            onChange={(e) => updateFieldRow(row.key, {
+              enumValues: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean)
+            })}
+            style={{ width: 160 }}
           />
         ) : <Text type="secondary" style={{ fontSize: 11 }}>—</Text>,
     },

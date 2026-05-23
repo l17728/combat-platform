@@ -168,4 +168,62 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
     // Cleanup
     cleanTestSchema();
   });
+
+  it("POST fields 为空数组 → 400", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/schema/nodeType")
+      .send({ nodeType: "EmptyFieldsType", label: "空字段", fields: [] });
+    expect(r.status).toBe(400);
+  });
+
+  it("POST label 为空白 → 400", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/schema/nodeType")
+      .send({ nodeType: "ValidType", label: "   ", fields: [{ name: "f1", type: "string", label: "字段1" }] });
+    expect(r.status).toBe(400);
+  });
+
+  it.each([["123bad"], ["bad-type"], ["中文类型"]])(
+    "POST nodeType=%s 格式非法 → 400", async (nodeType) => {
+      const { app } = make();
+      const r = await request(app).post("/api/schema/nodeType")
+        .send({ nodeType, label: "测试", fields: [{ name: "f1", type: "string", label: "字段1" }] });
+      expect(r.status).toBe(400);
+    }
+  );
+
+  it("POST 字段缺 name → 400", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/schema/nodeType")
+      .send({ nodeType: "ValidType2", label: "测试", fields: [{ type: "string", label: "字段1" }] });
+    expect(r.status).toBe(400);
+  });
+
+  it("DELETE 不存在的 nodeType → 404", async () => {
+    const { app } = make();
+    const r = await request(app).delete("/api/schema/nodeType/doesNotExist999");
+    expect(r.status).toBe(404);
+  });
+
+  it("GET suggest?q= 空查询 → 200 空数组", async () => {
+    const { app } = make();
+    const r = await request(app).get("/api/schema/suggest?q=");
+    expect(r.status).toBe(200);
+    expect(r.body).toEqual([]);
+  });
+
+  it("POST 字段不含 id 时 id 默认为 name", async () => {
+    const { app } = make();
+    cleanTestSchema();
+    const r = await request(app).post("/api/schema/nodeType").send({
+      nodeType: "IdDefaultTest", label: "默认id测试",
+      fields: [{ name: "fieldName", type: "string", label: "字段" }]
+    });
+    // Cleanup regardless of result
+    const idTestFile = join(SCHEMA_DIR, "IdDefaultTest.json");
+    if (existsSync(idTestFile)) unlinkSync(idTestFile);
+    expect(r.status).toBe(201);
+    const field = r.body.fields?.[0];
+    expect(field?.id).toBe("fieldName");
+  });
 });

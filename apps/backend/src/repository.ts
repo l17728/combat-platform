@@ -58,7 +58,9 @@ export class SqliteRepository implements Repository {
     this.db.transaction(() => {
       this.db.prepare(`INSERT INTO nodes VALUES (@id,@nodeType,@properties,@search,@c,@u)`)
         .run({ id: node.id, nodeType, properties: JSON.stringify(properties),
-          search: Object.values(properties).join(" "), c: now, u: now });
+          search: Object.values(properties).map(v =>
+            typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")
+          ).join(" "), c: now, u: now });
       this.audit("CREATE", "node", node.id, properties, actor);
     })();
     return node;
@@ -78,7 +80,9 @@ export class SqliteRepository implements Repository {
     const now = new Date().toISOString();
     this.db.transaction(() => {
       this.db.prepare(`UPDATE nodes SET properties=?, search_text=?, updated_at=? WHERE id=?`)
-        .run(JSON.stringify(properties), Object.values(properties).join(" "), now, id);
+        .run(JSON.stringify(properties), Object.values(properties).map(v =>
+          typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")
+        ).join(" "), now, id);
       this.audit("UPDATE", "node", id, patch, actor);
     })();
     return { ...cur, properties, updatedAt: now };
@@ -151,6 +155,12 @@ export class SqliteRepository implements Repository {
 
   listProgress(ownerId: string): ProgressLog[] {
     const rows = this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
+    return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
+      content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
+  }
+
+  listAllProgress(): ProgressLog[] {
+    const rows = this.db.prepare(`SELECT * FROM progress_log ORDER BY ownerId, seqNo`).all() as any[];
     return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
       content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
   }

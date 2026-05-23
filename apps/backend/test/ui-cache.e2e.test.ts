@@ -114,4 +114,38 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
     expect(list[0].id).toBe(pin.id);
     expect(list[0].uiSpec.widget).toBe("TABLE");
   });
+
+  it("固定超过50个时只保留最新50个", async () => {
+    const { app } = make();
+    const spec = { widget: "TABLE", params: { columns: ["标题"], rows: [] }, cacheKey: "limit-test" };
+    for (let i = 0; i < 51; i++) {
+      await request(app).post("/api/ui-cache/pin").send({
+        label: `pin-${i}`, question: `q${i}`, intent: "owner", uiSpec: { ...spec, cacheKey: `key-${i}` },
+      });
+    }
+    const list = (await request(app).get("/api/ui-cache/pinned")).body;
+    expect(list).toHaveLength(50);
+  }, 30000);
+
+  it("PATCH 不存在的 pin → 404", async () => {
+    const { app } = make();
+    const r = await request(app).patch("/api/ui-cache/pinned/ghost-id-xyz").send({ label: "新名" });
+    expect(r.status).toBe(404);
+  });
+
+  it("DELETE 不存在的 pin → 200 幂等", async () => {
+    const { app } = make();
+    const r = await request(app).delete("/api/ui-cache/pinned/ghost-id-xyz");
+    expect(r.status).toBe(200);
+    expect(r.body.ok).toBe(true);
+  });
+
+  it("POST uiSpec 缺少 widget → 400", async () => {
+    const { app } = make();
+    const r = await request(app).post("/api/ui-cache/pin").send({
+      label: "坏spec", question: "q", intent: "owner",
+      uiSpec: { params: { columns: [], rows: [] }, cacheKey: "k" },
+    });
+    expect(r.status).toBe(400);
+  });
 });

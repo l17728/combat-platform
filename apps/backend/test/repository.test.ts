@@ -85,4 +85,34 @@ describe("SqliteRepository", () => {
     expect(au).toHaveLength(2);
     expect(au[0].performedBy).toBe("killer");
   });
+
+  it("updateNode 合并字段（patch 语义，保留原有字段）", () => {
+    const node = repo.createNode("attackTicket", { a: "1", b: "2" }, "t");
+    repo.updateNode(node.id, { b: "new" }, "t");
+    const updated = repo.getNode(node.id);
+    expect(updated?.properties.a).toBe("1");
+    expect(updated?.properties.b).toBe("new");
+  });
+
+  it("getNode 未知 id 返回 null", () => {
+    expect(repo.getNode("not-a-real-id")).toBeNull();
+  });
+
+  it("getSetting/setSetting 读写与更新", () => {
+    expect(repo.getSetting("testKey")).toBeNull();
+    repo.setSetting("testKey", "value1", "t");
+    expect(repo.getSetting("testKey")).toBe("value1");
+    repo.setSetting("testKey", "updated", "t");
+    expect(repo.getSetting("testKey")).toBe("updated");
+  });
+
+  it("queryNodes 无过滤返回同类型所有节点", () => {
+    repo.createNode("attackTicket", { 标题: "A" }, "t");
+    repo.createNode("attackTicket", { 标题: "B" }, "t");
+    repo.createNode("person", { 姓名: "X" }, "t");
+    const tickets = repo.queryNodes("attackTicket");
+    expect(tickets).toHaveLength(2);
+    const persons = repo.queryNodes("person");
+    expect(persons).toHaveLength(1);
+  });
 });

@@ -28,11 +28,17 @@ node -e "require('better-sqlite3');console.log('better-sqlite3 OK')" 2>&1 || ech
 
 pkill -f 'tsx src/server.ts' 2>/dev/null; pkill -f 'vite' 2>/dev/null; sleep 1
 
+# Frontend is pre-built locally (avoids server OOM — server has limited RAM)
+# The dist/ directory is bundled in the uploaded archive.
+echo "=== frontend pre-built (dist/ included in archive) ==="
+ls /opt/combat/apps/frontend/dist/index.html 2>/dev/null && echo "dist OK" || echo "dist MISSING"
+
 # PATH (with node22 first) is exported above; setsid children inherit it.
 cd /opt/combat/apps/backend
 setsid bash -c "npx tsx src/server.ts > /opt/combat/backend.log 2>&1" < /dev/null &
+cd /opt/combat/apps/frontend
+setsid bash -c "npx vite preview --host 0.0.0.0 --port 5173 > /opt/combat/frontend.log 2>&1" < /dev/null &
 cd /opt/combat
-setsid bash -c "npm run dev --workspace=@combat/frontend -- --host 0.0.0.0 --port 5173 > /opt/combat/frontend.log 2>&1" < /dev/null &
 
 sleep 24
 curl -s -o /dev/null -w "backend=%{http_code}\n" http://localhost:3001/api/schema/attackTicket 2>/dev/null || echo "backend=down"

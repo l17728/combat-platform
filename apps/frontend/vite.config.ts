@@ -6,4 +6,5 @@ export default defineConfig({
   // arbitrary domains/IP, e.g. www.catown.cloud through nginx). Test env, no secrets/auth;
   // localhost e2e unaffected. Tighten if this ever serves a real environment.
   server: { port: 5173, allowedHosts: true, proxy: { "/api": "http://localhost:3001" } },
+  preview: { port: 5173, allowedHosts: true, proxy: { "/api": "http://localhost:3001" } },
 });
