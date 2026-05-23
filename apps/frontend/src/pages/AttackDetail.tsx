@@ -1,10 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  Row, Col, Card, Tag, Tabs, Descriptions, Timeline, Input, Button,
+  Row, Col, Card, Tag, Tabs, Descriptions, Input, Button,
   message, List, Typography, Select, Space, Alert, Table, Modal, Form,
 } from "antd";
-import { ArrowLeftOutlined, PlusOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, CheckCircleFilled, PlusOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { GraphNode, NodeSchema, ProgressLog, HelperRecommendation, AuditLogEntry } from "@combat/shared";
 import { ATTACK_STATUSES } from "@combat/shared";
@@ -75,6 +75,7 @@ export function AttackDetail() {
   const [drModalOpen, setDrModalOpen] = useState(false);
   const [drForm] = Form.useForm();
   const [drSubmitting, setDrSubmitting] = useState(false);
+  const [drDetail, setDrDetail] = useState<DailyReportEntryItem | null>(null);
 
   const fetchDailyReports = useCallback(async () => {
     if (!id) return;
@@ -235,16 +236,24 @@ export function AttackDetail() {
     {
       title: "操作",
       key: "action",
-      width: 130,
+      width: 180,
       render: (_: unknown, record: DailyReportEntryItem) => (
-        record.status === "已发布"
-          ? <Typography.Text type="secondary">已发布</Typography.Text>
-          : (
-            <Space size="small">
-              <Button size="small" type="primary" onClick={() => publishDailyReport(record.id)}>发布</Button>
-              <Button size="small" danger onClick={() => deleteDailyReport(record.id)}>删除</Button>
-            </Space>
-          )
+        <Space size={4}>
+          <Button size="small" type="link" onClick={() => setDrDetail(record)}>详情</Button>
+          <Button
+            size="small"
+            type="link"
+            disabled={record.status === "已发布"}
+            onClick={() => publishDailyReport(record.id)}
+          >发布</Button>
+          <Button
+            size="small"
+            type="link"
+            danger
+            disabled={record.status === "已发布"}
+            onClick={() => deleteDailyReport(record.id)}
+          >删除</Button>
+        </Space>
       ),
     },
   ];
@@ -298,38 +307,6 @@ export function AttackDetail() {
             </Descriptions>
           </Col>
         </Row>
-      </Card>
-
-      {/* ===== Progress (always visible — §41 progress is append-only time series) ===== */}
-      <Card title="进展同步" size="small" style={{ marginBottom: 16 }}>
-        <Input.TextArea
-          aria-label="progress-input"
-          value={progressText}
-          onChange={(e) => setProgressText(e.target.value)}
-          rows={3}
-          placeholder="输入进展内容..."
-          style={{ marginBottom: 8 }}
-        />
-        <Button type="primary" onClick={addProgress} style={{ marginBottom: 16 }}>
-          追加进展
-        </Button>
-        <Timeline
-          items={[...seq].reverse().map((p) => ({
-            color: "blue",
-            children: (
-              <div>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {fmtDateShort(p.updatedAt)} · {p.updatedBy || "系统"}
-                </Typography.Text>
-                <div style={{ marginTop: 2 }}>
-                  <Tag color="default" style={{ marginRight: 8 }}>#{p.seqNo}</Tag>
-                  <Tag color="default" style={{ marginRight: 8 }}>{p.statusSnapshot}</Tag>
-                  {p.content}
-                </div>
-              </div>
-            ),
-          }))}
-        />
       </Card>
 
       {/* ===== Main Content + Right Sidebar ===== */}
@@ -418,6 +395,45 @@ export function AttackDetail() {
                   ),
                 },
                 {
+                  key: "progress",
+                  label: "进展同步",
+                  children: (
+                    <div style={{ padding: "16px 0" }}>
+                      <Input.TextArea
+                        aria-label="progress-input"
+                        value={progressText}
+                        onChange={(e) => setProgressText(e.target.value)}
+                        rows={3}
+                        placeholder="输入进展内容..."
+                        style={{ marginBottom: 8 }}
+                      />
+                      <Button type="primary" onClick={addProgress} style={{ marginBottom: 16 }}>
+                        追加进展
+                      </Button>
+                      <List
+                        dataSource={[...seq].reverse()}
+                        rowKey={(p) => p.id}
+                        renderItem={(p) => (
+                          <List.Item style={{ alignItems: "flex-start", padding: "16px 0" }}>
+                            <div style={{ width: "100%" }}>
+                              <Space size={32} style={{ marginBottom: 8 }}>
+                                <Typography.Text strong>{fmtDate(p.updatedAt)}</Typography.Text>
+                                <Typography.Text>{p.updatedBy || "系统"}</Typography.Text>
+                                <Tag color="default">#{p.seqNo}</Tag>
+                                <Tag color="default">{p.statusSnapshot}</Tag>
+                              </Space>
+                              <div style={{ paddingLeft: 0 }}>
+                                <Typography.Text strong>进展内容: </Typography.Text>
+                                <Typography.Text style={{ whiteSpace: "pre-wrap" }}>{p.content}</Typography.Text>
+                              </div>
+                            </div>
+                          </List.Item>
+                        )}
+                      />
+                    </div>
+                  ),
+                },
+                {
                   key: "dailyReport",
                   label: "日报更新",
                   children: (
@@ -474,6 +490,32 @@ export function AttackDetail() {
                           </Form.Item>
                         </Form>
                       </Modal>
+                      <Modal
+                        title="日报条目详情"
+                        open={!!drDetail}
+                        onCancel={() => setDrDetail(null)}
+                        footer={<Button onClick={() => setDrDetail(null)}>关闭</Button>}
+                        width={720}
+                        destroyOnClose
+                      >
+                        {drDetail && (
+                          <Descriptions column={1} bordered size="small">
+                            <Descriptions.Item label="日报类型">{drDetail.type}</Descriptions.Item>
+                            <Descriptions.Item label="状态">
+                              <Tag color={drDetail.status === "已发布" ? "green" : "default"}>{drDetail.status}</Tag>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="当前进展">
+                              <div style={{ whiteSpace: "pre-wrap" }}>{drDetail.currentProgress}</div>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="下一步计划">
+                              <div style={{ whiteSpace: "pre-wrap" }}>{drDetail.nextSteps || "--"}</div>
+                            </Descriptions.Item>
+                            <Descriptions.Item label="创建人">{drDetail.createdBy || "--"}</Descriptions.Item>
+                            <Descriptions.Item label="创建时间">{fmtDate(drDetail.createdAt)}</Descriptions.Item>
+                            <Descriptions.Item label="发布时间">{drDetail.publishedAt ? fmtDate(drDetail.publishedAt) : "--"}</Descriptions.Item>
+                          </Descriptions>
+                        )}
+                      </Modal>
                     </div>
                   ),
                 },
@@ -485,21 +527,24 @@ export function AttackDetail() {
                       {audit.length === 0 ? (
                         <Typography.Text type="secondary">暂无审计记录</Typography.Text>
                       ) : (
-                        <Timeline
-                          items={audit.map((a) => ({
-                            color: "green",
-                            children: (
-                              <div>
-                                <Typography.Text strong style={{ marginRight: 8 }}>{a.performedBy}</Typography.Text>
-                                <Typography.Text>{a.action}</Typography.Text>
-                                <div>
-                                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                                    {fmtDateShort(a.performedAt)}
-                                  </Typography.Text>
+                        <List
+                          dataSource={audit}
+                          rowKey={(a) => a.id}
+                          renderItem={(a) => (
+                            <List.Item style={{ alignItems: "flex-start", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
+                              <div style={{ width: "100%" }}>
+                                <div style={{ marginBottom: 8 }}>
+                                  <CheckCircleFilled style={{ color: "#52c41a", marginRight: 8 }} />
+                                  <Typography.Text strong>{a.performedBy}</Typography.Text>
+                                  <Typography.Text>{a.action}</Typography.Text>
+                                </div>
+                                <div style={{ background: "#fafafa", padding: "8px 16px", borderRadius: 4 }}>
+                                  <div><Typography.Text type="secondary">操作人</Typography.Text>　<Typography.Text>{a.performedBy}</Typography.Text></div>
+                                  <div><Typography.Text type="secondary">操作时间</Typography.Text>　<Typography.Text>{fmtDate(a.performedAt)}</Typography.Text></div>
                                 </div>
                               </div>
-                            ),
-                          }))}
+                            </List.Item>
+                          )}
                         />
                       )}
                     </div>

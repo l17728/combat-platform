@@ -14,7 +14,9 @@ test("FE-TR1 AttackDetail status transition appends a snapshotted progress entry
   await page.getByLabel("transition-note").fill("评审通过");
   await page.getByRole("button", { name: "流转" }).click();
 
-  // timeline should now show a 已解决-snapshot entry containing the transition text
+  // transition snapshot lands in the ProgressLog series rendered under 进展同步 tab —
+  // switch to it after the action so the resulting entry is visible.
+  await page.getByRole("tab", { name: "进展同步" }).click();
   await expect(page.getByText("进行中→已解决", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("评审通过", { exact: false }).first()).toBeVisible();
 });

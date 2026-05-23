@@ -19,6 +19,9 @@ test("FE-1..FE-4 list, filter, detail, append progress", async ({ page, request 
   await expect(page.getByText("E2E进行中单")).toBeVisible();
 
   await page.getByRole("link", { name: "E2E进行中单" }).click(); // FE-3
+  // AttackDetail uses 4-tab layout (基础信息/进展同步/日报更新/历史记录); progress
+  // input + timeline live under the 进展同步 tab — switch to it before asserting.
+  await page.getByRole("tab", { name: "进展同步" }).click();
   // first() pins to the Timeline entry; §39 added an audit-section that also
   // contains the progress content as JSON, which would trigger strict-mode multi-match.
   await expect(page.getByText("首次进展", { exact: false }).first()).toBeVisible();
