@@ -40,6 +40,7 @@ const ITEMS = [
   { key: "/email", label: <Link to="/email">邮件</Link> },
   { key: "/emailgroups", label: <Link to="/emailgroups">邮件群组</Link> },
   { key: "/people", label: <Link to="/people">人员台</Link> },
+  { key: "/domains", label: <Link to="/domains">领域台</Link> },
   { key: "/tasks", label: <Link to="/tasks">任务台</Link> },
   { key: "/settings", label: <Link to="/settings">配置中心</Link> },
 ];

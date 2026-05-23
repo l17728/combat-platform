@@ -22,6 +22,7 @@ import { CustomCommandsPage } from "./pages/CustomCommandsPage.js";
 import { ResponsibilityPage } from "./pages/ResponsibilityPage.js";
 import { SchemaWizardPage } from "./pages/SchemaWizardPage.js";
 import { PeoplePage } from "./pages/PeoplePage.js";
+import { DomainsPage } from "./pages/DomainsPage.js";
 import { TasksPage } from "./pages/TasksPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
 
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/responsibility" element={<ResponsibilityPage />} />
           <Route path="/schema-wizard" element={<SchemaWizardPage />} />
           <Route path="/people" element={<PeoplePage />} />
+          <Route path="/domains" element={<DomainsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

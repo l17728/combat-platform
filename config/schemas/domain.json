@@ -1,0 +1,13 @@
+{
+  "nodeType": "domain",
+  "label": "领域",
+  "identityKeys": ["name"],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "name", "name": "name", "type": "string", "label": "领域名", "required": true, "anchor": "domain", "aliases": ["领域", "领域名称", "domain"] },
+    { "id": "owner", "name": "owner", "type": "ref", "refType": "person", "label": "领域负责人", "concept": "负责人", "aliases": ["负责人", "领域owner"] },
+    { "id": "services", "name": "services", "type": "string", "label": "关联服务", "aliases": ["服务", "关联服务列表"] },
+    { "id": "description", "name": "description", "type": "string", "label": "描述", "aliases": ["简介", "说明"] },
+    { "id": "tags", "name": "tags", "type": "string", "label": "标签", "aliases": ["tag"] }
+  ]
+}
