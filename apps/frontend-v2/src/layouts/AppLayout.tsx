@@ -18,6 +18,7 @@ import {
   MergeOutlined,
   ApartmentOutlined,
   TableOutlined,
+  ControlOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -37,14 +38,14 @@ function getSelectedKey(path: string): string {
   if (path === '/daily-report') return '/daily-report';
   if (path === '/help') return '/help';
   if (path.startsWith('/related')) return '/attack';
-  if (['/import', '/email', '/audit', '/schema'].includes(path)) return path;
+  if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return path;
   return '/';
 }
 
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
-  if (['/import', '/email', '/audit', '/schema'].includes(path)) return ['system'];
+  if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return ['system'];
   return [];
 }
 
@@ -115,6 +116,7 @@ export function AppLayout() {
       children: [
         { key: '/import', label: '数据导入/导出', icon: <ImportOutlined /> },
         { key: '/schema', label: '表结构管理', icon: <TableOutlined /> },
+        { key: '/config', label: '配置中心', icon: <ControlOutlined /> },
         { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
         { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
       ],

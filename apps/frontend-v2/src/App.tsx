@@ -16,6 +16,7 @@ import DailyReportPage from './pages/DailyReport.js';
 import RelatedPage from './pages/RelatedPage.js';
 import MergePage from './pages/MergePage.js';
 import SchemaWizard from './pages/SchemaWizard.js';
+import ConfigCenter from './pages/ConfigCenter.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/email" element={<EmailSettings />} />
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/schema" element={<SchemaWizard />} />
+          <Route path="/config" element={<ConfigCenter />} />
           <Route path="*" element={<NotFound />} />
         </Route>
         <Route path="/help/feedback/:token" element={<HelpFeedback />} />

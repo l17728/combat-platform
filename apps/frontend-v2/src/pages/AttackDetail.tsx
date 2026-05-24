@@ -14,6 +14,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
+import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema, FieldType } from '@combat/shared';
 import type { DailyReportEntry, SupportNode, SupportTemplate } from '../api.js';
 import dayjs from 'dayjs';
@@ -24,14 +25,14 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title, Text, Paragraph } = Typography;
-const STATUS_OPTIONS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
+const FALLBACK_STATUS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
+const FALLBACK_SUPPORT_CATEGORIES = ['环境', '领域专家', '团队协作', '资源'];
+const FALLBACK_SUPPORT_STATUSES = ['待确认', '支持中', '已完成', '已撤销'];
+const FALLBACK_DR_TYPES = ['进展通报', '风险通报'];
+const STATUS_STEPS = FALLBACK_STATUS;
 const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 const SUMMARY_FIELD_IDS = new Set(['标题', '问题单号', '事件单号', '事件级别', '影响及现存风险', '客户名称', '故障发生时间', '当前处理人', '攻关组长']);
 const TEAM_FIELDS = new Set(['攻关组长', '攻关成员']);
-const SUPPORT_CATEGORIES = ['环境', '领域专家', '团队协作', '资源'];
-const SUPPORT_STATUSES = ['待确认', '支持中', '已完成', '已撤销'];
-
-const STATUS_STEPS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
 
 const STATUS_STEP_ICON: Record<string, React.ReactNode> = {
   '待响应': <ClockCircleOutlined />,
@@ -97,6 +98,12 @@ export default function AttackDetail() {
   const [templates, setTemplates] = useState<SupportTemplate[]>([]);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
   const [newField, setNewField] = useState({ name: '', label: '', type: 'string' as FieldType });
+  const { getValues } = useSettings();
+
+  const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
+  const SUPPORT_CATEGORIES = getValues('求助分类', FALLBACK_SUPPORT_CATEGORIES);
+  const SUPPORT_STATUSES = getValues('求助状态', FALLBACK_SUPPORT_STATUSES);
+  const DR_TYPES = getValues('日报类型', FALLBACK_DR_TYPES);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const fetchData = useCallback(async (silent?: boolean) => {
@@ -522,7 +529,7 @@ export default function AttackDetail() {
 
       <Modal title="创建日报条目" open={drModalOpen} onCancel={() => setDrModalOpen(false)} footer={null} destroyOnClose>
         <Form form={drForm} layout="vertical" initialValues={{ type: '进展通报' }} onFinish={createDailyReport}>
-          <Form.Item name="type" label="日报类型"><Select options={[{ value: '进展通报', label: '进展通报' }, { value: '风险通报', label: '风险通报' }]} /></Form.Item>
+          <Form.Item name="type" label="日报类型"><Select options={DR_TYPES.map(t => ({ value: t, label: t }))} /></Form.Item>
           <Form.Item name="currentProgress" label="当前进展" rules={[{ required: true, message: '当前进展必填' }]}><Input.TextArea rows={4} placeholder="请输入当前进展..." /></Form.Item>
           <Form.Item name="nextSteps" label="下一步计划"><Input.TextArea rows={3} placeholder="请输入下一步计划..." /></Form.Item>
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}><Space><Button onClick={() => setDrModalOpen(false)}>取消</Button><Button type="primary" htmlType="submit" loading={drSubmitting}>提交</Button></Space></Form.Item>

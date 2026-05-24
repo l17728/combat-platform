@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
+import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, NodeSchema, FieldType } from '@combat/shared';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -16,7 +17,8 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title } = Typography;
-const STATUS_OPTIONS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
+const FALLBACK_STATUS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
+const FALLBACK_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'];
 const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 
 export default function AttackList() {
@@ -33,6 +35,10 @@ export default function AttackList() {
   const [exporting, setExporting] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
   const [newField, setNewField] = useState({ name: '', label: '', type: 'string' as FieldType });
+  const { getValues } = useSettings();
+
+  const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
+  const LEVEL_OPTIONS = getValues('事件级别', FALLBACK_LEVELS);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -191,7 +197,7 @@ export default function AttackList() {
           </Form.Item>
           <Divider orientation="left" orientationMargin={0}>基本信息</Divider>
           <Form.Item name="事件级别" label="事件级别">
-            <Select allowClear placeholder="选择事件级别" options={['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'].map((v) => ({ value: v, label: v }))} />
+            <Select allowClear placeholder="选择事件级别" options={LEVEL_OPTIONS.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="客户名称" label="客户名称"><Input placeholder="客户名称" /></Form.Item>
           <Form.Item name="问题单号" label="问题单号"><Input placeholder="问题单号" /></Form.Item>

@@ -38,6 +38,22 @@ Adding/removing a field is a **config change** (JSON file), never a DB migration
 ### 10. Structured Is Authoritative, KG Is Derived
 All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
 
+### 11. Post-Implementation Sync Checklist (特性完工例行检查)
+**Every feature implementation MUST complete the following checklist before marking done.** No exceptions, no deferrals:
+
+| # | Check | What to Do |
+|---|-------|-----------|
+| 1 | **E2E tests** | Write/update Playwright e2e tests covering the new feature. Run full suite (`npx playwright test --config=apps/frontend-v2/playwright.config.ts`). Fix any failures. |
+| 2 | **Backend tests** | If backend changed, run `npm run test:backend`. Fix any failures. |
+| 3 | **AGENTS.md test status** | Update "当前测试状态" section with date + count. |
+| 4 | **CLI commands** | New backend API → new CLI command in `apps/backend/src/cli-core.ts`. Verify with `npm run cli -- help`. |
+| 5 | **Mock scripts** | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs` to seed the new types. |
+| 6 | **Migration scripts** | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added. |
+| 7 | **API docs** | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples. |
+| 8 | **Constants** | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps. |
+| 9 | **Deploy** | After all tests green: `git add -A && git commit` → `cd scripts/deploy-v2 && node deploy.mjs deploy`. |
+| 10 | **AGENTS.md updates** | Document any new discoveries (Ant Design quirks, backend gotchas), update architecture descriptions if changed. |
+
 ## Core Mission (核心使命)
 
 **Implement a NEW frontend application** that consumes the existing backend API. The existing
@@ -539,12 +555,13 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 | Fetch函数 | `fetchData` / `fetchXxx` | `fetchDailyReports`, `fetchSupportNodes` |
 | 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
 
-### 当前测试状态（2026-05-24 最后验证）
+### 当前测试状态（2026-05-25 最后验证）
 - **84/84 e2e tests passing** (79 原始 + 3 page-health + 2 自定义字段)
 - 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3)
 - 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
-- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 12 个页面通过侧边栏可达
+- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 13 个页面通过侧边栏可达
 - 自定义字段：AttackList 创建 Drawer + AttackDetail 编辑 Drawer 的 +字段 功能
+- 配置中心：所有硬编码下拉已改为 useSettings 动态加载（带 fallback）
 
 ## 工作流程规范
 

@@ -233,6 +233,21 @@ export const COMMANDS: CliCommand[] = [
     build: (pos, opts) => { requirePos(pos, 1, "commands:run <id> --args <json>"); return { method: "POST", path: `/api/commands/${encodeURIComponent(pos[0])}/run`, body: { args: jsonOpt(opts, "args") } }; } },
 
   // ---- support network (求助网络) ----
+  { name: "settings:list", summary: "列出所有配置中心项", usage: "settings:list",
+    build: () => ({ method: "GET", path: "/api/settings" }) },
+  { name: "settings:get", summary: "获取单个配置项", usage: "settings:get <key>",
+    build: (pos) => { requirePos(pos, 1, "settings:get <key>"); return { method: "GET", path: `/api/settings/${encodeURIComponent(pos[0])}` }; } },
+  { name: "settings:resolve", summary: "解析配置项（支持 --scope 页面级覆盖回退）", usage: "settings:resolve <key> [--scope <page.field>]",
+    build: (pos, opts) => { requirePos(pos, 1, "settings:resolve <key>");
+      return { method: "GET", path: `/api/settings/${encodeURIComponent(pos[0])}/resolve${qs({ scope: str(opts.scope) })}` }; } },
+  { name: "settings:set", summary: "设置配置项（--values 值1,值2,值3）", usage: "settings:set <key> --values <v1,v2,v3> [--label <显示名>]",
+    build: (pos, opts) => { requirePos(pos, 1, "settings:set <key> --values <v1,v2,v3>");
+      const values = csv(opts.values); if (!values) throw new Error("缺少 --values <v1,v2,v3>");
+      return { method: "PUT", path: `/api/settings/${encodeURIComponent(pos[0])}`, body: { values, label: str(opts.label) } }; } },
+  { name: "settings:delete", summary: "删除配置项", usage: "settings:delete <key>",
+    build: (pos) => { requirePos(pos, 1, "settings:delete <key>"); return { method: "DELETE", path: `/api/settings/${encodeURIComponent(pos[0])}` }; } },
+
+  // ---- support network (求助网络) ----
   { name: "support-node:list", summary: "列出攻关单的求助网络节点", usage: "support-node:list <ticketId>",
     build: (pos) => { requirePos(pos, 1, "support-node:list <ticketId>"); return { method: "GET", path: `/api/support-nodes/${encodeURIComponent(pos[0])}` }; } },
   { name: "support-node:add", summary: "添加求助节点", usage: "support-node:add <ticketId> --category=<> --domain=<> [--parentId=<>] [--personId=<>] [--personName=<>] [--status=<>] [--note=<>]",

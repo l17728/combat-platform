@@ -18,15 +18,18 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import type { HelpRequest } from '../api.js';
 import { HELP_STATUS_COLOR, PAGE_SIZE } from '../constants.js';
+import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode } from '@combat/shared';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-
-const CATEGORY_OPTIONS = ['环境', '领域专家', '团队协作', '资源'];
-const STATUS_OPTIONS = ['待回复', '已回复'];
+const FALLBACK_CATEGORIES = ['环境', '领域专家', '团队协作', '资源'];
+const FALLBACK_HELP_STATUS = ['待回复', '已回复'];
 
 export default function HelpCenter() {
+  const { getValues } = useSettings();
+  const CATEGORY_OPTIONS = getValues('求助分类', FALLBACK_CATEGORIES);
+  const HELP_STATUS_OPTIONS = getValues('求助中心状态', FALLBACK_HELP_STATUS);
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
@@ -160,7 +163,7 @@ export default function HelpCenter() {
           style={{ width: 120 }}
           value={statusFilter}
           onChange={setStatusFilter}
-          options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
+          options={HELP_STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
         />
         <Input
           placeholder="搜索"

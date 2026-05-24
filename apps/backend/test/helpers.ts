@@ -25,5 +25,5 @@ export function makeTestApp() {
   const db = openDb(join(dir, "t.sqlite"));
   const repo = new SqliteRepository(db);
   const registry = new FileSchemaRegistry(cfgDir);
-  return { app: createApp({ repo, registry }), repo, registry, cfgDir };
+  return { app: createApp({ repo, registry, db }), repo, registry, cfgDir };
 }

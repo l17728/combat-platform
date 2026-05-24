@@ -7,13 +7,19 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { CONTRIBUTION_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
+import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode } from '@combat/shared';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
+const FALLBACK_CONTRIB_TYPES = ['实施', '发现', '协调', '指导', '支持'];
+const FALLBACK_CONTRIB_LEVELS = ['核心', '关键', '普通'];
 
 export default function Contributions() {
   const navigate = useNavigate();
+  const { getValues } = useSettings();
+  const CONTRIB_TYPES = getValues('贡献类型', FALLBACK_CONTRIB_TYPES);
+  const CONTRIB_LEVELS = getValues('贡献等级', FALLBACK_CONTRIB_LEVELS);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState<string | undefined>();
@@ -178,7 +184,7 @@ export default function Contributions() {
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Select placeholder="贡献等级" allowClear style={{ width: 120 }} value={levelFilter} onChange={setLevelFilter}
-          options={['核心', '关键', '普通'].map((v) => ({ value: v, label: v }))} />
+          options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
         <Input placeholder="搜索贡献人/描述" prefix={<SearchOutlined />} style={{ width: 220 }}
           value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear />
       </Space>
@@ -199,10 +205,10 @@ export default function Contributions() {
           </Form.Item>
           <Divider orientation="left" orientationMargin={0}>贡献详情</Divider>
           <Form.Item name="贡献类型" label="贡献类型" rules={[{ required: true, message: '请选择类型' }]}>
-            <Select placeholder="选择类型" options={['实施', '发现', '协调', '指导', '支持'].map((v) => ({ value: v, label: v }))} />
+            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="贡献等级" label="贡献等级" rules={[{ required: true, message: '请选择等级' }]}>
-            <Select placeholder="选择等级" options={['核心', '关键', '普通'].map((v) => ({ value: v, label: v }))} />
+            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: '请输入描述' }]}>
             <Input.TextArea rows={3} placeholder="贡献描述" />
@@ -225,10 +231,10 @@ export default function Contributions() {
           </Form.Item>
           <Divider orientation="left" orientationMargin={0}>贡献详情</Divider>
           <Form.Item name="贡献类型" label="贡献类型" rules={[{ required: true, message: '请选择类型' }]}>
-            <Select placeholder="选择类型" options={['实施', '发现', '协调', '指导', '支持'].map((v) => ({ value: v, label: v }))} />
+            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="贡献等级" label="贡献等级">
-            <Select placeholder="选择等级" options={['核心', '关键', '普通'].map((v) => ({ value: v, label: v }))} />
+            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: '请输入描述' }]}>
             <Input.TextArea rows={3} placeholder="贡献描述" />

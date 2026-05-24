@@ -421,6 +421,31 @@ export class Api {
       body: JSON.stringify({ question }),
     });
   }
+
+  listSettings(): Promise<Record<string, { values: string[]; label?: string }>> {
+    return this.req('/api/settings');
+  }
+
+  getSetting(key: string): Promise<{ values: string[]; label?: string }> {
+    return this.req(`/api/settings/${encodeURIComponent(key)}`);
+  }
+
+  resolveSetting(key: string, scope?: string): Promise<{ values: string[]; label?: string }> {
+    const p = scope ? `?scope=${encodeURIComponent(scope)}` : '';
+    return this.req(`/api/settings/${encodeURIComponent(key)}/resolve${p}`);
+  }
+
+  setSetting(key: string, values: string[], label?: string): Promise<{ key: string; values: string[]; label?: string }> {
+    return this.req(`/api/settings/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ values, label }),
+    });
+  }
+
+  deleteSetting(key: string): Promise<{ deleted: string }> {
+    return this.req(`/api/settings/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  }
 }
 
 export interface HelpRequest {
