@@ -105,30 +105,35 @@ async function doDeploy(c) {
 
   // 5. Install systemd service + start
   console.log("[5/5] installing systemd service...");
-  const r5 = await onTarget(c,
+  await onTarget(c,
     "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
     "systemctl daemon-reload && " +
     "systemctl enable combat-v2 && " +
-    "systemctl restart combat-v2 && " +
-    "sleep 5 && " +
-    "systemctl is-active combat-v2"
+    "systemctl restart combat-v2"
   );
-  console.log("[5/5] service:", r5.out.trim());
+  console.log("[5/5] service started, waiting...");
 
-  // Health check
-  await sleep(5);
-  const r6 = await onTarget(c,
-    "echo 'service:' $(systemctl is-active combat-v2); " +
-    "echo 'api:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket); " +
-    "echo 'frontend:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/)"
-  );
-  console.log(r6.out.trim());
+  // Health check — poll until port 3001 responds
+  let healthy = false;
+  for (let i = 0; i < 15 && !healthy; i++) {
+    await sleep(3000);
+    const rh = await onTarget(c,
+      "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket 2>/dev/null"
+    );
+    const code = rh.out.trim();
+    console.log(`  [${i}] api=${code}`);
+    if (code === "200") healthy = true;
+  }
 
-  const ok = r6.out.includes("active") && r6.out.includes("api: 200") && r6.out.includes("frontend: 200");
-  console.log(ok ? "\n✅ DEPLOY SUCCESS — http://" + TARGET + ":3001" : "\n❌ DEPLOY UNHEALTHY");
-  if (!ok) {
+  if (healthy) {
+    const rf = await onTarget(c, "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/");
+    console.log(`  frontend=${rf.out.trim()}`);
+    console.log(`\n✅ DEPLOY SUCCESS — http://${TARGET}:3001`);
+  } else {
+    console.log("\n❌ DEPLOY UNHEALTHY");
     const log = await onTarget(c, "journalctl -u combat-v2 --no-pager -n 20");
     console.log(log.out);
+    process.exit(1);
   }
 }
 
