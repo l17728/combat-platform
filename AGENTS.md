@@ -2,6 +2,42 @@
 
 Guidance for agentic coding agents working in this repository.
 
+## Core Development Principles
+
+### 1. Parallelize Development
+**Any task that CAN run in parallel MUST run in parallel.** Identify independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency.
+
+### 2. Fast MVP, TDD, Full E2E Coverage
+**Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend**; every feature must be covered.
+
+### 3. Run to Completion (Autonomous Execution)
+**Do not stop until all functional e2e tests (frontend + backend) pass and the product is manually usable.** Keep running through implementation, failures, and fixes autonomously. When a decision is required mid-execution, choose the most-recommended option and proceed — do not block on the user for routine decisions.
+
+### 4. Generalize Fixes (举一反三)
+**When a problem is found, fix the entire class of problems, not just the single instance.** Trace every divergent/leaf-node issue, and keep resolving until the problem space converges.
+
+### 5. CLI for Every Backend API
+**Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
+
+### 6. Deploy After Green
+**After every milestone reaches all-green (`npm run test:all` fully passing), deploy to the test server** so the user can manually verify. Deploy credentials are in `.env.deploy` (gitignored) — **never hardcode server passwords in any committed file**.
+
+### 7. Domain Language: Chinese Only
+Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
+```ts
+enumValues: ["待响应", "处理中", "已解决", "已关闭"]
+toStatus === "已解决"
+```
+
+### 8. Config-Driven, No DDL Migrations
+Adding/removing a field is a **config change** (JSON file), never a DB migration. Business data lives in `properties` JSON columns. Never hardcode business field names in any layer. UI renders from schema config at runtime.
+
+### 9. One Data Model, Many Views
+**Do not build per-table CRUD silos.** Build one unified model; each "combat table" is a projection/view over it. The core problem is cross-view association — the same person/task appears across many tables and must be linked.
+
+### 10. Structured Is Authoritative, KG Is Derived
+All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
+
 ## Core Mission (核心使命)
 
 **Implement a NEW frontend application** that consumes the existing backend API. The existing
@@ -266,7 +302,7 @@ npx tsc --noEmit --workspace=@combat/shared
 
 - **Stack:** React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 strict
 - **Dev port:** 5174, API proxied to localhost:3001
-- **Production:** static files served by `serve` on port 80, API calls go to same-host:3001
+- **Production:** backend Express on port 3001 serves both API and frontend static files (single port)
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with role switcher
 - **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
