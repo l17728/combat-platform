@@ -73,28 +73,38 @@ Do NOT create or modify any files under `apps/frontend/`.
 - **目标机**: `60.204.199.234`（Ubuntu 24.04, 30G RAM, 296G disk）
 - **跳板机**: `47.103.99.229`（必须通过此机器 SSH 跳转，不能直连目标机）
 - **跳板机凭据**: 见 `.env.deploy`（DEPLOY_HOST/USER/PASS）
-- **部署路径**: `/opt/combat-v2/`（目标机上，已创建）
-- **后端 API**: 目标机上运行后端 `tsx src/server.ts`，端口 :3001（已验证可用）
-- **前端**: 待实现 `apps/frontend-v2/` 后部署
+- **部署路径**: `/opt/combat-v2/`（目标机上）
+- **访问地址**: `http://60.204.199.234:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
+- **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
 - **部署脚本**: `scripts/deploy-v2/` 目录
 
-#### 快速部署命令（从 scripts/deploy-v2/ 目录执行）
+#### 部署命令（从 repo 根目录执行）
 ```bash
-# 先安装依赖（仅首次）
-cd scripts/deploy-v2 && npm install
+# 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
+git add -A && git commit -m "your message"
+
+# 安装部署脚本依赖（仅首次）
+cd scripts/deploy-v2 && npm install && cd ../..
 
 # 检查目标机状态
-node deploy.mjs check
+cd scripts/deploy-v2 && node deploy.mjs check
 
-# 一键部署（打包→跳板机→目标机→npm install→启动后端）
-node deploy.mjs deploy
+# 一键部署（打包→跳板机→目标机→npm install→build→systemd restart）
+cd scripts/deploy-v2 && node deploy.mjs deploy
+
+# 仅重启服务（不重新上传代码）
+cd scripts/deploy-v2 && node deploy.mjs restart
+
+# 查看服务日志
+cd scripts/deploy-v2 && node deploy.mjs logs
 ```
 
-#### 已验证的关键信息
-- 目标机系统 Node v24.13.0，但 **better-sqlite3@11 不兼容 Node 24**
-- run-backend.sh 自动安装 Node v22.14.0 到 `/opt/node22-v2/`，用该版本运行后端
-- 后端启动后监听 `0.0.0.0:3001`，自动扫描定时任务（5分钟间隔）
-- 部署脚本经跳板机跳转：本地→47.103.99.229（ssh2）→60.204.199.234（SSH key 免密）
+#### 部署架构（2026-05-24 重构）
+- **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
+- **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
+- **Node 版本**：目标机自带 Node v24 但 better-sqlite3 不兼容，通过 systemd `PATH=/opt/node22-v2/bin` 使用 Node v22.14.0
+- **部署流程**：`git archive HEAD` → SFTP 到跳板机 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
+- **不再使用 `serve :80`**，也不使用 `run-backend.sh`
 - 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
 
 ### Existing Deployment (参考前端，不要修改)
