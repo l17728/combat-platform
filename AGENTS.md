@@ -540,10 +540,11 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 | 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
 
 ### 当前测试状态（2026-05-24 最后验证）
-- **79/79 e2e tests passing** (62 原始 + 4 新导航 + 13 回归防护)
-- 测试文件: attack(17), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13)
+- **84/84 e2e tests passing** (79 原始 + 3 page-health + 2 自定义字段)
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3)
 - 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
 - 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 12 个页面通过侧边栏可达
+- 自定义字段：AttackList 创建 Drawer + AttackDetail 编辑 Drawer 的 +字段 功能
 
 ## 工作流程规范
 
