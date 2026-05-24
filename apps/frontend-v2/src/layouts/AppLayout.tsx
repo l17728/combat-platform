@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Select, Space, Typography, theme } from 'antd';
+import PageBreadcrumb from '../components/PageBreadcrumb.js';
 import {
   DashboardOutlined,
   ThunderboltOutlined,
@@ -13,6 +14,10 @@ import {
   FileSearchOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  FileTextOutlined,
+  MergeOutlined,
+  ApartmentOutlined,
+  TableOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -25,68 +30,96 @@ const ROLES = [
   { value: 'admin', label: '管理员' },
 ];
 
-const menuItems: MenuProps['items'] = [
-  {
-    key: '/',
-    icon: <DashboardOutlined />,
-    label: '作战态势',
-  },
-  {
-    key: '/attack',
-    icon: <ThunderboltOutlined />,
-    label: '攻关管理',
-    children: [
-      { key: '/attack', label: '攻关作战台' },
-    ],
-  },
-  {
-    key: '/people-group',
-    icon: <TeamOutlined />,
-    label: '人员与荣誉',
-    children: [
-      { key: '/people', label: '全员名单' },
-      { key: '/contributions', label: '贡献录入' },
-      { key: '/honor', label: '荣誉殿堂' },
-    ],
-  },
-  {
-    key: '/help',
-    icon: <MailOutlined />,
-    label: '求助中心',
-  },
-  {
-    key: '/system',
-    icon: <ToolOutlined />,
-    label: '系统管理',
-    children: [
-      { key: '/import', label: '数据导入/导出', icon: <ImportOutlined /> },
-      { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
-      { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
-    ],
-  },
-];
+function getSelectedKey(path: string): string {
+  if (path.startsWith('/attack')) return '/attack';
+  if (path === '/people' || path.startsWith('/honor') || path === '/merge') return '/people';
+  if (path === '/contributions') return '/contributions';
+  if (path === '/daily-report') return '/daily-report';
+  if (path === '/help') return '/help';
+  if (path.startsWith('/related')) return '/attack';
+  if (['/import', '/email', '/audit', '/schema'].includes(path)) return path;
+  return '/';
+}
+
+function getOpenKeysForPath(path: string): string[] {
+  if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
+  if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
+  if (['/import', '/email', '/audit', '/schema'].includes(path)) return ['system'];
+  return [];
+}
 
 export function AppLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
 
+  const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
+
+  const handleResize = useCallback(() => {
+    if (window.innerWidth < 768) setCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [handleResize]);
+
+  useEffect(() => {
+    setOpenKeys(getOpenKeysForPath(location.pathname));
+  }, [location.pathname]);
+
   const currentRole =
     (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
 
-  const selectedKeys = [location.pathname];
-  const openKeys = collapsed
-    ? []
-    : (() => {
-        const path = location.pathname;
-        if (path.startsWith('/attack')) return ['/attack'];
-        if (path === '/people' || path === '/contributions' || path.startsWith('/honor'))
-          return ['/people-group'];
-        if (path === '/help') return [];
-        if (['/import', '/email', '/audit'].includes(path)) return ['/system'];
-        return [];
-      })();
+  const selectedKeys = [getSelectedKey(location.pathname)];
+
+  const menuItems: MenuProps['items'] = [
+    {
+      key: '/',
+      icon: <DashboardOutlined />,
+      label: '作战态势',
+    },
+    {
+      key: 'attack',
+      icon: <ThunderboltOutlined />,
+      label: '攻关管理',
+      onTitleClick: () => navigate('/attack'),
+      children: [
+        { key: '/attack', label: '攻关作战台' },
+        { key: '/daily-report', label: '攻关日报', icon: <FileTextOutlined /> },
+      ],
+    },
+    {
+      key: 'people',
+      icon: <TeamOutlined />,
+      label: '人员与荣誉',
+      onTitleClick: () => navigate('/people'),
+      children: [
+        { key: '/people', label: '全员名单' },
+        { key: '/contributions', label: '贡献录入' },
+        { key: '/honor', label: '荣誉殿堂', icon: <TrophyOutlined /> },
+        { key: '/merge', label: '人员合并', icon: <MergeOutlined /> },
+      ],
+    },
+    {
+      key: '/help',
+      icon: <MailOutlined />,
+      label: '求助中心',
+    },
+    {
+      key: 'system',
+      icon: <ToolOutlined />,
+      label: '系统管理',
+      onTitleClick: () => navigate('/import'),
+      children: [
+        { key: '/import', label: '数据导入/导出', icon: <ImportOutlined /> },
+        { key: '/schema', label: '表结构管理', icon: <TableOutlined /> },
+        { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
+        { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
+      ],
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -108,6 +141,8 @@ export function AppLayout() {
         }}
       >
         <div
+          data-testid="sider-logo"
+          onClick={() => navigate('/')}
           style={{
             height: 48,
             display: 'flex',
@@ -115,6 +150,7 @@ export function AppLayout() {
             justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? 0 : '0 20px',
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            cursor: 'pointer',
           }}
         >
           {collapsed ? (
@@ -131,7 +167,8 @@ export function AppLayout() {
         <Menu
           mode="inline"
           selectedKeys={selectedKeys}
-          openKeys={openKeys}
+          openKeys={collapsed ? [] : openKeys}
+          onOpenChange={(keys) => setOpenKeys(keys)}
           onClick={({ key }) => {
             if (key.startsWith('/')) navigate(key);
           }}
@@ -157,6 +194,7 @@ export function AppLayout() {
         >
           <Space>
             <span
+              data-testid="sidebar-toggle"
               onClick={() => setCollapsed(!collapsed)}
               style={{ cursor: 'pointer', fontSize: 18, lineHeight: '48px' }}
             >
@@ -176,6 +214,7 @@ export function AppLayout() {
         </Header>
 
         <Content style={{ padding: 24, maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+          <PageBreadcrumb />
           <Outlet />
         </Content>
       </Layout>

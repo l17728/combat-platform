@@ -2,6 +2,7 @@ import type {
   GraphNode,
   ProgressLog,
   NodeSchema,
+  FieldSchema,
   FieldOp,
   LeaderboardEntry,
   PersonHonor,
@@ -15,11 +16,73 @@ import type {
   SmtpConfigMasked,
   EmailSendRequest,
   EmailSendResult,
+  DailyReport,
+  RelatedItem,
+  CoAnchoredItem,
+  ExpandedItem,
+  ConflictItem,
 } from '@combat/shared';
 
 export interface RelatedResult {
-  outgoing: { field: string; concept: string; node: GraphNode }[];
-  incoming: { field: string; concept: string; node: GraphNode }[];
+  outgoing: RelatedItem[];
+  incoming: RelatedItem[];
+  candidates?: { proposalId: string; relationType: string; confidence: number; rationale: string; node: GraphNode }[];
+  coAnchored?: CoAnchoredItem[];
+  expanded?: ExpandedItem[];
+  conflicts?: ConflictItem[];
+  manualLinks?: { edgeId: string; note: string; target: GraphNode }[];
+}
+
+export interface DailyReportEntry {
+  id: string;
+  ticketId: string;
+  type: string;
+  currentProgress: string;
+  nextSteps: string;
+  status: '草稿' | '已发布';
+  createdBy: string;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+export interface SupportNode {
+  id: string;
+  ticketId: string | null;
+  templateId: string | null;
+  parentId: string | null;
+  category: string;
+  domain: string;
+  personId: string | null;
+  personName: string | null;
+  status: string;
+  note: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface SupportTemplate {
+  id: string;
+  name: string;
+  description: string;
+  usageCount: number;
+  createdAt: string;
+}
+
+export interface SchemaSuggestion {
+  nodeType: string;
+  fieldId: string;
+  fieldName: string;
+  label: string;
+  type: string;
+  concept?: string;
+  anchor?: string;
+  matchReason: string;
+}
+
+export interface TeamLeaderboardEntry {
+  team: string;
+  score: number;
+  贡献数: number;
 }
 
 export class Api {
@@ -107,10 +170,6 @@ export class Api {
   recommendHelpers(id: string, limit?: number): Promise<HelperRecommendation[]> {
     const qs = limit ? `?limit=${limit}` : '';
     return this.req<HelperRecommendation[]>(`/api/recommend/helpers/${id}${qs}`);
-  }
-
-  getRelated(nodeType: string, id: string): Promise<RelatedResult> {
-    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}`);
   }
 
   getDashboard(): Promise<DashboardSummary> {
@@ -252,6 +311,114 @@ export class Api {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ feedback, name }),
+    });
+  }
+
+  getRelated(nodeType: string, id: string, opts?: { includeCandidates?: boolean; depth?: number }): Promise<RelatedResult> {
+    const p = new URLSearchParams();
+    if (opts?.includeCandidates) p.set('includeCandidates', '1');
+    if (opts?.depth) p.set('depth', String(opts.depth));
+    const qs = p.toString();
+    return this.req<RelatedResult>(`/api/related/${nodeType}/${id}${qs ? '?' + qs : ''}`);
+  }
+
+  getDailyReport(date: string): Promise<DailyReport> {
+    return this.req<DailyReport>(`/api/daily-report?date=${encodeURIComponent(date)}`);
+  }
+
+  publishDailyReport(date: string): Promise<{ date: string; ticketsTouched: number; published: number }> {
+    return this.req('/api/daily-report/publish?date=' + encodeURIComponent(date), { method: 'POST' });
+  }
+
+  listDailyReportEntries(ticketId: string): Promise<DailyReportEntry[]> {
+    return this.req<DailyReportEntry[]>(`/api/nodes/${ticketId}/daily-reports`);
+  }
+
+  createDailyReportEntry(ticketId: string, data: { type: string; currentProgress: string; nextSteps?: string }): Promise<DailyReportEntry> {
+    return this.req<DailyReportEntry>(`/api/nodes/${ticketId}/daily-reports`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  publishDailyReportEntry(ticketId: string, entryId: string): Promise<DailyReportEntry> {
+    return this.req<DailyReportEntry>(`/api/nodes/${ticketId}/daily-reports/${entryId}/publish`, { method: 'POST' });
+  }
+
+  deleteDailyReportEntry(ticketId: string, entryId: string): Promise<void> {
+    return this.req(`/api/nodes/${ticketId}/daily-reports/${entryId}`, { method: 'DELETE' });
+  }
+
+  listSupportNodes(ticketId: string): Promise<SupportNode[]> {
+    return this.req<SupportNode[]>(`/api/support-nodes/${ticketId}`);
+  }
+
+  createSupportNode(ticketId: string, data: Partial<SupportNode>): Promise<SupportNode> {
+    return this.req<SupportNode>(`/api/support-nodes/${ticketId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateSupportNode(nodeId: string, data: Partial<SupportNode>): Promise<SupportNode> {
+    return this.req<SupportNode>(`/api/support-nodes/node/${nodeId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteSupportNode(nodeId: string): Promise<{ deleted: number }> {
+    return this.req(`/api/support-nodes/node/${nodeId}`, { method: 'DELETE' });
+  }
+
+  listSupportTemplates(): Promise<SupportTemplate[]> {
+    return this.req<SupportTemplate[]>('/api/support-templates');
+  }
+
+  applySupportTemplate(templateId: string, ticketId: string): Promise<{ applied: number; nodes: SupportNode[] }> {
+    return this.req(`/api/support-templates/${templateId}/apply/${ticketId}`, { method: 'POST' });
+  }
+
+  listSchemas(): Promise<NodeSchema[]> {
+    return this.req<NodeSchema[]>('/api/schema/list');
+  }
+
+  createSchema(data: { nodeType: string; label: string; fields: FieldSchema[]; identityKeys?: string[] }): Promise<NodeSchema> {
+    return this.req<NodeSchema>('/api/schema/nodeType', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteSchema(nodeType: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/schema/nodeType/${nodeType}`, { method: 'DELETE' });
+  }
+
+  suggestSchema(q: string): Promise<SchemaSuggestion[]> {
+    return this.req<SchemaSuggestion[]>(`/api/schema/suggest?q=${encodeURIComponent(q)}`);
+  }
+
+  getTeamLeaderboard(period?: string): Promise<TeamLeaderboardEntry[]> {
+    const qs = period ? `?period=${encodeURIComponent(period)}&groupBy=team` : '?groupBy=team';
+    return this.req<TeamLeaderboardEntry[]>(`/api/honor/leaderboard${qs}`);
+  }
+
+  searchNodes(q: string, type?: string, limit?: number): Promise<{ id: string; nodeType: string; summary: string; score: number }[]> {
+    const p = new URLSearchParams({ q });
+    if (type) p.set('type', type);
+    if (limit) p.set('limit', String(limit));
+    return this.req(`/api/query/search?${p.toString()}`);
+  }
+
+  hermesAsk(question: string): Promise<{ question: string; intent: string; answer: string; citations: { nodeId: string; nodeType: string; summary: string; link: string }[]; uiSpec?: any }> {
+    return this.req('/api/hermes/ask', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question }),
     });
   }
 }

@@ -1,0 +1,17 @@
+[Unit]
+Description=Combat-v2 Backend + Frontend (:3001)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/combat-v2/apps/backend
+Environment=PATH=/opt/node22-v2/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=COMBAT_API=http://localhost:3001
+ExecStart=/opt/node22-v2/bin/npx tsx src/server.ts
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/combat-v2/backend.log
+StandardError=append:/opt/combat-v2/backend.log
+
+[Install]
+WantedBy=multi-user.target

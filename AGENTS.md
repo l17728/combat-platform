@@ -306,3 +306,83 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with role switcher
 - **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
+
+## E2E Test Hard-Won Discoveries (Frontend-v2)
+
+### Ant Design 5 自动在2字符中文按钮文本间插入空格
+Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格。Playwright 选择器需用正则匹配如 `/导\s?出/`、`/确\s?定/`、`/删\s?除/`、`/添\s?加/`。4字符按钮如"新建攻关"不受影响。
+
+### Ant Design Select 下拉 — "Element is outside of the viewport"
+Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
+
+### 页面上多个 Select 的索引规则
+- Header 角色切换器永远是页面上 `.ant-select` 的 index 0
+- 页面级筛选 Select 从 index 1 开始
+- Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
+- **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
+- **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
+
+### Backend 审计日志 action 和 entityType 是大写英文
+- **action 值为大写**: `CREATE`, `UPDATE`, `DELETE`, `PROGRESS`, `SETTING`, `ESCALATE`, `MERGE`
+- **entityType 值是通用类型**: `node`, `edge`, `schema`, `setting`, `proposal`, `reminder`（**不是** `person`、`attackTicket` 等 nodeType 名称）
+- 前端 AuditLog 页面的筛选选项必须与这些大写值精确匹配
+
+### 贡献等级(贡献等级) 创建需要 Leader/Admin 角色
+后端 `gradeGate()` 函数（`routes.ts:31`）对 `contribution` nodeType 的 `贡献等级` 字段做了角色门控：
+- `X-Role` header 缺失 → 信任（允许，如 CLI/测试）
+- `X-Role: normal` → **403 Forbidden**
+- `X-Role: leader` 或 `admin` → 允许
+- **前端默认角色是 `normal`**（从 `localStorage.getItem('combat-role')` 读取）
+- **E2E 测试创建带贡献等级的贡献时，必须用 `page.addInitScript(() => localStorage.setItem('combat-role', 'leader'))` 设置角色**
+
+### Playwright 多次 Toast 消息导致严格模式违规
+当连续操作产生多条 Ant Design message toast 时（如快速连续状态流转），`getByText('状态流转成功')` 可能匹配到多条。**必须用 `.first()` 或更精确的选择器**。
+
+### Drawer 关闭不会提交数据
+测试验证：打开 drawer、填写数据、点击关闭按钮（`.ant-drawer-close`）不会创建任何数据。这是回归防护测试之一。
+
+## Deploy Infrastructure (2026-05-24 已验证)
+
+### 跳板机 → 目标机 SSH Key 认证
+- 跳板机 (47.103.99.229) 上已生成 ed25519 密钥对（2026-05-24 创建）
+- 公钥已写入目标机 (60.204.199.234) 的 `~/.ssh/authorized_keys`
+- **密码**: 两台机器密码相同，见 `.env.deploy`
+- 如果 SSH key 认证失效，需要通过 `sshpass` 重新写入公钥：
+  ```
+  sshpass -p '<PASSWORD>' ssh root@60.204.199.234 'echo <PUBKEY> > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
+  ```
+- 跳板机上只有公钥没有私钥会导致认证失败。**必须在跳板机上用 `ssh-keygen` 生成完整的密钥对**
+
+### 部署流程
+```bash
+cd scripts/deploy-v2 && node deploy.mjs deploy
+```
+- 从 git HEAD 打包 → SFTP 到跳板机 → SCP 到目标机 → tar 解压 → npm install → build frontend-v2 → 启动后端(:3001) + serve(:80)
+- 后端通过 Node v22 (`/opt/node22-v2/`) 运行（better-sqlite3 不兼容 Node 24）
+- 前端 build 产物在 `apps/frontend-v2/dist/`，由后端 Express 静态服务
+
+### 当前测试状态（2026-05-24 最后验证）
+- **79/79 e2e tests passing** (62 原始 + 4 新导航 + 13 回归防护)
+- 测试文件: attack(17), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13)
+- 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
+- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 12 个页面通过侧边栏可达
+
+## 工作流程规范
+
+### 测试状态标记机制
+**当所有测试通过时，必须在 AGENTS.md 的"当前测试状态"部分记录通过时间和数量。** 下次会话开始时先检查此标记：
+- 如果标记日期是今天且数量一致 → **跳过测试**，直接进入开发或部署
+- 如果代码有改动 → 运行测试后更新标记
+- 如果标记过期（>1天）→ 建议重新运行测试确认
+
+格式：
+```
+### 当前测试状态（YYYY-MM-DD 最后验证）
+- **NN/NN e2e tests passing**
+```
+
+### 修改代码后必须做的事
+1. 修改前端源码 → 运行 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line`
+2. 修改后端源码 → 运行 `npm run test:backend`
+3. 全部通过后 → 更新 AGENTS.md 的"当前测试状态"标记
+4. 全部通过后 → 执行 `cd scripts/deploy-v2 && node deploy.mjs deploy`

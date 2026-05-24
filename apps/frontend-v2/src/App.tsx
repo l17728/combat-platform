@@ -12,24 +12,37 @@ import HelpFeedback from './pages/HelpFeedback.js';
 import ImportExport from './pages/ImportExport.js';
 import EmailSettings from './pages/EmailSettings.js';
 import AuditLog from './pages/AuditLog.js';
+import DailyReportPage from './pages/DailyReport.js';
+import RelatedPage from './pages/RelatedPage.js';
+import MergePage from './pages/MergePage.js';
+import SchemaWizard from './pages/SchemaWizard.js';
+import NotFound from './components/NotFound.js';
+import ErrorBoundary from './components/ErrorBoundary.js';
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/attack" element={<AttackList />} />
-        <Route path="/attack/:id" element={<AttackDetail />} />
-        <Route path="/people" element={<PeopleList />} />
-        <Route path="/contributions" element={<Contributions />} />
-        <Route path="/honor" element={<Honor />} />
-        <Route path="/honor/:name" element={<PersonHonor />} />
-        <Route path="/help" element={<HelpCenter />} />
-        <Route path="/import" element={<ImportExport />} />
-        <Route path="/email" element={<EmailSettings />} />
-        <Route path="/audit" element={<AuditLog />} />
-      </Route>
-      <Route path="/help/feedback/:token" element={<HelpFeedback />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/attack" element={<AttackList />} />
+          <Route path="/attack/:id" element={<AttackDetail />} />
+          <Route path="/people" element={<PeopleList />} />
+          <Route path="/contributions" element={<Contributions />} />
+          <Route path="/honor" element={<Honor />} />
+          <Route path="/honor/:name" element={<PersonHonor />} />
+          <Route path="/help" element={<HelpCenter />} />
+          <Route path="/daily-report" element={<DailyReportPage />} />
+          <Route path="/merge" element={<MergePage />} />
+          <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
+          <Route path="/import" element={<ImportExport />} />
+          <Route path="/email" element={<EmailSettings />} />
+          <Route path="/audit" element={<AuditLog />} />
+          <Route path="/schema" element={<SchemaWizard />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
+        <Route path="/help/feedback/:token" element={<HelpFeedback />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }

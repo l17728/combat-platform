@@ -1,27 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Table,
-  Button,
-  Space,
-  Input,
-  Select,
-  Drawer,
-  Form,
-  message,
-  Popconfirm,
-  Tag,
-  Typography,
-  Skeleton,
+  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider,
 } from 'antd';
-import {
-  PlusOutlined,
-  ExportOutlined,
-  UploadOutlined,
-  SearchOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { STATUS_COLOR, PAGE_SIZE } from '../constants.js';
+import { STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import type { GraphNode, NodeSchema } from '@combat/shared';
 import dayjs from 'dayjs';
@@ -32,7 +16,6 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title } = Typography;
-
 const STATUS_OPTIONS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
 
 export default function AttackList() {
@@ -46,6 +29,7 @@ export default function AttackList() {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -65,13 +49,8 @@ export default function AttackList() {
     }
   }, [statusFilter]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    api.listNodes('person').then(setPeople).catch(() => {});
-  }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { api.listNodes('person').then(setPeople).catch(() => {}); }, []);
 
   const filteredNodes = searchText
     ? nodes.filter((n) => {
@@ -99,95 +78,59 @@ export default function AttackList() {
       setDrawerOpen(false);
       form.resetFields();
       navigate(`/attack/${node.id}`);
-    } catch (e: any) {
-      message.error(e.message);
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e: any) { message.error(e.message); } finally { setSubmitting(false); }
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await api.deleteNode(id);
-      message.success('删除成功');
-      fetchData();
-    } catch (e: any) {
-      message.error(e.message);
-    }
+    try { await api.deleteNode(id); message.success('删除成功'); fetchData(); }
+    catch (e: any) { message.error(e.message); }
   };
 
   const handleExport = async () => {
+    setExporting(true);
     try {
       const blob = await api.exportNodes('attackTicket');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `攻关单_${dayjs().format('YYYYMMDD')}.xlsx`;
-      a.click();
+      a.href = url; a.download = `攻关单_${dayjs().format('YYYYMMDD')}.xlsx`; a.click();
       URL.revokeObjectURL(url);
       message.success('导出成功');
-    } catch (e: any) {
-      message.error(e.message);
-    }
+    } catch (e: any) { message.error(e.message); } finally { setExporting(false); }
   };
 
   const columns = [
     {
-      title: '编号',
-      width: 100,
+      title: '编号', width: 100, fixed: 'left' as const,
       render: (_: unknown, r: GraphNode) => (
-        <a onClick={() => navigate(`/attack/${r.id}`)}>{r.id.slice(0, 8)}</a>
+        <Tooltip title={r.id}><a onClick={() => navigate(`/attack/${r.id}`)}>{r.id.slice(0, 8)}</a></Tooltip>
       ),
     },
     {
-      title: '标题',
-      dataIndex: ['properties', '标题'],
-      ellipsis: true,
-      render: (text: string, r: GraphNode) => (
-        <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>
-      ),
+      title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
+      render: (text: string, r: GraphNode) => <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>,
+      sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
     },
     {
-      title: '状态',
-      dataIndex: ['properties', '状态'],
-      width: 100,
+      title: '状态', dataIndex: ['properties', '状态'], width: 120,
       render: (v: string) => <StatusTag status={v} />,
+      sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
+    },
+    { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100 },
+    { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
+    { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 140, ellipsis: true },
+    { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
+    {
+      title: '更新', dataIndex: 'updatedAt', width: 120,
+      render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).fromNow()}</Tooltip>,
+      sorter: (a: GraphNode, b: GraphNode) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
+      defaultSortOrder: 'descend' as const,
     },
     {
-      title: '处理人',
-      dataIndex: ['properties', '当前处理人'],
-      width: 100,
-    },
-    {
-      title: '问题单号',
-      dataIndex: ['properties', '问题单号'],
-      width: 140,
-      ellipsis: true,
-    },
-    {
-      title: '客户',
-      dataIndex: ['properties', '客户名称'],
-      width: 120,
-      ellipsis: true,
-    },
-    {
-      title: '更新',
-      dataIndex: 'updatedAt',
-      width: 120,
-      render: (v: string) => dayjs(v).fromNow(),
-    },
-    {
-      title: '操作',
-      width: 80,
+      title: '操作', width: 80, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (
-        <Space>
-          <Popconfirm
-            title={`确认删除「${r.properties['标题'] ?? r.id.slice(0, 8)}」？`}
-            onConfirm={() => handleDelete(r.id)}
-          >
-            <a style={{ color: '#ff4d4f' }}>删除</a>
-          </Popconfirm>
-        </Space>
+        <Popconfirm title={`确认删除「${r.properties['标题'] ?? r.id.slice(0, 8)}」？`} onConfirm={() => handleDelete(r.id)}>
+          <a style={{ color: '#ff4d4f' }}>删除</a>
+        </Popconfirm>
       ),
     },
   ];
@@ -195,70 +138,31 @@ export default function AttackList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          攻关作战台
-        </Title>
+        <Title level={4} style={{ margin: 0 }}>攻关作战台</Title>
         <Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
-            新建攻关
-          </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport}>
-            导出
-          </Button>
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>新建攻关</Button>
+          <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>导出</Button>
         </Space>
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          placeholder="状态筛选"
-          allowClear
-          style={{ width: 140 }}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))}
-        />
-        <Input
-          placeholder="搜索标题/单号/处理人"
-          prefix={<SearchOutlined />}
-          style={{ width: 260 }}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-        />
+        <Select placeholder="状态筛选" allowClear style={{ width: 140 }} value={statusFilter} onChange={setStatusFilter}
+          options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+        <Input placeholder="搜索标题/单号/处理人" prefix={<SearchOutlined />} style={{ width: 260 }}
+          value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear />
       </Space>
 
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <Table
-          rowKey="id"
-          dataSource={filteredNodes}
-          columns={columns}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
+      {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
+        <Table rowKey="id" dataSource={filteredNodes} columns={columns}
+          scroll={{ x: 'max-content' }}
+          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
           size="middle"
-          onRow={(r) => ({
-            onClick: (e) => {
-              if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`);
-            },
-            style: { cursor: 'pointer' },
-          })}
+          onRow={(r) => ({ onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); }, style: { cursor: 'pointer' } })}
         />
       )}
 
-      <Drawer
-        title="新建攻关任务"
-        width={520}
-        open={drawerOpen}
-        onClose={() => {
-          setDrawerOpen(false);
-          form.resetFields();
-        }}
-        extra={
-          <Button type="primary" loading={submitting} onClick={() => form.submit()}>
-            创建
-          </Button>
-        }
-      >
+      <Drawer title="新建攻关任务" width={520} open={drawerOpen} onClose={() => { setDrawerOpen(false); form.resetFields(); }} destroyOnClose maskClosable={false}
+        extra={<Button type="primary" loading={submitting} onClick={() => form.submit()}>创建</Button>}>
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Form.Item name="标题" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
             <Input placeholder="攻关任务标题" />
@@ -266,67 +170,30 @@ export default function AttackList() {
           <Form.Item name="状态" label="状态" initialValue="待响应">
             <Select options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
           </Form.Item>
-          <Form.Item name="问题单号" label="问题单号">
-            <Input placeholder="问题单号" />
-          </Form.Item>
-          <Form.Item name="事件单号" label="事件单号">
-            <Input placeholder="事件单号" />
-          </Form.Item>
+          <Divider orientation="left" orientationMargin={0}>基本信息</Divider>
           <Form.Item name="事件级别" label="事件级别">
-            <Select
-              allowClear
-              placeholder="选择事件级别"
-              options={['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'].map((v) => ({
-                value: v,
-                label: v,
-              }))}
-            />
+            <Select allowClear placeholder="选择事件级别" options={['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'].map((v) => ({ value: v, label: v }))} />
           </Form.Item>
-          <Form.Item name="客户名称" label="客户名称">
-            <Input placeholder="客户名称" />
-          </Form.Item>
+          <Form.Item name="客户名称" label="客户名称"><Input placeholder="客户名称" /></Form.Item>
+          <Form.Item name="问题单号" label="问题单号"><Input placeholder="问题单号" /></Form.Item>
+          <Form.Item name="事件单号" label="事件单号"><Input placeholder="事件单号" /></Form.Item>
+          <Divider orientation="left" orientationMargin={0}>人员</Divider>
           <Form.Item name="当前处理人" label="当前处理人">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从全员名单搜索"
-              options={personOptions}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            />
+            <Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
           </Form.Item>
           <Form.Item name="攻关组长" label="攻关组长">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从全员名单搜索"
-              options={personOptions}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            />
+            <Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
           </Form.Item>
           <Form.Item name="攻关申请人" label="攻关申请人">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从全员名单搜索"
-              options={personOptions}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
-            />
+            <Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
           </Form.Item>
-          <Form.Item name="影响及现存风险" label="影响及现存风险">
-            <Input.TextArea rows={3} placeholder="描述影响及风险" />
-          </Form.Item>
-          <Form.Item name="资源ID" label="资源ID">
-            <Input placeholder="资源ID" />
-          </Form.Item>
-          <Form.Item name="租户ID" label="租户ID">
-            <Input placeholder="租户ID" />
-          </Form.Item>
+          <Divider orientation="left" orientationMargin={0}>详细信息</Divider>
+          <Form.Item name="影响及现存风险" label="影响及现存风险"><Input.TextArea rows={3} placeholder="描述影响及风险" /></Form.Item>
+          <Form.Item name="资源ID" label="资源ID"><Input placeholder="资源ID" /></Form.Item>
+          <Form.Item name="租户ID" label="租户ID"><Input placeholder="租户ID" /></Form.Item>
         </Form>
       </Drawer>
     </div>

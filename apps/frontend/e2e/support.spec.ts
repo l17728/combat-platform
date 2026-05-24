@@ -50,9 +50,12 @@ test("FE-SN2 添加求助节点显示在求助网络树", async ({ page, request
   // Open the add-node form
   await page.getByLabel("add-support-node").click();
 
-  // Fill category (AntD Select: click to open, then pick option)
-  await page.getByLabel("support-category").first().click();
-  await page.getByRole("option", { name: "领域专家" }).click();
+  // Fill category (AntD Select via keyboard — animation-safe, matches existing pattern in transition.spec.ts)
+  // SUPPORT_CATEGORIES = ["环境", "领域专家", "团队协作", "资源"] → 领域专家 is index 1 → 2 ArrowDowns
+  await page.locator('input[aria-label="support-category"]').focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   // Fill domain
   await page.getByLabel("support-domain").fill("云网络");
@@ -60,9 +63,12 @@ test("FE-SN2 添加求助节点显示在求助网络树", async ({ page, request
   // Fill personName
   await page.getByLabel("support-person").fill("张伟");
 
-  // Fill status (AntD Select)
-  await page.getByLabel("support-status").first().click();
-  await page.getByRole("option", { name: "支持中" }).click();
+  // Fill status (AntD Select via keyboard)
+  // SUPPORT_STATUSES = ["待确认", "支持中", "已完成", "已撤销"] → 支持中 is index 1 → status field has initialValue="待确认",
+  // so the dropdown opens with 待确认 highlighted; press ArrowDown once then Enter for 支持中
+  await page.locator('input[aria-label="support-status"]').focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   // Submit and wait for the API POST to complete
   const responsePromise = page.waitForResponse(
@@ -146,16 +152,21 @@ test("FE-SN4 删除求助节点从树中消失", async ({ page, request }) => {
   // Node must be visible before deletion
   await expect(page.getByText("数据库")).toBeVisible();
 
-  // Click the delete button
-  await page.getByLabel(`delete-node-${nodeId}`).click();
-
-  // AntD Popconfirm / Modal.confirm — click the confirmation button
-  await page.getByRole("button", { name: "确定" }).click();
-
-  // Wait for DELETE request to finish
-  await page.waitForResponse(
+  // Register DELETE response listener BEFORE triggering the action (race-safe)
+  const deletePromise = page.waitForResponse(
     (resp) => resp.url().includes(`/api/support-nodes/node/${nodeId}`) && resp.request().method() === "DELETE"
   );
+
+  // Click the delete button — AntD Popconfirm wraps it; click opens the confirmation popup
+  await page.getByLabel(`delete-node-${nodeId}`).click();
+
+  // Wait for the Popconfirm "确定" button to appear, then click (force to bypass animation)
+  const confirmBtn = page.getByRole("button", { name: "确定" });
+  await confirmBtn.waitFor({ state: "visible" });
+  await confirmBtn.click({ force: true });
+
+  // Wait for DELETE request to finish
+  await deletePromise;
 
   // The node should no longer appear in the tree
   await expect(page.getByText("数据库")).toHaveCount(0);

@@ -1,22 +1,21 @@
 import { test, expect } from '@playwright/test';
-
-const API = 'http://localhost:3001';
+import { API, selectOption, waitForTable } from './helpers';
 
 test.describe('攻关作战台 - 列表', () => {
   test('shows page title and new button', async ({ page }) => {
     await page.goto('/attack');
     await expect(page.getByRole('heading', { name: '攻关作战台' })).toBeVisible();
     await expect(page.getByRole('button', { name: '新建攻关' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '导出' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /导\s?出/ })).toBeVisible();
   });
 
   test('creates ticket via drawer and navigates to detail', async ({ page }) => {
     await page.goto('/attack');
     await page.getByRole('button', { name: '新建攻关' }).click();
 
-    await expect(page.locator('.ant-drawer-content')).toBeVisible();
-    await page.locator('.ant-drawer-content').getByLabel('标题').fill('E2E新建攻关单');
-    await page.locator('.ant-drawer-extra').getByRole('button', { name: '创建' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+    await page.locator('.ant-drawer').getByLabel('标题').fill('E2E新建攻关单');
+    await page.locator('.ant-drawer-extra button').click();
     await expect(page.getByText('创建成功')).toBeVisible();
     await expect(page).toHaveURL(/\/attack\//);
   });
@@ -30,11 +29,12 @@ test.describe('攻关作战台 - 列表', () => {
     });
 
     await page.goto('/attack');
+    await waitForTable(page);
     await expect(page.getByRole('cell', { name: 'E2E列表单A' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'E2E列表单B' })).toBeVisible();
     await expect(page.getByRole('cell', { name: '张三' })).toBeVisible();
-    await expect(page.getByText('进行中').first()).toBeVisible();
-    await expect(page.getByText('待响应').first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: '进行中' }).first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: '待响应' }).first()).toBeVisible();
   });
 
   test('filters by status', async ({ page, request }) => {
@@ -46,11 +46,12 @@ test.describe('攻关作战台 - 列表', () => {
     });
 
     await page.goto('/attack');
+    await waitForTable(page);
     await expect(page.getByText('E2E筛选待响应')).toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
 
-    await page.getByPlaceholder('状态筛选').click();
-    await page.getByRole('option', { name: '已解决' }).click();
+    const statusSelect = page.locator('.ant-select').nth(1);
+    await selectOption(page, statusSelect, '已解决');
     await expect(page.getByText('E2E筛选待响应')).not.toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
   });
@@ -64,6 +65,7 @@ test.describe('攻关作战台 - 列表', () => {
     });
 
     await page.goto('/attack');
+    await waitForTable(page);
     await page.getByPlaceholder('搜索标题/单号/处理人').fill('搜索专用');
     await expect(page.getByText('E2E搜索专用单')).toBeVisible();
     await expect(page.getByText('E2E其他单')).not.toBeVisible();
@@ -75,9 +77,10 @@ test.describe('攻关作战台 - 列表', () => {
     });
 
     await page.goto('/attack');
+    await waitForTable(page);
     await expect(page.getByText('E2E待删除单')).toBeVisible();
-    await page.getByRole('row').filter({ hasText: 'E2E待删除单' }).getByText('删除').click();
-    await page.getByRole('button', { name: '确 定' }).click();
+    await page.getByRole('row').filter({ hasText: 'E2E待删除单' }).locator('a').last().click();
+    await page.getByRole('button', { name: /确\s?定/ }).click();
     await expect(page.getByText('删除成功')).toBeVisible();
     await expect(page.getByText('E2E待删除单')).not.toBeVisible();
   });
@@ -88,8 +91,9 @@ test.describe('攻关作战台 - 列表', () => {
     });
 
     await page.goto('/attack');
+    await waitForTable(page);
     const download = page.waitForEvent('download');
-    await page.getByRole('button', { name: '导出' }).click();
+    await page.getByRole('button', { name: /导\s?出/ }).click();
     const d = await download;
     expect(d.suggestedFilename()).toContain('.xlsx');
   });
@@ -101,6 +105,7 @@ test.describe('攻关作战台 - 列表', () => {
     const ticket = await res.json();
 
     await page.goto('/attack');
+    await waitForTable(page);
     await page.getByRole('cell', { name: 'E2E点击行跳转' }).click();
     await expect(page).toHaveURL(new RegExp(`/attack/${ticket.id}`));
   });
@@ -142,6 +147,7 @@ test.describe('攻关详情', () => {
     });
 
     await page.goto(`/attack/${ticket.id}`);
+    await page.getByRole('tab', { name: '进展同步' }).click();
     await expect(page.getByText('首次排查完成')).toBeVisible();
     await expect(page.getByText('定位到根因')).toBeVisible();
   });
@@ -153,11 +159,12 @@ test.describe('攻关详情', () => {
     const ticket = await res.json();
 
     await page.goto(`/attack/${ticket.id}`);
+    await page.getByRole('tab', { name: '进展同步' }).click();
     await page.getByRole('button', { name: '追加进展' }).click();
 
-    const drawer = page.locator('.ant-drawer-content');
-    await drawer.getByPlaceholder('描述当前进展...').fill('E2E通过UI追加的进展');
-    await page.locator('.ant-drawer-body').getByRole('button', { name: '提交进展' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+    await page.getByPlaceholder('描述当前进展...').fill('E2E通过UI追加的进展');
+    await page.getByRole('button', { name: '提交进展' }).click();
     await expect(page.getByText('进展已追加')).toBeVisible();
     await expect(page.getByText('E2E通过UI追加的进展')).toBeVisible();
   });
@@ -172,9 +179,11 @@ test.describe('攻关详情', () => {
     await expect(page.getByText('待响应').first()).toBeVisible();
 
     await page.getByRole('button', { name: '状态流转' }).click();
-    await page.locator('.ant-drawer-content').getByLabel('目标状态').click();
-    await page.getByRole('option', { name: '处理中', exact: true }).click();
-    await page.locator('.ant-drawer-body').getByRole('button', { name: '确认流转' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+    const drawer = page.locator('.ant-drawer');
+    const drawerSelect = drawer.locator('.ant-select').first();
+    await selectOption(page, drawerSelect, '处理中', true);
+    await page.getByRole('button', { name: '确认流转' }).click();
     await expect(page.getByText('状态流转成功')).toBeVisible();
     await expect(page.getByText('处理中').first()).toBeVisible();
   });
@@ -188,12 +197,12 @@ test.describe('攻关详情', () => {
     await page.goto(`/attack/${ticket.id}`);
     await page.getByRole('button', { name: '编辑信息' }).click();
 
-    const drawer = page.locator('.ant-drawer-content');
-    await drawer.getByLabel('标题').clear();
-    await drawer.getByLabel('标题').fill('E2E编辑后标题');
-    await drawer.getByLabel('问题单号').clear();
-    await drawer.getByLabel('问题单号').fill('PB999');
-    await page.locator('.ant-drawer-extra').getByRole('button', { name: '保存' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+    await page.locator('.ant-drawer').getByLabel('标题').clear();
+    await page.locator('.ant-drawer').getByLabel('标题').fill('E2E编辑后标题');
+    await page.locator('.ant-drawer').getByLabel('问题单号').clear();
+    await page.locator('.ant-drawer').getByLabel('问题单号').fill('PB999');
+    await page.locator('.ant-drawer-extra button').click();
     await expect(page.getByText('更新成功')).toBeVisible();
     await expect(page.getByText('E2E编辑后标题')).toBeVisible();
     await expect(page.getByText('PB999')).toBeVisible();
@@ -206,8 +215,8 @@ test.describe('攻关详情', () => {
     const ticket = await res.json();
 
     await page.goto(`/attack/${ticket.id}`);
-    await page.getByRole('button', { name: '删除' }).click();
-    await page.getByRole('button', { name: '确 定' }).click();
+    await page.getByRole('button', { name: /删\s?除/ }).click();
+    await page.getByRole('button', { name: /确\s?定/ }).click();
     await expect(page.getByText('已删除')).toBeVisible();
     await expect(page).toHaveURL('/attack');
   });
@@ -219,7 +228,7 @@ test.describe('攻关详情', () => {
     const ticket = await res.json();
 
     await page.goto(`/attack/${ticket.id}`);
-    await page.getByRole('link', { name: '返回列表' }).click();
+    await page.getByRole('button', { name: '返回列表' }).click();
     await expect(page).toHaveURL('/attack');
   });
 
@@ -249,7 +258,7 @@ test.describe('攻关详情', () => {
     const ticket = await res.json();
 
     await page.goto(`/attack/${ticket.id}`);
-    await page.getByText('操作审计').click();
-    await expect(page.getByText('create').first()).toBeVisible();
+    await page.getByRole('tab', { name: '历史记录' }).click();
+    await expect(page.getByText('创建').first()).toBeVisible();
   });
 });

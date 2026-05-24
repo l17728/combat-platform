@@ -11,7 +11,7 @@ import {
   message,
   Tag,
   Empty,
-  Spin,
+  Skeleton,
 } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -173,7 +173,7 @@ export default function HelpCenter() {
       </Space>
 
       {loading ? (
-        <Spin size="large" style={{ display: 'block', marginTop: 60 }} />
+        <Skeleton active paragraph={{ rows: 6 }} />
       ) : filtered.length === 0 ? (
         <Empty description="暂无求助记录" />
       ) : (

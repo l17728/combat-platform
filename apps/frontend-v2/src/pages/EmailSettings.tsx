@@ -4,9 +4,10 @@ import {
   Card,
   Form,
   Input,
+  InputNumber,
   Button,
   message,
-  Spin,
+  Skeleton,
   Space,
 } from 'antd';
 import { api } from '../api.js';
@@ -61,7 +62,7 @@ export default function EmailSettings() {
     }
   };
 
-  if (loading) return <Spin size="large" style={{ display: 'block', marginTop: 100 }} />;
+  if (loading) return <Skeleton active paragraph={{ rows: 6 }} />;
 
   return (
     <div>
@@ -75,7 +76,7 @@ export default function EmailSettings() {
             <Input placeholder="smtp.example.com" />
           </Form.Item>
           <Form.Item name="port" label="端口">
-            <Input placeholder="465" />
+            <InputNumber placeholder="465" min={1} max={65535} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="user" label="用户名">
             <Input placeholder="发件人邮箱" />

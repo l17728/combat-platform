@@ -13,6 +13,12 @@ export default defineConfig({
       cwd: '../backend',
       timeout: 60000,
     },
+    {
+      command: 'npx vite --port 5174',
+      port: 5174,
+      reuseExistingServer: false,
+      timeout: 60000,
+    },
   ],
-  use: { baseURL: 'http://localhost:3001' },
+  use: { baseURL: 'http://localhost:5174' },
 });

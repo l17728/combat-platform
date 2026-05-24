@@ -89,7 +89,7 @@ export class SqliteRepository implements Repository {
   }
 
   queryNodes(nodeType: string, filter?: NodeFilter): GraphNode[] {
-    const rows = this.db.prepare(`SELECT * FROM nodes WHERE nodeType=?`).all(nodeType) as any[];
+    const rows = this.db.prepare(`SELECT * FROM nodes WHERE nodeType=? ORDER BY created_at DESC`).all(nodeType) as any[];
     let out = rows.map(r => ({ id: r.id, nodeType: r.nodeType,
       properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
     if (filter) out = out.filter(n => Object.entries(filter).every(([k, v]) => n.properties[k] === v));

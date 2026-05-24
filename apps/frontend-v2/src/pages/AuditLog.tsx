@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Typography, Table, Select, Space, Input, message, Skeleton } from 'antd';
+import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Tooltip, theme } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
-import { PAGE_SIZE } from '../constants.js';
+import { PAGE_SIZE, PAGE_SIZE_OPTIONS, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT_FULL } from '../constants.js';
 import type { AuditLogEntry } from '@combat/shared';
 import dayjs from 'dayjs';
 
@@ -12,22 +13,50 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>();
+  const { token } = theme.useToken();
 
-  useEffect(() => {
+  const fetchLogs = async () => {
     setLoading(true);
-    api
-      .listAudit({ action: actionFilter, entityType: entityTypeFilter, limit: 200 })
-      .then(setLogs)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [actionFilter, entityTypeFilter]);
+    try {
+      setLogs(await api.listAudit({ action: actionFilter, entityType: entityTypeFilter, limit: 200 }));
+    } catch (e: any) {
+      message.error(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchLogs(); }, [actionFilter, entityTypeFilter]);
+
+  const renderChanges = (v: unknown) => {
+    if (!v || typeof v !== 'object') return '-';
+    const entries = Object.entries(v as Record<string, any>);
+    if (entries.length === 0) return '-';
+    return (
+      <Space size={4} wrap>
+        {entries.map(([key, change]) => {
+          if (typeof change === 'object' && change !== null && 'from' in change && 'to' in change) {
+            return (
+              <span key={key} style={{ fontSize: 12 }}>
+                <Tag style={{ margin: 0 }}>{key}</Tag>
+                <span style={{ color: token.colorTextSecondary }}>{String(change.from)}</span>
+                <span style={{ margin: '0 4px' }}>→</span>
+                <span style={{ color: token.colorPrimary }}>{String(change.to)}</span>
+              </span>
+            );
+          }
+          return <Tag key={key} style={{ margin: 0 }}>{key}: {JSON.stringify(change)}</Tag>;
+        })}
+      </Space>
+    );
+  };
 
   const columns = [
     {
       title: '时间',
       dataIndex: 'performedAt',
       width: 160,
-      render: (v: string) => dayjs(v).format('YYYY-MM-DD HH:mm:ss'),
+      render: (v: string) => <Tooltip title={dayjs(v).format(DATE_FORMAT_FULL)}>{dayjs(v).format('MM-DD HH:mm')}</Tooltip>,
     },
     {
       title: '操作人',
@@ -38,31 +67,34 @@ export default function AuditLog() {
       title: '操作',
       dataIndex: 'action',
       width: 100,
+      render: (v: string) => <Tag color={ACTION_COLOR[v]}>{ACTION_LABEL[v] || v}</Tag>,
     },
     {
       title: '实体类型',
       dataIndex: 'entityType',
-      width: 120,
+      width: 100,
+      render: (v: string) => ENTITY_TYPE_LABEL[v] || v,
     },
     {
       title: '实体ID',
       dataIndex: 'entityId',
-      width: 120,
-      render: (v: string) => v.slice(0, 8),
+      width: 100,
+      render: (v: string) => <Tooltip title={v}><Tag>{v.slice(0, 8)}</Tag></Tooltip>,
     },
     {
       title: '变更详情',
       dataIndex: 'changes',
       ellipsis: true,
-      render: (v: unknown) => (v ? JSON.stringify(v) : '-'),
+      render: renderChanges,
     },
   ];
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        审计日志
-      </Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>审计日志</Title>
+        <span onClick={fetchLogs} style={{ cursor: 'pointer', color: token.colorPrimary }}><ReloadOutlined /> 刷新</span>
+      </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
@@ -71,10 +103,7 @@ export default function AuditLog() {
           style={{ width: 140 }}
           value={actionFilter}
           onChange={setActionFilter}
-          options={['create', 'update', 'delete', 'transition', 'merge', 'import'].map((v) => ({
-            value: v,
-            label: v,
-          }))}
+          options={Object.entries(ACTION_LABEL).map(([v, label]) => ({ value: v, label }))}
         />
         <Select
           placeholder="实体类型"
@@ -82,9 +111,7 @@ export default function AuditLog() {
           style={{ width: 140 }}
           value={entityTypeFilter}
           onChange={setEntityTypeFilter}
-          options={['attackTicket', 'person', 'contribution', 'releasePackage', 'weightFile'].map(
-            (v) => ({ value: v, label: v }),
-          )}
+          options={Object.entries(ENTITY_TYPE_LABEL).map(([v, label]) => ({ value: v, label }))}
         />
       </Space>
 
@@ -95,7 +122,7 @@ export default function AuditLog() {
           rowKey="id"
           dataSource={logs}
           columns={columns}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
+          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
           size="middle"
         />
       )}
