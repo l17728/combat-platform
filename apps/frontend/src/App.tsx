@@ -25,6 +25,7 @@ import { PeoplePage } from "./pages/PeoplePage.js";
 import { DomainsPage } from "./pages/DomainsPage.js";
 import { TasksPage } from "./pages/TasksPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
+import { SupportTemplatePage } from "./pages/SupportTemplatePage.js";
 
 export default function App() {
   return (
@@ -69,6 +70,7 @@ export default function App() {
           <Route path="/domains" element={<DomainsPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/support-templates" element={<SupportTemplatePage />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

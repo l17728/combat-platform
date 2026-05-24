@@ -231,6 +231,37 @@ export const COMMANDS: CliCommand[] = [
     build: (pos) => { requirePos(pos, 1, "commands:delete <id>"); return { method: "DELETE", path: `/api/commands/${encodeURIComponent(pos[0])}` }; } },
   { name: "commands:run", summary: "运行自定义命令（解析为底层 request，--args JSON 提供参数值）", usage: "commands:run <id> --args '<json>'",
     build: (pos, opts) => { requirePos(pos, 1, "commands:run <id> --args <json>"); return { method: "POST", path: `/api/commands/${encodeURIComponent(pos[0])}/run`, body: { args: jsonOpt(opts, "args") } }; } },
+
+  // ---- support network (求助网络) ----
+  { name: "support-node:list", summary: "列出攻关单的求助网络节点", usage: "support-node:list <ticketId>",
+    build: (pos) => { requirePos(pos, 1, "support-node:list <ticketId>"); return { method: "GET", path: `/api/support-nodes/${encodeURIComponent(pos[0])}` }; } },
+  { name: "support-node:add", summary: "添加求助节点", usage: "support-node:add <ticketId> --category=<> --domain=<> [--parentId=<>] [--personId=<>] [--personName=<>] [--status=<>] [--note=<>]",
+    build: (pos, opts) => { requirePos(pos, 1, "support-node:add <ticketId> --category=<> --domain=<>");
+      return { method: "POST", path: `/api/support-nodes/${encodeURIComponent(pos[0])}`, body: {
+        parentId: str(opts.parentId), category: str(opts.category), domain: str(opts.domain),
+        personId: str(opts.personId), personName: str(opts.personName),
+        status: str(opts.status), note: str(opts.note) } }; } },
+  { name: "support-node:update", summary: "更新求助节点", usage: "support-node:update <nodeId> [--category=<>] [--domain=<>] [--personId=<>] [--personName=<>] [--status=<>] [--note=<>]",
+    build: (pos, opts) => { requirePos(pos, 1, "support-node:update <nodeId>");
+      const body: Record<string, string | undefined> = {};
+      if (opts.category !== undefined) body.category = str(opts.category);
+      if (opts.domain !== undefined) body.domain = str(opts.domain);
+      if (opts.personId !== undefined) body.personId = str(opts.personId);
+      if (opts.personName !== undefined) body.personName = str(opts.personName);
+      if (opts.status !== undefined) body.status = str(opts.status);
+      if (opts.note !== undefined) body.note = str(opts.note);
+      return { method: "PUT", path: `/api/support-nodes/node/${encodeURIComponent(pos[0])}`, body }; } },
+  { name: "support-node:delete", summary: "删除求助节点（含子节点）", usage: "support-node:delete <nodeId>",
+    build: (pos) => { requirePos(pos, 1, "support-node:delete <nodeId>"); return { method: "DELETE", path: `/api/support-nodes/node/${encodeURIComponent(pos[0])}` }; } },
+  { name: "support-template:list", summary: "列出所有支援模板", usage: "support-template:list",
+    build: () => ({ method: "GET", path: "/api/support-templates" }) },
+  { name: "support-template:create", summary: "创建支援模板", usage: "support-template:create --name=<> [--description=<>]",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/support-templates", body: { name: str(opts.name), description: str(opts.description) } }) },
+  { name: "support-template:apply", summary: "将模板应用到攻关单", usage: "support-template:apply <templateId> --ticketId=<>",
+    build: (pos, opts) => { requirePos(pos, 1, "support-template:apply <templateId> --ticketId=<>");
+      const ticketId = str(opts.ticketId);
+      if (!ticketId) throw new Error("缺少 --ticketId");
+      return { method: "POST", path: `/api/support-templates/${encodeURIComponent(pos[0])}/apply/${encodeURIComponent(ticketId)}` }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

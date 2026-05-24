@@ -1,10 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   Row, Col, Card, Tag, Tabs, Descriptions, Input, Button,
   message, List, Typography, Select, Space, Alert, Table, Modal, Form,
+  Tree, Empty, Spin, Popconfirm,
 } from "antd";
-import { ArrowLeftOutlined, CheckCircleFilled, PlusOutlined } from "@ant-design/icons";
+import type { TreeDataNode } from "antd";
+import { ArrowLeftOutlined, CheckCircleFilled, PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { GraphNode, NodeSchema, ProgressLog, HelperRecommendation, AuditLogEntry } from "@combat/shared";
 import { ATTACK_STATUSES } from "@combat/shared";
@@ -19,6 +21,68 @@ interface DailyReportEntryItem {
   createdBy: string;
   createdAt: string;
   publishedAt: string | null;
+}
+
+interface SupportNode {
+  id: string;
+  ticketId: string | null;
+  templateId: string | null;
+  parentId: string | null;
+  category: string;
+  domain: string;
+  personId: string | null;
+  personName: string | null;
+  status: string;
+  note: string;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+interface SupportTemplate {
+  id: string;
+  name: string;
+  description: string;
+  usageCount: number;
+  createdAt: string;
+}
+
+const SUPPORT_CATEGORIES = ["环境", "领域专家", "团队协作", "资源"];
+const SUPPORT_STATUSES = ["待确认", "支持中", "已完成", "已撤销"];
+
+const SUPPORT_STATUS_COLOR: Record<string, string> = {
+  "待确认": "default",
+  "支持中": "processing",
+  "已完成": "success",
+  "已撤销": "error",
+};
+
+interface SupportNodeWithChildren extends SupportNode {
+  children: SupportNodeWithChildren[];
+}
+
+function toTreeNode(node: SupportNodeWithChildren): TreeDataNode {
+  const { children, ...rest } = node;
+  return {
+    ...rest,
+    key: node.id,
+    title: node.domain,
+    children: children.map(toTreeNode),
+  };
+}
+
+function buildTree(nodes: SupportNode[]): TreeDataNode[] {
+  const map = new Map<string, SupportNodeWithChildren>(
+    nodes.map(n => [n.id, { ...n, children: [] }])
+  );
+  const roots: SupportNodeWithChildren[] = [];
+  for (const n of map.values()) {
+    if (n.parentId && map.has(n.parentId)) {
+      map.get(n.parentId)!.children.push(n);
+    } else {
+      roots.push(n);
+    }
+  }
+  return roots.map(toTreeNode);
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -58,6 +122,7 @@ const TEAM_FIELDS = new Set(["攻关组长", "攻关成员"]);
 
 export function AttackDetail() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const [node, setNode] = useState<GraphNode | null>(null);
   const [schema, setSchema] = useState<NodeSchema | null>(null);
   const [seq, setSeq] = useState<ProgressLog[]>([]);
@@ -70,6 +135,15 @@ export function AttackDetail() {
   // Transition state
   const [toStatus, setToStatus] = useState<string | undefined>();
   const [note, setNote] = useState("");
+
+  // Support network state
+  const [supportNodes, setSupportNodes] = useState<SupportNode[]>([]);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [supportTemplates, setSupportTemplates] = useState<SupportTemplate[]>([]);
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [editingNode, setEditingNode] = useState<SupportNode | null>(null);
+  const [supportSubmitting, setSupportSubmitting] = useState(false);
+  const [supportForm] = Form.useForm();
 
   // Daily report modal state
   const [drModalOpen, setDrModalOpen] = useState(false);
@@ -94,6 +168,137 @@ export function AttackDetail() {
     }
   }, [id]);
 
+  const fetchSupportNodes = useCallback(async () => {
+    if (!id) return;
+    setSupportLoading(true);
+    try {
+      const res = await fetch(`/api/support-nodes/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSupportNodes(data);
+    } catch (e) {
+      message.error("加载求助节点失败：" + String((e as Error).message));
+    } finally {
+      setSupportLoading(false);
+    }
+  }, [id]);
+
+  const fetchSupportTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/support-templates");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSupportTemplates(data);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleAddSupportNode = () => {
+    setEditingNode(null);
+    supportForm.resetFields();
+    supportForm.setFieldsValue({ status: "待确认" });
+    setSupportModalOpen(true);
+  };
+
+  const handleEditSupportNode = (sn: SupportNode) => {
+    setEditingNode(sn);
+    supportForm.setFieldsValue({
+      parentId: sn.parentId ?? undefined,
+      category: sn.category,
+      domain: sn.domain,
+      personName: sn.personName ?? undefined,
+      status: sn.status,
+      note: sn.note,
+    });
+    setSupportModalOpen(true);
+  };
+
+  const handleDeleteSupportNode = async (nodeId: string) => {
+    try {
+      const res = await fetch(`/api/support-nodes/node/${nodeId}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
+      message.success("节点已删除");
+      fetchSupportNodes();
+    } catch (e) {
+      message.error("删除失败：" + String((e as Error).message));
+    }
+  };
+
+  const handleSupportSubmit = async (values: {
+    parentId?: string;
+    category: string;
+    domain: string;
+    personName?: string;
+    status: string;
+    note?: string;
+  }) => {
+    setSupportSubmitting(true);
+    try {
+      if (editingNode) {
+        const res = await fetch(`/api/support-nodes/node/${editingNode.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parentId: values.parentId ?? null,
+            category: values.category,
+            domain: values.domain,
+            personName: values.personName ?? null,
+            status: values.status,
+            note: values.note ?? "",
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `HTTP ${res.status}`);
+        }
+        message.success("节点已更新");
+      } else {
+        const res = await fetch(`/api/support-nodes/${id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parentId: values.parentId ?? null,
+            category: values.category,
+            domain: values.domain,
+            personName: values.personName ?? null,
+            status: values.status ?? "待确认",
+            note: values.note ?? "",
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `HTTP ${res.status}`);
+        }
+        message.success("节点已添加");
+      }
+      setSupportModalOpen(false);
+      supportForm.resetFields();
+      setEditingNode(null);
+      fetchSupportNodes();
+    } catch (e) {
+      message.error("操作失败：" + String((e as Error).message));
+    } finally {
+      setSupportSubmitting(false);
+    }
+  };
+
+  const handleApplyTemplate = async (templateId: string) => {
+    try {
+      const res = await fetch(`/api/support-templates/${templateId}/apply/${id}`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      message.success("模板已应用");
+      fetchSupportNodes();
+    } catch (e) {
+      message.error("应用模板失败：" + String((e as Error).message));
+    }
+  };
+
   const refresh = useCallback(() => {
     api.getNode(id).then(setNode).catch(() => message.error("攻关单加载失败"));
     api.getSchema("attackTicket").then(setSchema).catch(() => {});
@@ -101,7 +306,9 @@ export function AttackDetail() {
     api.recommendHelpers(id).then(setHelpers).catch(() => { setHelpers([]); });
     api.listAudit({ entityId: id, limit: 50 }).then(setAudit).catch(() => setAudit([]));
     fetchDailyReports();
-  }, [id, fetchDailyReports]);
+    fetchSupportNodes();
+    fetchSupportTemplates();
+  }, [id, fetchDailyReports, fetchSupportNodes, fetchSupportTemplates]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -547,6 +754,157 @@ export function AttackDetail() {
                           )}
                         />
                       )}
+                    </div>
+                  ),
+                },
+                {
+                  key: "support",
+                  label: "求助网络",
+                  children: (
+                    <div style={{ padding: "16px 0" }}>
+                      {/* 顶部工具栏 */}
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                        <Button
+                          type="primary"
+                          icon={<PlusOutlined />}
+                          aria-label="add-support-node"
+                          onClick={handleAddSupportNode}
+                        >
+                          + 添加节点
+                        </Button>
+                        <Space>
+                          <Select
+                            aria-label="template-select"
+                            placeholder="从模板导入"
+                            style={{ width: 180 }}
+                            allowClear
+                            options={supportTemplates.map(t => ({ value: t.id, label: t.name }))}
+                            onChange={(val) => { if (val) handleApplyTemplate(val); }}
+                          />
+                          <Button
+                            aria-label="manage-templates"
+                            onClick={() => navigate("/support-templates")}
+                          >
+                            管理模板
+                          </Button>
+                        </Space>
+                      </div>
+
+                      {/* 求助网络树 */}
+                      {supportLoading ? (
+                        <div style={{ textAlign: "center", padding: 32 }}>
+                          <Spin />
+                        </div>
+                      ) : supportNodes.length === 0 ? (
+                        <Empty description="暂无求助节点" />
+                      ) : (
+                        <Tree
+                          treeData={buildTree(supportNodes)}
+                          defaultExpandAll
+                          titleRender={(nodeData) => {
+                            const sn = nodeData as unknown as SupportNode;
+                            return (
+                              <Space size={8} style={{ userSelect: "text" }}>
+                                <Tag color="blue">{sn.category}</Tag>
+                                <Typography.Text>{sn.domain}</Typography.Text>
+                                <Typography.Text type="secondary">→</Typography.Text>
+                                <Typography.Text>{sn.personName || "待指定"}</Typography.Text>
+                                <Tag color={SUPPORT_STATUS_COLOR[sn.status] ?? "default"}>
+                                  {sn.status}
+                                </Tag>
+                                <Button
+                                  size="small"
+                                  type="text"
+                                  icon={<EditOutlined />}
+                                  aria-label={`edit-node-${sn.id}`}
+                                  onClick={(e) => { e.stopPropagation(); handleEditSupportNode(sn); }}
+                                />
+                                <Popconfirm
+                                  title="确认删除该节点？"
+                                  okText="确定"
+                                  cancelText="取消"
+                                  onConfirm={(e) => { e?.stopPropagation(); handleDeleteSupportNode(sn.id); }}
+                                  onCancel={(e) => e?.stopPropagation()}
+                                >
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    aria-label={`delete-node-${sn.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </Popconfirm>
+                              </Space>
+                            );
+                          }}
+                        />
+                      )}
+
+                      {/* 添加/编辑节点 Modal */}
+                      <Modal
+                        title={editingNode ? "编辑求助节点" : "添加求助节点"}
+                        open={supportModalOpen}
+                        onCancel={() => { setSupportModalOpen(false); setEditingNode(null); }}
+                        footer={null}
+                        destroyOnClose
+                      >
+                        <Form form={supportForm} layout="vertical" onFinish={handleSupportSubmit}>
+                          <Form.Item name="parentId" label="上级节点（可选）">
+                            <Select
+                              aria-label="support-parent"
+                              placeholder="选择上级节点（可选）"
+                              allowClear
+                              options={supportNodes
+                                .filter(sn => !editingNode || sn.id !== editingNode.id)
+                                .map(sn => ({ value: sn.id, label: sn.domain }))}
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            name="category"
+                            label="大类"
+                            rules={[{ required: true, message: "请选择大类" }]}
+                          >
+                            <Select
+                              aria-label="support-category"
+                              placeholder="选择大类"
+                              options={SUPPORT_CATEGORIES.map(c => ({ value: c, label: c }))}
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            name="domain"
+                            label="具体领域"
+                            rules={[{ required: true, message: "请输入具体领域" }]}
+                          >
+                            <Input aria-label="support-domain" placeholder="请输入具体领域" />
+                          </Form.Item>
+                          <Form.Item name="personName" label="负责人姓名（可选）">
+                            <Input aria-label="support-person" placeholder="请输入负责人姓名" />
+                          </Form.Item>
+                          <Form.Item name="status" label="状态" initialValue="待确认">
+                            <Select
+                              aria-label="support-status"
+                              options={SUPPORT_STATUSES.map(s => ({ value: s, label: s }))}
+                            />
+                          </Form.Item>
+                          <Form.Item name="note" label="备注（可选）">
+                            <Input.TextArea aria-label="support-note" rows={3} placeholder="备注..." />
+                          </Form.Item>
+                          <Form.Item style={{ marginBottom: 0, textAlign: "right" }}>
+                            <Space>
+                              <Button onClick={() => { setSupportModalOpen(false); setEditingNode(null); }}>取消</Button>
+                              <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={supportSubmitting}
+                                aria-label="submit-support-node"
+                              >
+                                提交
+                              </Button>
+                            </Space>
+                          </Form.Item>
+                        </Form>
+                      </Modal>
                     </div>
                   ),
                 },

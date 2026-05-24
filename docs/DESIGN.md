@@ -382,13 +382,16 @@ daily_report_entry (
 | SAME_AS | node ↔ node | 实体去重提议（审批后合并） | proposals 扫描 | `proposals.ts:runProposalScan()` |
 | RELATES_TO | source → target | 手工标注关联线（带备注） | UI/CLI 手动创建 | `relations.ts:makeRelationsRouter()` |
 
-### 4.4 所有 NodeType（15 个）
+### 4.4 所有 NodeType（16 个）
+
+> 全部存储在 `nodes` 表，由 `nodeType` 列区分；业务字段在 `properties` JSON 列中，**增删字段只改配置文件，不需 DDL**。
 
 | nodeType | 中文名 | 关键字段 | 配置文件 |
 |---|---|---|---|
 | attackTicket | 攻关单 | 攻关单号、标题、状态、当前处理人、问题单号、事件级别 | `config/schemas/attackTicket.json` |
 | contribution | 贡献记录 | 贡献人、贡献等级、贡献类型、贡献描述、关联攻关单 | `config/schemas/contribution.json` |
 | person | 人员 | name、employeeId、email、团队 | `config/schemas/person.json` |
+| domain | 领域台 | name、owner（ref→person）、services、description、tags | `config/schemas/domain.json` |
 | incidentTracking | 事件单追踪 | 事件标题、状态 | `config/schemas/incidentTracking.json` |
 | changeIssue | 变更问题 | 事项描述、状态 | `config/schemas/changeIssue.json` |
 | alarmGovernance | 告警治理 | 告警问题、状态 | `config/schemas/alarmGovernance.json` |
@@ -401,6 +404,19 @@ daily_report_entry (
 | releasePackage | 发布包 | 版本号 | `config/schemas/releasePackage.json` |
 | weightFile | 权重文件 | 名称 | `config/schemas/weightFile.json` |
 | emailGroup | 邮件群组 | 组名、成员邮箱 | `config/schemas/emailGroup.json` |
+
+### 4.5 物理表与 View 的对应关系
+
+| 物理表 | 对应 View / 用途 | 备注 |
+|---|---|---|
+| `nodes` | **全部 16 个 nodeType** | `nodeType` 列区分，`properties` 存所有业务字段 |
+| `edges` | 所有跨-view 关联 | REF / ANCHORED_TO / SAME_AS 等 9 种边类型（见 §4.3） |
+| `progress_log` | attackTicket 进展时间线 | `ownerId` → `nodes.id`，append-only |
+| `daily_report_entry` | attackTicket 日报（草稿/已发布） | `ticket_id` → `nodes.id`，独立工作流 |
+| `audit_log` | 所有写操作审计 | 不可变，CREATE/UPDATE/DELETE/MERGE/ESCALATE 等 |
+| `proposals` | 关系审批队列（模糊匹配待确认） | `source_node_id` / `target_node_id` → `nodes.id` |
+| `notifications` | 提醒/催办通知队列 | `ticket_id` → `nodes.id` |
+| `app_settings` | 全局 KV 配置（邮件、RBAC、自定义命令等） | key=`smtp`/`escalation`/`ui_pinned` 等 |
 
 ---
 

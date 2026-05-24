@@ -14,3 +14,6 @@ scripts/deploy/app.tar.gz
 scripts/deploy/app-dist.tar.gz
 scripts/deploy/app.tar
 scripts/deploy/package-lock.json
+scripts/deploy-v2/node_modules/
+scripts/deploy-v2/combat-v2.tar.gz
+scripts/deploy-v2/package-lock.json

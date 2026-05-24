@@ -47,6 +47,29 @@ export function openDb(path: string): DB {
       published_at TEXT
     );
     CREATE INDEX IF NOT EXISTS idx_dre_ticket ON daily_report_entry(ticket_id);
+    CREATE TABLE IF NOT EXISTS support_template (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS support_node (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT,
+      template_id TEXT,
+      parent_id TEXT,
+      category TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      person_id TEXT,
+      person_name TEXT,
+      status TEXT NOT NULL DEFAULT '待确认',
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_node_ticket ON support_node(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_support_node_template ON support_node(template_id);
   `);
   return db;
 }

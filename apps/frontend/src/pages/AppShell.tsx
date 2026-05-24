@@ -43,6 +43,7 @@ const ITEMS = [
   { key: "/domains", label: <Link to="/domains">领域台</Link> },
   { key: "/tasks", label: <Link to="/tasks">任务台</Link> },
   { key: "/settings", label: <Link to="/settings">配置中心</Link> },
+  { key: "/support-templates", label: <Link to="/support-templates">支援模板</Link> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
