@@ -10,6 +10,8 @@
     "cli": "npm run cli --workspace=@combat/backend --",
     "test:all": "npm run reset:schemas && npm run test:shared && npm run reset:schemas && npm run test:backend && npm run test --workspace=@combat/frontend && npm run test:frontend:e2e && npm run reset:schemas",
     "dev:backend": "npm run dev --workspace=@combat/backend",
-    "dev:frontend": "npm run dev --workspace=@combat/frontend"
+    "dev:frontend": "npm run dev --workspace=@combat/frontend",
+    "dev:frontend-v2": "npm run dev --workspace=@combat/frontend-v2",
+    "build:frontend-v2": "npm run build --workspace=@combat/frontend-v2"
   }
 }

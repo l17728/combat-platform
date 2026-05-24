@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>作战平台</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230050b3'/%3E%3Ctext x='50%25' y='54%25' font-size='36' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold' dominant-baseline='middle'%3E战%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <script>
+      // In production, point API requests to the backend on the same host but port 3001
+      if (location.port !== '5174') {
+        window.__COMBAT_API__ = location.protocol + '//' + location.hostname + ':3001';
+      }
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

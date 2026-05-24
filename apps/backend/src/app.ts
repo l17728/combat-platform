@@ -30,6 +30,8 @@ import { makeSchemaApiRouter } from "./schema-api.js";
 import { makeUiCacheRouter } from "./ui-cache.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { makeDailyReportEntryRouter } from "./daily-report-entry.js";
+import { makeSupportNodeRouter } from "./support-node.js";
+import { makeHelpRequestRouter } from "./help-request.js";
 import type { DB } from "./db.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB }) {
@@ -64,6 +66,8 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeUiCacheRouter(deps.repo));
   if (deps.db) {
     app.use("/api", makeDailyReportEntryRouter(deps.db));
+    app.use("/api", makeSupportNodeRouter(deps.db));
+    app.use("/api", makeHelpRequestRouter(deps.db, deps.repo, mailSender));
   }
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
