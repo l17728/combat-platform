@@ -1,13 +1,13 @@
 {
   "nodeType": "person",
   "label": "人员",
-  "identityKeys": ["employeeId", "email"],
+  "identityKeys": ["工号", "邮箱"],
   "derivedToKG": true,
   "fields": [
-    { "id": "name", "name": "name", "type": "string", "label": "姓名", "required": true },
-    { "id": "employeeId", "name": "employeeId", "type": "string", "label": "工号" },
-    { "id": "email", "name": "email", "type": "string", "label": "邮箱" },
-    { "id": "团队", "name": "团队", "type": "string", "label": "团队" },
+    { "id": "姓名", "name": "姓名", "type": "string", "label": "姓名", "required": true },
+    { "id": "工号", "name": "工号", "type": "string", "label": "工号" },
+    { "id": "邮箱", "name": "邮箱", "type": "string", "label": "邮箱" },
+    { "id": "部门", "name": "部门", "type": "string", "label": "部门" },
     { "id": "角色", "name": "角色", "type": "string", "label": "角色" }
   ]
 }
