@@ -1,4 +1,4 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -6,7 +6,6 @@ import { Client } from "ssh2";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
-
 const env = Object.fromEntries(
   readFileSync(join(repoRoot, ".env.deploy"), "utf8")
     .split(/\r?\n/).filter(l => l && !l.startsWith("#") && l.includes("="))
@@ -46,192 +45,119 @@ function onTarget(c, cmd) {
   return run(c, `ssh -o StrictHostKeyChecking=no root@${TARGET} '${escaped}'`);
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const log = (...args) => console.log(...args);
 
-// ── check ────────────────────────────────────────────────────────────────
+// ── check ──
 async function doCheck(c) {
-  log("[checking target server]");
+  console.log("[checking target]");
   const r = await onTarget(c,
-    "uname -r; echo ---;" +
-    "export PATH=/opt/node22-v2/bin:$PATH && node -v 2>/dev/null; echo ---;" +
-    "df -h / | tail -1; echo ---;" +
-    "free -h | grep Mem; echo ---;" +
-    "ss -tlnp | grep -E ':3001 |:80 '; echo ---;" +
-    "curl -s -o /dev/null -w 'backend_3001=%{http_code}' http://localhost:3001/api/schema/attackTicket; echo;" +
-    "curl -s -o /dev/null -w 'frontend_3001=%{http_code}' http://localhost:3001/; echo;" +
-    "curl -s -o /dev/null -w 'frontend_80=%{http_code}' http://localhost:80/; echo"
+    "echo 'node:' $(export PATH=/opt/node22-v2/bin:$PATH && node -v 2>/dev/null); " +
+    "echo 'systemd:' $(systemctl is-active combat-v2 2>/dev/null || echo inactive); " +
+    "echo 'port 3001:' $(ss -tlnp | grep ':3001 ' | head -1 || echo not-listening); " +
+    "echo 'health:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket 2>/dev/null || echo down); " +
+    "echo 'frontend:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo down)"
   );
-  log(r.out);
-  if (r.err) log("[stderr]", r.err);
+  console.log(r.out);
+  if (r.err) console.log("[stderr]", r.err);
 }
 
-// ── build (local) ────────────────────────────────────────────────────────
-function doBuild() {
-  log("[step 1/5] building frontend-v2 locally...");
-  const distDir = join(repoRoot, "apps", "frontend-v2", "dist");
-  execSync("npm run build --workspace=@combat/frontend-v2", { cwd: repoRoot, stdio: "inherit" });
-  if (!existsSync(join(distDir, "index.html"))) {
-    console.error("ABORT: apps/frontend-v2/dist/index.html not found after build");
-    process.exit(1);
-  }
-  log("[step 1/5] build OK");
-}
-
-// ── pack ──────────────────────────────────────────────────────────────────
-function doPack() {
-  log("[step 2/5] packing repo from git HEAD...");
+// ── deploy (full) ──
+async function doDeploy(c) {
+  // 1. Pack
+  console.log("[1/5] packing git HEAD...");
   const tar = join(here, "combat-v2.tar.gz");
   execSync(`git archive --format=tar.gz -o "${tar}" HEAD`, { cwd: repoRoot, stdio: "pipe" });
-  log("[step 2/5] packed", (require("fs").statSync(tar).size / 1024).toFixed(0), "KB");
-  return tar;
-}
+  console.log("[1/5] packed", (statSync(tar).size / 1024).toFixed(0), "KB");
 
-// ── upload + extract ──────────────────────────────────────────────────────
-async function doUpload(c, tar) {
-  log("[step 3/5] uploading to jump server...");
+  // 2. Upload
+  console.log("[2/5] uploading...");
   await sftpPut(c, tar, "/tmp/combat-v2.tar.gz");
-  await sftpPut(c, join(here, "start-services.sh"), "/tmp/start-services-v2.sh");
-
-  log("[step 3/5] transferring to target...");
+  await sftpPut(c, join(here, "combat-v2.service"), "/tmp/combat-v2.service");
   await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.tar.gz root@${TARGET}:/tmp/combat-v2.tar.gz`);
-  await run(c, `scp -o StrictHostKeyChecking=no /tmp/start-services-v2.sh root@${TARGET}:/tmp/start-services-v2.sh`);
+  await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.service root@${TARGET}:/tmp/combat-v2.service`);
+  console.log("[2/5] uploaded");
 
-  log("[step 3/5] extracting on target...");
-  const mk = await onTarget(c, "mkdir -p /opt/combat-v2 && echo READY");
-  if (!/READY/.test(mk.out)) { console.error("ABORT: mkdir failed", mk); process.exit(1); }
+  // 3. Extract
+  console.log("[3/5] extracting...");
   const ex = await onTarget(c,
+    "mkdir -p /opt/combat-v2 && " +
     "cd /opt/combat-v2 && " +
-    "rm -rf config packages scripts apps/backend apps/frontend apps/shared apps/frontend-v2/src apps/frontend-v2/index.html apps/frontend-v2/package.json apps/frontend-v2/tsconfig.json apps/frontend-v2/vite.config.ts AGENTS.md CLAUDE.md README.md 2>/dev/null; " +
+    "rm -rf config packages scripts apps node_modules 2>/dev/null; " +
     "tar xzf /tmp/combat-v2.tar.gz && " +
-    "cp /tmp/start-services-v2.sh /opt/combat-v2/start-services.sh && " +
-    "chmod +x /opt/combat-v2/start-services.sh && " +
     "echo EXTRACT_OK"
   );
-  if (!/EXTRACT_OK/.test(ex.out)) { console.error("ABORT: extract failed", ex); process.exit(1); }
-  log("[step 3/5] extracted OK");
-}
+  if (!ex.out.includes("EXTRACT_OK")) { console.error("ABORT extract:", ex.out, ex.err); process.exit(1); }
+  console.log("[3/5] extracted OK");
 
-// ── install + start services on target ────────────────────────────────────
-async function doInstallAndStart(c) {
-  log("[step 4/5] running npm install on target...");
-  const r1 = await onTarget(c,
+  // 4. Install + Build frontend on target
+  console.log("[4/5] npm install + build...");
+  const r4 = await onTarget(c,
     "export PATH=/opt/node22-v2/bin:$PATH && " +
     "cd /opt/combat-v2 && " +
     "npm config set registry https://registry.npmmirror.com >/dev/null 2>&1 && " +
-    "npm install --omit=dev --no-audit --no-fund 2>&1 | tail -5 && " +
-    "node -e \"require('better-sqlite3');console.log('better-sqlite3 OK')\" 2>&1"
-  );
-  log(r1.out.replace(/\n$/, ""));
-  if (r1.err && !/npm warn/i.test(r1.err)) log("[npm stderr]", r1.err);
-
-  log("[step 4/5] building frontend-v2 on target...");
-  const r1b = await onTarget(c,
-    "export PATH=/opt/node22-v2/bin:$PATH && " +
-    "cd /opt/combat-v2/apps/frontend-v2 && " +
     "npm install --no-audit --no-fund 2>&1 | tail -3 && " +
-    "npm run build 2>&1 | tail -3"
+    "node -e \"require('better-sqlite3');console.log('better-sqlite3 OK')\" 2>&1 && " +
+    "cd apps/frontend-v2 && npm run build 2>&1 | tail -3 && " +
+    "ls dist/index.html && echo BUILD_OK"
   );
-  log(r1b.out.replace(/\n$/, ""));
+  console.log(r4.out.trim());
+  if (!r4.out.includes("BUILD_OK")) { console.error("ABORT build failed:", r4.err); process.exit(1); }
+  console.log("[4/5] install + build OK");
 
-  log("[step 5/5] starting services...");
-  const r2 = await onTarget(c,
-    "pkill -f 'tsx src/server.ts' 2>/dev/null; " +
-    "pkill -f 'serve.*frontend-v2' 2>/dev/null; " +
-    "sleep 1; " +
-    "cp /tmp/start-services-v2.sh /opt/combat-v2/start-services.sh && " +
-    "chmod +x /opt/combat-v2/start-services.sh && " +
-    "cd /opt/combat-v2 && " +
-    "setsid bash -c 'bash /opt/combat-v2/start-services.sh > /opt/combat-v2/start.log 2>&1' < /dev/null & " +
-    "echo KICKED"
+  // 5. Install systemd service + start
+  console.log("[5/5] installing systemd service...");
+  const r5 = await onTarget(c,
+    "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
+    "systemctl daemon-reload && " +
+    "systemctl enable combat-v2 && " +
+    "systemctl restart combat-v2 && " +
+    "sleep 5 && " +
+    "systemctl is-active combat-v2"
   );
-  log("[step 5/5] services starting...");
+  console.log("[5/5] service:", r5.out.trim());
 
-  let done = false;
-  for (let i = 0; i < 30 && !done; i++) {
-    await sleep(5000);
-    try {
-      const r = await onTarget(c, "grep -q 'SERVICES_READY' /opt/combat-v2/start.log 2>/dev/null && echo __DONE__ || tail -1 /opt/combat-v2/start.log 2>/dev/null");
-      const last = (r.out || "").trim();
-      if (/__DONE__/.test(r.out)) { done = true; log(`[poll ${i}] SERVICES_READY`); }
-      else log(`[poll ${i}] ${last}`);
-    } catch (e) { log(`[poll ${i}] (reconnect) ${e.message}`); }
-  }
-
-  if (!done) { console.error("TIMED OUT waiting for services. Check /opt/combat-v2/start.log"); process.exit(1); }
-
-  const r3 = await onTarget(c,
-    "echo '--- start.log ---'; cat /opt/combat-v2/start.log 2>/dev/null | tail -15; " +
-    "echo '--- health ---'; " +
-    "curl -s -o /dev/null -w 'backend_3001=%{http_code}\\n' http://localhost:3001/api/schema/attackTicket; " +
-    "curl -s -o /dev/null -w 'frontend_3001=%{http_code}\\n' http://localhost:3001/; " +
-    "curl -s -o /dev/null -w 'frontend_80=%{http_code}\\n' http://localhost:80/"
+  // Health check
+  await sleep(5);
+  const r6 = await onTarget(c,
+    "echo 'service:' $(systemctl is-active combat-v2); " +
+    "echo 'api:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket); " +
+    "echo 'frontend:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/)"
   );
-  log(r3.out);
+  console.log(r6.out.trim());
 
-  const healthy = r3.out.includes("backend_3001=200") && r3.out.includes("frontend_3001=200");
-  if (healthy) {
-    log(`\n✅ DEPLOY SUCCESS`);
-    log(`   Backend+Frontend: http://${TARGET}:3001`);
-    log(`   Frontend only:    http://${TARGET}:80`);
-  } else {
-    log(`\n❌ DEPLOY UNHEALTHY — check logs above`);
-    process.exit(1);
+  const ok = r6.out.includes("active") && r6.out.includes("api: 200") && r6.out.includes("frontend: 200");
+  console.log(ok ? "\n✅ DEPLOY SUCCESS — http://" + TARGET + ":3001" : "\n❌ DEPLOY UNHEALTHY");
+  if (!ok) {
+    const log = await onTarget(c, "journalctl -u combat-v2 --no-pager -n 20");
+    console.log(log.out);
   }
 }
 
-// ── restart (no re-upload) ────────────────────────────────────────────────
+// ── restart ──
 async function doRestart(c) {
-  log("[restarting services on target...]");
-  const r = await onTarget(c,
-    "pkill -f 'tsx src/server.ts' 2>/dev/null; " +
-    "pkill -f 'serve.*frontend-v2' 2>/dev/null; " +
-    "sleep 1; " +
-    "cd /opt/combat-v2 && " +
-    "setsid bash -c 'bash /opt/combat-v2/start-services.sh > /opt/combat-v2/start.log 2>&1' < /dev/null & " +
-    "echo KICKED"
-  );
-  log("[waiting for services...]");
-
-  let done = false;
-  for (let i = 0; i < 20 && !done; i++) {
-    await sleep(3000);
-    const rr = await onTarget(c, "grep -q 'SERVICES_READY' /opt/combat-v2/start.log 2>/dev/null && echo __DONE__ || echo waiting");
-    if (/__DONE__/.test(rr.out)) { done = true; }
-  }
-
-  if (!done) { console.error("TIMED OUT"); process.exit(1); }
-
-  const r2 = await onTarget(c,
-    "curl -s -o /dev/null -w 'backend=%{http_code}\\n' http://localhost:3001/api/schema/attackTicket; " +
-    "curl -s -o /dev/null -w 'frontend=%{http_code}\\n' http://localhost:3001/"
-  );
-  log(r2.out);
-  log(done ? "✅ restart OK" : "❌ restart FAILED");
+  console.log("[restarting combat-v2 service...]");
+  const r = await onTarget(c, "systemctl restart combat-v2 && sleep 5 && systemctl is-active combat-v2");
+  console.log("service:", r.out.trim());
+  const r2 = await onTarget(c, "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ && echo");
+  console.log("health:", r2.out.trim());
+  console.log(r2.out.includes("200") ? "✅ restart OK" : "❌ restart FAILED");
 }
 
-// ── main ──────────────────────────────────────────────────────────────────
+// ── logs ──
+async function doLogs(c) {
+  const r = await onTarget(c, "journalctl -u combat-v2 --no-pager -n 40");
+  console.log(r.out);
+}
+
+// ── main ──
 const mode = process.argv[2] || "check";
 const c = await conn();
-log(`[connected ${USER}@${HOST} → ${TARGET}]`);
 
 switch (mode) {
-  case "check":
-    await doCheck(c);
-    break;
-  case "deploy":
-    doBuild();
-    const tar = doPack();
-    await doUpload(c, tar);
-    await doInstallAndStart(c);
-    break;
-  case "restart":
-    await doRestart(c);
-    break;
+  case "check":   await doCheck(c); break;
+  case "deploy":  await doDeploy(c); break;
+  case "restart": await doRestart(c); break;
+  case "logs":    await doLogs(c); break;
   default:
-    console.log("Usage: node deploy.mjs <check|deploy|restart>");
-    console.log("  check   — check target server health");
-    console.log("  deploy  — full build + pack + upload + install + start");
-    console.log("  restart — restart services (no rebuild/re-upload)");
+    console.log("Usage: node deploy.mjs <check|deploy|restart|logs>");
 }
-
 c.end();
