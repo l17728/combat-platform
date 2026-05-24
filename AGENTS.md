@@ -367,9 +367,177 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 ```bash
 cd scripts/deploy-v2 && node deploy.mjs deploy
 ```
-- 从 git HEAD 打包 → SFTP 到跳板机 → SCP 到目标机 → tar 解压 → npm install → build frontend-v2 → 启动后端(:3001) + serve(:80)
+- 从 git HEAD 打包 → SFTP 到跳板机 → SCP 到目标机 → tar 解压 → npm install → build frontend-v2 → systemctl restart combat-v2
 - 后端通过 Node v22 (`/opt/node22-v2/`) 运行（better-sqlite3 不兼容 Node 24）
 - 前端 build 产物在 `apps/frontend-v2/dist/`，由后端 Express 静态服务
+
+## 前端设计规范（Frontend-v2 Design System）
+
+以下规范从攻关管理、人员与荣誉两大特性打磨中提炼，后续所有新页面必须遵循以保持风格一致。
+
+### 1. 页面结构三段式
+
+每个列表/主页面遵循固定布局：
+
+```
+┌─ 页头 ─────────────────────────────────────────┐
+│  左: <Title level={4} style={{margin:0}}>标题   │
+│  右: <Space> 操作按钮组                          │
+├─ 筛选栏 ────────────────────────────────────────┤
+│  <Space wrap> Select筛选 + Input搜索 + ...      │
+├─ 内容区 ────────────────────────────────────────┤
+│  loading ? <Skeleton> : <Table> / <Card>        │
+└─────────────────────────────────────────────────┘
+```
+
+- **页头**：`display:flex; justify-content:space-between; margin-bottom:16`
+- **标题**：统一 `Title level={4}`，`margin:0`
+- **主按钮**：`type="primary"`，icon + 两字中文（新建/录入/添加）
+- **次按钮**：默认样式，icon + 中文（导出/导入）
+- **筛选栏**：`<Space wrap>`，Select 宽 120-140px，Search Input 宽 220-260px
+
+### 2. Drawer 规范
+
+所有表单抽屉必须遵循：
+
+| 属性 | 值 | 原因 |
+|------|-----|------|
+| `width` | 创建/编辑: 480, 详情: 560 | 表单紧凑，详情宽松 |
+| `destroyOnClose` | `true` | 避免残留状态 |
+| `maskClosable` | `false` | 防误触关闭 |
+| 提交按钮位置 | `extra={<Button>}` | 固定在顶部，始终可见 |
+| 关闭时 | `form.resetFields()` | 清空表单 |
+
+**字段分组**：表单内用 `<Divider orientation="left" orientationMargin={0}>组名</Divider>` 分隔：
+- 基础信息 / 人员信息 / 详细信息（AttackList、AttackDetail）
+- 贡献详情 / 关联信息（Contributions）
+- 组织信息（PeopleList）
+
+**编辑 vs 创建**：复用相同字段，但用独立的 `editOpen`/`drawerOpen` 状态和独立 Form 实例。
+
+### 3. 表格规范
+
+```tsx
+<Table
+  rowKey="id"
+  dataSource={data}
+  columns={columns}
+  scroll={{ x: 'max-content' }}          // 始终横向滚动
+  size="middle"                           // 列表用middle，详情内嵌用small
+  pagination={{
+    pageSize: PAGE_SIZE,                  // 20
+    showSizeChanger: true,
+    pageSizeOptions: PAGE_SIZE_OPTIONS,   // [10, 20, 50, 100]
+    showTotal: (t) => `共 ${t} 条`
+  }}
+/>
+```
+
+**列定义模式**：
+- 名称/标题列：`fixed: 'left'`，可点击跳转用 `<a>`
+- 状态列：`<StatusTag>` 组件，宽度 120
+- 时间列：`<Tooltip title={完整时间}>{短时间}</Tooltip>`，默认 `defaultSortOrder: 'descend'`
+- 操作列：`fixed: 'right'`，宽度 80-150，编辑用 `<a>`，删除用 `<a style={{color:'#ff4d4f'}}>` + Popconfirm
+- 长文本列：`ellipsis: true` 或截断渲染
+
+**行点击跳转**：列表级 `onRow` + 列级 `<a>` 配合，点击非链接区域整行跳转。
+
+### 4. 详情页规范
+
+```
+┌─ 返回导航 ──────────────────────────────┐
+│  <Button type="link" icon={<ArrowLeft/>}>  返回列表
+├─ 标题栏 ────────────────────────────────┤
+│  左: <Title level={4}>标题 <StatusTag/>  │
+│      <Text type="secondary">时间信息</Text>│
+│  右: <Space> 操作按钮组                   │
+├─ 状态Steps ─────────────────────────────┤
+│  <Steps size="small" current={index} /> │
+├─ 摘要卡片 ──────────────────────────────┤
+│  <Card size="small"> <Descriptions>     │
+├─ 主内容 ────────────────────────────────┤
+│  <Row gutter={16}>                       │
+│    <Col span={18}> <Tabs> </Col>         │
+│    <Col span={6}> 侧边栏卡片 </Col>       │
+└─────────────────────────────────────────┘
+```
+
+- **返回按钮**：`type="link"`，`paddingLeft:0`
+- **标题+状态**：同一行 `<Title>` + `<StatusTag>`
+- **时间线**：`Text type="secondary"`，用 dayjs fromNow + Tooltip 完整时间
+- **操作按钮顺序**：主功能 → 次功能 → 危险操作（删除用 `danger` + Popconfirm）
+- **Tabs图标**：每个 tab label 带 icon（`<span><Icon /> 名称</span>`）
+- **必填项缺失**：顶部 `<Alert type="warning">` 提示
+
+### 5. 状态可视化规范
+
+**StatusTag 组件**：统一通过 `<StatusTag status={v} type="status|level|contribution" />` 渲染。
+
+**颜色体系**（在 `constants.ts` 中集中管理）：
+- 状态色：待响应=gold, 处理中=blue, 进行中=cyan, 已解决=green, 已关闭=default
+- 等级色：核心=red, 关键=orange, 普通=blue
+- 所有中文枚举值颜色必须定义在 constants.ts，不在组件中硬编码
+
+**Steps 生命周期**：详情页顶部用 `<Steps size="small">` 展示状态流转，当前步骤高亮。
+
+**排名徽章**：前3名用奖牌（🥇🥈🥉），其余用序号，统一用 `<Tag color>`。
+
+### 6. 人员选择器规范
+
+所有涉及选人的场景（攻关单处理人、贡献人等）：
+
+```tsx
+<Select
+  showSearch
+  allowClear
+  placeholder="从全员名单搜索"
+  options={personOptions}    // [{value: '姓名', label: '姓名 (部门)'}]
+  filterOption={(input, option) =>
+    (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+  }
+/>
+```
+
+- options 格式：`value=姓名, label=姓名 (部门)` — 显示部门便于区分同名
+- 必须 `showSearch` + `filterOption` — 中文模糊搜索
+
+### 7. 交互模式
+
+| 场景 | 模式 |
+|------|------|
+| 创建 | Drawer + Form + extra按钮 |
+| 编辑 | 独立 editOpen Drawer，预填 `editForm.setFieldsValue(node.properties)` |
+| 详情 | Drawer(width:560) + Descriptions(bordered, column:1) |
+| 删除 | `Popconfirm title="确认删除XX？"` + `<a style={{color:'#ff4d4f'}}>` |
+| 状态流转 | Drawer + Steps可视化 + Select选目标状态 |
+| 导出 | `api.exportNodes()` → Blob → `<a download>` |
+| 导入 | Drawer + Upload.Dragger |
+
+### 8. 加载与空状态
+
+- **首次加载**：`initialLoading` 状态，显示 `<Skeleton active paragraph={{rows:6}}>`
+- **静默刷新**：更新操作后 `fetchData(true)` 传 silent 参数，不闪 Skeleton
+- **空数据**：`<Empty description="暂无XX" image={Empty.PRESENTED_IMAGE_SIMPLE} />`
+- **错误状态**：`<Empty description={错误信息}><Button>重试</Button></Empty>`
+
+### 9. 常量管理
+
+所有可复用值集中在 `constants.ts`：
+- 颜色映射：`STATUS_COLOR`, `LEVEL_COLOR`, `CONTRIBUTION_COLOR`, `ACTION_COLOR`
+- 标签映射：`ACTION_LABEL`, `ENTITY_TYPE_LABEL`
+- 分页：`PAGE_SIZE=20`, `PAGE_SIZE_OPTIONS=[10,20,50,100]`
+- 时间格式：`DATE_FORMAT`, `DATE_FORMAT_FULL`, `DATE_FORMAT_SHORT`
+
+### 10. 命名约定
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 页面文件 | PascalCase | `AttackDetail.tsx`, `PeopleList.tsx` |
+| 状态变量 | `xxxOpen` | `editOpen`, `drawerOpen`, `transitionOpen` |
+| 提交中状态 | `xxxSubmitting` | `editSubmitting`, `transSubmitting` |
+| 加载状态 | `loading` / `initialLoading` | 列表用 loading，详情用 initialLoading |
+| Fetch函数 | `fetchData` / `fetchXxx` | `fetchDailyReports`, `fetchSupportNodes` |
+| 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
 
 ### 当前测试状态（2026-05-24 最后验证）
 - **79/79 e2e tests passing** (62 原始 + 4 新导航 + 13 回归防护)
@@ -395,4 +563,39 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 1. 修改前端源码 → 运行 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line`
 2. 修改后端源码 → 运行 `npm run test:backend`
 3. 全部通过后 → 更新 AGENTS.md 的"当前测试状态"标记
-4. 全部通过后 → 执行 `cd scripts/deploy-v2 && node deploy.mjs deploy`
+4. 全部通过后 → **先 git commit** → 再执行 `cd scripts/deploy-v2 && node deploy.mjs deploy`
+
+### 部署前必须 git commit
+`git archive HEAD` 只打包已提交的文件。**未 commit 的改动不会出现在部署包中**，这是多次"部署后页面没变化"的根因。
+
+## E2E 测试关键发现
+
+### Ant Design 5 自动在2字符中文按钮文本间插入空格
+Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格。Playwright 选择器需用正则匹配如 `/导\s?出/`、`/确\s?定/`、`/删\s?除/`、`/添\s?加/`。4字符按钮如"新建攻关"不受影响。
+
+### Ant Design Select 下拉 — "Element is outside of the viewport"
+Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
+
+### 页面上多个 Select 的索引规则
+- Header 角色切换器永远是页面上 `.ant-select` 的 index 0
+- 页面级筛选 Select 从 index 1 开始
+- Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
+- **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
+- **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
+
+### Backend 审计日志 action 和 entityType 是大写英文
+- **action 值为大写**: `CREATE`, `UPDATE`, `DELETE`, `PROGRESS`, `SETTING`, `ESCALATE`, `MERGE`
+- **entityType 值是通用类型**: `node`, `edge`, `schema`, `setting`, `proposal`, `reminder`（**不是** `person`、`attackTicket` 等 nodeType 名称）
+- 前端 AuditLog 页面的筛选选项必须与这些大写值精确匹配
+
+### 贡献等级创建需要 Leader/Admin 角色
+后端 `gradeGate()` 函数对 `contribution` nodeType 的 `贡献等级` 字段做了角色门控：
+- `X-Role: normal` → **403 Forbidden**
+- `X-Role: leader` 或 `admin` → 允许
+- **E2E 测试必须用 `page.addInitScript(() => localStorage.setItem('combat-role', 'leader'))` 设置角色**
+
+### Playwright 多次 Toast 消息导致严格模式违规
+连续操作产生多条 message toast 时，`getByText()` 可能匹配到多条。**必须用 `.first()` 或更精确的选择器**。
+
+### Drawer 关闭不会提交数据
+打开 drawer、填写数据、点击关闭按钮不会创建任何数据。这是回归防护测试之一。
