@@ -89,7 +89,7 @@ export default function SchemaWizard() {
   const loadSchemas = useCallback(async () => {
     setLoadingSchemas(true);
     try { setSchemas(await api.listSchemas()); }
-    catch (e: any) { message.error(e.message ?? '加载 Schema 失败'); }
+    catch { setSchemas([]); }
     finally { setLoadingSchemas(false); }
   }, []);
 

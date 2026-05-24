@@ -39,6 +39,9 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   const app = express();
   app.use(express.json());
   app.use(requestLogger());
+  if (deps.registry instanceof FileSchemaRegistry) {
+    app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
+  }
   app.use("/api", makeRouter(deps.repo, deps.registry));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
   app.use("/api", makeHonorRouter(deps.repo));
@@ -68,9 +71,6 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeDailyReportEntryRouter(deps.db));
     app.use("/api", makeSupportNodeRouter(deps.db));
     app.use("/api", makeHelpRequestRouter(deps.db, deps.repo, mailSender));
-  }
-  if (deps.registry instanceof FileSchemaRegistry) {
-    app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });
