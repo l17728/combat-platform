@@ -262,3 +262,40 @@ test.describe('攻关详情', () => {
     await expect(page.getByText('创建').first()).toBeVisible();
   });
 });
+
+test.describe('自定义字段 (+字段)', () => {
+  test('add field from AttackList create drawer', async ({ page }) => {
+    await page.goto('/attack');
+    await page.getByRole('button', { name: '新建攻关' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+
+    await page.getByRole('button', { name: '+字段' }).click();
+    await expect(page.locator('.ant-modal')).toBeVisible();
+    await page.getByPlaceholder('字段名(name)').fill('E2E自定义字段');
+    await page.getByPlaceholder('显示名(label)').fill('自定义显示名');
+    await page.locator('.ant-modal').getByRole('button', { name: /添\s?加/ }).click();
+    await expect(page.getByText('字段已添加')).toBeVisible();
+
+    await expect(page.getByText('自定义显示名')).toBeVisible();
+  });
+
+  test('add field from AttackDetail edit drawer', async ({ page, request }) => {
+    const res = await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E字段编辑测试', 状态: '处理中' },
+    });
+    const ticket = await res.json();
+
+    await page.goto(`/attack/${ticket.id}`);
+    await page.getByRole('button', { name: '编辑信息' }).click();
+    await expect(page.locator('.ant-drawer')).toBeVisible();
+
+    await page.getByRole('button', { name: '+字段' }).click();
+    await expect(page.locator('.ant-modal')).toBeVisible();
+    await page.getByPlaceholder('字段名(name)').fill('E2E详情字段');
+    await page.getByPlaceholder('显示名(label)').fill('详情自定义');
+    await page.locator('.ant-modal').getByRole('button', { name: /添\s?加/ }).click();
+    await expect(page.getByText('字段已添加')).toBeVisible();
+
+    await expect(page.locator('.ant-drawer').getByText('详情自定义')).toBeVisible();
+  });
+});
