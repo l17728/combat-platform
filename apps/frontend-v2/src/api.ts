@@ -27,7 +27,7 @@ export class Api {
   constructor(private base = '', f?: typeof fetch) {
     this.f = f ?? globalThis.fetch.bind(globalThis);
     if (!this.base) {
-      this.base = (typeof window !== 'undefined' && (window as any).__COMBAT_API__) || '';
+      this.base = '';
     }
   }
 

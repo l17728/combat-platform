@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import { existsSync } from "node:fs";
+import express from "express";
 import { openDb } from "./db.js";
 import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
@@ -11,10 +13,21 @@ import { log } from "./logger.js";
 const db = openDb(join(process.cwd(), "combat.sqlite"));
 const repo = new SqliteRepository(db);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
-createApp({ repo, registry, db }).listen(3001, () => {
+const app = createApp({ repo, registry, db });
+
+const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
+if (existsSync(frontendDist)) {
+  app.use(express.static(frontendDist));
+  app.get("*", (_req, res, next) => {
+    if (_req.path.startsWith("/api")) return next();
+    res.sendFile(join(frontendDist, "index.html"));
+  });
+  log.info("server.serving_frontend", { dir: frontendDist });
+}
+
+app.listen(3001, () => {
   console.log("backend on :3001");
 
-  // Auto-scan every 5 minutes (300_000 ms) for escalations and reminders
   const AUTO_SCAN_INTERVAL = 5 * 60 * 1000;
   setInterval(() => {
     try { scanEscalation(repo); } catch (e) { log.warn("auto_scan.escalation.fail", { error: (e as Error).message }); }
@@ -23,7 +36,6 @@ createApp({ repo, registry, db }).listen(3001, () => {
   log.info("server.auto_scan.started", { intervalMs: AUTO_SCAN_INTERVAL });
 });
 
-// §51.2: hourly background scan (production entry only — createApp stays timer-free for tests).
 setInterval(() => {
   try { tickScheduledJobs(repo, registry); } catch (e) { console.error("[jobs.tick]", e); }
 }, 3600_000).unref();
