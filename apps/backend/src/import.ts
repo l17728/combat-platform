@@ -21,19 +21,21 @@ function mapColumns(row: Record<string, unknown>, schema: NodeSchema): Record<st
   return out;
 }
 
-function resolvePerson(repo: Repository, name?: string, employeeId?: string): string | null {
+function resolvePerson(repo: Repository, registry: SchemaRegistry, name?: string, employeeId?: string): string | null {
+  const nameField = registry.getNodeSchema("person")?.fields.find(pf => pf.required && pf.type === "string");
+  const nameKey = nameField?.id ?? "name";
+  const empField = registry.getNodeSchema("person")?.fields.find(pf => pf.label === "工号");
+  const empKey = empField?.id ?? "employeeId";
   if (!name && !employeeId) return null;
   if (employeeId) {
-    const hit = repo.queryNodes("person", { employeeId }).at(0);
+    const hit = repo.queryNodes("person").find(n => String(n.properties[empKey] ?? n.properties["employeeId"] ?? "") === employeeId);
     if (hit) return hit.id;
   }
-  // M3 fix: when no employeeId, dedup by name before creating — repeated imports
-  // of a name-only person must reuse the same node (was creating duplicates).
   if (name) {
-    const byName = repo.queryNodes("person").find(n => String(n.properties["name"] ?? "") === name);
+    const byName = repo.queryNodes("person").find(n => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === name);
     if (byName) return byName.id;
   }
-  return repo.createNode("person", { name: name ?? employeeId, employeeId }, "import").id;
+  return repo.createNode("person", { [nameKey]: name ?? employeeId, [empKey]: employeeId }, "import").id;
 }
 
 function findByIdentity(repo: Repository, schema: NodeSchema, props: Record<string, unknown>) {
@@ -49,7 +51,7 @@ function findByIdentity(repo: Repository, schema: NodeSchema, props: Record<stri
 
 function rowSummary(props: Record<string, unknown>, raw: Record<string, unknown>): string {
   return String(props["标题"] ?? props["攻关单号"] ?? props["版本号"] ?? props["名称"]
-    ?? props["name"] ?? props["贡献人"] ?? raw["标题"] ?? "(空)");
+    ?? props["姓名"] ?? props["贡献人"] ?? raw["标题"] ?? "(空)");
 }
 
 // §42: read-only per-row plan (create/update/skip) — no DB writes. Shared by the
@@ -113,7 +115,7 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
       syncAnchorEdges(repo, registry, node, props, "import");
       if (nodeType === "attackTicket") {
         repo.deleteEdges({ sourceId: node.id, edgeType: "ASSIGNED_TO" }, "import");
-        const personId = resolvePerson(repo,
+        const personId = resolvePerson(repo, registry,
           raw["攻关申请人"] as string, raw["攻关申请人工号"] as string);
         if (personId) repo.createEdge("ASSIGNED_TO", node.id, personId, { role: "攻关申请人" }, "import");
       }

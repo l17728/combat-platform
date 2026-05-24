@@ -22,8 +22,8 @@ export class HeuristicRelationProposer implements RelationProposer {
     const out: ProposalDraft[] = [];
     for (const rt of [...refTypes].sort()) {
       const nodes = repo.queryNodes(rt)
-        .map(n => ({ id: n.id, key: norm(String(n.properties["name"] ?? n.id)),
-          emp: norm(String(n.properties["employeeId"] ?? "")) }))
+        .map(n => ({ id: n.id, key: norm(String(n.properties["姓名"] ?? n.properties["name"] ?? n.id)),
+          emp: norm(String(n.properties["工号"] ?? n.properties["employeeId"] ?? "")) }))
         .sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : (a.id < b.id ? -1 : 1));
       for (let i = 0; i < nodes.length; i++)
         for (let j = i + 1; j < nodes.length; j++) {

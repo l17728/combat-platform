@@ -16,7 +16,7 @@ function currentHandler(repo: Repository, ticketId: string): { id: string; name:
   if (!e) return undefined;
   const p = repo.getNode(e.targetId);
   if (!p) return undefined;
-  return { id: p.id, name: String(p.properties["name"] ?? p.id) };
+  return { id: p.id, name: String(p.properties["姓名"] ?? p.properties["name"] ?? p.id) };
 }
 
 export function scanReminders(repo: Repository, _registry: SchemaRegistry, nowMs: number = Date.now()): ReminderDraft[] {

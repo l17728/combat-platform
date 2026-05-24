@@ -33,7 +33,7 @@ export function recommendHelpers(repo: Repository, ticketId: string, limit = 10)
           add(pid, 3, `曾处理共享问题单「${key}」的攻关单「${String(s.properties["标题"] ?? s.id)}」`);
       else if (s.nodeType === "contribution") {
         const lvl = String(s.properties["贡献等级"] ?? "普通");
-        const desc = String(s.properties["贡献描述"] ?? s.properties["贡献类型"] ?? "");
+        const desc = String(s.properties["贡献描述"] ?? s.properties["描述"] ?? s.properties["贡献类型"] ?? "");
         for (const pid of refPersons(repo, s.id, "贡献人"))
           add(pid, LEVEL[lvl] ?? 1, `在共享问题单「${key}」相关贡献「${desc}」（${lvl}）`);
       }
@@ -56,7 +56,7 @@ export function recommendHelpers(repo: Repository, ticketId: string, limit = 10)
     e.score += Math.min(n, 3); e.reasons.push(`历史核心/关键贡献 ${n} 次`); acc.set(pid, e);
   }
 
-  const name = (n: GraphNode) => String(n.properties["name"] ?? n.id);
+  const name = (n: GraphNode) => String(n.properties["姓名"] ?? n.properties["name"] ?? n.id);
   const out = [...acc.entries()]
     .map(([pid, e]) => ({ person: repo.getNode(pid), score: e.score, reasons: e.reasons }))
     .filter((x): x is HelperRecommendation => !!x.person);

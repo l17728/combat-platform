@@ -14,9 +14,11 @@ export function syncRefEdges(
     if (!v) continue;
     const candidates = repo.queryNodes(f.refType);
     const idKeys = registry.getNodeSchema(f.refType)?.identityKeys ?? [];
+    const nameField = registry.getNodeSchema(f.refType)?.fields.find(pf => pf.required && pf.type === "string");
+    const nameKey = nameField?.id ?? "name";
     let target = candidates.find(n => idKeys.some(k => String(n.properties[k] ?? "") === v))
-      ?? candidates.find(n => String(n.properties["name"] ?? "") === v);
-    if (!target) target = repo.createNode(f.refType, { name: v }, actor);
+      ?? candidates.find(n => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === v);
+    if (!target) target = repo.createNode(f.refType, { [nameKey]: v }, actor);
     repo.createEdge("REF", node.id, target.id, { field: f.id, refType: f.refType, concept: f.concept }, actor);
   }
 }

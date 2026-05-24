@@ -51,9 +51,9 @@ function resolveRecipients(repo: Repository, req: EmailSendRequest): string[] {
     const trimmed = String(name ?? "").trim();
     if (!trimmed) continue;
     const persons = repo.queryNodes("person").filter(
-      p => String(p.properties["name"] ?? "") === trimmed || String(p.properties["employeeId"] ?? "") === trimmed,
+      p => String(p.properties["姓名"] ?? p.properties["name"] ?? "") === trimmed || String(p.properties["工号"] ?? p.properties["employeeId"] ?? "") === trimmed,
     );
-    for (const p of persons) raw.push(String(p.properties["email"] ?? ""));
+    for (const p of persons) raw.push(String(p.properties["邮箱"] ?? p.properties["email"] ?? ""));
   }
   return normalizeRecipients(raw);
 }

@@ -17,9 +17,9 @@ function cardSpec(title: string, nodes: GraphNode[], buildCard: (n: GraphNode) =
 
 function summarize(n: GraphNode): string {
   const p = n.properties;
-  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["name"] ?? p["贡献人"] ?? p["key"]
+  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ?? p["贡献人"] ?? p["key"]
     // §46 new view nodeTypes' title-ish fields
-    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? p["组名"] ?? n.id);
+    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? p["组名"] ?? p["name"] ?? n.id);
 }
 function linkFor(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
@@ -83,7 +83,7 @@ export function answerQuestion(
         citations: [cite(ticket)] };
     }
     const lines = helpers.map((h, i) => {
-      const name = String(h.person.properties["name"] ?? h.person.id);
+      const name = String(h.person.properties["姓名"] ?? h.person.properties["name"] ?? h.person.id);
       return `${i + 1}. ${name}（分数 ${h.score}）：${h.reasons.join("；")}`;
     });
     const ck = cacheKey("find-helpers", question);
@@ -92,7 +92,7 @@ export function answerQuestion(
       answer: `《${summarize(ticket)}》推荐帮手 Top ${helpers.length}：\n${lines.join("\n")}`,
       citations: helpers.slice(0, 5).map(h => cite(h.person)),
       uiSpec: { ...cardSpec("推荐帮手", helpers.slice(0, 5).map(h => h.person), n => ({
-        title: String(n.properties["name"] ?? n.id),
+        title: String(n.properties["姓名"] ?? n.properties["name"] ?? n.id),
         description: helpers.find(h => h.person.id === n.id)?.reasons.join("；"),
         link: linkFor(n),
         tags: [`分数 ${helpers.find(h => h.person.id === n.id)?.score ?? 0}`],
@@ -185,7 +185,7 @@ export function answerQuestion(
       const lines = top.map(c => {
         const lvl = c.properties["贡献等级"] ?? "普通";
         const ty = c.properties["贡献类型"] ?? "";
-        const desc = c.properties["贡献描述"] ?? "";
+        const desc = c.properties["贡献描述"] ?? c.properties["描述"] ?? "";
         return `· [${lvl}${ty ? "·" + ty : ""}] ${desc || summarize(c)}`;
       });
       const who = String(top[0].properties["贡献人"] ?? stripped);
@@ -197,7 +197,7 @@ export function answerQuestion(
         uiSpec: { ...tableSpec(`${who} 贡献`, ["贡献等级", "贡献类型", "贡献描述"], top, n => ({
           贡献等级: String(n.properties["贡献等级"] ?? "普通"),
           贡献类型: String(n.properties["贡献类型"] ?? ""),
-          贡献描述: String(n.properties["贡献描述"] ?? ""),
+          贡献描述: String(n.properties["贡献描述"] ?? n.properties["描述"] ?? ""),
         })), cacheKey: ck },
       };
     }

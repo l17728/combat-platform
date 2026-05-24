@@ -17,7 +17,7 @@ export function makeHonorRouter(repo: Repository): Router {
     if (groupBy === "team") {
       const teamByName = new Map<string, string>();
       for (const p of repo.queryNodes("person")) {
-        const name = String(p.properties["name"] ?? "");
+        const name = String(p.properties["姓名"] ?? p.properties["name"] ?? "");
         if (name) teamByName.set(name, String(p.properties["团队"] ?? "").trim());
       }
       const byTeam: Record<string, { team: string; score: number; 贡献数: number }> = {};
