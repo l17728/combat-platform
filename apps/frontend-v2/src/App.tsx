@@ -17,6 +17,9 @@ import RelatedPage from './pages/RelatedPage.js';
 import MergePage from './pages/MergePage.js';
 import SchemaWizard from './pages/SchemaWizard.js';
 import ConfigCenter from './pages/ConfigCenter.js';
+import SearchPage from './pages/SearchPage.js';
+import ProposalsPage from './pages/ProposalsPage.js';
+import RemindersPage from './pages/RemindersPage.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 
@@ -41,6 +44,9 @@ export default function App() {
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/schema" element={<SchemaWizard />} />
           <Route path="/config" element={<ConfigCenter />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/proposals" element={<ProposalsPage />} />
+          <Route path="/reminders" element={<RemindersPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
         <Route path="/help/feedback/:token" element={<HelpFeedback />} />

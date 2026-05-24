@@ -10,10 +10,14 @@ const ROUTE_MAP: Record<string, { title: string; parent?: string }> = {
   '/honor': { title: '荣誉殿堂' },
   '/merge': { title: '人员合并' },
   '/help': { title: '求助中心' },
+  '/search': { title: '全局搜索' },
+  '/proposals': { title: '关系审批' },
+  '/reminders': { title: '跟催提醒' },
   '/import': { title: '数据导入/导出' },
   '/email': { title: '邮件设置' },
   '/audit': { title: '审计日志' },
   '/schema': { title: '表结构管理' },
+  '/config': { title: '配置中心' },
 };
 
 const PARENT_MAP: Record<string, string[]> = {
@@ -23,10 +27,13 @@ const PARENT_MAP: Record<string, string[]> = {
   '/contributions': ['人员与荣誉'],
   '/honor': ['人员与荣誉'],
   '/merge': ['人员与荣誉'],
+  '/proposals': ['审核管理'],
+  '/reminders': ['审核管理'],
   '/import': ['系统管理'],
   '/email': ['系统管理'],
   '/audit': ['系统管理'],
   '/schema': ['系统管理'],
+  '/config': ['系统管理'],
 };
 
 export default function PageBreadcrumb() {

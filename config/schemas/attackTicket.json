@@ -1,41 +1,263 @@
 {
   "nodeType": "attackTicket",
   "label": "攻关单",
-  "identityKeys": ["攻关单号"],
+  "identityKeys": [
+    "攻关单号"
+  ],
   "derivedToKG": true,
   "fields": [
-    { "id": "攻关单号", "name": "攻关单号", "type": "string", "label": "攻关单号" },
-    { "id": "标题", "name": "标题", "type": "string", "label": "标题", "required": true, "aliases": ["title", "问题标题", "事件标题"] },
-    { "id": "问题描述", "name": "问题描述", "type": "string", "label": "问题描述", "aliases": ["故障现象"] },
-    { "id": "故障发生时间", "name": "故障发生时间", "type": "datetime", "label": "故障发生时间", "aliases": ["发生时间", "故障时间"] },
-    { "id": "事件级别", "name": "事件级别", "type": "string", "label": "事件级别" },
-    { "id": "状态", "name": "状态", "type": "enum", "label": "状态", "required": true,
-      "enumValues": ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
-    { "id": "客户名称", "name": "客户名称", "type": "string", "label": "客户名称" },
-    { "id": "客户要求解决时间", "name": "客户要求解决时间", "type": "datetime", "label": "客户要求解决时间" },
-    { "id": "攻关申请人", "name": "攻关申请人", "type": "ref", "refType": "person", "label": "攻关申请人", "concept": "负责人" },
-    { "id": "攻关申请人工号", "name": "攻关申请人工号", "type": "string", "label": "攻关申请人工号" },
-    { "id": "当前处理人", "name": "当前处理人", "type": "ref", "refType": "person", "label": "当前处理人", "aliases": ["研发责任人", "运维责任人", "责任人", "owner"], "concept": "负责人" },
-    { "id": "攻关组长", "name": "攻关组长", "type": "ref", "refType": "person", "label": "攻关组长", "concept": "负责人" },
-    { "id": "是否已解决", "name": "是否已解决", "type": "string", "label": "是否已解决" },
-    { "id": "攻关有效性", "name": "攻关有效性", "type": "string", "label": "攻关有效性" },
-    { "id": "问题单号", "name": "问题单号", "type": "string", "label": "问题单号", "anchor": "问题单号" },
-    { "id": "是否需CCB", "name": "是否需CCB", "type": "enum", "label": "是否需CCB", "enumValues": ["是", "否"] },
-    { "id": "事件单号", "name": "事件单号", "type": "string", "label": "事件单号", "anchor": "事件单号" },
-    { "id": "影响及现存风险", "name": "影响及现存风险", "type": "string", "label": "影响及现存风险" },
-    { "id": "局点", "name": "局点", "type": "string", "label": "局点", "aliases": ["故障局点"] },
-    { "id": "资源ID", "name": "资源ID", "type": "string", "label": "资源ID", "aliases": ["客户所属资源ID", "资源id"] },
-    { "id": "租户ID", "name": "租户ID", "type": "string", "label": "租户ID", "aliases": ["租户id"] },
-    { "id": "根因服务", "name": "根因服务", "type": "string", "label": "根因服务" },
-    { "id": "当前处理部门", "name": "当前处理部门", "type": "string", "label": "当前处理部门" },
-    { "id": "攻关发起说明", "name": "攻关发起说明", "type": "string", "label": "攻关发起说明" },
-    { "id": "攻关响应时长", "name": "攻关响应时长", "type": "string", "label": "攻关响应时长" },
-    { "id": "攻关时长", "name": "攻关时长", "type": "string", "label": "攻关时长" },
-    { "id": "挂起开始时间", "name": "挂起开始时间", "type": "datetime", "label": "挂起开始时间" },
-    { "id": "总挂起时长", "name": "总挂起时长", "type": "string", "label": "总挂起时长" },
-    { "id": "解除挂起时间", "name": "解除挂起时间", "type": "datetime", "label": "解除挂起时间" },
-    { "id": "结束攻关时间", "name": "结束攻关时间", "type": "datetime", "label": "结束攻关时间" },
-    { "id": "日报发布数量", "name": "日报发布数量", "type": "number", "label": "日报发布数量" },
-    { "id": "攻关成员", "name": "攻关成员", "type": "string", "label": "攻关成员" }
+    {
+      "id": "攻关单号",
+      "name": "攻关单号",
+      "type": "string",
+      "label": "攻关单号"
+    },
+    {
+      "id": "标题",
+      "name": "标题",
+      "type": "string",
+      "label": "标题",
+      "required": true,
+      "aliases": [
+        "title",
+        "问题标题",
+        "事件标题"
+      ]
+    },
+    {
+      "id": "问题描述",
+      "name": "问题描述",
+      "type": "string",
+      "label": "问题描述",
+      "aliases": [
+        "故障现象"
+      ]
+    },
+    {
+      "id": "故障发生时间",
+      "name": "故障发生时间",
+      "type": "datetime",
+      "label": "故障发生时间",
+      "aliases": [
+        "发生时间",
+        "故障时间"
+      ]
+    },
+    {
+      "id": "事件级别",
+      "name": "事件级别",
+      "type": "string",
+      "label": "事件级别"
+    },
+    {
+      "id": "状态",
+      "name": "状态",
+      "type": "enum",
+      "label": "状态",
+      "required": true,
+      "enumValues": [
+        "待响应",
+        "处理中",
+        "进行中",
+        "已解决",
+        "已关闭"
+      ]
+    },
+    {
+      "id": "客户名称",
+      "name": "客户名称",
+      "type": "string",
+      "label": "客户名称"
+    },
+    {
+      "id": "客户要求解决时间",
+      "name": "客户要求解决时间",
+      "type": "datetime",
+      "label": "客户要求解决时间"
+    },
+    {
+      "id": "攻关申请人",
+      "name": "攻关申请人",
+      "type": "ref",
+      "refType": "person",
+      "label": "攻关申请人",
+      "concept": "负责人"
+    },
+    {
+      "id": "攻关申请人工号",
+      "name": "攻关申请人工号",
+      "type": "string",
+      "label": "攻关申请人工号"
+    },
+    {
+      "id": "当前处理人",
+      "name": "当前处理人",
+      "type": "ref",
+      "refType": "person",
+      "label": "当前处理人",
+      "aliases": [
+        "研发责任人",
+        "运维责任人",
+        "责任人",
+        "owner"
+      ],
+      "concept": "负责人"
+    },
+    {
+      "id": "攻关组长",
+      "name": "攻关组长",
+      "type": "ref",
+      "refType": "person",
+      "label": "攻关组长",
+      "concept": "负责人"
+    },
+    {
+      "id": "是否已解决",
+      "name": "是否已解决",
+      "type": "string",
+      "label": "是否已解决"
+    },
+    {
+      "id": "攻关有效性",
+      "name": "攻关有效性",
+      "type": "string",
+      "label": "攻关有效性"
+    },
+    {
+      "id": "问题单号",
+      "name": "问题单号",
+      "type": "string",
+      "label": "问题单号",
+      "anchor": "问题单号"
+    },
+    {
+      "id": "是否需CCB",
+      "name": "是否需CCB",
+      "type": "enum",
+      "label": "是否需CCB",
+      "enumValues": [
+        "是",
+        "否"
+      ]
+    },
+    {
+      "id": "事件单号",
+      "name": "事件单号",
+      "type": "string",
+      "label": "事件单号",
+      "anchor": "事件单号"
+    },
+    {
+      "id": "影响及现存风险",
+      "name": "影响及现存风险",
+      "type": "string",
+      "label": "影响及现存风险"
+    },
+    {
+      "id": "局点",
+      "name": "局点",
+      "type": "string",
+      "label": "局点",
+      "aliases": [
+        "故障局点"
+      ]
+    },
+    {
+      "id": "资源ID",
+      "name": "资源ID",
+      "type": "string",
+      "label": "资源ID",
+      "aliases": [
+        "客户所属资源ID",
+        "资源id"
+      ]
+    },
+    {
+      "id": "租户ID",
+      "name": "租户ID",
+      "type": "string",
+      "label": "租户ID",
+      "aliases": [
+        "租户id"
+      ]
+    },
+    {
+      "id": "根因服务",
+      "name": "根因服务",
+      "type": "string",
+      "label": "根因服务"
+    },
+    {
+      "id": "当前处理部门",
+      "name": "当前处理部门",
+      "type": "string",
+      "label": "当前处理部门"
+    },
+    {
+      "id": "攻关发起说明",
+      "name": "攻关发起说明",
+      "type": "string",
+      "label": "攻关发起说明"
+    },
+    {
+      "id": "攻关响应时长",
+      "name": "攻关响应时长",
+      "type": "string",
+      "label": "攻关响应时长"
+    },
+    {
+      "id": "攻关时长",
+      "name": "攻关时长",
+      "type": "string",
+      "label": "攻关时长"
+    },
+    {
+      "id": "挂起开始时间",
+      "name": "挂起开始时间",
+      "type": "datetime",
+      "label": "挂起开始时间"
+    },
+    {
+      "id": "总挂起时长",
+      "name": "总挂起时长",
+      "type": "string",
+      "label": "总挂起时长"
+    },
+    {
+      "id": "解除挂起时间",
+      "name": "解除挂起时间",
+      "type": "datetime",
+      "label": "解除挂起时间"
+    },
+    {
+      "id": "结束攻关时间",
+      "name": "结束攻关时间",
+      "type": "datetime",
+      "label": "结束攻关时间"
+    },
+    {
+      "id": "日报发布数量",
+      "name": "日报发布数量",
+      "type": "number",
+      "label": "日报发布数量"
+    },
+    {
+      "id": "攻关成员",
+      "name": "攻关成员",
+      "type": "string",
+      "label": "攻关成员"
+    },
+    {
+      "id": "E2E自定义字段",
+      "name": "E2E自定义字段",
+      "type": "string",
+      "label": "自定义显示名"
+    },
+    {
+      "id": "E2E详情字段",
+      "name": "E2E详情字段",
+      "type": "string",
+      "label": "详情自定义"
+    }
   ]
 }

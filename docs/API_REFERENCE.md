@@ -143,6 +143,23 @@ body `{ decidedBy }`。非待发送 → 409；不存在 → 404。
 ### `GET /api/honor/person/:name`
 返回 `PersonHonor`：`{贡献人, contributions: [{contribution, attackTicketId?}]}`，attackTicketId 来自 `CONTRIBUTED_TO` 边（contribution 经 `关联攻关单` 写入时自动建立）。
 
+## 配置中心
+
+### `GET /api/settings`
+列出所有配置项。返回 `Record<string, { values: string[]; label?: string }>`。
+
+### `GET /api/settings/:key`
+获取单个配置项。返回 `{ values: string[], label?: string }`。404 if not found。
+
+### `GET /api/settings/:key/resolve?scope=<scope>`
+解析配置项（支持页面级覆盖回退）。先查 `scope.key`（如 `attackTicket.事件级别`），未命中则回退 `key`。返回同上。
+
+### `PUT /api/settings/:key`
+创建或更新配置项。body = `{ values: string[], label?: string }`。返回 `{ key, values, label }`。
+
+### `DELETE /api/settings/:key`
+删除配置项。返回 `{ deleted: key }`。404 if not found。
+
 ## 错误码约定
 
 - 400：客户端错误（参数缺失、validateNode 失败、enum 不合法、字符串类型守卫）。

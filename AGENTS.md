@@ -47,7 +47,7 @@ All writes go through the config-driven structured model (single source of truth
 | 2 | **Backend tests** | If backend changed, run `npm run test:backend`. Fix any failures. |
 | 3 | **AGENTS.md test status** | Update "当前测试状态" section with date + count. |
 | 4 | **CLI commands** | New backend API → new CLI command in `apps/backend/src/cli-core.ts`. Verify with `npm run cli -- help`. |
-| 5 | **Mock scripts** | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs` to seed the new types. |
+| 5 | **Mock/seed scripts** | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs`. If feature adds new config items, update `scripts/settings-seed.mjs`. Verify both run correctly. |
 | 6 | **Migration scripts** | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added. |
 | 7 | **API docs** | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples. |
 | 8 | **Constants** | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps. |
@@ -330,8 +330,9 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Dev port:** 5174, API proxied to localhost:3001
 - **Production:** backend Express on port 3001 serves both API and frontend static files (single port)
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with role switcher
-- **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog
+- **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
+- **Settings system:** `src/hooks/useSettings.ts` — auto-loads config from `/api/settings`, fallback to hardcoded defaults; all dropdown Selects use `getValues(key, fallback)` pattern
 
 ## E2E Test Hard-Won Discoveries (Frontend-v2)
 
@@ -555,12 +556,30 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 | Fetch函数 | `fetchData` / `fetchXxx` | `fetchDailyReports`, `fetchSupportNodes` |
 | 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
 
+### 11. 表格单元格防换行规范
+
+表格列中包含多段信息（键名+说明、名称+副标题）时，**禁止用 `<Space>` 横排**，必须用 `<div>` 纵向堆叠，否则中长文本必然换行导致行高不一致、对齐错乱。
+
+```tsx
+// ✗ 错误：横排挤压，label 长了就换行
+<Space><Text code>{key}</Text><Text type="secondary">({label})</Text></Space>
+
+// ✓ 正确：纵向堆叠，主次分明
+<div>
+  <Text strong code>{key}</Text>
+  {label && <div><Text type="secondary">{label}</Text></div>}
+</div>
+```
+
+配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
+
 ### 当前测试状态（2026-05-25 最后验证）
-- **84/84 e2e tests passing** (79 原始 + 3 page-health + 2 自定义字段)
-- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3)
+- **146/146 e2e tests passing**
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28)
+- 新增页面覆盖：全局搜索(SearchPage)、关系审批(ProposalsPage)、跟催提醒(RemindersPage)
+- 零覆盖页面补齐：配置中心(ConfigCenter)、表结构管理(SchemaWizard)、攻关日报(DailyReport)、人员合并(MergePage)、关联全景(RelatedPage)
 - 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
-- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 13 个页面通过侧边栏可达
-- 自定义字段：AttackList 创建 Drawer + AttackDetail 编辑 Drawer 的 +字段 功能
+- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 16 个页面通过侧边栏可达
 - 配置中心：所有硬编码下拉已改为 useSettings 动态加载（带 fallback）
 
 ## 工作流程规范

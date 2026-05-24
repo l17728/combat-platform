@@ -128,7 +128,26 @@ async function seed() {
   }
   console.log(`   ✓ 创建 ${contribCount} 条贡献记录\n`);
 
-  console.log('=== 填充完成 ===');
+  // 4. 种子配置（如果配置中心为空）
+  console.log('4. 检查配置中心...');
+  try {
+    const settingsRes = await fetch(`${API}/api/settings`);
+    if (settingsRes.ok) {
+      const existing = await settingsRes.json();
+      if (Object.keys(existing).length === 0) {
+        console.log('   配置中心为空，执行 settings-seed...');
+        const { execSync } = await import('child_process');
+        const seedPath = new URL('../settings-seed.mjs', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+        execSync(`node "${seedPath}" --api ${API}`, { stdio: 'inherit' });
+      } else {
+        console.log('   ✓ 配置中心已有数据，跳过');
+      }
+    }
+  } catch (e) {
+    console.warn(`   配置种子跳过: ${e.message}`);
+  }
+
+  console.log('\n=== 填充完成 ===');
   console.log(`  人员: ${people.length}`);
   console.log(`  攻关单: ${tickets.length}`);
   console.log(`  贡献记录: ${contribCount}`);

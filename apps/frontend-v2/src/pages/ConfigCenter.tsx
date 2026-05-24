@@ -82,12 +82,12 @@ export default function ConfigCenter() {
 
   const columns = [
     {
-      title: '配置键', dataIndex: 'key', width: 200,
+      title: '配置项', dataIndex: 'key', width: 220,
       render: (key: string, r: SettingEntry) => (
-        <Space>
-          <Text strong code>{key}</Text>
-          {r.label && <Text type="secondary">({r.label})</Text>}
-        </Space>
+        <div>
+          <Text strong code style={{ fontSize: 13 }}>{key}</Text>
+          {r.label && <div><Text type="secondary" style={{ fontSize: 12 }}>{r.label}</Text></div>}
+        </div>
       ),
     },
     {
@@ -97,10 +97,6 @@ export default function ConfigCenter() {
           {values.map((v, i) => <Tag key={i}>{v}</Tag>)}
         </Space>
       ),
-    },
-    {
-      title: '选项数', width: 80, align: 'center' as const,
-      render: (_: unknown, r: SettingEntry) => <Tag color="blue">{r.values.length}</Tag>,
     },
     {
       title: '操作', width: 120, fixed: 'right' as const,

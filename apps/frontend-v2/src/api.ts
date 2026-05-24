@@ -85,6 +85,44 @@ export interface TeamLeaderboardEntry {
   贡献数: number;
 }
 
+export interface RelationProposal {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  relationType: string;
+  confidence: number;
+  proposerSource: string;
+  rationale: string;
+  status: '待审批' | '已通过' | '已拒绝';
+  decidedBy?: string;
+  decidedAt?: string;
+  createdAt: string;
+}
+
+export interface Reminder {
+  id: string;
+  kind: string;
+  ticketId: string;
+  recipientPersonId?: string;
+  recipientName: string;
+  subject: string;
+  body: string;
+  status: '待发送' | '已发送' | '已忽略';
+  decidedBy?: string;
+  decidedAt?: string;
+  createdAt: string;
+}
+
+export interface QueryContext {
+  node: GraphNode;
+  related: {
+    outgoing: RelatedItem[];
+    incoming: RelatedItem[];
+    coAnchored: CoAnchoredItem[];
+  };
+  progress: ProgressLog[];
+}
+
 export class Api {
   private f: typeof fetch;
   constructor(private base = '', f?: typeof fetch) {
@@ -445,6 +483,52 @@ export class Api {
 
   deleteSetting(key: string): Promise<{ deleted: string }> {
     return this.req(`/api/settings/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  }
+
+  scanProposals(): Promise<{ created: number }> {
+    return this.req('/api/proposals/scan', { method: 'POST' });
+  }
+
+  listProposals(status?: string): Promise<RelationProposal[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.req<RelationProposal[]>(`/api/proposals${qs}`);
+  }
+
+  decideProposal(id: string, decision: string, decidedBy: string, patch?: { targetNodeId: string }): Promise<RelationProposal> {
+    return this.req<RelationProposal>(`/api/proposals/${id}/decide`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decision, decidedBy, patch }),
+    });
+  }
+
+  scanReminders(): Promise<{ created: number }> {
+    return this.req('/api/reminders/scan', { method: 'POST' });
+  }
+
+  listReminders(status?: string): Promise<Reminder[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.req<Reminder[]>(`/api/reminders${qs}`);
+  }
+
+  sendReminder(id: string, decidedBy: string): Promise<Reminder> {
+    return this.req<Reminder>(`/api/reminders/${id}/send`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decidedBy }),
+    });
+  }
+
+  ignoreReminder(id: string, decidedBy: string): Promise<Reminder> {
+    return this.req<Reminder>(`/api/reminders/${id}/ignore`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ decidedBy }),
+    });
+  }
+
+  getContext(id: string): Promise<QueryContext> {
+    return this.req<QueryContext>(`/api/query/context/${id}`);
   }
 }
 

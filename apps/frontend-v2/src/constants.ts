@@ -67,6 +67,32 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   'reminder': '提醒',
 };
 
+export const PROPOSAL_STATUS_COLOR: Record<string, string> = {
+  '待审批': 'gold',
+  '已通过': 'green',
+  '已拒绝': 'red',
+};
+
+export const REMINDER_STATUS_COLOR: Record<string, string> = {
+  '待发送': 'gold',
+  '已发送': 'green',
+  '已忽略': 'default',
+};
+
+export const REMINDER_KIND_LABEL: Record<string, string> = {
+  '问题单跟催': '问题单跟催',
+  'FE Deadline 提醒': 'FE Deadline 提醒',
+  'CCB 提醒': 'CCB 提醒',
+};
+
+export const NODE_TYPE_LABEL: Record<string, string> = {
+  'attackTicket': '攻关单',
+  'person': '人员',
+  'contribution': '贡献',
+  'releasePackage': '版本包',
+  'weightFile': '权重文件',
+};
+
 export const PAGE_SIZE = 20;
 export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 

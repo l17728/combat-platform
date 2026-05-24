@@ -29,11 +29,15 @@ test.describe('回归防护 - 页面健康检查', () => {
       '/honor',
       '/help',
       '/daily-report',
+      '/search',
+      '/proposals',
+      '/reminders',
       '/import',
       '/email',
       '/audit',
       '/schema',
       '/merge',
+      '/config',
     ];
 
     for (const path of pages) {

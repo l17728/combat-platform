@@ -19,6 +19,9 @@ import {
   ApartmentOutlined,
   TableOutlined,
   ControlOutlined,
+  SearchOutlined,
+  AuditOutlined,
+  BellOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -37,7 +40,10 @@ function getSelectedKey(path: string): string {
   if (path === '/contributions') return '/contributions';
   if (path === '/daily-report') return '/daily-report';
   if (path === '/help') return '/help';
+  if (path === '/proposals') return '/proposals';
+  if (path === '/reminders') return '/reminders';
   if (path.startsWith('/related')) return '/attack';
+  if (path === '/search') return '/search';
   if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return path;
   return '/';
 }
@@ -45,6 +51,7 @@ function getSelectedKey(path: string): string {
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
+  if (path === '/proposals' || path === '/reminders') return ['review'];
   if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return ['system'];
   return [];
 }
@@ -107,6 +114,21 @@ export function AppLayout() {
       key: '/help',
       icon: <MailOutlined />,
       label: '求助中心',
+    },
+    {
+      key: 'review',
+      icon: <AuditOutlined />,
+      label: '审核管理',
+      onTitleClick: () => navigate('/proposals'),
+      children: [
+        { key: '/proposals', label: '关系审批', icon: <ApartmentOutlined /> },
+        { key: '/reminders', label: '跟催提醒', icon: <BellOutlined /> },
+      ],
+    },
+    {
+      key: '/search',
+      icon: <SearchOutlined />,
+      label: '全局搜索',
     },
     {
       key: 'system',
