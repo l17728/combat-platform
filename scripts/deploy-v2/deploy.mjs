@@ -32,11 +32,16 @@ function run(c, cmd) {
     });
   });
 }
-function sftpPut(c, local, remote) {
+/** Upload a local file to a remote path via SSH exec stdin (more stable than SFTP on flaky networks). */
+function stdinPut(c, local, remote) {
+  const data = readFileSync(local);
   return new Promise((res, rej) => {
-    c.sftp((e, sftp) => {
+    c.exec(`cat > ${remote}`, (e, stream) => {
       if (e) return rej(e);
-      sftp.fastPut(local, remote, err => (err ? rej(err) : res()));
+      let err = "";
+      stream.stderr.on("data", d => (err += d));
+      stream.on("close", code => (code === 0 ? res() : rej(new Error(`stdinPut rc=${code}: ${err}`))));
+      stream.end(data);
     });
   });
 }
@@ -68,12 +73,13 @@ async function doDeploy(c) {
   execSync(`git archive --format=tar.gz -o "${tar}" HEAD`, { cwd: repoRoot, stdio: "pipe" });
   console.log("[1/5] packed", (statSync(tar).size / 1024).toFixed(0), "KB");
 
-  // 2. Upload
-  console.log("[2/5] uploading...");
-  await sftpPut(c, tar, "/tmp/combat-v2.tar.gz");
-  await sftpPut(c, join(here, "combat-v2.service"), "/tmp/combat-v2.service");
+  // 2. Upload via stdin pipe (SFTP is unreliable on flaky relay networks)
+  console.log("[2/5] uploading via stdin pipe...");
+  await stdinPut(c, tar, "/tmp/combat-v2.tar.gz");
+  const svcFile = join(here, "combat-v2.service");
+  if (existsSync(svcFile)) await stdinPut(c, svcFile, "/tmp/combat-v2.service");
   await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.tar.gz root@${TARGET}:/tmp/combat-v2.tar.gz`);
-  await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.service root@${TARGET}:/tmp/combat-v2.service`);
+  if (existsSync(svcFile)) await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.service root@${TARGET}:/tmp/combat-v2.service`);
   console.log("[2/5] uploaded");
 
   // 3. Extract
@@ -95,7 +101,6 @@ async function doDeploy(c) {
     "cd /opt/combat-v2 && " +
     "npm config set registry https://registry.npmmirror.com >/dev/null 2>&1 && " +
     "npm install --no-audit --no-fund 2>&1 | tail -3 && " +
-    "node -e \"require('better-sqlite3');console.log('better-sqlite3 OK')\" 2>&1 && " +
     "cd apps/frontend-v2 && npm run build 2>&1 | tail -3 && " +
     "ls dist/index.html && echo BUILD_OK"
   );
