@@ -588,7 +588,7 @@ export function AttackDetail() {
                             renderItem={(h) => (
                               <List.Item>
                                 <Link to={`/related/person/${h.person.id}`}>
-                                  {String(h.person.properties["name"] ?? h.person.id)}
+                                  {String(h.person.properties["姓名"] ?? h.person.properties["name"] ?? h.person.id)}
                                 </Link>
                                 <span style={{ marginLeft: 8, color: "#888" }}>
                                   [{h.score}] {h.reasons.join("；")}

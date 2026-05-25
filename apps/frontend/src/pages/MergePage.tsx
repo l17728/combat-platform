@@ -4,8 +4,8 @@ import { api } from "../api.js";
 import type { GraphNode, MergePreview } from "@combat/shared";
 
 function personLabel(n: GraphNode): string {
-  const name = String(n.properties["name"] ?? n.id);
-  const eid = n.properties["employeeId"];
+  const name = String(n.properties["姓名"] ?? n.properties["name"] ?? n.id);
+  const eid = n.properties["工号"] ?? n.properties["employeeId"];
   return eid ? `${name}（${eid}）` : name;
 }
 

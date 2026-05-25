@@ -20,6 +20,7 @@ import ConfigCenter from './pages/ConfigCenter.js';
 import SearchPage from './pages/SearchPage.js';
 import ProposalsPage from './pages/ProposalsPage.js';
 import RemindersPage from './pages/RemindersPage.js';
+import BugReport from './pages/BugReport.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/proposals" element={<ProposalsPage />} />
           <Route path="/reminders" element={<RemindersPage />} />
+          <Route path="/bug-report" element={<BugReport />} />
           <Route path="*" element={<NotFound />} />
         </Route>
         <Route path="/help/feedback/:token" element={<HelpFeedback />} />

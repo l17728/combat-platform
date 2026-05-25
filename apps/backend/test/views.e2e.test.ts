@@ -53,7 +53,7 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
       .filter(e => String(e.properties["field"]) === "运维责任人");
     expect(refs).toHaveLength(1);
     expect(String(refs[0].properties["concept"])).toBe("负责人");
-    expect(repo.getNode(refs[0].targetId)!.properties["name"]).toBe("甲运维");
+    expect(repo.getNode(refs[0].targetId)!.properties["姓名"]).toBe("甲运维");
   });
 
   it("§49 attackTicket 事件单号 ↔ p3Incident 共享 → coAnchored 互见", async () => {

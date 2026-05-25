@@ -413,10 +413,57 @@ daily_report_entry (
 | `edges` | 所有跨-view 关联 | REF / ANCHORED_TO / SAME_AS 等 9 种边类型（见 §4.3） |
 | `progress_log` | attackTicket 进展时间线 | `ownerId` → `nodes.id`，append-only |
 | `daily_report_entry` | attackTicket 日报（草稿/已发布） | `ticket_id` → `nodes.id`，独立工作流 |
+| `support_node` | attackTicket 求助网络节点（动态生长的树） | `ticket_id` → `nodes.id`，`parent_id` 自引用，模板节点 `ticket_id=NULL` |
+| `support_template` | 支援网络模板（跨攻关单复用 + 收敛固化） | `usage_count` 用于收敛分析；apply 时 +1 |
 | `audit_log` | 所有写操作审计 | 不可变，CREATE/UPDATE/DELETE/MERGE/ESCALATE 等 |
 | `proposals` | 关系审批队列（模糊匹配待确认） | `source_node_id` / `target_node_id` → `nodes.id` |
 | `notifications` | 提醒/催办通知队列 | `ticket_id` → `nodes.id` |
 | `app_settings` | 全局 KV 配置（邮件、RBAC、自定义命令等） | key=`smtp`/`escalation`/`ui_pinned` 等 |
+
+### 4.6 求助网络数据模型（公关支援树）
+
+**问题**：攻关任务中责任人需要向多个领域求助（环境主持人 / 推理引擎 / 调度 / 管控面 等），这构成一棵动态生长的 (category, domain, person) 树。不同攻关单的树大致相同又不完全相同；随大量攻关单会逐步收敛为固化模板。
+
+**模型**：两张轻量专用表（独立于 nodes/edges，因为树自引用 + 模板克隆是高频路径，专表查询更快）：
+
+```sql
+support_template (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,           -- "ModelArts标准攻关支援"
+  description   TEXT NOT NULL DEFAULT '',
+  usage_count   INTEGER NOT NULL DEFAULT 0,  -- 被 apply 次数（收敛分析依据）
+  created_at    TEXT NOT NULL
+)
+
+support_node (
+  id          TEXT PRIMARY KEY,
+  ticket_id   TEXT,                      -- NULL 时为模板节点；否则关联 attackTicket
+  template_id TEXT,                      -- 实例节点克隆自哪个模板（可 NULL）
+  parent_id   TEXT,                      -- 自引用，NULL = 根节点
+  category    TEXT NOT NULL,             -- 大类：环境 | 领域专家 | 团队协作 | 资源
+  domain      TEXT NOT NULL,             -- 具体领域：推理引擎 | 调度 | 管控面 | 环境主持人 …
+  person_id   TEXT,                      -- ref → nodes.id (person)，可 NULL（待指定）
+  person_name TEXT,                      -- 冗余字段，避免每次 JOIN
+  status      TEXT NOT NULL DEFAULT '待确认',  -- 待确认 | 支持中 | 已完成 | 已撤销
+  note        TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL,
+  resolved_at TEXT
+)
+```
+
+索引：`idx_support_node_ticket ON support_node(ticket_id)`、`idx_support_node_template ON support_node(template_id)`
+
+**树构建**：后端返回 flat list，前端按 `parent_id` 在内存中组树（`apps/frontend/src/pages/AttackDetail.tsx:71` 的 `buildTree`）。
+
+**模板克隆机制**（apply）：
+1. SELECT 模板节点（`ticket_id IS NULL AND template_id=?`）
+2. 第一遍生成 `oldId → newId` 映射
+3. 第二遍 INSERT 新节点，`parent_id` 用映射改写，`ticket_id` 改为目标 ticket
+4. `usage_count += 1`
+
+**收敛机制（已固化的预留点）**：`usage_count` 字段为模板使用频率分析预留；后续可加 Job 在攻关单结案时统计 `(category, domain, person_id)` 出现频率，超过阈值的 pair 自动建议纳入模板库。
+
+**代码位置**：建表 `apps/backend/src/db.ts:53-71`；路由 `apps/backend/src/support-node.ts`；CLI 命令 `apps/backend/src/cli-core.ts`（`support-node:*` + `support-template:*` 共 7 条）；前端 Tab `apps/frontend/src/pages/AttackDetail.tsx:759`（key=`"support"`）；模板管理页 `apps/frontend/src/pages/SupportTemplatePage.tsx`。
 
 ---
 
@@ -616,6 +663,8 @@ daily_report_entry (
 | Schema Wizard `schema-api.ts` | `/api/schema` | GET /list, GET /suggest, POST /nodeType, DELETE /nodeType/:nodeType |
 | UI 固定 `ui-cache.ts` | `/api/ui-cache` | GET /pinned, POST /pin, PATCH /pinned/:id, DELETE /pinned/:id |
 | 责任矩阵 `responsibility.ts` | `/api/responsibility/diagram` | GET |
+| 求助网络 `support-node.ts` | `/api/support-nodes` | GET /:ticketId, POST /:ticketId, PUT /node/:nodeId, DELETE /node/:nodeId |
+| 支援模板 `support-node.ts` | `/api/support-templates` | GET, POST, POST /:templateId/apply/:ticketId, DELETE /:templateId |
 
 ---
 
@@ -1089,3 +1138,16 @@ node scripts/deploy/deploy.mjs deploy
 | 当前值班人（按日期派生） | `apps/backend/src/oncall.ts:11`（`currentOncall`） | EntityTable for `oncall` |
 | SMTP 配置 + 邮件发送 | `apps/backend/src/email.ts:61`（`makeEmailRouter`） + `mailer.ts` | `apps/frontend/src/pages/EmailPage.tsx` |
 | 收件人解析（to + 群组 + 人员） | `apps/backend/src/email.ts:39`（`resolveRecipients`） | — |
+
+### 12.12 求助网络（公关支援树）
+
+| 特性 | 后端位置 | 前端位置 |
+|---|---|---|
+| 建表（support_node + support_template） | `apps/backend/src/db.ts:53-71` | — |
+| 求助节点 CRUD | `apps/backend/src/support-node.ts`（GET/POST/PUT/DELETE） | `apps/frontend/src/pages/AttackDetail.tsx:759`（"求助网络" Tab） |
+| 树形 buildTree（flat list → 树） | — | `apps/frontend/src/pages/AttackDetail.tsx:71` |
+| 模板 CRUD + apply 克隆 | `apps/backend/src/support-node.ts:152-228` | `apps/frontend/src/pages/SupportTemplatePage.tsx` + AttackDetail Tab 内 Select |
+| 模板克隆（oldId→newId 映射 + parent 改写）| `apps/backend/src/support-node.ts:201-224` | — |
+| 收敛分析预留字段（usage_count）| `apps/backend/src/db.ts:55`（`support_template.usage_count`） | 模板列表显示"已使用 N 次" |
+| CLI 命令（support-node:* + support-template:*） | `apps/backend/src/cli-core.ts`（7 条命令） | — |
+| 路由 `/support-templates` | — | `apps/frontend/src/App.tsx`、`AppShell.tsx`（导航） |

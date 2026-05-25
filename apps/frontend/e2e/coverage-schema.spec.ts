@@ -26,7 +26,7 @@ test("GAP /contributions parity: no status-filter, edit+delete, export, ref cell
   })).json();
   await page.goto("/contributions");
   await page.getByLabel(`edit-row-${c.id}`).click();
-  await page.getByLabel("edit-贡献描述").fill("已编辑");
+  await page.getByLabel("edit-描述").fill("已编辑");
   await page.getByLabel(`save-${c.id}`).click();
   await expect(page.getByText("已编辑")).toBeVisible();
   await page.reload();

@@ -19,8 +19,8 @@ function make() {
 describe("增量41 跨 view 记录对账分析（§55）", () => {
   it("55.1 完全同名 person（无 employeeId）→ 提 SAME_AS 候选", async () => {
     const { app } = make();
-    await request(app).post("/api/nodes/person").send({ name: "周强" });
-    await request(app).post("/api/nodes/person").send({ name: "周强" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "周强" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "周强" });
     await request(app).post("/api/proposals/scan");
     const props = (await request(app).get("/api/proposals?status=待审批")).body;
     expect(props.length).toBe(1);
@@ -30,8 +30,8 @@ describe("增量41 跨 view 记录对账分析（§55）", () => {
 
   it("55.1 完全同名但 employeeId 均存在且不同 → 判定不同人，不提", async () => {
     const { app } = make();
-    await request(app).post("/api/nodes/person").send({ name: "陈明", employeeId: "E1" });
-    await request(app).post("/api/nodes/person").send({ name: "陈明", employeeId: "E2" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "陈明", 工号: "E1" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "陈明", 工号: "E2" });
     await request(app).post("/api/proposals/scan");
     const props = (await request(app).get("/api/proposals?status=待审批")).body;
     expect(props.length).toBe(0);
@@ -39,8 +39,8 @@ describe("增量41 跨 view 记录对账分析（§55）", () => {
 
   it("55.2 tickScheduledJobs 汇总含 proposals（对账纳入定期/手动任务）", async () => {
     const { app, repo, registry } = make();
-    await request(app).post("/api/nodes/person").send({ name: "孙丽" });
-    await request(app).post("/api/nodes/person").send({ name: "孙丽" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "孙丽" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "孙丽" });
     const sum = tickScheduledJobs(repo, registry);
     expect(sum.proposals).toBeGreaterThanOrEqual(1);
     // HTTP 触发也带 proposals 字段

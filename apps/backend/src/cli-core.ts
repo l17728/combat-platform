@@ -277,6 +277,41 @@ export const COMMANDS: CliCommand[] = [
       const ticketId = str(opts.ticketId);
       if (!ticketId) throw new Error("缺少 --ticketId");
       return { method: "POST", path: `/api/support-templates/${encodeURIComponent(pos[0])}/apply/${encodeURIComponent(ticketId)}` }; } },
+
+  // ---- bug reports (问题反馈) ----
+  { name: "bugs:list", summary: "列出问题反馈（默认仅待处理）", usage: "bugs:list [--status=<>] [--severity=<>] [--all]",
+    build: (_pos, opts) => {
+      const params: string[] = [];
+      if (opts.status) params.push(`status=${encodeURIComponent(str(opts.status)!)}`);
+      if (opts.severity) params.push(`severity=${encodeURIComponent(str(opts.severity)!)}`);
+      if (opts.all) params.push("status=");
+      return { method: "GET", path: `/api/bug-reports${params.length ? "?" + params.join("&") : "?status=待处理"}` };
+    } },
+  { name: "bugs:get", summary: "查看问题详情", usage: "bugs:get <id>",
+    build: (pos) => { requirePos(pos, 1, "bugs:get <id>"); return { method: "GET", path: `/api/bug-reports/${encodeURIComponent(pos[0])}` }; } },
+  { name: "bugs:create", summary: "提交问题反馈", usage: "bugs:create --title=<> [--description=<>] [--severity=<>] [--pageUrl=<>] [--reporter=<>] [--consoleLogs=<>]",
+    build: (_pos, opts) => {
+      const title = str(opts.title);
+      if (!title) throw new Error("缺少 --title");
+      return { method: "POST", path: "/api/bug-reports", body: {
+        title, description: str(opts.description) ?? "", severity: str(opts.severity) ?? "一般",
+        pageUrl: str(opts.pageUrl) ?? "", reporter: str(opts.reporter) ?? "", consoleLogs: str(opts.consoleLogs) ?? "" } };
+    } },
+  { name: "bugs:update", summary: "更新问题状态/备注", usage: "bugs:update <id> [--status=<>] [--resolution=<>] [--resolvedBy=<>]",
+    build: (pos, opts) => { requirePos(pos, 1, "bugs:update <id>");
+      const body: Record<string, string> = {};
+      if (opts.status !== undefined) body.status = str(opts.status)!;
+      if (opts.resolution !== undefined) body.resolution = str(opts.resolution)!;
+      if (opts.resolvedBy !== undefined) body.resolvedBy = str(opts.resolvedBy)!;
+      return { method: "PATCH", path: `/api/bug-reports/${encodeURIComponent(pos[0])}`, body }; } },
+  { name: "bugs:close", summary: "关闭问题（标记已关闭）", usage: "bugs:close <id> [--resolution=<>] [--resolvedBy=<>]",
+    build: (pos, opts) => { requirePos(pos, 1, "bugs:close <id>");
+      const body: Record<string, string> = { status: "已关闭" };
+      if (opts.resolution !== undefined) body.resolution = str(opts.resolution)!;
+      if (opts.resolvedBy !== undefined) body.resolvedBy = str(opts.resolvedBy)!;
+      return { method: "PATCH", path: `/api/bug-reports/${encodeURIComponent(pos[0])}`, body }; } },
+  { name: "bugs:delete", summary: "删除问题反馈", usage: "bugs:delete <id>",
+    build: (pos) => { requirePos(pos, 1, "bugs:delete <id>"); return { method: "DELETE", path: `/api/bug-reports/${encodeURIComponent(pos[0])}` }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

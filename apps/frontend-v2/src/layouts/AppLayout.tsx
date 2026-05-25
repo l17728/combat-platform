@@ -22,6 +22,7 @@ import {
   SearchOutlined,
   AuditOutlined,
   BellOutlined,
+  BugOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -44,6 +45,7 @@ function getSelectedKey(path: string): string {
   if (path === '/reminders') return '/reminders';
   if (path.startsWith('/related')) return '/attack';
   if (path === '/search') return '/search';
+  if (path === '/bug-report') return '/bug-report';
   if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return path;
   return '/';
 }
@@ -129,6 +131,11 @@ export function AppLayout() {
       key: '/search',
       icon: <SearchOutlined />,
       label: '全局搜索',
+    },
+    {
+      key: '/bug-report',
+      icon: <BugOutlined />,
+      label: '问题反馈',
     },
     {
       key: 'system',

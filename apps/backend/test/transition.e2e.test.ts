@@ -44,7 +44,7 @@ describe("§41 攻关单状态流转 e2e", () => {
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "校验单", 状态: "进行中" })).body;
     expect((await request(app).post(`/api/nodes/${t.id}/transition`).send({ toStatus: "不存在态" })).status).toBe(400);
     expect((await request(app).post(`/api/nodes/${t.id}/transition`).send({ toStatus: "" })).status).toBe(400);
-    const p = (await request(app).post("/api/nodes/person").send({ name: "甲" })).body;
+    const p = (await request(app).post("/api/nodes/person").send({ 姓名: "甲" })).body;
     expect((await request(app).post(`/api/nodes/${p.id}/transition`).send({ toStatus: "已解决" })).status).toBe(400);
     expect((await request(app).post(`/api/nodes/不存在/transition`).send({ toStatus: "已解决" })).status).toBe(404);
   });

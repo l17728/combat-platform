@@ -9,7 +9,7 @@ function detailLink(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
 }
 function label(n: GraphNode): string {
-  return String(n.properties["标题"] ?? n.properties["name"] ?? n.properties["贡献人"] ?? n.id);
+  return String(n.properties["标题"] ?? n.properties["姓名"] ?? n.properties["name"] ?? n.properties["贡献人"] ?? n.id);
 }
 
 export function RelatedPage() {

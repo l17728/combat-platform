@@ -111,6 +111,19 @@
 | DELETE | /api/commands/:id | custom-commands.ts:49 | `commands:delete` | |
 | POST | /api/commands/:id/run | custom-commands.ts:59 | `commands:run` | |
 
+### 求助网络（公关支援树）
+
+| Method | Path | 源 | CLI | 备注 |
+|---|---|---|---|---|
+| GET | /api/support-nodes/:ticketId | support-node.ts:58 | `support-node:list` | 列出攻关单的支援节点（flat list） |
+| POST | /api/support-nodes/:ticketId | support-node.ts:66 | `support-node:add` | 添加求助节点 |
+| PUT | /api/support-nodes/node/:nodeId | support-node.ts:107 | `support-node:update` | 部分更新 |
+| DELETE | /api/support-nodes/node/:nodeId | support-node.ts:135 | `support-node:delete` | 含子节点级联删除 |
+| GET | /api/support-templates | support-node.ts:143 | `support-template:list` | 按 usage_count DESC |
+| POST | /api/support-templates | support-node.ts:152 | `support-template:create` | 含节点列表（含 parentIndex） |
+| POST | /api/support-templates/:templateId/apply/:ticketId | support-node.ts:193 | `support-template:apply` | 克隆到 ticket，usage_count +1 |
+| DELETE | /api/support-templates/:templateId | support-node.ts:232 | （待补，UI 已有） | 删除模板及其节点 |
+
 > 备注：`config/schemas/domain.json` 及其 API/路由由并行 agent 实现；本次审计跳过 domain 的命令登记，但通用 `nodes:create / nodes:list / nodes:get / nodes:update / nodes:delete` 已覆盖任意 nodeType（包括将来的 domain），无需为 domain 单独建命令。
 
 ## 3. 本次新增 CLI

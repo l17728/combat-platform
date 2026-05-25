@@ -92,17 +92,17 @@ export default function PeopleList() {
 
   const columns = [
     {
-      title: '姓名', dataIndex: ['properties', '姓名'], width: 100, fixed: 'left' as const,
+      title: '姓名', dataIndex: ['properties', '姓名'], width: 80, fixed: 'left' as const,
       render: (v: string, r: GraphNode) => <a onClick={() => { setDetailNode(r); setDetailOpen(true); }}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['姓名'] as string) ?? '').localeCompare((b.properties['姓名'] as string) ?? ''),
     },
-    { title: '工号', dataIndex: ['properties', '工号'], width: 100 },
+    { title: '工号', dataIndex: ['properties', '工号'], width: 110, ellipsis: true },
     { title: '邮箱', dataIndex: ['properties', '邮箱'], ellipsis: true },
     {
-      title: '部门', dataIndex: ['properties', '部门'], width: 120,
+      title: '部门', dataIndex: ['properties', '部门'], width: 140, ellipsis: true,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['部门'] as string) ?? '').localeCompare((b.properties['部门'] as string) ?? ''),
     },
-    { title: '角色', dataIndex: ['properties', '角色'], width: 100 },
+    { title: '角色', dataIndex: ['properties', '角色'], width: 100, ellipsis: true },
     {
       title: '操作', width: 120, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (

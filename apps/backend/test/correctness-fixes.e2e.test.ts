@@ -38,14 +38,14 @@ describe("增量36 正确性修复", () => {
     const buf = xlsx([{ 标题: "A单", 状态: "进行中", 攻关申请人: "张三" }]);
     await request(app).post("/api/import").attach("file", buf, "x.xlsx");
     await request(app).post("/api/import").attach("file", xlsx([{ 标题: "B单", 状态: "进行中", 攻关申请人: "张三" }]), "x.xlsx");
-    expect(repo.queryNodes("person").filter(p => p.properties["name"] === "张三")).toHaveLength(1);
+    expect(repo.queryNodes("person").filter(p => p.properties["姓名"] === "张三")).toHaveLength(1);
   });
 
   it("H1: proposals:decide 接受 通过/已通过 两种动词", async () => {
     const { app, repo } = make();
     // 造两个近似 person（编辑距离 1）→ SAME_AS 提议（完全同名会被启发式跳过）
-    await request(app).post("/api/nodes/person").send({ name: "李雷", employeeId: "E1" });
-    await request(app).post("/api/nodes/person").send({ name: "李蕾", employeeId: "E2" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "李雷", 工号: "E1" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "李蕾", 工号: "E2" });
     await request(app).post("/api/proposals/scan");
     const props = (await request(app).get("/api/proposals?status=待审批")).body;
     expect(props.length).toBeGreaterThanOrEqual(1);
@@ -59,8 +59,8 @@ describe("增量36 正确性修复", () => {
   it("H2: 合并去重不产生重复边，并重算冲突", async () => {
     const { app, repo } = make();
     // 两个同名 person，各被一个攻关单引用 → 合并后只剩去重边
-    const a = (await request(app).post("/api/nodes/person").send({ name: "王五", employeeId: "W1" })).body;
-    const b = (await request(app).post("/api/nodes/person").send({ name: "王五B", employeeId: "W2" })).body;
+    const a = (await request(app).post("/api/nodes/person").send({ 姓名: "王五", 工号: "W1" })).body;
+    const b = (await request(app).post("/api/nodes/person").send({ 姓名: "王五B", 工号: "W2" })).body;
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "单1", 状态: "进行中", 当前处理人: "王五" });
     await request(app).post("/api/merge/person").send({ fromId: a.id, toId: b.id });
     expect((await request(app).get(`/api/nodes/${a.id}`)).status).toBe(404);

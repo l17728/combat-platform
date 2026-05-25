@@ -65,7 +65,7 @@ describe("§45 email e2e", () => {
     expect(g.status).toBe(201);
     const gl = await request(app).get("/api/nodes/emailGroup");
     expect(gl.body.some((n: any) => n.properties["组名"] === "G")).toBe(true);
-    await request(app).post("/api/nodes/person").send({ name: "张三", employeeId: "E1", email: "c@x.com" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "张三", 工号: "E1", 邮箱: "c@x.com" });
 
     const send = await request(app).post("/api/email/send").send({
       to: ["d@x.com", "a@x.com"], groupNames: ["G"], personNames: ["张三"], subject: "S", body: "B",
@@ -82,7 +82,7 @@ describe("§45 email e2e", () => {
   it("person resolved by employeeId too, invalid emails filtered out", async () => {
     const { app } = makeApp();
     await request(app).put("/api/email/config").send(SMTP);
-    await request(app).post("/api/nodes/person").send({ name: "李四", employeeId: "E2", email: "li@x.com" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "李四", 工号: "E2", 邮箱: "li@x.com" });
     const send = await request(app).post("/api/email/send").send({
       to: ["bad-email", " ", "ok@x.com"], personNames: ["E2"], subject: "S", body: "B",
     });

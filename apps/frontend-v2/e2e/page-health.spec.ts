@@ -38,6 +38,7 @@ test.describe('回归防护 - 页面健康检查', () => {
       '/schema',
       '/merge',
       '/config',
+      '/bug-report',
     ];
 
     for (const path of pages) {

@@ -85,6 +85,20 @@ export const REMINDER_KIND_LABEL: Record<string, string> = {
   'CCB 提醒': 'CCB 提醒',
 };
 
+export const BUG_SEVERITY_COLOR: Record<string, string> = {
+  '严重': 'red',
+  '较高': 'orange',
+  '一般': 'blue',
+  '建议': 'default',
+};
+
+export const BUG_STATUS_COLOR: Record<string, string> = {
+  '待处理': 'gold',
+  '处理中': 'blue',
+  '已解决': 'green',
+  '已关闭': 'default',
+};
+
 export const NODE_TYPE_LABEL: Record<string, string> = {
   'attackTicket': '攻关单',
   'person': '人员',

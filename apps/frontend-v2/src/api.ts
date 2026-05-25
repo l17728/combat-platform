@@ -530,6 +530,38 @@ export class Api {
   getContext(id: string): Promise<QueryContext> {
     return this.req<QueryContext>(`/api/query/context/${id}`);
   }
+
+  createBugReport(data: {
+    title: string; description?: string; severity?: string;
+    pageUrl?: string; reporter?: string; screenshot?: string; consoleLogs?: string; userAgent?: string;
+  }): Promise<any> {
+    return this.req('/api/bug-reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  listBugReports(status?: string): Promise<any[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.req(`/api/bug-reports${qs}`);
+  }
+
+  getBugReport(id: string): Promise<any> {
+    return this.req(`/api/bug-reports/${id}`);
+  }
+
+  updateBugReport(id: string, data: { status?: string; resolution?: string; resolvedBy?: string }): Promise<any> {
+    return this.req(`/api/bug-reports/${id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteBugReport(id: string): Promise<{ deleted: string }> {
+    return this.req(`/api/bug-reports/${id}`, { method: 'DELETE' });
+  }
 }
 
 export interface HelpRequest {

@@ -68,8 +68,8 @@ describe("增量34 后台自动化机制（§51, 仅后端）", () => {
 
   it("51.4 荣誉 groupBy=team 按团队加权聚合", async () => {
     const { app } = make();
-    await request(app).post("/api/nodes/person").send({ name: "甲", employeeId: "P1", 团队: "A组" });
-    await request(app).post("/api/nodes/person").send({ name: "乙", employeeId: "P2", 团队: "B组" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "甲", 工号: "P1", 团队: "A组" });
+    await request(app).post("/api/nodes/person").send({ 姓名: "乙", 工号: "P2", 团队: "B组" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "甲", 贡献类型: "实施", 贡献等级: "核心" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "乙", 贡献类型: "实施", 贡献等级: "普通" });
     const r = await request(app).get("/api/honor/leaderboard?groupBy=team");

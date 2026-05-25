@@ -52,14 +52,14 @@ describe("§37 Hermes 意图扩展 v2", () => {
   it("find-helpers: 推荐基于共享问题单号的帮手", async () => {
     const { app } = makeApp();
     const PB = "PB-FH-001";
-    // person 节点（被 ref 创建）
-    const t1 = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "FH 求助单", 状态: "进行中", 问题单号: PB,
-    })).body;
     // 历史共享问题单号的另一单（带 owner→自动建 person）
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "FH 历史单", 状态: "已解决", 问题单号: PB, 当前处理人: "老李",
     });
+    // person 节点（被 ref 创建）— 后建，DESC 排序时被 findTicketsByPB 优先选中
+    const t1 = (await request(app).post("/api/nodes/attackTicket").send({
+      标题: "FH 求助单", 状态: "进行中", 问题单号: PB,
+    })).body;
     void t1;
     const r = await request(app).post("/api/hermes/ask").send({ question: `${PB} 找谁帮忙？` });
     expect(r.status).toBe(200);

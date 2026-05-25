@@ -42,7 +42,7 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     const { app, repo } = make();
     await request(app).post("/api/nodes/issue400").send({ 客户: "客A", 邮件: "a@x.com" });
     expect(repo.queryNodes("issue400")[0].properties["邮件"]).toBe("a@x.com");
-    const p = (await request(app).post("/api/nodes/person").send({ name: "组长甲", 角色: "攻关组长" })).body;
+    const p = (await request(app).post("/api/nodes/person").send({ 姓名: "组长甲", 角色: "攻关组长" })).body;
     expect((await request(app).get(`/api/nodes/${p.id}`)).body.properties["角色"]).toBe("攻关组长");
   });
 
@@ -51,8 +51,8 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     const t = (await request(app).post("/api/nodes/attackTicket")
       .send({ 标题: "ref单", 状态: "进行中", 攻关组长: "王组长", 攻关申请人: "李申请" })).body;
     // person 节点被自动创建
-    const leader = repo.queryNodes("person").find(n => n.properties["name"] === "王组长");
-    const applicant = repo.queryNodes("person").find(n => n.properties["name"] === "李申请");
+    const leader = repo.queryNodes("person").find(n => n.properties["姓名"] === "王组长");
+    const applicant = repo.queryNodes("person").find(n => n.properties["姓名"] === "李申请");
     expect(leader).toBeTruthy();
     expect(applicant).toBeTruthy();
     // REF 边存在（field=攻关组长 / 攻关申请人）

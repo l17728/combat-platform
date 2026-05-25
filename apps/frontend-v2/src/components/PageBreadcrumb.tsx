@@ -13,6 +13,7 @@ const ROUTE_MAP: Record<string, { title: string; parent?: string }> = {
   '/search': { title: '全局搜索' },
   '/proposals': { title: '关系审批' },
   '/reminders': { title: '跟催提醒' },
+  '/bug-report': { title: '问题反馈' },
   '/import': { title: '数据导入/导出' },
   '/email': { title: '邮件设置' },
   '/audit': { title: '审计日志' },

@@ -173,6 +173,7 @@ test.describe('回归防护 - 直接URL导航', () => {
       { url: '/import', heading: '数据导入/导出' },
       { url: '/email', heading: '邮件设置' },
       { url: '/audit', heading: '审计日志' },
+      { url: '/bug-report', heading: '问题反馈' },
     ];
 
     for (const p of pages) {

@@ -98,7 +98,7 @@ describe("incremental import (upsert) e2e", () => {
     const refs = repo.queryEdges({ sourceId: t.id, edgeType: "REF" }).filter(e => String(e.properties["field"]) === "当前处理人");
     expect(refs).toHaveLength(1);
     const newPerson = repo.getNode(refs[0].targetId)!;
-    expect(newPerson.properties["name"]).toBe("乙");
+    expect(newPerson.properties["姓名"]).toBe("乙");
     const anchors = repo.queryEdges({ sourceId: t.id, edgeType: "ANCHORED_TO" });
     expect(anchors).toHaveLength(1);
     expect(repo.getNode(anchors[0].targetId)!.properties["key"]).toBe("PB-B");
