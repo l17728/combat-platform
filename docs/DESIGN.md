@@ -64,7 +64,8 @@ D:\fighting\
 │   │   ├── relations.ts        # 手工关联线（RELATES_TO 边）
 │   │   ├── refs.ts             # syncRefEdges()：ref 字段 → REF 边
 │   │   ├── anchors.ts          # syncAnchorEdges()：anchor 字段 → ANCHORED_TO 边
-│   │   ├── audit.ts            # 审计日志路由
+  │   │   ├── audit.ts            # 审计日志路由
+  │   │   ├── bug-report.ts       # 问题反馈 CRUD 路由
 │   │   ├── proposer.ts         # HeuristicRelationProposer（候选提议生成）
 │   │   ├── mailer.ts           # NodemailerSender / MailSender 接口
 │   │   ├── channel.ts          # StubChannelAdapter（提醒渠道 stub）
@@ -340,6 +341,27 @@ daily_report_entry (
 
 > 与 `/api/daily-report` 的关系：`/api/daily-report` 是基于 ProgressLog 时间窗的汇总视图；`daily_report_entry` 是用户在攻关单页主动撰写的结构化日报条目，二者并存。
 
+#### bug_reports 表（问题反馈）
+
+```sql
+bug_reports (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  severity     TEXT NOT NULL DEFAULT '一般',   -- 严重 | 较高 | 一般 | 建议
+  reporter     TEXT NOT NULL DEFAULT '',
+  page_url     TEXT NOT NULL DEFAULT '',
+  screenshot   TEXT,                            -- base64 编码截图
+  console_logs TEXT,                            -- JSON: 捕获的 console 输出
+  user_agent   TEXT NOT NULL DEFAULT '',
+  status       TEXT NOT NULL DEFAULT '待处理',  -- 待处理 | 处理中 | 已解决 | 已关闭
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+)
+```
+
+代码位置：路由 `apps/backend/src/bug-report.ts`；前端页面 `apps/frontend-v2/src/pages/BugReport.tsx`。
+
 ### 4.2 NodeSchema 配置格式（完整注释）
 
 文件路径：`config/schemas/<nodeType>.json`
@@ -419,6 +441,7 @@ daily_report_entry (
 | `proposals` | 关系审批队列（模糊匹配待确认） | `source_node_id` / `target_node_id` → `nodes.id` |
 | `notifications` | 提醒/催办通知队列 | `ticket_id` → `nodes.id` |
 | `app_settings` | 全局 KV 配置（邮件、RBAC、自定义命令等） | key=`smtp`/`escalation`/`ui_pinned` 等 |
+| `bug_reports` | 问题反馈（系统使用中发现的问题和建议） | 独立表，支持截图+Console日志+状态生命周期 |
 
 ### 4.6 求助网络数据模型（公关支援树）
 
@@ -665,6 +688,7 @@ support_node (
 | 责任矩阵 `responsibility.ts` | `/api/responsibility/diagram` | GET |
 | 求助网络 `support-node.ts` | `/api/support-nodes` | GET /:ticketId, POST /:ticketId, PUT /node/:nodeId, DELETE /node/:nodeId |
 | 支援模板 `support-node.ts` | `/api/support-templates` | GET, POST, POST /:templateId/apply/:ticketId, DELETE /:templateId |
+| 问题反馈 `bug-report.ts` | `/api/bug-reports` | POST, GET, GET /:id, PATCH /:id, DELETE /:id |
 
 ---
 
@@ -751,6 +775,12 @@ npm run cli -- help nodes:create
 | `commands:create` | 新建自定义命令 | `npm run cli -- commands:create --name "查活跃单" --template 'nodes:list attackTicket --状态 {状态}'` |
 | `commands:delete <id>` | 删除自定义命令 | `npm run cli -- commands:delete cmd-123` |
 | `commands:run <id>` | 运行自定义命令 | `npm run cli -- commands:run cmd-123 --args '{"状态":"处理中"}'` |
+| `bugs:create` | 创建问题反馈 | `npm run cli -- bugs:create --data '{"title":"页面白屏","severity":"严重"}'` |
+| `bugs:list` | 列出问题反馈 | `npm run cli -- bugs:list --status 待处理` |
+| `bugs:get <id>` | 查看问题反馈详情 | `npm run cli -- bugs:get abc-123` |
+| `bugs:update <id>` | 更新问题反馈 | `npm run cli -- bugs:update abc-123 --data '{"status":"处理中"}'` |
+| `bugs:close <id>` | 关闭问题反馈 | `npm run cli -- bugs:close abc-123` |
+| `bugs:delete <id>` | 删除问题反馈 | `npm run cli -- bugs:delete abc-123` |
 
 ---
 
@@ -798,6 +828,7 @@ npm run cli -- help nodes:create
 | `/domains` | DomainsPage | 领域台（即将上线 / 并行开发中） |
 | `/tasks` | TasksPage | 任务台（综合任务视图） |
 | `/settings` | SettingsPage | 配置中心（系统级偏好） |
+| `/bug-report` | BugReport | 问题反馈（提交/查看/状态流转） |
 
 ### 7.2 核心组件
 
@@ -906,14 +937,20 @@ if (/新关键词/.test(question)) {
 ### 8.5 部署
 
 ```bash
-# 一键部署到测试服务器（读取 .env.deploy 中的服务器信息）
-node scripts/deploy/deploy.mjs deploy
+# 一键部署到测试服务器（跳板机从 GitHub 拉代码 → SCP 到目标机）
+cd scripts/deploy-v2 && node deploy.mjs deploy
 
-# 前端在本地构建（避免服务器 OOM），上传到服务器
-# 详见: scripts/deploy/run-deploy.sh
+# 检查目标机状态
+cd scripts/deploy-v2 && node deploy.mjs check
+
+# 仅重启服务
+cd scripts/deploy-v2 && node deploy.mjs restart
+
+# 查看日志
+cd scripts/deploy-v2 && node deploy.mjs logs
 ```
 
-服务器路径：`/opt/combat/`（前端静态文件）、`/opt/combat/backend/`（后端代码）
+部署架构：开发机 → 跳板机(47.103.99.229) → 目标机(60.204.199.234)。跳板机从 GitHub 拉代码打包后 SCP 到目标机，避免开发机→跳板机的 SSH 管道传输瓶颈。
 
 ---
 

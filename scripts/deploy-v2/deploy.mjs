@@ -67,19 +67,21 @@ async function doCheck(c) {
 
 // ── deploy (full) ──
 async function doDeploy(c) {
-  // 1. Pack
-  console.log("[1/5] packing git HEAD...");
-  const tar = join(here, "combat-v2.tar.gz");
-  execSync(`git archive --format=tar.gz -o "${tar}" HEAD`, { cwd: repoRoot, stdio: "pipe" });
-  console.log("[1/5] packed", (statSync(tar).size / 1024).toFixed(0), "KB");
+  // 1. Clone/pull on relay, then archive
+  console.log("[1/5] preparing package on relay...");
+  let r = await run(c, "git clone https://github.com/l17728/combat-platform.git /tmp/combat-deploy 2>&1 || (cd /tmp/combat-deploy && git fetch origin && git reset --hard origin/master)");
+  console.log("[1/5]", r.out.trim().split("\n").pop());
+  r = await run(c, "cd /tmp/combat-deploy && git archive --format=tar.gz -o /tmp/combat-v2.tar.gz HEAD && ls -la /tmp/combat-v2.tar.gz");
+  console.log("[1/5]", r.out.trim().split("\n").pop());
 
-  // 2. Upload via stdin pipe (SFTP is unreliable on flaky relay networks)
-  console.log("[2/5] uploading via stdin pipe...");
-  await stdinPut(c, tar, "/tmp/combat-v2.tar.gz");
-  const svcFile = join(here, "combat-v2.service");
-  if (existsSync(svcFile)) await stdinPut(c, svcFile, "/tmp/combat-v2.service");
+  // 2. SCP to target
+  console.log("[2/5] transferring to target...");
   await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.tar.gz root@${TARGET}:/tmp/combat-v2.tar.gz`);
-  if (existsSync(svcFile)) await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.service root@${TARGET}:/tmp/combat-v2.service`);
+  const svcFile = join(here, "combat-v2.service");
+  if (existsSync(svcFile)) {
+    await stdinPut(c, svcFile, "/tmp/combat-v2.service");
+    await run(c, `scp -o StrictHostKeyChecking=no /tmp/combat-v2.service root@${TARGET}:/tmp/combat-v2.service`);
+  }
   console.log("[2/5] uploaded");
 
   // 3. Extract

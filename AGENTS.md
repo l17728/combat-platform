@@ -115,12 +115,12 @@ cd scripts/deploy-v2 && node deploy.mjs restart
 cd scripts/deploy-v2 && node deploy.mjs logs
 ```
 
-#### 部署架构（2026-05-24 重构）
+#### 部署架构（2026-05-25 更新）
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
 - **Node 版本**：目标机自带 Node v24 但 better-sqlite3 不兼容，通过 systemd `PATH=/opt/node22-v2/bin` 使用 Node v22.14.0
-- **部署流程**：`git archive HEAD` → SFTP 到跳板机 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
-- **不再使用 `serve :80`**，也不使用 `run-backend.sh`
+- **部署流程**：跳板机从 GitHub 拉代码 → `git archive` 打包 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
+- **不再使用 `stdinPut` 管道传输**（跳板机网络不稳定，SSH exec stdin 管道传 643KB 文件会超时）
 - 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
 
 ### Existing Deployment (参考前端，不要修改)

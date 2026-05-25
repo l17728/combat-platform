@@ -5,8 +5,8 @@
 
 ## 1. 数据
 
-- 后端 API 路由总数：**61** 条（不含 domain 模块，由并行 agent 实现）
-- CLI 命令总数：**66** 条（本次新增 4）
+- 后端 API 路由总数：**67** 条（不含 domain 模块，由并行 agent 实现）
+- CLI 命令总数：**72** 条（本次新增 6 条 bug-report + 4 条 daily-report-entry）
   - 部分 API 单条对应多个 CLI（例如 `GET /api/nodes/:nodeType` ↔ `nodes:list`、`GET /api/nodes/:id` ↔ `nodes:get`，是同一 Express handler 的不同语义入口；CLI 拆成两条以避免歧义）。
 - 全部 backend 测试通过：**266 / 266**（48 个测试文件）。
 - 本次新增 CLI 测试：**7**（cli.e2e.test.ts → 24 个测试全部通过）。
@@ -123,6 +123,17 @@
 | POST | /api/support-templates | support-node.ts:152 | `support-template:create` | 含节点列表（含 parentIndex） |
 | POST | /api/support-templates/:templateId/apply/:ticketId | support-node.ts:193 | `support-template:apply` | 克隆到 ticket，usage_count +1 |
 | DELETE | /api/support-templates/:templateId | support-node.ts:232 | （待补，UI 已有） | 删除模板及其节点 |
+
+### 问题反馈（bug-report.ts）
+
+| Method | Path | 源 | CLI | 备注 |
+|---|---|---|---|---|
+| POST | /api/bug-reports | bug-report.ts | `bugs:create` | 创建问题反馈（标题必填） |
+| GET | /api/bug-reports | bug-report.ts | `bugs:list` | 可选 --status 过滤 |
+| GET | /api/bug-reports/:id | bug-report.ts | `bugs:get` | 单条详情 |
+| PATCH | /api/bug-reports/:id | bug-report.ts | `bugs:update` | 更新/状态流转 |
+| POST | /api/bug-reports/:id/close | bug-report.ts | `bugs:close` | 关闭问题 |
+| DELETE | /api/bug-reports/:id | bug-report.ts | `bugs:delete` | 删除 |
 
 > 备注：`config/schemas/domain.json` 及其 API/路由由并行 agent 实现；本次审计跳过 domain 的命令登记，但通用 `nodes:create / nodes:list / nodes:get / nodes:update / nodes:delete` 已覆盖任意 nodeType（包括将来的 domain），无需为 domain 单独建命令。
 

@@ -682,6 +682,7 @@ npm run cli -- kg:rebuild
 | 发布包 / 权重文件 | `/releases` / `/weights` | 发布包 / 权重文件登记 |
 | 攻关日报 | `/daily-report` | 当日进展汇总 + 发布 |
 | 跟催提醒 | `/reminders` | 提醒队列 |
+| 问题反馈 | `/bug-report` | 提交/查看系统问题和改进建议 |
 | 冲突 | `/conflicts` | 同负责人 / 同问题单冲突视图 |
 | Hermes 问答 | `/hermes` | 自然语言问答 |
 | 责任矩阵 | `/responsibility` | Mermaid 图：SLA + 负责 + 冲突 |

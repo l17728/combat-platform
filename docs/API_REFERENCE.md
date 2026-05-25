@@ -160,6 +160,20 @@ body `{ decidedBy }`。非待发送 → 409；不存在 → 404。
 ### `DELETE /api/settings/:key`
 删除配置项。返回 `{ deleted: key }`。404 if not found。
 
+## 问题反馈
+
+### `POST /api/bug-reports`
+创建问题反馈。body = `{ title, severity?, description?, reporter?, pageUrl?, screenshot?, consoleLogs? }`。severity ∈ `{严重, 较高, 一般, 建议}`。返回 201 `{ id, title, severity, status, ... }`。
+
+### `GET /api/bug-reports?status=<status>`
+列出问题反馈。可选按状态过滤：`待处理 / 处理中 / 已解决 / 已关闭`。
+
+### `PATCH /api/bug-reports/:id`
+更新问题反馈（含状态流转）。body = `{ status?, title?, description?, severity? }`。
+
+### `DELETE /api/bug-reports/:id`
+删除问题反馈。返回 200 `{ deleted: id }`。
+
 ## 错误码约定
 
 - 400：客户端错误（参数缺失、validateNode 失败、enum 不合法、字符串类型守卫）。
