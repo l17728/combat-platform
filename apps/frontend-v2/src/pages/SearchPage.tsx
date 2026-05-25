@@ -157,14 +157,14 @@ export default function SearchPage() {
       title: '类型',
       dataIndex: 'nodeType',
       key: 'nodeType',
-      width: 100,
+      width: 90,
       render: (t: string) => <Tag>{NODE_TYPE_LABEL[t] || t}</Tag>,
     },
     {
       title: '匹配度',
       dataIndex: 'score',
       key: 'score',
-      width: 80,
+      width: 70,
       sorter: (a: QueryHit, b: QueryHit) => a.score - b.score,
       render: (s: number) => (
         <Text type={s >= 3 ? 'danger' : s >= 2 ? 'warning' : undefined}>{s}</Text>

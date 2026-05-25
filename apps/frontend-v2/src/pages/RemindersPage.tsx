@@ -96,14 +96,13 @@ export default function RemindersPage() {
       title: '类型',
       dataIndex: 'kind',
       key: 'kind',
-      width: 140,
+      width: 100, ellipsis: true,
       render: (t: string) => <Tag color="blue">{t}</Tag>,
     },
     {
       title: '收件人',
       dataIndex: 'recipientName',
-      key: 'recipient',
-      width: 100,
+      key: 'recipient', ellipsis: true,
     },
     {
       title: '主题',
@@ -118,14 +117,14 @@ export default function RemindersPage() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 90,
+      width: 80,
       render: (s: string) => <Tag color={REMINDER_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
       title: '创建时间',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 140,
+      width: 100,
       sorter: (a: Reminder, b: Reminder) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,
@@ -138,7 +137,7 @@ export default function RemindersPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 160,
       fixed: 'right' as const,
       render: (_: unknown, record: Reminder) => (
         <Space>

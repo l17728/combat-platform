@@ -121,7 +121,7 @@ export default function ProposalsPage() {
       title: '关系',
       dataIndex: 'relationType',
       key: 'relation',
-      width: 100,
+      width: 90,
       render: (t: string) => <Tag>{t}</Tag>,
     },
     {
@@ -163,14 +163,14 @@ export default function ProposalsPage() {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 100,
+      width: 80,
       render: (s: string) => <Tag color={PROPOSAL_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
       title: '时间',
       dataIndex: 'createdAt',
       key: 'time',
-      width: 140,
+      width: 100,
       sorter: (a: RelationProposal, b: RelationProposal) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,
@@ -183,7 +183,7 @@ export default function ProposalsPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 140,
+      width: 120,
       fixed: 'right' as const,
       render: (_: unknown, record: RelationProposal) =>
         record.status === '待审批' ? (

@@ -127,7 +127,7 @@ export default function AttackList() {
 
   const columns = [
     {
-      title: '编号', width: 100, fixed: 'left' as const,
+      title: '编号', width: 90, fixed: 'left' as const,
       render: (_: unknown, r: GraphNode) => (
         <Tooltip title={r.id}><a onClick={() => navigate(`/attack/${r.id}`)}>{r.id.slice(0, 8)}</a></Tooltip>
       ),
@@ -138,16 +138,16 @@ export default function AttackList() {
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
     },
     {
-      title: '状态', dataIndex: ['properties', '状态'], width: 120,
+      title: '状态', dataIndex: ['properties', '状态'], width: 100,
       render: (v: string) => <StatusTag status={v} />,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
     },
-    { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100 },
+    { title: '处理人', dataIndex: ['properties', '当前处理人'], ellipsis: true },
     { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
-    { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 140, ellipsis: true },
-    { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
+    { title: '问题单号', dataIndex: ['properties', '问题单号'], ellipsis: true },
+    { title: '客户', dataIndex: ['properties', '客户名称'], ellipsis: true },
     {
-      title: '更新', dataIndex: 'updatedAt', width: 120,
+      title: '更新', dataIndex: 'updatedAt', width: 100,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).fromNow()}</Tooltip>,
       sorter: (a: GraphNode, b: GraphNode) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
       defaultSortOrder: 'descend' as const,

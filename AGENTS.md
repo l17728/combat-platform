@@ -162,7 +162,7 @@ npm run dev:frontend-v2      # Start frontend-v2 on :5174 (vite dev)
 
 ### Run All Tests (full CI gate)
 ```bash
-npm run test:all             # shared + backend + frontend unit + frontend e2e (resets schemas between suites)
+npm run test:all             # shared + backend + frontend unit + frontend e2e + frontend-v2 e2e (resets schemas between suites)
 ```
 
 ### Run Tests by Package
@@ -171,6 +171,7 @@ npm run test:shared          # packages/shared vitest unit tests
 npm run test:backend         # apps/backend vitest e2e tests
 npm run test --workspace=@combat/frontend     # frontend vitest unit tests (src/**/*.test.tsx)
 npm run test:frontend:e2e    # Playwright browser e2e tests (apps/frontend/e2e/)
+npm run test:frontend-v2:e2e # Playwright browser e2e tests (apps/frontend-v2/e2e/)
 ```
 
 ### Run a Single Test File
@@ -188,6 +189,9 @@ npx vitest run src/pages/EntityTable.test.tsx
 
 # Frontend e2e (from apps/frontend/):
 npx playwright test e2e/attack.spec.ts
+
+# Frontend-v2 e2e:
+npx playwright test --config=apps/frontend-v2/playwright.config.ts e2e/bug-report.spec.ts
 ```
 
 ### Run a Single Test by Name Pattern

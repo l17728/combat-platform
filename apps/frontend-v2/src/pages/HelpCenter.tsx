@@ -115,14 +115,13 @@ export default function HelpCenter() {
     {
       title: '攻关单',
       dataIndex: 'ticketId',
-      width: 100,
+      width: 90,
       render: (v: string) => (
         <a onClick={() => navigate(`/attack/${v}`)}>{v.slice(0, 8)}</a>
       ),
     },
     {
-      title: '求助对象',
-      width: 100,
+      title: '求助对象', ellipsis: true,
       render: (_: unknown, r: HelpRequest) => r.targetName ?? r.targetEmail,
     },
     {
@@ -189,6 +188,7 @@ export default function HelpCenter() {
           rowKey="id"
           dataSource={filtered}
           columns={columns}
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: false, showTotal: (t) => `共 ${t} 条` }}
           size="middle"
         />

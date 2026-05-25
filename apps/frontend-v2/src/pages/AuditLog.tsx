@@ -57,30 +57,30 @@ export default function AuditLog() {
     {
       title: '时间',
       dataIndex: 'performedAt',
-      width: 160,
+      width: 110,
       render: (v: string) => <Tooltip title={dayjs(v).format(DATE_FORMAT_FULL)}>{dayjs(v).format('MM-DD HH:mm')}</Tooltip>,
     },
     {
       title: '操作人',
       dataIndex: 'performedBy',
-      width: 100,
+      width: 80,
     },
     {
       title: '操作',
       dataIndex: 'action',
-      width: 100,
+      width: 80,
       render: (v: string) => <Tag color={ACTION_COLOR[v]}>{ACTION_LABEL[v] || v}</Tag>,
     },
     {
       title: '实体类型',
       dataIndex: 'entityType',
-      width: 100,
+      width: 90,
       render: (v: string) => ENTITY_TYPE_LABEL[v] || v,
     },
     {
       title: '实体ID',
       dataIndex: 'entityId',
-      width: 100,
+      width: 80,
       render: (v: string) => <Tooltip title={v}><Tag>{v.slice(0, 8)}</Tag></Tooltip>,
     },
     {
@@ -127,6 +127,7 @@ export default function AuditLog() {
           rowKey="id"
           dataSource={logs}
           columns={columns}
+          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
           size="middle"
         />

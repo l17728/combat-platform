@@ -135,7 +135,7 @@ export default function Contributions() {
 
   const columns = [
     {
-      title: '贡献人', dataIndex: ['properties', '贡献人'], width: 100, fixed: 'left' as const,
+      title: '贡献人', dataIndex: ['properties', '贡献人'], width: 80, fixed: 'left' as const, ellipsis: true,
       render: (v: string) => <a onClick={() => navigate(`/honor/${encodeURIComponent(v)}`)}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['贡献人'] as string) ?? '').localeCompare((b.properties['贡献人'] as string) ?? ''),
     },
@@ -146,7 +146,7 @@ export default function Contributions() {
     { title: '类型', dataIndex: ['properties', '贡献类型'], width: 80 },
     { title: '描述', dataIndex: ['properties', '描述'], ellipsis: true },
     {
-      title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], width: 140, ellipsis: true,
+      title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], ellipsis: true,
       render: (v: string) => {
         if (!v) return '--';
         const ticket = tickets.find(t => t.properties['标题'] === v);
@@ -154,9 +154,9 @@ export default function Contributions() {
         return v;
       },
     },
-    { title: '周期', dataIndex: ['properties', '周期'], width: 90 },
+    { title: '周期', dataIndex: ['properties', '周期'], width: 80 },
     {
-      title: '时间', dataIndex: 'createdAt', width: 100,
+      title: '时间', dataIndex: 'createdAt', width: 80,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).format('MM/DD')}</Tooltip>,
       sorter: (a: GraphNode, b: GraphNode) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,

@@ -122,28 +122,28 @@ export default function BugReport() {
 
   const columns = [
     {
-      title: '标题', dataIndex: 'title', key: 'title',
+      title: '标题', dataIndex: 'title', key: 'title', ellipsis: true,
       render: (text: string, record: any) => (
         <a onClick={() => { setDetail(record); setDetailOpen(true); }}>{text}</a>
       ),
     },
     {
-      title: '严重程度', dataIndex: 'severity', key: 'severity', width: 100,
+      title: '严重程度', dataIndex: 'severity', key: 'severity', width: 90,
       render: (s: string) => <Tag color={BUG_SEVERITY_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 90,
+      title: '状态', dataIndex: 'status', key: 'status', width: 80,
       render: (s: string) => <Tag color={BUG_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '报告人', dataIndex: 'reporter', key: 'reporter', width: 100,
+      title: '报告人', dataIndex: 'reporter', key: 'reporter', ellipsis: true,
     },
     {
-      title: '页面', dataIndex: 'pageUrl', key: 'pageUrl', width: 160, ellipsis: true,
+      title: '页面', dataIndex: 'pageUrl', key: 'pageUrl', ellipsis: true,
       render: (u: string) => <Tooltip title={u}><Text style={{ fontSize: 12 }}>{u}</Text></Tooltip>,
     },
     {
-      title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 140,
+      title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 100,
       sorter: (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,
       render: (t: string) => (

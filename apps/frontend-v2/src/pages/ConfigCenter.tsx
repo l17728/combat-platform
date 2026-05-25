@@ -84,7 +84,7 @@ export default function ConfigCenter() {
 
   const columns = [
     {
-      title: '配置项', dataIndex: 'key', width: 220,
+      title: '配置项', dataIndex: 'key', ellipsis: true,
       render: (key: string, r: SettingEntry) => (
         <div>
           <Text strong code style={{ fontSize: 13 }}>{key}</Text>
