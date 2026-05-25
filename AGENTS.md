@@ -574,12 +574,12 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-25 最后验证）
-- **146/146 e2e tests passing**
-- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28)
-- 新增页面覆盖：全局搜索(SearchPage)、关系审批(ProposalsPage)、跟催提醒(RemindersPage)
+- **156/156 e2e tests passing**
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10)
+- 新增页面覆盖：全局搜索(SearchPage)、关系审批(ProposalsPage)、跟催提醒(RemindersPage)、问题反馈(BugReport)
 - 零覆盖页面补齐：配置中心(ConfigCenter)、表结构管理(SchemaWizard)、攻关日报(DailyReport)、人员合并(MergePage)、关联全景(RelatedPage)
 - 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
-- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 16 个页面通过侧边栏可达
+- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 17 个页面通过侧边栏可达
 - 配置中心：所有硬编码下拉已改为 useSettings 动态加载（带 fallback）
 
 ## 工作流程规范

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, waitForDrawer, waitForTable } from './helpers';
+import { API, selectOption, waitForDrawer, waitForTable } from './helpers';
 
 test.describe('问题反馈', () => {
   test.beforeEach(async ({ page }) => {
@@ -49,33 +49,45 @@ test.describe('问题反馈', () => {
     await expect(page.getByText('E2E不应存在的标题')).not.toBeVisible();
   });
 
-  test('bug report lifecycle: create → process → resolve → close', async ({ page }) => {
-    await page.request.post(`${API}/api/bug-reports`, {
+  test('bug report lifecycle via detail drawer', async ({ page }) => {
+    const res = await page.request.post(`${API}/api/bug-reports`, {
       headers: { 'Content-Type': 'application/json' },
       data: { title: 'E2E生命周期问题', severity: '较高', description: '测试生命周期' },
     });
+    const bug = await res.json();
 
     await page.goto('/bug-report');
     await waitForTable(page);
-
     await expect(page.getByText('E2E生命周期问题')).toBeVisible();
 
-    const row = page.getByRole('row').filter({ hasText: 'E2E生命周期问题' });
-    await row.getByText('开始处理').click();
+    await page.getByText('E2E生命周期问题').click();
+    await waitForDrawer(page);
+    const drawer = page.locator('.ant-drawer');
+
+    await drawer.getByRole('button', { name: '开始处理' }).click();
     await expect(page.getByText('状态已更新').first()).toBeVisible();
+    await page.waitForTimeout(500);
 
     await page.goto('/bug-report');
     await waitForTable(page);
-    const row2 = page.getByRole('row').filter({ hasText: 'E2E生命周期问题' });
-    await expect(row2.getByText('处理中')).toBeVisible();
-    await row2.getByText('已解决').click();
+    const statusSelect = page.locator('.ant-select').nth(1);
+    await selectOption(page, statusSelect, '处理中');
+    await waitForTable(page);
+    await page.getByText('E2E生命周期问题').click();
+    await waitForDrawer(page);
+    const drawer2 = page.locator('.ant-drawer');
+    await drawer2.getByRole('button', { name: '标记已解决' }).click();
     await expect(page.getByText('状态已更新').first()).toBeVisible();
+    await page.waitForTimeout(500);
 
     await page.goto('/bug-report');
     await waitForTable(page);
-    const row3 = page.getByRole('row').filter({ hasText: 'E2E生命周期问题' });
-    await expect(row3.getByText('已解决')).toBeVisible();
-    await row3.getByText('关闭').click();
+    await selectOption(page, statusSelect, '已解决');
+    await waitForTable(page);
+    await page.getByText('E2E生命周期问题').click();
+    await waitForDrawer(page);
+    const drawer3 = page.locator('.ant-drawer');
+    await drawer3.getByRole('button', { name: '关闭问题' }).click();
     await expect(page.getByText('状态已更新').first()).toBeVisible();
   });
 
@@ -100,21 +112,22 @@ test.describe('问题反馈', () => {
   test('delete bug report', async ({ page }) => {
     await page.request.post(`${API}/api/bug-reports`, {
       headers: { 'Content-Type': 'application/json' },
-      data: { title: 'E2E待删除问题', severity: '一般' },
+      data: { title: 'E2E待移除问题', severity: '一般' },
     });
 
     await page.goto('/bug-report');
     await waitForTable(page);
 
-    await expect(page.getByText('E2E待删除问题')).toBeVisible();
+    await expect(page.getByText('E2E待移除问题')).toBeVisible();
 
-    const row = page.getByRole('row').filter({ hasText: 'E2E待删除问题' });
+    const row = page.getByRole('row').filter({ hasText: 'E2E待移除问题' });
     await row.locator('a').filter({ hasText: /删\s?除/ }).click();
     await page.waitForTimeout(300);
     await page.locator('.ant-popconfirm').getByRole('button', { name: /确\s?定|OK/ }).click();
     await page.waitForTimeout(1000);
 
     await expect(page.getByText('已删除').first()).toBeVisible();
+    await expect(page.getByText('E2E待移除问题')).not.toBeVisible();
   });
 
   test('filter by status', async ({ page }) => {
