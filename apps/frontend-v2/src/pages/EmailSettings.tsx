@@ -12,6 +12,8 @@ import {
 } from 'antd';
 import { api } from '../api.js';
 import type { SmtpConfigMasked } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title } = Typography;
 
@@ -66,9 +68,10 @@ export default function EmailSettings() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        邮件设置
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>邮件设置</Title>
+        <HelpButton title={HELP.emailSettings.title} content={HELP.emailSettings.content} />
+      </div>
 
       <Card style={{ maxWidth: 600 }}>
         <Form form={form} layout="vertical" onFinish={handleSave}>

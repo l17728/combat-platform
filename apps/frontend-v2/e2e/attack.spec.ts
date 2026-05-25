@@ -276,7 +276,7 @@ test.describe('自定义字段 (+字段)', () => {
     await page.locator('.ant-modal').getByRole('button', { name: /添\s?加/ }).click();
     await expect(page.getByText('字段已添加')).toBeVisible();
 
-    await expect(page.getByText('自定义显示名')).toBeVisible();
+    await expect(page.locator('.ant-drawer').getByText('自定义显示名').first()).toBeVisible();
   });
 
   test('add field from AttackDetail edit drawer', async ({ page, request }) => {
@@ -296,6 +296,6 @@ test.describe('自定义字段 (+字段)', () => {
     await page.locator('.ant-modal').getByRole('button', { name: /添\s?加/ }).click();
     await expect(page.getByText('字段已添加')).toBeVisible();
 
-    await expect(page.locator('.ant-drawer').getByText('详情自定义')).toBeVisible();
+    await expect(page.locator('.ant-drawer').getByText('详情自定义').first()).toBeVisible();
   });
 });

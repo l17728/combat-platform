@@ -11,6 +11,8 @@ import { api } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, DATE_FORMAT_SHORT } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import type { DashboardSummary } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -54,7 +56,10 @@ export default function Dashboard() {
 
   return (
     <div>
-      <Title level={4}>作战态势</Title>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>作战态势</Title>
+        <HelpButton title={HELP.dashboard.title} content={HELP.dashboard.content} />
+      </div>
 
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={12} md={6}>

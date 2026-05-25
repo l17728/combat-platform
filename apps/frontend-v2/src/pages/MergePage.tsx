@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Typography, Button, Popconfirm, Select, Space, Descriptions, message, Alert, Skeleton, Card, Divider } from 'antd';
 import { api } from '../api.js';
 import type { GraphNode, MergePreview } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 function personLabel(n: GraphNode): string {
   const name = String(n.properties['姓名'] ?? n.properties['name'] ?? n.id);
@@ -54,6 +56,7 @@ export default function MergePage() {
   return (
     <div>
       <Typography.Title level={4}>人员合并</Typography.Title>
+      <HelpButton title={HELP.mergePage.title} content={HELP.mergePage.content} />
       <Alert type="warning" showIcon message="此操作不可逆" description="被合并方的字段与所有关系将迁移到保留方，然后删除被合并方。请谨慎操作。" style={{ marginBottom: 16 }} />
       
       <Card style={{ marginBottom: 16 }}>

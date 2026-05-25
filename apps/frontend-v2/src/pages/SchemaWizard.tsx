@@ -6,6 +6,8 @@ import { PlusOutlined, DeleteOutlined, SearchOutlined, CheckOutlined } from '@an
 import type { FieldSchema, FieldType, NodeSchema } from '@combat/shared';
 import { api } from '../api.js';
 import type { SchemaSuggestion } from '../api.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title, Text } = Typography;
 
@@ -151,7 +153,10 @@ export default function SchemaWizard() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>表结构管理</Title>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>表结构管理</Title>
+        <HelpButton title={HELP.schemaWizard.title} content={HELP.schemaWizard.content} />
+      </div>
       <Row gutter={24}>
         <Col xs={24} lg={10}>
           <Card title="现有数据表" size="small" loading={loadingSchemas} style={{ marginBottom: 16 }}>

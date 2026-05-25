@@ -5,6 +5,8 @@ import { SearchOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { QueryContext } from '../api.js';
 import { NODE_TYPE_LABEL } from '../constants.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
@@ -176,6 +178,7 @@ export default function SearchPage() {
         <Title level={4} style={{ margin: 0 }}>
           全局搜索
         </Title>
+        <HelpButton title={HELP.search.title} content={HELP.search.content} />
       </div>
 
       <Space wrap style={{ marginBottom: 16, width: '100%' }}>

@@ -5,6 +5,8 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { RelatedResult } from '../api.js';
 import type { GraphNode } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 function detailLink(n: GraphNode): string {
   return n.nodeType === 'attackTicket' ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
@@ -42,6 +44,7 @@ export default function RelatedPage() {
     <div>
       <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ paddingLeft: 0, marginBottom: 8 }}>返回</Button>
       <Typography.Title level={4} style={{ marginBottom: 16 }}>关联全景：{nodeType} / {id.slice(0, 8)}</Typography.Title>
+      <HelpButton title={HELP.relatedPage.title} content={HELP.relatedPage.content} />
       <Space style={{ marginBottom: 16 }}>
         <span>深度：</span>
         <Select value={depth} onChange={setDepth} style={{ width: 80 }}

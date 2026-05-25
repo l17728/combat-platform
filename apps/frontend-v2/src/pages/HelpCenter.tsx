@@ -20,6 +20,8 @@ import type { HelpRequest } from '../api.js';
 import { HELP_STATUS_COLOR, PAGE_SIZE } from '../constants.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -151,9 +153,12 @@ export default function HelpCenter() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>求助中心</Title>
-        <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
-          发起求助
-        </Button>
+        <Space>
+          <HelpButton title={HELP.helpCenter.title} content={HELP.helpCenter.content} />
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
+            发起求助
+          </Button>
+        </Space>
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>

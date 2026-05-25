@@ -17,6 +17,8 @@ import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema, FieldType } from '@combat/shared';
 import type { DailyReportEntry, SupportNode, SupportTemplate } from '../api.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -269,6 +271,7 @@ export default function AttackDetail() {
           <Text type="secondary">创建于 {dayjs(node.createdAt).format(DATE_FORMAT)} · 更新于 {dayjs(node.updatedAt).fromNow()}</Text>
         </div>
         <Space>
+          <HelpButton title={HELP.attackDetail.title} content={HELP.attackDetail.content} />
           <Link to={`/related/attackTicket/${id}`}><Button icon={<LinkOutlined />}>关联全景</Button></Link>
           <Button icon={<SwapOutlined />} onClick={() => setTransitionOpen(true)}>状态流转</Button>
           <Button icon={<EditOutlined />} onClick={() => { editForm.setFieldsValue(props as any); setEditOpen(true); }}>编辑信息</Button>

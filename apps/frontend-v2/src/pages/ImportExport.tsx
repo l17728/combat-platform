@@ -12,6 +12,8 @@ import {
 import { UploadOutlined, ExportOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { ImportPreview } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title, Text } = Typography;
 
@@ -68,9 +70,10 @@ export default function ImportExport() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 24 }}>
-        数据导入/导出
-      </Title>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>数据导入/导出</Title>
+        <HelpButton title={HELP.importExport.title} content={HELP.importExport.content} />
+      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Space style={{ marginBottom: 16 }}>

@@ -6,6 +6,8 @@ import { api } from '../api.js';
 import { CONTRIBUTION_COLOR, PAGE_SIZE } from '../constants.js';
 import type { LeaderboardEntry } from '@combat/shared';
 import type { TeamLeaderboardEntry } from '../api.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
 
@@ -67,6 +69,7 @@ export default function Honor() {
           荣誉殿堂
         </Title>
         <Space>
+          <HelpButton title={HELP.honor.title} content={HELP.honor.content} />
           <Select placeholder="选择周期" allowClear style={{ width: 140 }} value={period} onChange={setPeriod}
             options={quarters.map((p) => ({ value: p, label: p }))} />
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出数据</Button>

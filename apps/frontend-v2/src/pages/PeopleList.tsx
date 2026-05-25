@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
 import type { GraphNode } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -120,6 +122,7 @@ export default function PeopleList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>全员名单</Title>
         <Space>
+          <HelpButton title={HELP.peopleList.title} content={HELP.peopleList.content} />
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入名单</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>添加</Button>

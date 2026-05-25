@@ -6,6 +6,8 @@ import { api } from '../api.js';
 import { CONTRIBUTION_COLOR } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import type { PersonHonor } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -54,7 +56,10 @@ export default function PersonHonor() {
             </div>
           </Col>
           <Col flex={1}>
-            <Title level={4} style={{ margin: 0 }}>{data.贡献人}</Title>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Title level={4} style={{ margin: 0 }}>{data.贡献人}</Title>
+              <HelpButton title={HELP.personHonor.title} content={HELP.personHonor.content} />
+            </div>
             <Space style={{ marginTop: 4 }}>
               {Object.entries(byLevel).map(([level, count]) => (
                 <Tag key={level} color={CONTRIBUTION_COLOR[level] ?? 'default'}>

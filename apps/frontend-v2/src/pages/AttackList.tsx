@@ -9,6 +9,8 @@ import { STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, NodeSchema, FieldType } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -165,6 +167,7 @@ export default function AttackList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>攻关作战台</Title>
         <Space>
+          <HelpButton title={HELP.attackList.title} content={HELP.attackList.content} />
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>新建攻关</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>导出</Button>
         </Space>

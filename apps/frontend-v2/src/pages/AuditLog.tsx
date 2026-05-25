@@ -4,6 +4,8 @@ import { ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT_FULL } from '../constants.js';
 import type { AuditLogEntry } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
@@ -93,7 +95,10 @@ export default function AuditLog() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>审计日志</Title>
-        <span onClick={fetchLogs} style={{ cursor: 'pointer', color: token.colorPrimary }}><ReloadOutlined /> 刷新</span>
+        <Space>
+          <HelpButton title={HELP.auditLog.title} content={HELP.auditLog.content} />
+          <span onClick={fetchLogs} style={{ cursor: 'pointer', color: token.colorPrimary }}><ReloadOutlined /> 刷新</span>
+        </Space>
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>

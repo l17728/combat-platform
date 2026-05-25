@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { ConfigProvider, Typography, Card, Form, Input, Button, Spin, message, Descriptions, Result } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { useParams } from 'react-router-dom';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title } = Typography;
 
@@ -63,7 +65,10 @@ export default function HelpFeedback() {
       <div style={{ maxWidth: 600, margin: '40px auto', padding: '0 24px' }}>
         <Card>
           <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <Title level={3}>攻关求助反馈</Title>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <Title level={3} style={{ margin: 0 }}>攻关求助反馈</Title>
+              <HelpButton title={HELP.helpFeedback.title} content={HELP.helpFeedback.content} />
+            </div>
           </div>
 
           {info && (

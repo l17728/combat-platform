@@ -5,6 +5,8 @@ import {
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 const { Title, Text } = Typography;
 
@@ -116,6 +118,7 @@ export default function ConfigCenter() {
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>配置中心</Title>
         <Space>
+          <HelpButton title={HELP.configCenter.title} content={HELP.configCenter.content} />
           <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增配置</Button>
         </Space>

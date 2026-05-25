@@ -17,6 +17,8 @@ import { ScanOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { RelationProposal } from '../api.js';
 import { PROPOSAL_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -218,6 +220,7 @@ export default function ProposalsPage() {
           关系审批
         </Title>
         <Space>
+          <HelpButton title={HELP.proposals.title} content={HELP.proposals.content} />
           <Select
             allowClear
             placeholder="状态筛选"

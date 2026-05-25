@@ -6,6 +6,8 @@ import { api } from '../api.js';
 import { STATUS_COLOR } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import type { DailyReport } from '@combat/shared';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 
 function reportToText(r: DailyReport): string {
   const lines: string[] = [];
@@ -63,6 +65,7 @@ export default function DailyReportPage() {
   return (
     <div>
       <Typography.Title level={4}>攻关日报</Typography.Title>
+      <HelpButton title={HELP.dailyReport.title} content={HELP.dailyReport.content} />
       <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
         <Col>
           <Space>

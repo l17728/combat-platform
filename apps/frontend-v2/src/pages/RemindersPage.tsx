@@ -17,6 +17,8 @@ import { ScanOutlined, SendOutlined, StopOutlined, EyeOutlined } from '@ant-desi
 import { api } from '../api.js';
 import type { Reminder } from '../api.js';
 import { REMINDER_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
+import HelpButton from '../components/HelpButton.js';
+import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -169,6 +171,7 @@ export default function RemindersPage() {
           跟催提醒
         </Title>
         <Space>
+          <HelpButton title={HELP.reminders.title} content={HELP.reminders.content} />
           <Select
             allowClear
             placeholder="状态筛选"
