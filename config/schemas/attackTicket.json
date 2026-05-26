@@ -306,6 +306,18 @@
       "name": "E2E详情字段",
       "type": "string",
       "label": "详情自定义"
+    },
+    {
+      "id": "E2E自定义字段#6",
+      "name": "E2E自定义字段",
+      "type": "string",
+      "label": "自定义显示名"
+    },
+    {
+      "id": "E2E详情字段#6",
+      "name": "E2E详情字段",
+      "type": "string",
+      "label": "详情自定义"
     }
   ]
 }
