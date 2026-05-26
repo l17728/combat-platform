@@ -59,7 +59,7 @@ function AppInner() {
   }, [user]);
 
   useEffect(() => {
-    logNavigate('', location.pathname);
+    logNavigate(location.pathname);
   }, [location.pathname]);
 
   return (

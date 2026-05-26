@@ -64,21 +64,75 @@ test.describe('操作追踪', () => {
     await expect(switchEl).toBeVisible();
   });
 
-  test('toggle switch turns off tracking', async ({ page }) => {
+  test('toggle off shows warning and backend rejects writes', async ({ page, request }) => {
     await page.goto('/op-log');
     await page.waitForLoadState('networkidle');
 
     const switchEl = page.locator('.ant-switch');
-    await expect(switchEl).toBeVisible();
-
     await switchEl.click();
     await page.waitForTimeout(500);
 
     const alert = page.getByText(/操作追踪当前已关闭/);
     await expect(alert).toBeVisible();
 
+    const writeRes = await request.post(`${API}/api/op-logs`, {
+      data: [
+        { session_id: 'disabled-test', user_name: 'admin', category: 'action', detail: { action: 'test' } },
+      ],
+    });
+    const body = await writeRes.json();
+    expect(body.disabled).toBe(true);
+    expect(body.inserted).toBe(0);
+
     await switchEl.click();
     await page.waitForTimeout(500);
+  });
+
+  test('cleanup confirm actually deletes old data', async ({ page, request }) => {
+    await request.post(`${API}/api/op-logs`, {
+      data: [
+        { session_id: 'cleanup-test', user_name: 'admin', category: 'action', detail: { action: 'old' }, timestamp: '2020-01-01T00:00:00Z' },
+      ],
+    });
+
+    const listBefore = await request.get(`${API}/api/op-logs?sessionId=cleanup-test`);
+    expect(listBefore.ok()).toBeTruthy();
+
+    await page.goto('/op-log');
+    await page.waitForLoadState('networkidle');
+
+    const btn = page.getByRole('button', { name: /清理旧数据/ });
+    const popconfirm = page.locator('.ant-popconfirm');
+    await btn.click();
+    await popconfirm.waitFor({ state: 'visible' });
+    const okBtn = popconfirm.getByRole('button', { name: /确\s?定/ });
+    await okBtn.click();
+    await page.waitForTimeout(500);
+
+    const listAfter = await request.get(`${API}/api/op-logs?sessionId=cleanup-test`);
+    expect((await listAfter.json()).total).toBe(0);
+  });
+
+  test('session ID click filters by that session', async ({ page, request }) => {
+    await request.post(`${API}/api/op-logs`, {
+      data: [
+        { session_id: 'click-filter-session', user_name: 'filteruser', category: 'api', detail: { path: '/test' } },
+      ],
+    });
+
+    await page.goto('/op-log');
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000);
+
+    const sessionLink = page.getByText('click-f');
+    await expect(sessionLink.first()).toBeVisible({ timeout: 10000 });
+    await sessionLink.first().click();
+    await page.waitForTimeout(500);
+
+    const tag = page.locator('.ant-tag').filter({ hasText: '会话' });
+    await expect(tag).toBeVisible();
+
+    await request.delete(`${API}/api/op-logs?sessionId=click-filter-session`);
   });
 
   test('sidebar has 操作追踪 under system management', async ({ page }) => {

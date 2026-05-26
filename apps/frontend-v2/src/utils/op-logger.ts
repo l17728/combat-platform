@@ -1,6 +1,7 @@
 let sessionId = '';
 let userName = '';
 let enabled = true;
+let prevPath = '';
 const buffer: OpEntry[] = [];
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 const FLUSH_INTERVAL = 5000;
@@ -45,6 +46,9 @@ async function fetchEnabled() {
 }
 
 export function setEnabled(v: boolean) {
+  if (!v && enabled) {
+    flush();
+  }
   enabled = v;
   if (enabled && !flushTimer) {
     flushTimer = setInterval(flush, FLUSH_INTERVAL);
@@ -78,8 +82,10 @@ export function logApiCall(method: string, path: string, status: number, duratio
   });
 }
 
-export function logNavigate(from: string, to: string) {
+export function logNavigate(to: string) {
   if (!enabled) return;
+  const from = prevPath;
+  prevPath = to;
   push({
     session_id: sessionId,
     user_name: userName,
@@ -138,6 +144,21 @@ export async function flush() {
   }
 }
 
+function syncFlush() {
+  if (buffer.length === 0) return;
+  const batch = buffer.splice(0, buffer.length);
+  try {
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('combat-token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const data = JSON.stringify(batch);
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([data], { type: 'application/json' });
+      navigator.sendBeacon('/api/op-logs', blob);
+    }
+  } catch {}
+}
+
 export function setupGlobalErrorHandler() {
   if (typeof window === 'undefined') return;
   const origHandler = window.onerror;
@@ -155,6 +176,9 @@ export function setupGlobalErrorHandler() {
     );
     if (origUnhandled) origUnhandled.call(window, e);
   };
+  window.addEventListener('beforeunload', () => {
+    syncFlush();
+  });
 }
 
 export function destroyOpLog() {
