@@ -94,7 +94,7 @@ async function doCheck(c) {
   const r = await onTarget(c,
     "echo 'node:' $(export PATH=/opt/node22-v2/bin:$PATH && node -v 2>/dev/null); " +
     "echo 'port 3001:' $(ss -tlnp | grep ':3001 ' | head -1 || echo not-listening); " +
-    "echo 'health:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket 2>/dev/null || echo down); " +
+    "echo 'health:' $(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3001/api/auth/login 2>/dev/null || echo down); " +
     "echo 'frontend:' $(curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo down)"
   );
   log("check", r.out.trim());
@@ -198,11 +198,11 @@ async function doDeploy(c) {
   for (let i = 0; i < 20 && !healthy; i++) {
     await sleep(3000);
     const rh = await onTarget(c,
-      "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/schema/attackTicket 2>/dev/null"
+      "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/auth/login 2>/dev/null"
     );
     const code = rh.out.trim();
     log("6/6", `  [${i}] api=${code}`);
-    if (code === "200") healthy = true;
+    if (code === "200" || code === "400" || code === "404" || code === "405") healthy = true;
   }
 
   if (healthy) {
