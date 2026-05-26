@@ -8,6 +8,7 @@ export default defineConfig({
   webServer: [
     {
       command: 'node ../frontend/e2e/reset-db.cjs && npx tsx src/server.ts',
+      env: { COMBAT_NO_AUTH: '1' },
       port: 3001,
       reuseExistingServer: false,
       cwd: '../backend',

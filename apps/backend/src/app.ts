@@ -34,6 +34,7 @@ import { makeSupportNodeRouter } from "./support-node.js";
 import { makeHelpRequestRouter } from "./help-request.js";
 import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
+import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import type { DB } from "./db.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB }) {
@@ -41,6 +42,13 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   const app = express();
   app.use(express.json());
   app.use(requestLogger());
+
+  if (deps.db) {
+    app.use("/api", makeAuthRouter(deps.db));
+    app.use("/api", authMiddleware);
+    app.use("/api", makeUserAdminRouter(deps.db));
+  }
+
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
   }

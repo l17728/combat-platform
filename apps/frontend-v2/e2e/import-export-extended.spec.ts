@@ -15,7 +15,7 @@ test.describe('数据导入导出 - 扩展功能', () => {
     await page.goto('/import');
     await page.waitForLoadState('networkidle');
 
-    const typeSelect = page.locator('.ant-select').nth(1);
+    const typeSelect = page.locator('.ant-select').nth(0);
     await typeSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
@@ -27,7 +27,7 @@ test.describe('数据导入导出 - 扩展功能', () => {
   });
 
   test('type selector has all 5 options', async ({ page }) => {
-    const typeSelect = page.locator('.ant-select').nth(1);
+    const typeSelect = page.locator('.ant-select').nth(0);
     await typeSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
 
@@ -105,7 +105,7 @@ test.describe('数据导入导出 - 扩展功能', () => {
     await page.goto('/import');
     await page.waitForLoadState('networkidle');
 
-    const typeSelect = page.locator('.ant-select').nth(1);
+    const typeSelect = page.locator('.ant-select').nth(0);
     await typeSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();

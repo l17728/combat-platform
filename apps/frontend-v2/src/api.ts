@@ -132,10 +132,19 @@ export class Api {
     }
   }
 
+  private getToken(): string | null {
+    try { return localStorage.getItem('combat-token'); } catch { return null; }
+  }
+
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const role =
-      (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
-    init = { ...init, headers: { ...(init.headers ?? {}), 'X-Role': role } };
+    const headers: Record<string, string> = { ...(init.headers as Record<string, string> ?? {}) };
+    const token = this.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    const role = (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
+    headers['X-Role'] = role;
+    init = { ...init, headers };
     const r = await this.f(`${this.base}${path}`, init);
     if (!r.ok) {
       const body = await r.json().catch(() => null);
@@ -562,6 +571,58 @@ export class Api {
   deleteBugReport(id: string): Promise<{ deleted: string }> {
     return this.req(`/api/bug-reports/${id}`, { method: 'DELETE' });
   }
+
+  login(username: string, password: string): Promise<LoginResult> {
+    return this.req('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+  }
+
+  register(username: string, password: string, displayName?: string, role?: string): Promise<LoginResult> {
+    return this.req('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, displayName, role }),
+    });
+  }
+
+  getMe(): Promise<{ user: AuthUser }> {
+    return this.req('/api/auth/me');
+  }
+
+  changePassword(oldPassword: string, newPassword: string): Promise<{ ok: boolean }> {
+    return this.req('/api/auth/change-password', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  }
+
+  listUsers(): Promise<AuthUser[]> {
+    return this.req('/api/users');
+  }
+
+  createUser(data: { username: string; password: string; displayName?: string; role?: string }): Promise<AuthUser> {
+    return this.req('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateUser(id: string, data: { role?: string; displayName?: string; password?: string }): Promise<AuthUser> {
+    return this.req(`/api/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteUser(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/users/${id}`, { method: 'DELETE' });
+  }
 }
 
 export interface HelpRequest {
@@ -582,4 +643,43 @@ export interface HelpRequest {
   updatedAt: string;
 }
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LoginResult {
+  token: string;
+  user: AuthUser;
+}
+
 export const api = new Api('');
+
+export function setAuthToken(token: string | null) {
+  if (token) {
+    localStorage.setItem('combat-token', token);
+  } else {
+    localStorage.removeItem('combat-token');
+  }
+}
+
+export function getStoredUser(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem('combat-user');
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+export function setStoredUser(user: AuthUser | null) {
+  if (user) {
+    localStorage.setItem('combat-user', JSON.stringify(user));
+    localStorage.setItem('combat-role', user.role);
+  } else {
+    localStorage.removeItem('combat-user');
+    localStorage.removeItem('combat-role');
+  }
+}

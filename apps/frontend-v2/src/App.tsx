@@ -1,5 +1,6 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout.js';
+import LoginPage from './pages/LoginPage.js';
 import Dashboard from './pages/Dashboard.js';
 import AttackList from './pages/AttackList.js';
 import AttackDetail from './pages/AttackDetail.js';
@@ -21,38 +22,58 @@ import SearchPage from './pages/SearchPage.js';
 import ProposalsPage from './pages/ProposalsPage.js';
 import RemindersPage from './pages/RemindersPage.js';
 import BugReport from './pages/BugReport.js';
+import UserManagement from './pages/UserManagement.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
+import { AuthProvider, useAuth } from './hooks/useAuth.js';
+import { Spin } from 'antd';
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/attack" element={<AttackList />} />
-          <Route path="/attack/:id" element={<AttackDetail />} />
-          <Route path="/people" element={<PeopleList />} />
-          <Route path="/contributions" element={<Contributions />} />
-          <Route path="/honor" element={<Honor />} />
-          <Route path="/honor/:name" element={<PersonHonor />} />
-          <Route path="/help" element={<HelpCenter />} />
-          <Route path="/daily-report" element={<DailyReportPage />} />
-          <Route path="/merge" element={<MergePage />} />
-          <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
-          <Route path="/import" element={<ImportExport />} />
-          <Route path="/email" element={<EmailSettings />} />
-          <Route path="/audit" element={<AuditLog />} />
-          <Route path="/schema" element={<SchemaWizard />} />
-          <Route path="/config" element={<ConfigCenter />} />
-          <Route path="/search" element={<SearchPage />} />
-          <Route path="/proposals" element={<ProposalsPage />} />
-          <Route path="/reminders" element={<RemindersPage />} />
-          <Route path="/bug-report" element={<BugReport />} />
-          <Route path="*" element={<NotFound />} />
-        </Route>
-        <Route path="/help/feedback/:token" element={<HelpFeedback />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/help/feedback/:token" element={<HelpFeedback />} />
+          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/attack" element={<AttackList />} />
+            <Route path="/attack/:id" element={<AttackDetail />} />
+            <Route path="/people" element={<PeopleList />} />
+            <Route path="/contributions" element={<Contributions />} />
+            <Route path="/honor" element={<Honor />} />
+            <Route path="/honor/:name" element={<PersonHonor />} />
+            <Route path="/help" element={<HelpCenter />} />
+            <Route path="/daily-report" element={<DailyReportPage />} />
+            <Route path="/merge" element={<MergePage />} />
+            <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
+            <Route path="/import" element={<ImportExport />} />
+            <Route path="/email" element={<EmailSettings />} />
+            <Route path="/audit" element={<AuditLog />} />
+            <Route path="/schema" element={<SchemaWizard />} />
+            <Route path="/config" element={<ConfigCenter />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/proposals" element={<ProposalsPage />} />
+            <Route path="/reminders" element={<RemindersPage />} />
+            <Route path="/bug-report" element={<BugReport />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

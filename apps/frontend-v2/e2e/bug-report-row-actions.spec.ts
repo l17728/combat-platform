@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { API, opsCell, waitForTable } from './helpers';
 
 async function clearBugStatusFilter(page: import('@playwright/test').Page) {
-  const statusSelect = page.locator('.ant-select').nth(1);
+  const statusSelect = page.locator('.ant-select').nth(0);
   const clearIcon = statusSelect.locator('.ant-select-clear');
   if (await clearIcon.isVisible({ timeout: 2000 })) {
     await clearIcon.click();

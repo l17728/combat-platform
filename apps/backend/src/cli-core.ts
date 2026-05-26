@@ -312,6 +312,36 @@ export const COMMANDS: CliCommand[] = [
       return { method: "PATCH", path: `/api/bug-reports/${encodeURIComponent(pos[0])}`, body }; } },
   { name: "bugs:delete", summary: "删除问题反馈", usage: "bugs:delete <id>",
     build: (pos) => { requirePos(pos, 1, "bugs:delete <id>"); return { method: "DELETE", path: `/api/bug-reports/${encodeURIComponent(pos[0])}` }; } },
+
+  { name: "auth:login", summary: "用户登录（返回 JWT token）", usage: "auth:login --username <u> --password <p>",
+    build: (_pos, opts) => { const u = str(opts.username), p = str(opts.password);
+      if (!u || !p) throw new Error("缺少 --username 和 --password");
+      return { method: "POST", path: "/api/auth/login", body: { username: u, password: p } }; } },
+  { name: "auth:register", summary: "注册新用户（返回 JWT token）", usage: "auth:register --username <u> --password <p> [--displayName <n>] [--role <admin|leader|normal>]",
+    build: (_pos, opts) => { const u = str(opts.username), p = str(opts.password);
+      if (!u || !p) throw new Error("缺少 --username 和 --password");
+      return { method: "POST", path: "/api/auth/register", body: { username: u, password: p, displayName: str(opts.displayName), role: str(opts.role) } }; } },
+  { name: "auth:me", summary: "获取当前用户信息（需 token）", usage: "auth:me",
+    build: () => ({ method: "GET", path: "/api/auth/me" }) },
+  { name: "auth:change-password", summary: "修改密码", usage: "auth:change-password --old <旧密码> --new <新密码>",
+    build: (_pos, opts) => { const o = str(opts.old), n = str(opts.new);
+      if (!o || !n) throw new Error("缺少 --old 和 --new");
+      return { method: "PUT", path: "/api/auth/change-password", body: { oldPassword: o, newPassword: n } }; } },
+  { name: "users:list", summary: "列出所有用户（需 admin 角色）", usage: "users:list",
+    build: () => ({ method: "GET", path: "/api/users" }) },
+  { name: "users:create", summary: "创建用户（需 admin 角色）", usage: "users:create --username <u> --password <p> [--displayName <n>] [--role <admin|leader|normal>]",
+    build: (_pos, opts) => { const u = str(opts.username), p = str(opts.password);
+      if (!u || !p) throw new Error("缺少 --username 和 --password");
+      return { method: "POST", path: "/api/users", body: { username: u, password: p, displayName: str(opts.displayName), role: str(opts.role) } }; } },
+  { name: "users:update", summary: "更新用户信息（需 admin 角色）", usage: "users:update <id> [--role <r>] [--displayName <n>] [--password <p>]",
+    build: (pos, opts) => { requirePos(pos, 1, "users:update <id>");
+      const body: Record<string, string> = {};
+      if (opts.role !== undefined) body.role = str(opts.role)!;
+      if (opts.displayName !== undefined) body.displayName = str(opts.displayName)!;
+      if (opts.password !== undefined) body.password = str(opts.password)!;
+      return { method: "PATCH", path: `/api/users/${encodeURIComponent(pos[0])}`, body }; } },
+  { name: "users:delete", summary: "删除用户（需 admin 角色）", usage: "users:delete <id>",
+    build: (pos) => { requirePos(pos, 1, "users:delete <id>"); return { method: "DELETE", path: `/api/users/${encodeURIComponent(pos[0])}` }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

@@ -374,8 +374,8 @@ Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格
 Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
 
 ### 页面上多个 Select 的索引规则
-- Header 角色切换器永远是页面上 `.ant-select` 的 index 0
-- 页面级筛选 Select 从 index 1 开始
+- Header 不再有 `.ant-select`（已替换为 Dropdown 用户菜单）
+- 页面级筛选 Select 从 index 0 开始
 - Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
 - **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
 - **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
@@ -605,8 +605,10 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-26 最后验证）
-- **244/244 e2e tests passing** (全部通过，8.8分钟，0失败)
-- 新增覆盖：求助反馈页(HelpFeedback)、攻击详情日报/求助网络/关联/流转、导入预览/流程、邮件测试、求助中心表单验证/链接导航、审计日志筛选/刷新/变更详情
+- **250/250 e2e tests passing** (全部通过，8.2分钟，0失败)
+- 新增认证系统(auth): 登录页、用户管理CRUD、JWT认证、角色控制
+- E2E 测试通过 `COMBAT_NO_AUTH=1` 绕过认证，前端 AuthProvider 自动以 admin 身份登录
+- Header 角色 Select 已替换为用户 Dropdown（用户名+退出登录）
 
 ## 工作流程规范
 
@@ -631,6 +633,36 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 ### 部署前必须 git commit
 `git archive HEAD` 只打包已提交的文件。**未 commit 的改动不会出现在部署包中**，这是多次"部署后页面没变化"的根因。
 
+## Auth System (认证系统)
+
+### Backend
+- **File**: `apps/backend/src/auth.ts` — auth router + user admin router + JWT middleware + bcrypt hashing
+- **DB**: `users` table (id, username, password_hash, role, display_name, created_at, updated_at)
+- **Default admin**: auto-created on first boot (`admin` / `admin123`)
+- **JWT**: 7-day expiry, secret from `JWT_SECRET` env or default
+- **Auth middleware**: `authMiddleware` gates all `/api/*` routes EXCEPT public paths
+- **Public paths**: `/api/auth/login`, `/api/auth/register`, `/api/help/feedback/*`, `POST /api/bug-reports`
+- **COMBAT_NO_AUTH=1**: bypasses auth entirely (for E2E tests); `/api/auth/me` returns default admin without token
+
+### Frontend
+- **AuthProvider**: `src/hooks/useAuth.tsx` — context provider with login/logout/isAdmin/isLeader
+- **LoginPage**: `src/pages/LoginPage.tsx` — username/password form
+- **UserManagement**: `src/pages/UserManagement.tsx` — admin-only user CRUD (Modal-based)
+- **AppLayout header**: user Dropdown (displayName + role + logout) replaces old role Select
+- **AuthGuard**: redirects unauthenticated users to `/login`
+- **Token storage**: `localStorage('combat-token')` + `localStorage('combat-user')`
+- **Role from auth**: role is derived from logged-in user, NOT from manual Select dropdown
+
+### E2E Test Bypass
+- `COMBAT_NO_AUTH=1` set in `playwright.config.ts` webServer env
+- Backend returns admin user for unauthenticated `/api/auth/me` requests
+- Frontend `AuthProvider` calls `api.getMe()` on startup → gets admin user → logged in automatically
+- All page-level `.ant-select` indices shifted from N to N-1 (no more header Select at index 0)
+
+### CLI Commands
+- `auth:login`, `auth:register`, `auth:me`, `auth:change-password`
+- `users:list`, `users:create`, `users:update`, `users:delete`
+
 ## E2E 测试关键发现
 
 ### Ant Design 5 自动在2字符中文按钮文本间插入空格
@@ -640,8 +672,8 @@ Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格
 Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
 
 ### 页面上多个 Select 的索引规则
-- Header 角色切换器永远是页面上 `.ant-select` 的 index 0
-- 页面级筛选 Select 从 index 1 开始
+- Header 不再有 `.ant-select`（已替换为 Dropdown 用户菜单）
+- 页面级筛选 Select 从 index 0 开始
 - Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
 - **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
 - **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)

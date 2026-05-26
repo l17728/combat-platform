@@ -13,7 +13,7 @@ test.describe('问题反馈', () => {
   });
 
   test('shows status filter select', async ({ page }) => {
-    const statusSelect = page.locator('.ant-select').nth(1);
+    const statusSelect = page.locator('.ant-select').nth(0);
     await expect(statusSelect).toBeVisible();
   });
 
@@ -70,7 +70,7 @@ test.describe('问题反馈', () => {
 
     await page.goto('/bug-report');
     await waitForTable(page);
-    const statusSelect = page.locator('.ant-select').nth(1);
+    const statusSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, statusSelect, '处理中');
     await waitForTable(page);
     await page.getByText('E2E生命周期问题').click();

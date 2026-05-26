@@ -50,7 +50,7 @@ test.describe('攻关作战台 - 列表', () => {
     await expect(page.getByText('E2E筛选待响应')).toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
 
-    const statusSelect = page.locator('.ant-select').nth(1);
+    const statusSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, statusSelect, '已解决');
     await expect(page.getByText('E2E筛选待响应')).not.toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();

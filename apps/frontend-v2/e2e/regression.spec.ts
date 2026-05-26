@@ -1,40 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { API, selectOption, waitForDrawer, waitForTable } from './helpers';
 
-test.describe('回归防护 - 角色权限', () => {
-  test('role switcher persists after page navigation', async ({ page }) => {
+test.describe('回归防护 - 用户信息', () => {
+  test('user dropdown shows admin role and name', async ({ page }) => {
     await page.goto('/');
-    const headerSelect = page.locator('.ant-layout-header .ant-select');
-    await selectOption(page, headerSelect, 'Leader');
-    await page.waitForTimeout(1000);
-
-    await page.getByText('系统管理').click();
-    await page.getByText('审计日志').click();
-    await expect(page).toHaveURL('/audit');
-    const headerSelectAfter = page.locator('.ant-layout-header .ant-select');
-    await expect(headerSelectAfter).toContainText('Leader');
+    const userDropdown = page.locator('.ant-dropdown-trigger').last();
+    await expect(userDropdown).toContainText('系统管理员');
   });
 
-  test('normal role cannot create contribution with grade', async ({ page, request }) => {
-    await request.post(`${API}/api/nodes/person`, {
-      data: { 姓名: 'E2E权限测试人' },
-    });
-
-    await page.goto('/contributions');
-    await waitForTable(page);
-    await page.getByRole('button', { name: '录入贡献' }).click();
-    await waitForDrawer(page);
-
-    const drawer = page.locator('.ant-drawer');
-    const drawerSelects = drawer.locator('.ant-select');
-
-    await selectOption(page, drawerSelects.first(), 'E2E权限测试人');
-    await selectOption(page, drawerSelects.nth(1), '实施');
-    await selectOption(page, drawerSelects.nth(2), '核心');
-    await page.getByPlaceholder('贡献描述').fill('E2E权限测试贡献');
-    await page.locator('.ant-drawer-extra button').click();
-
-    await expect(page.getByText(/403|仅 Leader/)).toBeVisible();
+  test('logout redirects to login page', async ({ page }) => {
+    await page.goto('/');
+    const userDropdown = page.locator('.ant-dropdown-trigger').last();
+    await userDropdown.click();
+    await page.getByText('退出登录').click();
+    await expect(page).toHaveURL('/login');
   });
 });
 
@@ -174,6 +153,7 @@ test.describe('回归防护 - 直接URL导航', () => {
       { url: '/email', heading: '邮件设置' },
       { url: '/audit', heading: '审计日志' },
       { url: '/bug-report', heading: '问题反馈' },
+      { url: '/users', heading: '用户管理' },
     ];
 
     for (const p of pages) {
@@ -223,7 +203,7 @@ test.describe('回归防护 - 审计日志完整性', () => {
     await page.goto('/audit');
     await waitForTable(page);
     const selects = page.locator('.ant-select');
-    await selectOption(page, selects.nth(1), '删除');
+    await selectOption(page, selects.nth(0), '删除');
     await waitForTable(page);
     await expect(page.getByRole('cell', { name: '删除' }).first()).toBeVisible();
   });

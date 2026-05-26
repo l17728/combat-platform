@@ -71,7 +71,7 @@ test.describe('全员名单', () => {
     await expect(page.getByText('E2E部门甲')).toBeVisible();
     await expect(page.getByText('E2E部门乙')).toBeVisible();
 
-    const deptSelect = page.locator('.ant-select').nth(1);
+    const deptSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, deptSelect, 'SRE');
     await expect(page.getByText('E2E部门甲')).toBeVisible();
     await expect(page.getByText('E2E部门乙')).not.toBeVisible();

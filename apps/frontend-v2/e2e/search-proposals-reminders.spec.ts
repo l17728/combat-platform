@@ -126,7 +126,7 @@ test.describe('全局搜索', () => {
     const countBefore = await rows.count();
 
     const selects = page.locator('.ant-select');
-    await selects.nth(1).locator('.ant-select-selector').click();
+    await selects.nth(0).locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
     await dropdown.locator('.ant-select-item-option').filter({ hasText: '人员' }).first().dispatchEvent('click');
@@ -147,13 +147,13 @@ test.describe('全局搜索', () => {
 
   test('type filter clear works', async ({ page }) => {
     const selects = page.locator('.ant-select');
-    await selects.nth(1).locator('.ant-select-selector').click();
+    await selects.nth(0).locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
     await dropdown.locator('.ant-select-item-option').filter({ hasText: '攻关单' }).first().dispatchEvent('click');
     await page.waitForTimeout(300);
 
-    const clearBtn = selects.nth(1).locator('.ant-select-clear');
+    const clearBtn = selects.nth(0).locator('.ant-select-clear');
     if (await clearBtn.isVisible()) {
       await clearBtn.click();
       await page.waitForTimeout(200);
@@ -194,7 +194,7 @@ test.describe('关系审批', () => {
   });
 
   test('status filter works', async ({ page }) => {
-    const filterSelect = page.locator('.ant-select').nth(1);
+    const filterSelect = page.locator('.ant-select').nth(0);
     await filterSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
@@ -324,7 +324,7 @@ test.describe('跟催提醒', () => {
   });
 
   test('status filter works', async ({ page }) => {
-    const filterSelect = page.locator('.ant-select').nth(1);
+    const filterSelect = page.locator('.ant-select').nth(0);
     await filterSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();

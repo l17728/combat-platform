@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Select, Space, Typography, theme } from 'antd';
+import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar } from 'antd';
 import PageBreadcrumb from '../components/PageBreadcrumb.js';
 import {
   DashboardOutlined,
@@ -23,17 +23,15 @@ import {
   AuditOutlined,
   BellOutlined,
   BugOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
+import { useAuth } from '../hooks/useAuth.js';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
-
-const ROLES = [
-  { value: 'normal', label: '普通成员' },
-  { value: 'leader', label: 'Leader' },
-  { value: 'admin', label: '管理员' },
-];
 
 function getSelectedKey(path: string): string {
   if (path.startsWith('/attack')) return '/attack';
@@ -46,7 +44,7 @@ function getSelectedKey(path: string): string {
   if (path.startsWith('/related')) return '/attack';
   if (path === '/search') return '/search';
   if (path === '/bug-report') return '/bug-report';
-  if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return path;
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users'].includes(path)) return path;
   return '/';
 }
 
@@ -54,7 +52,7 @@ function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
   if (path === '/proposals' || path === '/reminders') return ['review'];
-  if (['/import', '/email', '/audit', '/schema', '/config'].includes(path)) return ['system'];
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users'].includes(path)) return ['system'];
   return [];
 }
 
@@ -63,6 +61,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
+  const { user, logout, isAdmin } = useAuth();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
 
@@ -148,6 +147,7 @@ export function AppLayout() {
         { key: '/config', label: '配置中心', icon: <ControlOutlined /> },
         { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
         { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
+        ...(isAdmin ? [{ key: '/users', label: '用户管理', icon: <UserOutlined /> }] : []),
       ],
     },
   ];
@@ -232,16 +232,24 @@ export function AppLayout() {
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </span>
           </Space>
-          <Select
-            value={currentRole}
-            onChange={(v) => {
-              localStorage.setItem('combat-role', v);
-              window.location.reload();
-            }}
-            options={ROLES}
-            size="small"
-            style={{ width: 120 }}
-          />
+          <Dropdown menu={{
+            items: [
+              { key: 'role', label: <span>角色: {user?.role === 'admin' ? '管理员' : user?.role === 'leader' ? 'Leader' : '普通成员'}</span>, disabled: true },
+              { type: 'divider' },
+              ...(isAdmin ? [{ key: '/users', label: '用户管理', icon: <UserOutlined /> }] : []),
+              { key: 'logout', label: '退出登录', icon: <LogoutOutlined />, danger: true },
+            ],
+            onClick: ({ key }) => {
+              if (key === 'logout') { logout(); navigate('/login'); }
+              else if (key.startsWith('/')) navigate(key);
+            },
+          }}>
+            <Space style={{ cursor: 'pointer' }}>
+              <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
+              <Text>{user?.displayName || user?.username || '-'}</Text>
+              <DownOutlined style={{ fontSize: 10 }} />
+            </Space>
+          </Dropdown>
         </Header>
 
         <Content style={{ padding: 24, maxWidth: 1400, margin: '0 auto', width: '100%' }}>

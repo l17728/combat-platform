@@ -62,7 +62,7 @@ test.describe('贡献录入', () => {
     await expect(page.getByRole('cell', { name: 'E2E核心贡献', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'E2E普通贡献', exact: true })).toBeVisible();
 
-    const levelSelect = page.locator('.ant-select').nth(1);
+    const levelSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, levelSelect, '核心', true);
     await expect(page.getByRole('cell', { name: 'E2E核心贡献', exact: true })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'E2E普通贡献', exact: true })).not.toBeVisible();

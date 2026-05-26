@@ -35,7 +35,7 @@ test.describe('审计日志 - 扩展功能', () => {
     await page.waitForLoadState('networkidle');
     await waitForTable(page);
 
-    const actionSelect = page.locator('.ant-select').nth(1);
+    const actionSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, actionSelect, '更新');
 
     await page.waitForTimeout(500);
@@ -52,7 +52,7 @@ test.describe('审计日志 - 扩展功能', () => {
     await page.waitForLoadState('networkidle');
     await waitForTable(page);
 
-    const typeSelect = page.locator('.ant-select').nth(2);
+    const typeSelect = page.locator('.ant-select').nth(1);
     await selectOption(page, typeSelect, '节点');
 
     await page.waitForTimeout(500);
@@ -73,9 +73,9 @@ test.describe('审计日志 - 扩展功能', () => {
     await page.waitForLoadState('networkidle');
     await waitForTable(page);
 
-    const actionSelect = page.locator('.ant-select').nth(1);
+    const actionSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, actionSelect, '更新');
-    const typeSelect = page.locator('.ant-select').nth(2);
+    const typeSelect = page.locator('.ant-select').nth(1);
     await selectOption(page, typeSelect, '节点');
 
     await page.waitForTimeout(500);

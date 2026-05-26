@@ -10,7 +10,7 @@ test.describe('荣誉殿堂 - 缺失覆盖', () => {
     await page.goto('/honor');
     await expect(page.getByText('E2E周期人').first()).toBeVisible({ timeout: 10000 });
 
-    const periodSelect = page.locator('.ant-select').nth(1);
+    const periodSelect = page.locator('.ant-select').nth(0);
     await periodSelect.locator('.ant-select-selector').click();
     await page.waitForTimeout(300);
     const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();

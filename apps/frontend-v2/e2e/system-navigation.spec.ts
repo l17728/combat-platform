@@ -46,7 +46,7 @@ test.describe('求助中心', () => {
 
   test('filters by status', async ({ page }) => {
     await page.goto('/help');
-    const statusSelect = page.locator('.ant-select').nth(1);
+    const statusSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, statusSelect, '待回复');
   });
 
@@ -78,7 +78,7 @@ test.describe('数据导入/导出', () => {
 
   test('type selector changes active type', async ({ page }) => {
     await page.goto('/import');
-    const typeSelect = page.locator('.ant-select').nth(1);
+    const typeSelect = page.locator('.ant-select').nth(0);
     await selectOption(page, typeSelect, '人员');
   });
 
@@ -139,7 +139,7 @@ test.describe('审计日志', () => {
     await page.goto('/audit');
     await waitForTable(page);
     const selects = page.locator('.ant-select');
-    await selectOption(page, selects.nth(1), '创建');
+    await selectOption(page, selects.nth(0), '创建');
     await waitForTable(page);
     await expect(page.getByRole('cell', { name: '创建' }).first()).toBeVisible();
   });
@@ -152,7 +152,7 @@ test.describe('审计日志', () => {
     await page.goto('/audit');
     await waitForTable(page);
     const selects = page.locator('.ant-select');
-    await selectOption(page, selects.nth(2), '节点');
+    await selectOption(page, selects.nth(1), '节点');
     await waitForTable(page);
     await expect(page.getByRole('cell', { name: '节点' }).first()).toBeVisible();
   });
@@ -278,10 +278,10 @@ test.describe('导航与布局', () => {
     await expect(sider).toBeVisible();
   });
 
-  test('role switcher is present in header', async ({ page }) => {
+  test('user dropdown is present in header', async ({ page }) => {
     await page.goto('/');
-    const headerSelect = page.locator('.ant-layout-header .ant-select');
-    await expect(headerSelect).toBeVisible();
+    const userDropdown = page.locator('.ant-layout-header .ant-dropdown-trigger');
+    await expect(userDropdown).toBeVisible();
   });
 
   test('navigates to system management subpages', async ({ page }) => {

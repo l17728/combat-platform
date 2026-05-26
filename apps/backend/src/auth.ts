@@ -1,0 +1,278 @@
+import { Router, type Request, type Response, type NextFunction } from "express";
+import type { DB } from "./db.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { randomUUID } from "node:crypto";
+import { log, asyncHandler } from "./logger.js";
+
+const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
+const JWT_EXPIRES_IN = "7d";
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: string;
+  displayName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JwtPayload {
+  userId: string;
+  username: string;
+  role: string;
+}
+
+function toUser(r: any): AuthUser {
+  return {
+    id: r.id,
+    username: r.username,
+    role: r.role,
+    displayName: r.display_name,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function ensureDefaultAdmin(db: DB): void {
+  const count = db.prepare("SELECT COUNT(*) as c FROM users").get() as { c: number };
+  if (count.c === 0) {
+    const hash = bcrypt.hashSync("admin123", 10);
+    const now = new Date().toISOString();
+    db.prepare(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(randomUUID(), "admin", hash, "admin", "系统管理员", now, now);
+    log.info("auth.default_admin_created");
+  }
+}
+
+export function makeAuthRouter(db: DB): Router {
+  ensureDefaultAdmin(db);
+  const r = Router();
+
+  r.post("/auth/login", asyncHandler(async (req, res) => {
+    const { username, password } = req.body as { username?: string; password?: string };
+    if (!username || !password) {
+      return res.status(400).json({ error: "请输入用户名和密码" });
+    }
+    const row = db.prepare("SELECT * FROM users WHERE username = ?").get(username) as any;
+    if (!row) {
+      return res.status(401).json({ error: "用户名或密码错误" });
+    }
+    if (!bcrypt.compareSync(password, row.password_hash)) {
+      return res.status(401).json({ error: "用户名或密码错误" });
+    }
+    const payload: JwtPayload = { userId: row.id, username: row.username, role: row.role };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    log.info("auth.login", { username, role: row.role });
+    res.json({ token, user: toUser(row) });
+  }));
+
+  r.post("/auth/register", asyncHandler(async (req, res) => {
+    const { username, password, displayName, role } = req.body as {
+      username?: string; password?: string; displayName?: string; role?: string;
+    };
+    if (!username || !password) {
+      return res.status(400).json({ error: "请输入用户名和密码" });
+    }
+    if (username.length < 2 || username.length > 32) {
+      return res.status(400).json({ error: "用户名长度 2-32 个字符" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "密码至少 6 个字符" });
+    }
+    const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+    if (existing) {
+      return res.status(409).json({ error: "用户名已存在" });
+    }
+    const hash = bcrypt.hashSync(password, 10);
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const userRole = ["admin", "leader"].includes(role ?? "") ? role! : "normal";
+    db.prepare(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, username, hash, userRole, displayName ?? username, now, now);
+    log.info("auth.register", { username, role: userRole });
+    const payload: JwtPayload = { userId: id, username, role: userRole };
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    res.status(201).json({ token, user: toUser(user) });
+  }));
+
+  r.get("/auth/me", asyncHandler(async (req, res) => {
+    const payload = verifyAuth(req);
+    if (!payload) {
+      if (process.env.COMBAT_NO_AUTH === "1") {
+        const admin = db.prepare("SELECT * FROM users WHERE username = ?").get("admin") as any;
+        if (admin) return res.json({ user: toUser(admin) });
+      }
+      return res.status(401).json({ error: "未登录或 token 已过期" });
+    }
+    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as any;
+    if (!row) {
+      return res.status(401).json({ error: "用户不存在" });
+    }
+    res.json({ user: toUser(row) });
+  }));
+
+  r.put("/auth/change-password", asyncHandler(async (req, res) => {
+    const payload = verifyAuth(req);
+    if (!payload) {
+      return res.status(401).json({ error: "未登录" });
+    }
+    const { oldPassword, newPassword } = req.body as { oldPassword?: string; newPassword?: string };
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: "请输入旧密码和新密码" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "新密码至少 6 个字符" });
+    }
+    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as any;
+    if (!row || !bcrypt.compareSync(oldPassword, row.password_hash)) {
+      return res.status(401).json({ error: "旧密码错误" });
+    }
+    const hash = bcrypt.hashSync(newPassword, 10);
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+      .run(hash, new Date().toISOString(), payload.userId);
+    log.info("auth.password_changed", { username: payload.username });
+    res.json({ ok: true });
+  }));
+
+  return r;
+}
+
+export function makeUserAdminRouter(db: DB): Router {
+  const r = Router();
+
+  r.get("/users", asyncHandler(async (req, res) => {
+    const payload = requireAdmin(req);
+    if (!payload) return res.status(403).json({ error: "仅管理员可管理用户" });
+    const rows = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users ORDER BY created_at").all() as any[];
+    res.json(rows.map(toUser));
+  }));
+
+  r.post("/users", asyncHandler(async (req, res) => {
+    const payload = requireAdmin(req);
+    if (!payload) return res.status(403).json({ error: "仅管理员可创建用户" });
+    const { username, password, displayName, role } = req.body as {
+      username?: string; password?: string; displayName?: string; role?: string;
+    };
+    if (!username || !password) {
+      return res.status(400).json({ error: "用户名和密码不能为空" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "密码至少 6 个字符" });
+    }
+    const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+    if (existing) {
+      return res.status(409).json({ error: "用户名已存在" });
+    }
+    const hash = bcrypt.hashSync(password, 10);
+    const now = new Date().toISOString();
+    const id = randomUUID();
+    const userRole = ["admin", "leader", "normal"].includes(role ?? "") ? role! : "normal";
+    db.prepare(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, username, hash, userRole, displayName ?? username, now, now);
+    log.info("auth.user_created", { by: payload.username, created: username, role: userRole });
+    const row = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?").get(id) as any;
+    res.status(201).json(toUser(row));
+  }));
+
+  r.patch("/users/:id", asyncHandler(async (req, res) => {
+    const payload = requireAdmin(req);
+    if (!payload) return res.status(403).json({ error: "仅管理员可编辑用户" });
+    const { id } = req.params;
+    const { role, displayName, password } = req.body as { role?: string; displayName?: string; password?: string };
+    const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    if (!existing) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    const updates: string[] = [];
+    const params: any[] = [];
+    if (role && ["admin", "leader", "normal"].includes(role)) {
+      updates.push("role = ?");
+      params.push(role);
+    }
+    if (displayName !== undefined) {
+      updates.push("display_name = ?");
+      params.push(displayName);
+    }
+    if (password) {
+      if (password.length < 6) {
+        return res.status(400).json({ error: "密码至少 6 个字符" });
+      }
+      updates.push("password_hash = ?");
+      params.push(bcrypt.hashSync(password, 10));
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "没有要更新的字段" });
+    }
+    updates.push("updated_at = ?");
+    params.push(new Date().toISOString());
+    params.push(id);
+    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+    log.info("auth.user_updated", { by: payload.username, target: id, fields: Object.keys(req.body) });
+    const row = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?").get(id) as any;
+    res.json(toUser(row));
+  }));
+
+  r.delete("/users/:id", asyncHandler(async (req, res) => {
+    const payload = requireAdmin(req);
+    if (!payload) return res.status(403).json({ error: "仅管理员可删除用户" });
+    const { id } = req.params;
+    if (payload.userId === id) {
+      return res.status(400).json({ error: "不能删除自己" });
+    }
+    const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    if (!existing) {
+      return res.status(404).json({ error: "用户不存在" });
+    }
+    db.prepare("DELETE FROM users WHERE id = ?").run(id);
+    log.info("auth.user_deleted", { by: payload.username, deleted: existing.username });
+    res.json({ ok: true });
+  }));
+
+  return r;
+}
+
+export function verifyAuth(req: { headers: Record<string, unknown> }): JwtPayload | null {
+  const auth = req.headers["authorization"] as string | undefined;
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    return jwt.verify(auth.slice(7), JWT_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | null {
+  if (process.env.COMBAT_NO_AUTH === "1") {
+    return { userId: "no-auth-admin", username: "admin", role: "admin" };
+  }
+  const payload = verifyAuth(req);
+  if (!payload) return null;
+  if (payload.role !== "admin") return null;
+  return payload;
+}
+
+export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const path = req.path;
+  const publicPaths = [
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/help/feedback/",
+    "/api/bug-reports",
+  ];
+  if (publicPaths.some((p) => path.startsWith(p)) && (path === "/api/bug-reports" ? req.method === "POST" : true)) {
+    return next();
+  }
+  const payload = verifyAuth(req);
+  if (!payload) {
+    res.status(401).json({ error: "未登录或 token 已过期" });
+    return;
+  }
+  (req as any).user = payload;
+  next();
+}
