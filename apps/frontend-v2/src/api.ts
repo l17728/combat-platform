@@ -145,7 +145,13 @@ export class Api {
     const role = (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
     headers['X-Role'] = role;
     init = { ...init, headers };
+    const start = Date.now();
     const r = await this.f(`${this.base}${path}`, init);
+    const duration = Date.now() - start;
+    try {
+      const { logApiCall } = await import('./utils/op-logger.js');
+      logApiCall(init.method || 'GET', path, r.status, duration, r.ok ? undefined : `HTTP ${r.status}`);
+    } catch {}
     if (!r.ok) {
       const body = await r.json().catch(() => null);
       const detail = body?.error ?? (Array.isArray(body?.errors) ? body.errors.join('; ') : '');
@@ -623,6 +629,39 @@ export class Api {
   deleteUser(id: string): Promise<{ ok: boolean }> {
     return this.req(`/api/users/${id}`, { method: 'DELETE' });
   }
+
+  listOpLogs(params?: { sessionId?: string; userName?: string; category?: string; from?: string; to?: string; limit?: number; offset?: number }): Promise<{ total: number; rows: OpLogEntry[] }> {
+    const p = new URLSearchParams();
+    if (params?.sessionId) p.set('sessionId', params.sessionId);
+    if (params?.userName) p.set('userName', params.userName);
+    if (params?.category) p.set('category', params.category);
+    if (params?.from) p.set('from', params.from);
+    if (params?.to) p.set('to', params.to);
+    if (params?.limit) p.set('limit', String(params.limit));
+    if (params?.offset) p.set('offset', String(params.offset));
+    const qs = p.toString();
+    return this.req(`/api/op-logs${qs ? '?' + qs : ''}`);
+  }
+
+  deleteOpLogs(params: { before?: string; sessionId?: string }): Promise<{ deleted: number }> {
+    const p = new URLSearchParams();
+    if (params.before) p.set('before', params.before);
+    if (params.sessionId) p.set('sessionId', params.sessionId);
+    const qs = p.toString();
+    return this.req(`/api/op-logs?${qs}`, { method: 'DELETE' });
+  }
+
+  getOpLogSettings(): Promise<{ enabled: boolean }> {
+    return this.req('/api/op-logs/settings');
+  }
+
+  setOpLogSettings(enabled: boolean): Promise<{ enabled: boolean }> {
+    return this.req('/api/op-logs/settings', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+  }
 }
 
 export interface HelpRequest {
@@ -655,6 +694,16 @@ export interface AuthUser {
 export interface LoginResult {
   token: string;
   user: AuthUser;
+}
+
+export interface OpLogEntry {
+  id: string;
+  session_id: string;
+  user_name: string;
+  category: string;
+  detail: string;
+  timestamp: string;
+  created_at: string;
 }
 
 export const api = new Api('');

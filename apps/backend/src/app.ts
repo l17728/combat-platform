@@ -34,6 +34,7 @@ import { makeSupportNodeRouter } from "./support-node.js";
 import { makeHelpRequestRouter } from "./help-request.js";
 import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
+import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import type { DB } from "./db.js";
 
@@ -83,6 +84,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeHelpRequestRouter(deps.db, deps.repo, mailSender));
     app.use("/api", makeSettingsRouter(deps.db));
     app.use("/api", makeBugReportRouter(deps.db));
+    app.use("/api", makeOpLogRouter(deps.db));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });

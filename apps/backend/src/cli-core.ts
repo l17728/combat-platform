@@ -342,6 +342,20 @@ export const COMMANDS: CliCommand[] = [
       return { method: "PATCH", path: `/api/users/${encodeURIComponent(pos[0])}`, body }; } },
   { name: "users:delete", summary: "删除用户（需 admin 角色）", usage: "users:delete <id>",
     build: (pos) => { requirePos(pos, 1, "users:delete <id>"); return { method: "DELETE", path: `/api/users/${encodeURIComponent(pos[0])}` }; } },
+
+  // ---- op-logs (操作追踪) ----
+  { name: "op-logs:list", summary: "查询操作追踪日志（--category api|navigate|error|action）", usage: "op-logs:list [--sessionId S] [--userName U] [--category C] [--from ISO] [--to ISO] [--limit N] [--offset N]",
+    build: (_pos, opts) => ({ method: "GET", path: `/api/op-logs${qs({ sessionId: str(opts.sessionId), userName: str(opts.userName), category: str(opts.category), from: str(opts.from), to: str(opts.to), limit: str(opts.limit), offset: str(opts.offset) })}` }) },
+  { name: "op-logs:settings", summary: "查看操作追踪开关状态", usage: "op-logs:settings",
+    build: () => ({ method: "GET", path: "/api/op-logs/settings" }) },
+  { name: "op-logs:enable", summary: "开启操作追踪", usage: "op-logs:enable",
+    build: () => ({ method: "PUT", path: "/api/op-logs/settings", body: { enabled: true } }) },
+  { name: "op-logs:disable", summary: "关闭操作追踪", usage: "op-logs:disable",
+    build: () => ({ method: "PUT", path: "/api/op-logs/settings", body: { enabled: false } }) },
+  { name: "op-logs:cleanup", summary: "清理旧记录（--before ISO 时间戳 或 --sessionId 指定会话）", usage: "op-logs:cleanup --before <ISO> 或 --sessionId <id>",
+    build: (_pos, opts) => { const before = str(opts.before), sid = str(opts.sessionId);
+      if (!before && !sid) throw new Error("必须指定 --before 或 --sessionId");
+      return { method: "DELETE", path: `/api/op-logs${qs({ before, sessionId: sid })}` }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

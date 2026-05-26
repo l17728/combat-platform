@@ -605,7 +605,8 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-26 最后验证）
-- **250/250 e2e tests passing** (全部通过，8.2分钟，0失败)
+- **260/260 e2e tests passing** (全部通过，8.7分钟，0失败)
+- 新增操作追踪系统(op-log): 自动记录用户API调用、页面导航、错误日志，支持管理员开关
 - 新增认证系统(auth): 登录页、用户管理CRUD、JWT认证、角色控制
 - E2E 测试通过 `COMBAT_NO_AUTH=1` 绕过认证，前端 AuthProvider 自动以 admin 身份登录
 - Header 角色 Select 已替换为用户 Dropdown（用户名+退出登录）

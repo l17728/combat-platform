@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AppLayout } from './layouts/AppLayout.js';
 import LoginPage from './pages/LoginPage.js';
 import Dashboard from './pages/Dashboard.js';
@@ -23,9 +24,11 @@ import ProposalsPage from './pages/ProposalsPage.js';
 import RemindersPage from './pages/RemindersPage.js';
 import BugReport from './pages/BugReport.js';
 import UserManagement from './pages/UserManagement.js';
+import OperationLog from './pages/OperationLog.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import { AuthProvider, useAuth } from './hooks/useAuth.js';
+import { initOpLog, logNavigate, setupGlobalErrorHandler } from './utils/op-logger.js';
 import { Spin } from 'antd';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -41,38 +44,62 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AppInner() {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  useEffect(() => {
+    setupGlobalErrorHandler();
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      initOpLog(user.displayName || user.username);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    logNavigate('', location.pathname);
+  }, [location.pathname]);
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/help/feedback/:token" element={<HelpFeedback />} />
+      <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/attack" element={<AttackList />} />
+        <Route path="/attack/:id" element={<AttackDetail />} />
+        <Route path="/people" element={<PeopleList />} />
+        <Route path="/contributions" element={<Contributions />} />
+        <Route path="/honor" element={<Honor />} />
+        <Route path="/honor/:name" element={<PersonHonor />} />
+        <Route path="/help" element={<HelpCenter />} />
+        <Route path="/daily-report" element={<DailyReportPage />} />
+        <Route path="/merge" element={<MergePage />} />
+        <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
+        <Route path="/import" element={<ImportExport />} />
+        <Route path="/email" element={<EmailSettings />} />
+        <Route path="/audit" element={<AuditLog />} />
+        <Route path="/schema" element={<SchemaWizard />} />
+        <Route path="/config" element={<ConfigCenter />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/proposals" element={<ProposalsPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/bug-report" element={<BugReport />} />
+        <Route path="/users" element={<UserManagement />} />
+        <Route path="/op-log" element={<OperationLog />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/help/feedback/:token" element={<HelpFeedback />} />
-          <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/attack" element={<AttackList />} />
-            <Route path="/attack/:id" element={<AttackDetail />} />
-            <Route path="/people" element={<PeopleList />} />
-            <Route path="/contributions" element={<Contributions />} />
-            <Route path="/honor" element={<Honor />} />
-            <Route path="/honor/:name" element={<PersonHonor />} />
-            <Route path="/help" element={<HelpCenter />} />
-            <Route path="/daily-report" element={<DailyReportPage />} />
-            <Route path="/merge" element={<MergePage />} />
-            <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
-            <Route path="/import" element={<ImportExport />} />
-            <Route path="/email" element={<EmailSettings />} />
-            <Route path="/audit" element={<AuditLog />} />
-            <Route path="/schema" element={<SchemaWizard />} />
-            <Route path="/config" element={<ConfigCenter />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/proposals" element={<ProposalsPage />} />
-            <Route path="/reminders" element={<RemindersPage />} />
-            <Route path="/bug-report" element={<BugReport />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="*" element={<NotFound />} />
-          </Route>
-        </Routes>
+        <AppInner />
       </AuthProvider>
     </ErrorBoundary>
   );
