@@ -356,6 +356,25 @@ export const COMMANDS: CliCommand[] = [
     build: (_pos, opts) => { const before = str(opts.before), sid = str(opts.sessionId);
       if (!before && !sid) throw new Error("必须指定 --before 或 --sessionId");
       return { method: "DELETE", path: `/api/op-logs${qs({ before, sessionId: sid })}` }; } },
+
+  { name: "backup:create", summary: "立即创建数据库备份", usage: "backup:create",
+    build: () => ({ method: "POST", path: "/api/backup" }) },
+  { name: "backup:list", summary: "列出所有备份文件", usage: "backup:list",
+    build: () => ({ method: "GET", path: "/api/backup" }) },
+  { name: "backup:download", summary: "下载备份文件（--filename）", usage: "backup:download --filename <name>",
+    build: (_pos, opts) => { const fn = str(opts.filename); if (!fn) throw new Error("--filename 必填"); return { method: "GET", path: `/api/backup/${fn}` }; } },
+  { name: "backup:delete", summary: "删除备份文件（--filename）", usage: "backup:delete --filename <name>",
+    build: (_pos, opts) => { const fn = str(opts.filename); if (!fn) throw new Error("--filename 必填"); return { method: "DELETE", path: `/api/backup/${fn}` }; } },
+  { name: "backup:schedule", summary: "查看定时备份设置", usage: "backup:schedule",
+    build: () => ({ method: "GET", path: "/api/backup/schedule" }) },
+  { name: "backup:schedule:set", summary: "更新定时备份（--enabled true/false --intervalHours 168 --keepCount 4）", usage: "backup:schedule:set --enabled <bool> --intervalHours <n> --keepCount <n>",
+    build: (_pos, opts) => {
+      const body: Record<string, unknown> = {};
+      if (opts.enabled !== undefined) body.enabled = opts.enabled === "true" || opts.enabled === true;
+      if (opts.intervalHours) body.intervalHours = Number(opts.intervalHours);
+      if (opts.keepCount) body.keepCount = Number(opts.keepCount);
+      return { method: "PUT", path: "/api/backup/schedule", body };
+    } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

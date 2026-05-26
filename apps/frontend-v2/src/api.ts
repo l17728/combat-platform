@@ -662,6 +662,40 @@ export class Api {
       body: JSON.stringify({ enabled }),
     });
   }
+
+  listBackups(): Promise<BackupInfo[]> {
+    return this.req('/api/backup');
+  }
+
+  createBackup(): Promise<{ filename: string; size: number }> {
+    return this.req('/api/backup', { method: 'POST' });
+  }
+
+  downloadBackup(filename: string): Promise<Blob> {
+    return this.f(`${this.base}/api/backup/${encodeURIComponent(filename)}`).then(r => r.blob());
+  }
+
+  deleteBackup(filename: string): Promise<{ deleted: string }> {
+    return this.req(`/api/backup/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+  }
+
+  restoreBackup(file: File): Promise<{ restored: boolean; message: string }> {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.req('/api/backup/restore', { method: 'POST', body: fd });
+  }
+
+  getBackupSchedule(): Promise<BackupSchedule> {
+    return this.req('/api/backup/schedule');
+  }
+
+  setBackupSchedule(cfg: Partial<BackupSchedule>): Promise<BackupSchedule> {
+    return this.req('/api/backup/schedule', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+  }
 }
 
 export interface HelpRequest {
@@ -704,6 +738,19 @@ export interface OpLogEntry {
   detail: string;
   timestamp: string;
   created_at: string;
+}
+
+export interface BackupInfo {
+  filename: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface BackupSchedule {
+  enabled: boolean;
+  intervalHours: number;
+  keepCount: number;
+  lastBackupAt: string | null;
 }
 
 export const api = new Api('');

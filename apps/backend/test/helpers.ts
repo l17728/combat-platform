@@ -23,8 +23,9 @@ export function makeTestApp() {
     fields: [{ name: "name", type: "string", label: "姓名", required: true },
              { name: "employeeId", type: "string", label: "工号" }],
   }));
-  const db = openDb(join(dir, "t.sqlite"));
+  const dbPath = join(dir, "t.sqlite");
+  const db = openDb(dbPath);
   const repo = new SqliteRepository(db);
   const registry = new FileSchemaRegistry(cfgDir);
-  return { app: createApp({ repo, registry, db }), repo, registry, cfgDir };
+  return { app: createApp({ repo, registry, db, dbPath }), repo, registry, cfgDir };
 }
