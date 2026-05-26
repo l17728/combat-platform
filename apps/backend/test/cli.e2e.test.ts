@@ -190,6 +190,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend daily-report-entry closed loop: list/create/publish/delete", async () => {
+    process.env.COMBAT_NO_AUTH = "1";
     const dbPath = join(mkdtempSync(join(tmpdir(), "combat-cli-dre-")), "t.sqlite");
     const db = openDb(dbPath);
     const repo = new SqliteRepository(db);

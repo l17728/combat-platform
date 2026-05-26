@@ -4,17 +4,9 @@ import { makeTestApp } from "./helpers.js";
 
 describe("op-log router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
-  let origNoAuth: string | undefined;
 
   beforeEach(() => {
     ({ app } = makeTestApp());
-    origNoAuth = process.env.COMBAT_NO_AUTH;
-    process.env.COMBAT_NO_AUTH = "1";
-  });
-
-  afterEach(() => {
-    if (origNoAuth === undefined) delete process.env.COMBAT_NO_AUTH;
-    else process.env.COMBAT_NO_AUTH = origNoAuth;
   });
 
   it("GET /op-logs/settings returns default enabled=true", async () => {

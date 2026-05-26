@@ -7,6 +7,7 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
 export function makeTestApp() {
+  process.env.COMBAT_NO_AUTH = "1";
   const dir = mkdtempSync(join(tmpdir(), "combat-"));
   const cfgDir = join(dir, "schemas"); mkdirSync(cfgDir);
   writeFileSync(join(cfgDir, "attackTicket.json"), JSON.stringify({
