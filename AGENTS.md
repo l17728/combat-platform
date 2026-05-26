@@ -605,8 +605,8 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-26 最后验证）
-- **229/229 e2e tests passing** (全部通过，7.3分钟)
-- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10), bug-report-row-actions(4), help-feedback(8), help-center-extended(6), help-button(16), edit-operations(10), attack-detail-extended(12), import-export-extended(6), email-settings-extended(4), audit-log-extended(7)
+- **240/240 e2e tests passing** (全部通过)
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10), bug-report-row-actions(4), help-feedback(8), help-center-extended(6), help-button(16), edit-operations(10), attack-detail-extended(12), import-export-extended(6), email-settings-extended(4), audit-log-extended(7), coverage-gaps(11)
 - 新增覆盖：求助反馈页(HelpFeedback)、攻击详情日报/求助网络/关联/流转、导入预览/流程、邮件测试、求助中心表单验证/链接导航、审计日志筛选/刷新/变更详情
 
 ## 工作流程规范
