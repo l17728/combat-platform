@@ -149,6 +149,18 @@ scripts/deploy/     # Deployment scripts (reference frontend)
 scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 ```
 
+## Scripts Inventory
+
+| Script | Path | Usage |
+|--------|------|-------|
+| Mock seed | `scripts/mock-data/seed.mjs` | `node scripts/mock-data/seed.mjs [--api URL] [--count N]` — creates N people, attackTickets, contributions |
+| Mock wipe | `scripts/mock-data/wipe.mjs` | `node scripts/mock-data/wipe.mjs [--api URL] [--yes]` — deletes ALL nodes (irreversible!) |
+| Settings seed | `scripts/settings-seed.mjs` | `node scripts/settings-seed.mjs [--api URL]` — populates config center with default dropdown options |
+| Migrate export | `scripts/migrate/export.mjs` | `node scripts/migrate/export.mjs [--api URL] [--out DIR]` — exports all nodeTypes to xlsx files |
+| Migrate import | `scripts/migrate/import.mjs` | `node scripts/migrate/import.mjs [--api URL] [--dir DIR] [--dryRun]` — imports xlsx files via upsert |
+| Deploy v2 | `scripts/deploy-v2/deploy.mjs` | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline |
+| Deploy v1 | `scripts/deploy/deploy.mjs` | Old deployment for reference frontend only |
+
 ## Build / Dev / Test Commands
 
 All commands run from repo root unless noted. This is an npm workspaces monorepo.
@@ -577,14 +589,10 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
-### 当前测试状态（2026-05-25 最后验证）
-- **156/156 e2e tests passing**
-- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10)
-- 新增页面覆盖：全局搜索(SearchPage)、关系审批(ProposalsPage)、跟催提醒(RemindersPage)、问题反馈(BugReport)
-- 零覆盖页面补齐：配置中心(ConfigCenter)、表结构管理(SchemaWizard)、攻关日报(DailyReport)、人员合并(MergePage)、关联全景(RelatedPage)
-- 回归防护覆盖：角色权限、表单交互、状态全生命周期、Dashboard 数据一致性、直接 URL 导航、审计日志完整性
-- 导航覆盖：子菜单标题点击导航、折叠侧边栏、当前页高亮、所有 17 个页面通过侧边栏可达
-- 配置中心：所有硬编码下拉已改为 useSettings 动态加载（带 fallback）
+### 当前测试状态（2026-05-26 最后验证）
+- **199/199 e2e tests passing** (156 existing + 43 new)
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10), help-feedback(8), attack-detail-extended(12), import-export-extended(6), email-settings-extended(4), help-center-extended(6), audit-log-extended(7)
+- 新增覆盖：求助反馈页(HelpFeedback)、攻击详情日报/求助网络/关联/流转、导入预览/流程、邮件测试、求助中心表单验证/链接导航、审计日志筛选/刷新/变更详情
 
 ## 工作流程规范
 
