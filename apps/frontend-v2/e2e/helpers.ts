@@ -4,6 +4,10 @@ const API = 'http://localhost:3001';
 
 export { API };
 
+export function opsCell(row: Locator): Locator {
+  return row.locator('td').last();
+}
+
 export async function selectOption(
   page: Page,
   selectLocator: Locator,

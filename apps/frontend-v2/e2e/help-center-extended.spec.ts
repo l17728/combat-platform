@@ -2,6 +2,12 @@ import { test, expect } from '@playwright/test';
 import { API, selectOption, selectOptionContaining, waitForDrawer, waitForTable } from './helpers';
 
 test.describe('求助中心 - 扩展功能', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.request.put(`${API}/api/email/config`, {
+      data: { host: '', port: 465, username: '', password: '', fromEmail: '' },
+    }).catch(() => {});
+  });
+
   test('create help request with all fields', async ({ page }) => {
     await page.request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E完整求助测试单', 状态: '待响应' },

@@ -46,6 +46,7 @@ test.describe('配置中心', () => {
   });
 
   test('add modal cancel does not create data', async ({ page }) => {
+    await page.waitForTimeout(1000);
     const beforeRows = await page.locator('.ant-table-row').count();
 
     await page.getByRole('button', { name: /新增配置/ }).first().click();

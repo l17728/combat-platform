@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, selectOption, waitForDrawer, waitForTable } from './helpers';
+import { API, opsCell, selectOption, waitForDrawer, waitForTable } from './helpers';
 
 test.describe('问题反馈', () => {
   test.beforeEach(async ({ page }) => {
@@ -121,7 +121,7 @@ test.describe('问题反馈', () => {
     await expect(page.getByText('E2E待移除问题')).toBeVisible();
 
     const row = page.getByRole('row').filter({ hasText: 'E2E待移除问题' });
-    await row.locator('a').filter({ hasText: /删\s?除/ }).click();
+    await opsCell(row).locator('a').filter({ hasText: /删\s?除/ }).click();
     await page.waitForTimeout(300);
     await page.locator('.ant-popconfirm').getByRole('button', { name: /确\s?定|OK/ }).click();
     await page.waitForTimeout(1000);

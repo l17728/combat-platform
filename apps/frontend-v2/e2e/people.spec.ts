@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, selectOption, waitForTable } from './helpers';
+import { API, opsCell, selectOption, waitForTable } from './helpers';
 
 test.describe('全员名单', () => {
   test('shows page heading and action buttons', async ({ page }) => {
@@ -85,7 +85,7 @@ test.describe('全员名单', () => {
     await page.goto('/people');
     await waitForTable(page);
     await expect(page.getByText('E2E待删除人')).toBeVisible();
-    await page.getByRole('row').filter({ hasText: 'E2E待删除人' }).locator('a').last().click();
+    await opsCell(page.getByRole('row').filter({ hasText: 'E2E待删除人' })).locator('a').filter({ hasText: /删\s?除/ }).click();
     await page.getByRole('button', { name: /确\s?定/ }).click();
     await expect(page.getByText('删除成功')).toBeVisible();
   });

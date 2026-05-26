@@ -119,12 +119,16 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
         const raw = repo.getSetting("smtp");
         if (raw) {
           const cfg = JSON.parse(raw) as SmtpConfig;
-          await mailSender.send(cfg, {
-            to: [targetEmail],
-            subject: emailSubject,
-            body: emailBody,
-          });
-          log.info("help_request.email_sent", { id, to: targetEmail });
+          if (cfg.host) {
+            await mailSender.send(cfg, {
+              to: [targetEmail],
+              subject: emailSubject,
+              body: emailBody,
+            });
+            log.info("help_request.email_sent", { id, to: targetEmail });
+          } else {
+            log.warn("help_request.no_smtp_host", { id });
+          }
         } else {
           log.warn("help_request.no_smtp", { id });
         }

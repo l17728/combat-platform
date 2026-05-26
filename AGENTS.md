@@ -7,7 +7,22 @@ Guidance for agentic coding agents working in this repository.
 ### 1. Parallelize Development
 **Any task that CAN run in parallel MUST run in parallel.** Identify independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency.
 
-### 2. Fast MVP, TDD, Full E2E Coverage
+### 2. Recursive Convergence (举一反三递归收敛)
+**When a problem is found, fix the entire CLASS of problems, then check if the fix introduced new problems, and keep recursing until the error count converges to zero.** This is not "fix one, move on" — it's:
+1. **Identify** the root cause pattern (not the symptom)
+2. **Search** the entire codebase for ALL instances of the same pattern
+3. **Fix** every instance (not just the one that failed)
+4. **Check** if the fix created new issues (e.g., new selector conflicts, new race conditions)
+5. **Recurse**: if new issues found, go back to step 1 with the new pattern
+6. **Converge**: stop only when zero failures remain
+
+Example: A test fails because `row.locator('a').filter({ hasText: '编辑' })` matches both the name cell link AND the edit button. The fix is NOT to change just that one test — it's to:
+- Search all 20+ test files for the same `row.locator('a')` anti-pattern
+- Replace ALL instances with `opsCell(row).locator('a')` (scoped to last `<td>`)
+- Re-run ALL tests to check the fix didn't break anything
+- Check if `opsCell()` itself has edge cases (e.g., tables without fixed columns)
+
+### 3. Fast MVP, TDD, Full E2E Coverage
 **Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend**; every feature must be covered.
 
 ### 3. Run to Completion (Autonomous Execution)
@@ -590,8 +605,8 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-26 最后验证）
-- **199/199 e2e tests passing** (156 existing + 43 new)
-- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10), help-feedback(8), attack-detail-extended(12), import-export-extended(6), email-settings-extended(4), help-center-extended(6), audit-log-extended(7)
+- **229/229 e2e tests passing** (全部通过，7.3分钟)
+- 测试文件: attack(19), people(8), honor-contributions(14), dashboard(4), system-navigation(23), regression(13), page-health(3), config-center(8), schema-wizard(10), daily-report(8), merge-page(4), related-page(4), search-proposals-reminders(28), bug-report(10), bug-report-row-actions(4), help-feedback(8), help-center-extended(6), help-button(16), edit-operations(10), attack-detail-extended(12), import-export-extended(6), email-settings-extended(4), audit-log-extended(7)
 - 新增覆盖：求助反馈页(HelpFeedback)、攻击详情日报/求助网络/关联/流转、导入预览/流程、邮件测试、求助中心表单验证/链接导航、审计日志筛选/刷新/变更详情
 
 ## 工作流程规范

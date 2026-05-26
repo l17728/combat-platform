@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, selectOption, waitForTable } from './helpers';
+import { API, opsCell, selectOption, waitForTable } from './helpers';
 
 test.describe('攻关作战台 - 列表', () => {
   test('shows page title and new button', async ({ page }) => {
@@ -79,7 +79,7 @@ test.describe('攻关作战台 - 列表', () => {
     await page.goto('/attack');
     await waitForTable(page);
     await expect(page.getByText('E2E待删除单')).toBeVisible();
-    await page.getByRole('row').filter({ hasText: 'E2E待删除单' }).locator('a').last().click();
+    await opsCell(page.getByRole('row').filter({ hasText: 'E2E待删除单' })).locator('a').filter({ hasText: /删\s?除/ }).click();
     await page.getByRole('button', { name: /确\s?定/ }).click();
     await expect(page.getByText('删除成功')).toBeVisible();
     await expect(page.getByText('E2E待删除单')).not.toBeVisible();

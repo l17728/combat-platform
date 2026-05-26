@@ -2,6 +2,12 @@ import { test, expect } from '@playwright/test';
 import { API, waitForTable } from './helpers';
 
 test.describe('求助反馈页 (HelpFeedback)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.request.put(`${API}/api/email/config`, {
+      data: { host: '', port: 465, username: '', password: '', fromEmail: '' },
+    }).catch(() => {});
+  });
+
   test('shows error for invalid token', async ({ page }) => {
     await page.goto('/help/feedback/invalid-token-12345');
     await page.waitForLoadState('networkidle');

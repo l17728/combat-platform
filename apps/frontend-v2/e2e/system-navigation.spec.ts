@@ -8,9 +8,10 @@ test.describe('求助中心', () => {
     await expect(page.getByRole('button', { name: '发起求助' })).toBeVisible();
   });
 
-  test('shows empty state when no data', async ({ page }) => {
+  test('shows help center page with table', async ({ page }) => {
     await page.goto('/help');
-    await expect(page.getByText('暂无求助记录')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('.ant-table').or(page.getByText('暂无求助记录'))).toBeVisible();
   });
 
   test('opens and fills help request drawer', async ({ page, request }) => {

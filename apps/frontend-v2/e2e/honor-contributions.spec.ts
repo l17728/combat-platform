@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, selectOption, waitForDrawer, waitForTable } from './helpers';
+import { API, opsCell, selectOption, waitForDrawer, waitForTable } from './helpers';
 
 test.describe('贡献录入', () => {
   test('shows page heading and create button', async ({ page }) => {
@@ -91,7 +91,7 @@ test.describe('贡献录入', () => {
     await page.goto('/contributions');
     await waitForTable(page);
     await expect(page.getByRole('cell', { name: 'E2E待删贡献', exact: true })).toBeVisible();
-    await page.getByRole('row').filter({ hasText: 'E2E待删贡献' }).locator('a').last().click();
+    await opsCell(page.getByRole('row').filter({ hasText: 'E2E待删贡献' })).locator('a').filter({ hasText: /删\s?除/ }).click();
     await page.getByRole('button', { name: /确\s?定/ }).click();
     await expect(page.getByText('删除成功')).toBeVisible();
   });
