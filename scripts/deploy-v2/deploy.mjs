@@ -202,7 +202,7 @@ async function doDeploy(c) {
     );
     const code = rh.out.trim();
     log("6/6", `  [${i}] api=${code}`);
-    if (code === "200" || code === "400" || code === "404" || code === "405") healthy = true;
+    if (code === "200" || code === "400" || code === "401" || code === "404" || code === "405") healthy = true;
   }
 
   if (healthy) {
