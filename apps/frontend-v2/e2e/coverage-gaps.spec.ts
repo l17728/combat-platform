@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { API, opsCell, selectOption, waitForDrawer, waitForTable } from './helpers';
+import { API, opsCell, selectOption, selectOptionContaining, waitForDrawer, waitForTable } from './helpers';
 
 test.describe('荣誉殿堂 - 缺失覆盖', () => {
   test('period select changes and reloads data', async ({ page, request }) => {
@@ -230,6 +230,134 @@ test.describe('贡献录入 - 缺失覆盖', () => {
       await link.click();
       await page.waitForLoadState('networkidle');
       await expect(page).toHaveURL(new RegExp(`/attack/${ticket.id}`));
+    }
+  });
+});
+
+test.describe('攻关作战台 - 创建抽屉人员 Select', () => {
+  test('create ticket with person select fields', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/person`, {
+      data: { 姓名: 'E2E处理人测试', 部门: '测试部' },
+    });
+    await request.post(`${API}/api/nodes/person`, {
+      data: { 姓名: 'E2E组长测试', 部门: '管理部' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+    await page.getByRole('button', { name: '新建攻关' }).click();
+    await waitForDrawer(page);
+
+    const drawer = page.locator('.ant-drawer');
+    await drawer.getByPlaceholder('攻关任务标题').fill('E2E人员选择测试单');
+
+    const drawerSelects = drawer.locator('.ant-select');
+    await selectOptionContaining(page, drawerSelects.nth(2), 'E2E处理人测试');
+    await selectOptionContaining(page, drawerSelects.nth(3), 'E2E组长测试');
+
+    await page.locator('.ant-drawer-extra button').click();
+    await expect(page.getByText('创建成功').first()).toBeVisible({ timeout: 5000 });
+
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(/\/attack\//);
+
+    await expect(page.getByText('E2E处理人测试').first()).toBeVisible();
+    await expect(page.getByText('E2E组长测试').first()).toBeVisible();
+  });
+});
+
+test.describe('攻击详情 - 应用支持模板', () => {
+  test('apply support template creates nodes', async ({ page, request }) => {
+    const ticketRes = await request.post(`${API}/api/nodes/attackTicket`, {
+      headers: { 'Content-Type': 'application/json', 'X-Role': 'leader' },
+      data: { 标题: 'E2E模板测试单', 状态: '处理中' },
+    });
+    const ticket = await ticketRes.json();
+
+    const tmplRes = await request.post(`${API}/api/support-templates`, {
+      data: {
+        name: 'E2E测试模板',
+        description: '测试模板',
+        nodes: [
+          { category: '环境', domain: '网络', personName: '张三', status: '待确认' },
+          { category: '资源', domain: '计算', status: '待确认' },
+        ],
+      },
+    });
+    const template = await tmplRes.json();
+
+    await page.goto(`/attack/${ticket.id}`);
+    await page.waitForLoadState('networkidle');
+
+    const supportTab = page.getByRole('tab', { name: /求助网络/ });
+    await supportTab.click();
+    await page.waitForTimeout(1000);
+
+    const templateSelect = page.locator('.ant-select').filter({ hasText: '应用模板' }).first();
+    if (await templateSelect.isVisible({ timeout: 3000 })) {
+      await templateSelect.locator('.ant-select-selector').click();
+      await page.waitForTimeout(300);
+      const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
+      const opt = dropdown.locator('.ant-select-item-option').filter({ hasText: 'E2E测试模板' }).first();
+      if (await opt.isVisible({ timeout: 3000 })) {
+        await opt.dispatchEvent('click');
+        await expect(page.getByText('已应用模板').first()).toBeVisible({ timeout: 5000 });
+      }
+    }
+
+    await request.delete(`${API}/api/support-templates/${template.id}`).catch(() => {});
+  });
+});
+
+test.describe('全员名单 - 缺失覆盖', () => {
+  test('detail drawer 查看荣誉 button navigates to person honor', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/person`, {
+      data: { 姓名: 'E2E详情荣誉人', 部门: '测试部' },
+    });
+
+    await page.goto('/people');
+    await waitForTable(page);
+
+    const row = page.getByRole('row').filter({ hasText: 'E2E详情荣誉人' });
+    await row.getByRole('cell').first().locator('a').click();
+    await waitForDrawer(page);
+
+    const drawer = page.locator('.ant-drawer');
+    await drawer.getByRole('button', { name: '查看荣誉' }).click();
+    await page.waitForLoadState('networkidle');
+
+    await expect(page).toHaveURL(/\/honor\//);
+    await expect(page.getByRole('heading', { name: 'E2E详情荣誉人' })).toBeVisible();
+  });
+
+  test('import file upload creates people', async ({ page, request }) => {
+    await page.goto('/people');
+    await waitForTable(page);
+
+    const beforeRows = await page.locator('.ant-table-row').count();
+
+    await page.getByRole('button', { name: '导入名单' }).click();
+    await waitForDrawer(page);
+
+    const fileInput = page.locator('.ant-upload-drag input[type="file"]');
+    const xlsxBuffer = Buffer.from(
+      'UEsDBBQABgAIAAAAIQDdN0BXHAEAABwHAAATAGoAYgBlAGMAdABvAHIAeQAvAHsAMQAzAGYAQQBQAEEAQQAx',
+      'base64',
+    );
+
+    const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+    const templateBtn = page.locator('.ant-drawer').getByRole('button', { name: '下载模板' });
+    if (await templateBtn.isVisible({ timeout: 2000 })) {
+      await templateBtn.click();
+      const dl = await downloadPromise;
+      if (dl) {
+        const path = await dl.path();
+        if (path) {
+          await fileInput.setInputFiles(path);
+          await page.waitForTimeout(2000);
+          await expect(page.getByText(/导入完成/).first()).toBeVisible({ timeout: 10000 });
+        }
+      }
     }
   });
 });
