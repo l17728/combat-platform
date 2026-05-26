@@ -696,3 +696,30 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 
 ### Drawer 关闭不会提交数据
 打开 drawer、填写数据、点击关闭按钮不会创建任何数据。这是回归防护测试之一。
+
+## Op-Log System (操作追踪系统)
+
+### Backend
+- **File**: `apps/backend/src/op-log.ts` — op-log router（独立 SQLite 表，不经过通用 CRUD）
+- **DB**: `op_logs` table (id, session_id, user_name, category, detail, timestamp, created_at)
+- **Settings**: 开关存在 `app_settings` 表，key=`op_log_enabled`，默认 true
+- **APIs**:
+  - `POST /api/op-logs` — 批量写入（上限 200 条/批，关闭时静默返回 `{inserted:0}`)
+  - `GET /api/op-logs?sessionId&userName&category&from&to&limit&offset` — 查询（5 维过滤）
+  - `DELETE /api/op-logs?before&sessionId` — 清理（必须指定条件）
+  - `GET /api/op-logs/settings` — 查看开关
+  - `PUT /api/op-logs/settings` — 切换开关（`{enabled: boolean}`）
+
+### Frontend
+- **自动捕获**: `src/utils/op-logger.ts` — 拦截 API 调用、路由导航、全局错误
+- **页面**: `src/pages/OperationLog.tsx` — 管理员可见，带开关、过滤、清理
+- **API hook**: `src/api.ts` 的 `req()` 方法自动调用 `logApiCall()`
+- **路由追踪**: `App.tsx` 的 AppInner 通过 `useEffect` 监听 `location.pathname` 变化
+- **Self-filtering**: op-logger 跳过记录自身 API 调用（`POST /api/op-logs`, `GET /api/op-logs/settings`）
+
+### CLI Commands
+- `op-logs:list`, `op-logs:settings`, `op-logs:enable`, `op-logs:disable`, `op-logs:cleanup`
+
+### Test Coverage
+- **15 backend unit tests**: `apps/backend/test/op-log.test.ts`（需 `COMBAT_NO_AUTH=1`）
+- **12 E2E tests**: `apps/frontend-v2/e2e/op-log.spec.ts`

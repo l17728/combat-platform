@@ -174,6 +174,23 @@ body `{ decidedBy }`。非待发送 → 409；不存在 → 404。
 ### `DELETE /api/bug-reports/:id`
 删除问题反馈。返回 200 `{ deleted: id }`。
 
+## 操作追踪（op-log）
+
+### `POST /api/op-logs`
+批量写入操作日志。body = `[{session_id, user_name?, category, detail?, timestamp?}]`。每批上限 200 条。关闭状态下静默返回 `{inserted:0, disabled:true}`。返回 `{inserted, ids}`。
+
+### `GET /api/op-logs?sessionId=&userName=&category=&from=&to=&limit=&offset=`
+查询操作日志。category ∈ `{api, navigate, error, action}`。默认 limit=200，上限 1000。返回 `{total, rows}`。
+
+### `DELETE /api/op-logs?before=<ISO>&sessionId=<id>`
+清理旧记录。必须指定 `before`（ISO 时间戳）或 `sessionId` 至少一个。返回 `{deleted}`。
+
+### `GET /api/op-logs/settings`
+查看操作追踪开关状态。返回 `{enabled}`。默认 true。
+
+### `PUT /api/op-logs/settings`
+切换开关。body = `{enabled: boolean}`。返回 `{enabled}`。
+
 ## 错误码约定
 
 - 400：客户端错误（参数缺失、validateNode 失败、enum 不合法、字符串类型守卫）。
