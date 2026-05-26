@@ -172,7 +172,18 @@ test.describe('关系审批', () => {
     await expect(page.getByRole('button', { name: /扫\s?描/ })).toBeVisible();
   });
 
-  test('shows empty state when no proposals', async ({ page }) => {
+  test('shows empty state when no proposals', async ({ page, request }) => {
+    const existing = await request.get(`${API}/api/proposals?status=待审批`);
+    const proposals = await existing.json();
+    for (const p of (Array.isArray(proposals) ? proposals : [])) {
+      if (p.status === '待审批') {
+        await request.post(`${API}/api/proposals/${p.id}/decide`, {
+          data: { decision: '拒绝', decidedBy: 'cleanup' },
+        });
+      }
+    }
+    await page.goto('/proposals');
+    await page.waitForLoadState('networkidle');
     await expect(page.getByText('暂无候选关系')).toBeVisible();
   });
 
