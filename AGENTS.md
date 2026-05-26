@@ -360,8 +360,8 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Stack:** React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 strict
 - **Dev port:** 5174, API proxied to localhost:3001
 - **Production:** backend Express on port 3001 serves both API and frontend static files (single port)
-- **Layout:** collapsible sidebar (200→64px) + fixed top bar with role switcher
-- **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter
+- **Layout:** collapsible sidebar (200→64px) + fixed top bar with user Dropdown (displayName + role + logout)
+- **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter, BugReport, DailyReport, LoginPage, MergePage, OperationLog, ProposalsPage, RelatedPage, RemindersPage, SchemaWizard, SearchPage, UserManagement
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
 - **Settings system:** `src/hooks/useSettings.ts` — auto-loads config from `/api/settings`, fallback to hardcoded defaults; all dropdown Selects use `getValues(key, fallback)` pattern
 
@@ -522,8 +522,21 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 **StatusTag 组件**：统一通过 `<StatusTag status={v} type="status|level|contribution" />` 渲染。
 
 **颜色体系**（在 `constants.ts` 中集中管理）：
-- 状态色：待响应=gold, 处理中=blue, 进行中=cyan, 已解决=green, 已关闭=default
-- 等级色：核心=red, 关键=orange, 普通=blue
+- `STATUS_COLOR`：待响应=gold, 处理中=blue, 进行中=cyan, 已解决=green, 已关闭=default
+- `STATUS_BAR_COLOR`：同上色系的 hex 值（用于图表柱状）
+- `LEVEL_COLOR`：高=red, 中=orange, 低=blue
+- `CONTRIBUTION_COLOR`：核心=red, 关键=orange, 普通=blue
+- `HELP_STATUS_COLOR`：待回复=gold, 已回复=green
+- `SUPPORT_STATUS_COLOR`：待确认=default, 支持中=processing, 已完成=success, 已撤销=error
+- `ACTION_COLOR`：CREATE=green, UPDATE=blue, DELETE=red, PROGRESS=cyan, SETTING=purple, ESCALATE=orange, MERGE=gold
+- `ACTION_LABEL`：CREATE→创建, UPDATE→更新, DELETE→删除, PROGRESS→进展, SETTING→设置, ESCALATE→升级, MERGE→合并
+- `ENTITY_TYPE_LABEL`：node→节点, edge→关系, schema→表结构, setting→设置, proposal→提案, reminder→提醒
+- `PROPOSAL_STATUS_COLOR`：待审批=gold, 已通过=green, 已拒绝=red
+- `REMINDER_STATUS_COLOR`：待发送=gold, 已发送=green, 已忽略=default
+- `REMINDER_KIND_LABEL`：问题单跟催/FE Deadline 提醒/CCB 提醒
+- `BUG_SEVERITY_COLOR`：严重=red, 较高=orange, 一般=blue, 建议=default
+- `BUG_STATUS_COLOR`：待处理=gold, 处理中=blue, 已解决=green, 已关闭=default
+- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, releasePackage→版本包, weightFile→权重文件
 - 所有中文枚举值颜色必须定义在 constants.ts，不在组件中硬编码
 
 **Steps 生命周期**：详情页顶部用 `<Steps size="small">` 展示状态流转，当前步骤高亮。
@@ -664,38 +677,6 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 ### CLI Commands
 - `auth:login`, `auth:register`, `auth:me`, `auth:change-password`
 - `users:list`, `users:create`, `users:update`, `users:delete`
-
-## E2E 测试关键发现
-
-### Ant Design 5 自动在2字符中文按钮文本间插入空格
-Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格。Playwright 选择器需用正则匹配如 `/导\s?出/`、`/确\s?定/`、`/删\s?除/`、`/添\s?加/`。4字符按钮如"新建攻关"不受影响。
-
-### Ant Design Select 下拉 — "Element is outside of the viewport"
-Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
-
-### 页面上多个 Select 的索引规则
-- Header 不再有 `.ant-select`（已替换为 Dropdown 用户菜单）
-- 页面级筛选 Select 从 index 0 开始
-- Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
-- **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
-- **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
-
-### Backend 审计日志 action 和 entityType 是大写英文
-- **action 值为大写**: `CREATE`, `UPDATE`, `DELETE`, `PROGRESS`, `SETTING`, `ESCALATE`, `MERGE`
-- **entityType 值是通用类型**: `node`, `edge`, `schema`, `setting`, `proposal`, `reminder`（**不是** `person`、`attackTicket` 等 nodeType 名称）
-- 前端 AuditLog 页面的筛选选项必须与这些大写值精确匹配
-
-### 贡献等级创建需要 Leader/Admin 角色
-后端 `gradeGate()` 函数对 `contribution` nodeType 的 `贡献等级` 字段做了角色门控：
-- `X-Role: normal` → **403 Forbidden**
-- `X-Role: leader` 或 `admin` → 允许
-- **E2E 测试必须用 `page.addInitScript(() => localStorage.setItem('combat-role', 'leader'))` 设置角色**
-
-### Playwright 多次 Toast 消息导致严格模式违规
-连续操作产生多条 message toast 时，`getByText()` 可能匹配到多条。**必须用 `.first()` 或更精确的选择器**。
-
-### Drawer 关闭不会提交数据
-打开 drawer、填写数据、点击关闭按钮不会创建任何数据。这是回归防护测试之一。
 
 ## Op-Log System (操作追踪系统)
 
