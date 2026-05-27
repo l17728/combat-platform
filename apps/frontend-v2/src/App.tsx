@@ -45,6 +45,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LoginRedirect() {
+  const { user, loading } = useAuth();
+  if (loading) return <Spin style={{ display: 'block', margin: '40vh auto' }} />;
+  if (user) return <Navigate to="/" replace />;
+  return <LoginPage />;
+}
+
 function AppInner() {
   const { user } = useAuth();
   const location = useLocation();
@@ -65,7 +72,7 @@ function AppInner() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<LoginRedirect />} />
       <Route path="/help/feedback/:token" element={<HelpFeedback />} />
       <Route element={<AuthGuard><AppLayout /></AuthGuard>}>
         <Route path="/" element={<Dashboard />} />

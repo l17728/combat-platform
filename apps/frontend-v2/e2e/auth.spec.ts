@@ -1,17 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { API, waitForTable } from './helpers';
 
-test.describe('认证系统', () => {
-  test('login page has form fields', async ({ page }) => {
+test.describe('认证系统（旧测试，保留兼容）', () => {
+  test('login page redirects to dashboard when already authenticated', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByPlaceholder('用户名')).toBeVisible();
-    await expect(page.getByPlaceholder('密码')).toBeVisible();
-    await expect(page.getByRole('button', { name: /登\s?录/ })).toBeVisible();
-  });
-
-  test('login page shows default admin hint', async ({ page }) => {
-    await page.goto('/login');
-    await expect(page.getByText(/admin.*admin123/)).toBeVisible();
+    await page.waitForURL(/\/(attack|)$/, { timeout: 5000 });
+    await expect(page).not.toHaveURL(/\/login/);
   });
 });
 

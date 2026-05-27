@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.js';
 
 const { Title, Text } = Typography;
@@ -8,12 +9,14 @@ const { Title, Text } = Typography;
 export default function LoginPage() {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
       await login(values.username, values.password);
       message.success('登录成功');
+      navigate('/', { replace: true });
     } catch (e: any) {
       message.error(e.message || '登录失败');
     } finally {
