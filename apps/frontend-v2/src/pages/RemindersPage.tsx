@@ -96,13 +96,15 @@ export default function RemindersPage() {
       title: '类型',
       dataIndex: 'kind',
       key: 'kind',
-      width: 100, ellipsis: true,
+      width: 120,
       render: (t: string) => <Tag color="blue">{t}</Tag>,
     },
     {
       title: '收件人',
       dataIndex: 'recipientName',
-      key: 'recipient', ellipsis: true,
+      key: 'recipient',
+      width: 100,
+      ellipsis: true,
     },
     {
       title: '主题',
@@ -195,7 +197,7 @@ export default function RemindersPage() {
         columns={columns}
         loading={loading}
         size="middle"
-        scroll={{ x: 'max-content' }}
+        scroll={{ x: true }}
         pagination={{
           pageSize: PAGE_SIZE,
           showSizeChanger: true,

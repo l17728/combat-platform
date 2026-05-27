@@ -138,6 +138,52 @@ cd scripts/deploy-v2 && node deploy.mjs logs
 - **不再使用 `stdinPut` 管道传输**（跳板机网络不稳定，SSH exec stdin 管道传 643KB 文件会超时）
 - 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
 
+#### 日志体系与文件路径
+
+**三层日志架构**，所有操作均有迹可查：
+
+| 层级 | 存储 | 覆盖范围 | 查看方式 |
+|------|------|----------|----------|
+| 结构化日志 | 文件 | 所有后端操作（94个日志点）+ 每个HTTP请求 | `tail -f /opt/combat-v2/backend.log` |
+| 审计日志 | SQLite `audit_log` 表 | 所有数据变更（CREATE/UPDATE/DELETE/PROGRESS/ESCALATE/MERGE 等，21个审计点） | 前端"审计日志"页面 |
+| 操作日志 | SQLite `op_logs` 表 | 前端API调用、路由导航、全局错误 | 前端"操作日志"页面 |
+
+**生产环境日志文件路径**：
+- 目标机 (60.204.199.234): **`/opt/combat-v2/backend.log`**
+- 直连机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
+- 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log` 写入
+
+**日志查看命令**：
+```bash
+# 通过部署脚本查看（最近30行）
+cd scripts/deploy-v2 && node deploy.mjs logs
+
+# SSH 直连查看实时日志
+ssh root@60.204.199.234 'tail -f /opt/combat-v2/backend.log'
+
+# 按关键词搜索
+ssh root@60.204.199.234 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
+ssh root@60.204.199.234 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
+
+# journalctl 方式（与 backend.log 内容相同）
+ssh root@60.204.199.234 'journalctl -u combat-v2 --no-pager -n 50'
+```
+
+**后端日志事件速查**（`logger.ts` 中的 event 名称，可用于 grep）：
+- 认证: `auth.login`, `auth.register`, `auth.password_changed`, `auth.user_created/updated/deleted`
+- 节点CRUD: `node.create`, `node.update`, `node.delete`, `node.transition`
+- Schema: `schema.fieldOp`, `schema.create`, `schema.delete`
+- 备份: `backup.created`, `backup.deleted`, `backup.restore_pending`, `backup.scheduled`
+- 导入: `import.done`, `import.skip`, `import.parse_fail`
+- 邮件: `email.test`, `email.send`
+- 合并: `merge.start`, `merge.done`
+- 升级: `escalation.triggered`, `escalation.scan.done`
+- 提醒: `reminders.scan.done`
+- 求助: `help_request.create`, `help_request.feedback`, `help_request.email_sent/fail`
+- Bug: `bug_report.create`, `bug_report.update`, `bug_report.delete`
+- HTTP: `http.request`（所有请求）, `http.error`, `http.unhandled`
+- 动态标签: `ticket_tab.created`, `ticket_tab.updated`, `ticket_tab.deleted`, `ticket_tab.reordered`
+
 ### Existing Deployment (参考前端，不要修改)
 - **服务器**: `47.103.99.229`（Alibaba Cloud Linux）
 - **路径**: `/opt/combat/`
@@ -618,7 +664,7 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-27 最后验证）
-- **330/330 frontend-v2 e2e tests passing** (29 spec files, 含 17 dynamic-tabs 测试)
+- **344/344 frontend-v2 e2e tests passing** (29 spec files, 含 17 dynamic-tabs 测试)
 - **315/315 backend vitest tests passing** (51 test files, 含 24 ticket-tabs 测试，含级联删除验证)
 - 新增动态标签系统(ticket-tabs): 攻关单详情页动态标签（关联数据 + 自定义笔记），MD编辑器 + AI助手
 - 后端: CRUD router + reorder API，5 个 CLI 命令，结构化日志（含 title/fields 详情）

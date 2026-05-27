@@ -96,8 +96,8 @@ export default function UserManagement() {
   };
 
   const columns = [
-    { title: '用户名', dataIndex: 'username', width: 120 },
-    { title: '显示名', dataIndex: 'displayName', width: 120 },
+    { title: '用户名', dataIndex: 'username', width: 120, ellipsis: true },
+    { title: '显示名', dataIndex: 'displayName', ellipsis: true },
     {
       title: '角色', dataIndex: 'role', width: 100,
       render: (v: string) => <Tag color={ROLE_COLOR[v] ?? 'default'}>{ROLE_OPTIONS.find(r => r.value === v)?.label ?? v}</Tag>,
@@ -129,7 +129,7 @@ export default function UserManagement() {
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
         <Table rowKey="id" dataSource={users} columns={columns} size="middle"
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
-          scroll={{ x: 'max-content' }} />
+         />
       )}
 
       <Modal title="新建用户" open={addOpen} onCancel={() => { setAddOpen(false); addForm.resetFields(); }} destroyOnClose

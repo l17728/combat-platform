@@ -92,7 +92,7 @@ export default function PeopleList() {
 
   const columns = [
     {
-      title: '姓名', dataIndex: ['properties', '姓名'], width: 80, fixed: 'left' as const,
+      title: '姓名', dataIndex: ['properties', '姓名'], width: 100, fixed: 'left' as const,
       render: (v: string, r: GraphNode) => <a onClick={() => { setDetailNode(r); setDetailOpen(true); }}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['姓名'] as string) ?? '').localeCompare((b.properties['姓名'] as string) ?? ''),
     },
@@ -138,7 +138,7 @@ export default function PeopleList() {
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
         <Table rowKey="id" dataSource={filtered} columns={columns}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: true }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }} size="middle" />
       )}
 

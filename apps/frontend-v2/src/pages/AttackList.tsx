@@ -142,10 +142,10 @@ export default function AttackList() {
       render: (v: string) => <StatusTag status={v} />,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
     },
-    { title: '处理人', dataIndex: ['properties', '当前处理人'], ellipsis: true },
+    { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100, ellipsis: true },
     { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
-    { title: '问题单号', dataIndex: ['properties', '问题单号'], ellipsis: true },
-    { title: '客户', dataIndex: ['properties', '客户名称'], ellipsis: true },
+    { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 120, ellipsis: true },
+    { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
     {
       title: '更新', dataIndex: 'updatedAt', width: 100,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).fromNow()}</Tooltip>,
@@ -182,7 +182,7 @@ export default function AttackList() {
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
         <Table rowKey="id" dataSource={filteredNodes} columns={columns}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: true }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
           size="middle"
           onRow={(r) => ({ onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); }, style: { cursor: 'pointer' } })}

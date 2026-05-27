@@ -124,7 +124,7 @@ export default function OperationLog() {
     {
       title: '时间',
       dataIndex: 'timestamp',
-      width: 140,
+      width: 150,
       sorter: (a: OpLogEntry, b: OpLogEntry) => a.timestamp.localeCompare(b.timestamp),
       defaultSortOrder: 'descend' as const,
       render: (v: string) => (
@@ -136,12 +136,13 @@ export default function OperationLog() {
     {
       title: '用户',
       dataIndex: 'user_name',
-      width: 80,
+      width: 100,
+      ellipsis: true,
     },
     {
       title: '类别',
       dataIndex: 'category',
-      width: 90,
+      width: 100,
       render: (v: string) => (
         <Tag color={CATEGORY_COLOR[v] || 'default'}>{CATEGORY_LABEL[v] || v}</Tag>
       ),
@@ -160,6 +161,7 @@ export default function OperationLog() {
     {
       title: '详情',
       dataIndex: 'detail',
+      ellipsis: true,
       render: renderDetail,
     },
   ];
@@ -231,7 +233,6 @@ export default function OperationLog() {
           rowKey="id"
           dataSource={logs}
           columns={columns}
-          scroll={{ x: 'max-content' }}
           size="middle"
           pagination={{
             current: page,

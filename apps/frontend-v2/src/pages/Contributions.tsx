@@ -135,7 +135,7 @@ export default function Contributions() {
 
   const columns = [
     {
-      title: '贡献人', dataIndex: ['properties', '贡献人'], width: 80, fixed: 'left' as const, ellipsis: true,
+      title: '贡献人', dataIndex: ['properties', '贡献人'], width: 100, fixed: 'left' as const, ellipsis: true,
       render: (v: string) => <a onClick={() => navigate(`/honor/${encodeURIComponent(v)}`)}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['贡献人'] as string) ?? '').localeCompare((b.properties['贡献人'] as string) ?? ''),
     },
@@ -146,7 +146,7 @@ export default function Contributions() {
     { title: '类型', dataIndex: ['properties', '贡献类型'], width: 80 },
     { title: '描述', dataIndex: ['properties', '描述'], ellipsis: true },
     {
-      title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], ellipsis: true,
+      title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], width: 140, ellipsis: true,
       render: (v: string) => {
         if (!v) return '--';
         const ticket = tickets.find(t => t.properties['标题'] === v);
@@ -194,7 +194,7 @@ export default function Contributions() {
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
         <Table rowKey="id" dataSource={filtered} columns={columns}
-          scroll={{ x: 'max-content' }}
+          scroll={{ x: true }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
           size="middle" />
       )}

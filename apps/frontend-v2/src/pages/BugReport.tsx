@@ -136,10 +136,10 @@ export default function BugReport() {
       render: (s: string) => <Tag color={BUG_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '报告人', dataIndex: 'reporter', key: 'reporter', ellipsis: true,
+      title: '报告人', dataIndex: 'reporter', key: 'reporter', width: 80, ellipsis: true,
     },
     {
-      title: '页面', dataIndex: 'pageUrl', key: 'pageUrl', ellipsis: true,
+      title: '页面', dataIndex: 'pageUrl', key: 'pageUrl', width: 120, ellipsis: true,
       render: (u: string) => <Tooltip title={u}><Text style={{ fontSize: 12 }}>{u}</Text></Tooltip>,
     },
     {
@@ -207,7 +207,7 @@ export default function BugReport() {
         columns={columns}
         loading={loading}
         size="middle"
-        scroll={{ x: 'max-content' }}
+        scroll={{ x: true }}
         pagination={{
           pageSize: PAGE_SIZE,
           showSizeChanger: true,

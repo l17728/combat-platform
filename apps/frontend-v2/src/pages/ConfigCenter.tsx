@@ -84,7 +84,7 @@ export default function ConfigCenter() {
 
   const columns = [
     {
-      title: '配置项', dataIndex: 'key', ellipsis: true,
+      title: '配置项', dataIndex: 'key', width: 200, ellipsis: true,
       render: (key: string, r: SettingEntry) => (
         <div>
           <Text strong code style={{ fontSize: 13 }}>{key}</Text>
@@ -135,7 +135,6 @@ export default function ConfigCenter() {
         </Empty>
       ) : (
         <Table rowKey="key" dataSource={entries} columns={columns}
-          scroll={{ x: 'max-content' }}
           pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }}
           size="middle" />
       )}

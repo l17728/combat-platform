@@ -108,6 +108,7 @@ export default function ProposalsPage() {
       title: '来源节点',
       dataIndex: 'sourceNodeId',
       key: 'source',
+      width: 140,
       render: (id: string, record: RelationProposal) => (
         <Space direction="vertical" size={0}>
           <a onClick={() => setDetail(record)}>{getNodeName(id)}</a>
@@ -128,6 +129,7 @@ export default function ProposalsPage() {
       title: '目标节点',
       dataIndex: 'targetNodeId',
       key: 'target',
+      width: 140,
       render: (id: string) => (
         <Space direction="vertical" size={0}>
           <Text>{getNodeName(id)}</Text>
@@ -266,7 +268,7 @@ export default function ProposalsPage() {
         columns={columns}
         loading={loading}
         size="middle"
-        scroll={{ x: 'max-content' }}
+        scroll={{ x: true }}
         pagination={{
           pageSize: PAGE_SIZE,
           showSizeChanger: true,
