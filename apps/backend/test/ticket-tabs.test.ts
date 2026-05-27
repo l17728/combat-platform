@@ -230,4 +230,24 @@ describe("ticket-tabs router", () => {
     const res = await request(app).delete(`/api/tickets/t1/tabs/${tabId}`);
     expect(res.status).toBe(200);
   });
+
+  it("deleting a node cascades to ticket_tabs", async () => {
+    const nodeRes = await request(app)
+      .post("/api/nodes/attackTicket")
+      .send({ 标题: "Cascade test", 状态: "待响应" });
+    const nodeId = nodeRes.body.id;
+
+    await request(app).post(`/api/tickets/${nodeId}/tabs`)
+      .send({ tabType: "custom", title: "tab1" });
+    await request(app).post(`/api/tickets/${nodeId}/tabs`)
+      .send({ tabType: "link", title: "tab2" });
+
+    const beforeDelete = await request(app).get(`/api/tickets/${nodeId}/tabs`);
+    expect(beforeDelete.body).toHaveLength(2);
+
+    await request(app).delete(`/api/nodes/${nodeId}`);
+
+    const afterDelete = await request(app).get(`/api/tickets/${nodeId}/tabs`);
+    expect(afterDelete.body).toHaveLength(0);
+  });
 });

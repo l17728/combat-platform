@@ -210,6 +210,7 @@ export class SqliteRepository implements Repository {
     this.db.transaction(() => {
       this.db.prepare(`DELETE FROM progress_log WHERE ownerId=?`).run(id);
       this.db.prepare(`DELETE FROM edges WHERE sourceId=? OR targetId=?`).run(id, id);
+      this.db.prepare(`DELETE FROM ticket_tabs WHERE ticket_id=?`).run(id);
       const result = this.db.prepare(`DELETE FROM nodes WHERE id=?`).run(id);
       if (result.changes > 0) this.audit("DELETE", "node", id, { id }, actor);
     })();

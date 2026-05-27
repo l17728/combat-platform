@@ -619,7 +619,7 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 
 ### 当前测试状态（2026-05-27 最后验证）
 - **325/325 frontend-v2 e2e tests passing** (29 spec files, 含 12 dynamic-tabs 测试)
-- **310/310 backend vitest tests passing** (51 test files, 含 23 ticket-tabs 测试)
+- **310/310 backend vitest tests passing** (51 test files, 含 24 ticket-tabs 测试，含级联删除验证)
 - 新增动态标签系统(ticket-tabs): 攻关单详情页动态标签（关联数据 + 自定义笔记），MD编辑器 + AI助手
 - 后端: CRUD router + reorder API，5 个 CLI 命令，结构化日志（含 title/fields 详情）
 - 前端: AddTabModal / DynamicLinkTab / DynamicCustomTab 组件，editable-card Tabs 集成
