@@ -2,90 +2,616 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Core Principle: Parallelize Development
+## Core Principles
 
-**Any task that CAN run in parallel MUST run in parallel, using multiple concurrent agents.** This is mandatory, not a preference. For every plan, identify the independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them as **multiple agents working concurrently, each in its own isolated git worktree** — launched in a single message. Do NOT fall back to sequential execution for convenience even when a process skill (e.g. subagent-driven-development) defaults to sequential; the user's parallelize directive overrides that default. Only serialize across a true data/sequence dependency (a dependency gate). Read-only work (reviews) may also run concurrently. This is a standing, emphatic directive from the user ("能并行的任务一定要并行处理，使用多个agent").
+### 1. Parallelize Development
+**Any task that CAN run in parallel MUST run in parallel, using multiple concurrent agents.** This is mandatory, not a preference. For every plan, identify the independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency. Read-only work (reviews) may also run concurrently. This is a standing, emphatic directive from the user ("能并行的任务一定要并行处理，使用多个agent").
 
-## Core Principle: Fast MVP, TDD, Full E2E Coverage
+### 2. Recursive Convergence (举一反三递归收敛)
+**When a problem is found, fix the entire CLASS of problems, then check if the fix introduced new problems, and keep recursing until the error count converges to zero.** This is not "fix one, move on" — it's:
+1. **Identify** the root cause pattern (not the symptom)
+2. **Search** the entire codebase for ALL instances of the same pattern
+3. **Fix** every instance (not just the one that failed)
+4. **Check** if the fix created new issues (e.g., new selector conflicts, new race conditions)
+5. **Recurse**: if new issues found, go back to step 1 with the new pattern
+6. **Converge**: stop only when zero failures remain
 
-**Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend** (backend API e2e + frontend browser e2e); every feature must be covered. This is a standing directive from the user.
+### 3. Fast MVP, TDD, Full E2E Coverage
+**Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend**; every feature must be covered.
 
-## Core Principle: Run to Completion (Autonomous Execution)
+### 4. Run to Completion (Autonomous Execution)
+**Do not stop until all functional e2e tests (frontend + backend) pass and the product is manually usable.** Keep running through implementation, failures, and fixes autonomously. When a decision is required mid-execution, choose the most-recommended option and proceed — do not block on the user for routine decisions.
 
-**Do not stop until all functional e2e tests (frontend + backend) pass and the product is manually usable.** Keep running through implementation, failures, and fixes autonomously. When a decision is required mid-execution, **choose the most-recommended option and proceed** — do not block on the user for routine decisions. This is a standing directive from the user.
+### 5. Generalize Fixes (举一反三)
+**When a problem is found, fix the entire class of problems, not just the single instance.** Trace every divergent/leaf-node issue, and keep resolving until the problem space converges.
 
-## Core Principle: Generalize Fixes (举一反三)
+### 6. CLI for Every Backend API
+**Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
 
-**When a problem is found, fix the entire class of problems, not just the single instance.** Reason from one failure to all similar latent failures (举一反三), trace every divergent/leaf-node issue, and keep resolving until the problem space converges (no remaining related failures). This is a standing directive from the user.
+### 7. Deploy After Green
+**After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle.
 
-## Core Principle: CLI for Every Backend API (agent-operable)
+Deploy target host/user/password are stored **out of version control** — in the gitignored `.env.deploy` at repo root. **Never hardcode the server password in any committed file** (CLAUDE.md, scripts, code); read it from `.env.deploy` at deploy time.
 
-**Every backend HTTP API MUST have a corresponding command-line command.** The CLI is **Linux shell commands** (the service deploys to Linux) and is how agents (e.g. Hermes) drive the system programmatically. The CLI provides a `help` command that lists every command's format, usage, and function — so an agent can self-query the catalog and then self-invoke; `help <command>` shows per-command detail. **When implementing ANY new backend API, synchronously implement its CLI command in the same increment** — this is part of the backend definition-of-done, never deferred. The CLI is a thin HTTP client over the existing API (`apps/backend/src/cli-core.ts` declarative registry + `cli.ts` fetch entry); run via `npm run cli -- <command> [args] [--opts]` (reads `COMBAT_API`, default `http://localhost:3001`). This is a standing directive from the user ("实现所有后台API的命令行，方便agent…后续实现一个后台API需要同步实现命令行").
+### 8. Domain Language: Chinese Only
+Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
+```ts
+enumValues: ["待响应", "处理中", "已解决", "已关闭"]
+toStatus === "已解决"
+```
 
-## Core Principle: Deploy to Test Server After Green
+### 9. Config-Driven, No DDL Migrations
+Adding/removing a field is a **config change** (JSON file), never a DB migration. Business data lives in `properties` JSON columns. Never hardcode business field names in any layer. UI renders from schema config at runtime.
 
-**After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle. This is a standing directive.
+### 10. One Data Model, Many Views
+**Do not build per-table CRUD silos.** Build one unified model; each "combat table" is a projection/view over it. The core problem is cross-view association — the same person/task appears across many tables and must be linked.
 
-Deploy target host/user/password are stored **out of version control** — in the gitignored `.env.deploy` at repo root (and agent memory). **Never hardcode the server password in any committed file** (CLAUDE.md, scripts, code); read it from `.env.deploy` at deploy time. Committing root credentials to git is a security exposure and is prohibited even if asked — keep the secret out of tracked files and tell the user where it lives.
+### 11. Structured Is Authoritative, KG Is Derived
+All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
 
-## Repository State
+### 12. Post-Implementation Sync Checklist (特性完工例行检查)
+**Every feature implementation MUST complete the following checklist before marking done.** No exceptions, no deferrals:
 
-**Greenfield / pre-implementation.** Only documents exist — no code, scaffolding, or git history:
+| # | Check | What to Do |
+|---|-------|-----------|
+| 1 | **E2E tests** | Write/update Playwright e2e tests covering the new feature. Run full suite (`npx playwright test --config=apps/frontend-v2/playwright.config.ts`). Fix any failures. |
+| 2 | **Backend tests** | If backend changed, run `npm run test:backend`. Fix any failures. |
+| 3 | **AGENTS.md test status** | Update "当前测试状态" section with date + count. |
+| 4 | **CLI commands** | New backend API → new CLI command in `apps/backend/src/cli-core.ts`. Verify with `npm run cli -- help`. |
+| 5 | **Mock/seed scripts** | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs`. If feature adds new config items, update `scripts/settings-seed.mjs`. Verify both run correctly. |
+| 6 | **Migration scripts** | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added. |
+| 7 | **API docs** | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples. |
+| 8 | **Constants** | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps. |
+| 9 | **Deploy** | After all tests green: `git add -A && git commit` → `cd scripts/deploy-v2 && node deploy.mjs deploy`. |
+| 10 | **AGENTS.md updates** | Document any new discoveries (Ant Design quirks, backend gotchas), update architecture descriptions if changed. |
 
-- `PRD.md` — **the single authoritative development basis.** Source of truth for product scope, data model, architecture, priorities, and phasing.
-- `req.md` — **reference only** (post-dates the original PRD; its requirements have been integrated into PRD.md). Do not develop against `req.md`; use it only as historical context. It contains the team's real Excel table schemas and the originating email/IM thread.
+## Core Mission (核心使命)
 
-First implementation task is **Phase 1.1: project scaffolding** (monorepo: backend / frontend / shared types + schema config dir). No build/lint/test commands exist yet — establish them with the scaffold and update this file when they do.
+**Implement a NEW frontend application** that consumes the existing backend API. The existing frontend (`apps/frontend/`) serves as a **reference only** — it must NOT be modified in any way. The new frontend will be a separate app within this monorepo.
 
-## What This Product Is
+Rules:
+1. **DO NOT modify `apps/frontend/`** — treat it as read-only reference code.
+2. **DO NOT modify existing backend code** (`apps/backend/src/*`) unless there is no alternative (conflict, missing capability). Prefer adding new backend files/modules.
+3. If backend changes are unavoidable, document exactly what was changed and why.
+4. New backend capabilities should be added as new files/modules following existing patterns (router factory, dependency injection, audit logging).
+5. All backend API endpoints are documented in `docs/API_REFERENCE.md` (50+ endpoints).
+6. Shared types in `packages/shared/` can be extended (additive only) but not broken.
 
-A **作战管理工具** (operations/combat management tool). The essence (PRD §0): **one data model + many "combat tables" as views**. Each Excel table is just one projection of the same model.
+## Project Overview
 
-- Do **not** build per-table CRUD silos. Build one model; each table is a view (projection) over it.
-- **The core problem to solve is cross-view association**: the same person/task/attack-ticket appears across many tables and must be linked.
+Combat management tool (作战管理工具) — a monorepo for tracking attack/escalation tickets, contributions, and operations data. One data model with many "combat table" views. Node.js + Express backend, React + Ant Design frontend, shared types package. Config-driven schemas (JSON files, no DDL migrations).
 
-## Core Architectural Principles (decisions locked — PRD §0, §12)
+## Repository Structure
 
-**Hybrid data model — structured is authoritative, KG is derived.** All writes go through the config-driven *structured model* (single source of truth). The *knowledge graph* is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, drill up/down, exploratory analysis, document search, and Hermes Q&A. The KG never accepts direct writes.
+```
+packages/shared/    # @combat/shared — types, interfaces (Repository, SchemaRegistry)
+apps/backend/       # @combat/backend — Express API server (SQLite via better-sqlite3)
+apps/frontend/      # @combat/frontend — Reference frontend (READ ONLY, do not modify)
+apps/frontend-v2/   # @combat/frontend-v2 — New professional frontend (Vite, Ant Design 5, React 18)
+config/schemas/     # JSON schema definitions for each entity type (16+ files)
+scripts/deploy/     # Deployment scripts (reference frontend)
+scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
+```
 
-**Config-driven schema, no DDL.** A config file + versioned Schema Registry defines entities/fields/views/rules. Business fields live in a `properties` JSON column on unified `nodes`/`edges` tables — **adding/removing a field is a config change, never a DB migration**. UI can add/remove fields at runtime and the change is **written back to the config file** (takes effect on startup or manual scan). Never hardcode business field names in any layer.
+## Build / Dev / Test Commands
 
-**UI is config-driven and dynamic.** Tables/forms render from ViewSchema + EntitySchema. Supports switching between **traditional table ↔ layout/card** forms; same data, consistent.
+All commands run from repo root unless noted. This is an npm workspaces monorepo.
 
-**Entity resolution** (premise of cross-view linking): merge same entity across sources by descending confidence — exact ID → alias → fuzzy (+ human confirm) → manual. Person merges union fields and migrate edges; **irreversible**, audit-logged. Tasks/attack-tickets do not auto-merge.
+### Development
+```bash
+npm run dev:backend          # Start backend on :3001 (tsx watch)
+npm run dev:frontend         # Start frontend on :5173 (vite dev)
+npm run dev:frontend-v2      # Start frontend-v2 on :5174 (vite dev)
+```
 
-**Progress is an append-only time series.** Task/AttackTicket progress is a `ProgressLog` sequence (append-only, with status snapshots) so it is traceable. **Everything mutating is audit-logged** (`audit_log`): create/update/delete/merge/escalate.
+### Run All Tests (full CI gate)
+```bash
+npm run test:all             # shared + backend + frontend unit + frontend e2e + frontend-v2 e2e (resets schemas between suites)
+```
 
-## Domain Language Constraint
+### Run Tests by Package
+```bash
+npm run test:shared          # packages/shared vitest unit tests
+npm run test:backend         # apps/backend vitest e2e tests
+npm run test --workspace=@combat/frontend     # frontend vitest unit tests (src/**/*.test.tsx)
+npm run test:frontend:e2e    # Playwright browser e2e tests (apps/frontend/e2e/)
+npm run test:frontend-v2:e2e # Playwright browser e2e tests (apps/frontend-v2/e2e/)
+```
 
-Domain is Chinese (Huawei Cloud operations — ModelArts, oncall/攻关, escalation). Data-model enum values are **Chinese string literals and are canonical** — e.g. `status ∈ {待响应, 处理中, 已解决, 已关闭}`, `type ∈ {问题解决, 攻坚, 重构, 公关应对, 预防, 运维}`. Preserve verbatim in code, schemas, tests; never translate or "normalize" to English. PRD §2.3 is the canonical entity/enum definition. **Interact with the user in Chinese.**
+### Run a Single Test File
+```bash
+# Backend (from apps/backend/):
+npx vitest run test/import.e2e.test.ts
+# Or from root:
+npx vitest run --workspace=@combat/backend test/import.e2e.test.ts
 
-## Planned Tech Stack (PRD §8.3 — confirm before deviating)
+# Frontend-v2 e2e:
+npx playwright test --config=apps/frontend-v2/playwright.config.ts e2e/bug-report.spec.ts
+```
 
-| Layer | Choice |
-|---|---|
-| Backend | Node.js + TypeScript + Express |
-| DB | SQLite (dev) / PostgreSQL (prod, JSONB + GIN) |
-| Graph traversal | self-implemented BFS/DFS on SQL + derived in-memory graph |
-| Frontend | React + TypeScript + Vite |
-| Graph viz | D3.js (force/hierarchy) + vis-network (interactive) |
-| UI | Ant Design (+ ProForm for config-driven dynamic forms/tables) |
-| Excel | xlsx (SheetJS) |
-| Rules | json-rules-engine |
-| Agent | Hermes Agent (read-only data interface) |
+### CLI (agent-operable)
+```bash
+npm run cli -- <command> [args] [--opts]   # reads COMBAT_API env (default http://localhost:3001)
+npm run cli -- help                        # lists all commands with usage
+npm run cli -- help nodes:create           # per-command detail
+```
 
-Structure: monorepo — `backend` / `frontend` / `shared` types + schema config.
+### Schemas Reset (tests mutate schema files)
+```bash
+npm run reset:schemas        # git checkout -- config/schemas/
+```
 
-## Implementation Phasing & Priorities (PRD §1, §10)
+### Lint / Typecheck
+```bash
+npx tsc --noEmit --workspace=@combat/backend
+npx tsc --noEmit --workspace=@combat/shared
+```
 
-Priorities are driven by `req.md` (what the user cares about most), recorded in PRD §1:
+## Code Style Guidelines
 
-- **P0-① 问题攻关 (attack/escalation)** — track attack tickets (owner + participants + progress sync) + search related info in docs/history.
-- **P0-② 荣誉殿堂 (Hall of Honor)** — standalone contribution-recording module.
-- Other reqs (李嘉's 6 points, auto daily report, find-helper recommendation, etc.) are recorded in PRD §1.4 and scheduled later — **do not drop them**.
+### TypeScript Configuration
+- **Target:** ES2022, **Module:** NodeNext, **ModuleResolution:** NodeNext
+- **Strict mode** enabled (`strict: true` in tsconfig.base.json)
+- **ESM throughout** (`"type": "module"` in all package.json files)
 
-Phasing: **P1** data foundation + config-driven schema + attack console skeleton → **P2** Hall of Honor + cross-view linking + derived KG → **P3** Hermes + automation + remaining req.md items. Acceptance criteria in PRD §11 are the definition of done. Open questions in PRD §13 — resolve with the user, do not assume.
+### Imports
+- **Always use `.js` extensions** on relative/local imports (NodeNext requirement):
+  ```ts
+  import { openDb } from "./db.js";
+  import { makeTestApp } from "./helpers.js";
+  ```
+- **Node builtins** use `node:` prefix:
+  ```ts
+  import { randomUUID } from "node:crypto";
+  import { join } from "node:path";
+  ```
+- **Shared package** imported by package name:
+  ```ts
+  import type { Repository, SchemaRegistry } from "@combat/shared";
+  import { PRIVILEGED_ROLES } from "@combat/shared";
+  ```
+- Use `import type` for type-only imports.
 
-## Working With the Spec
+### Formatting
+- No auto-formatter configured. Follow existing style:
+  - 2-space indentation
+  - Single quotes for strings
+  - Semicolons required
+  - No trailing commas in multi-line
+  - Keep lines under ~120 chars
 
-Read the relevant PRD section before implementing — it specifies data shapes, view configs, automation triggers precisely. **PRD.md is the only development basis;** `req.md` is reference context only. Do not invent import formats — the import engine must handle the real Excel schemas catalogued in PRD §3.2 / `req.md`.
+### Comments
+- **Do NOT add comments** unless explicitly asked. This is a standing directive.
+
+### Naming Conventions
+- **Files:** camelCase (`repository.ts`, `cli-core.ts`, `makeRouter`)
+- **React components:** PascalCase exports (`EntityTable`, `AttackDetail`)
+- **Backend routers:** `makeXxxRouter()` factory functions
+- **Interfaces/types:** PascalCase (`GraphNode`, `FieldSchema`, `ValidationResult`)
+- **Variables/functions:** camelCase
+- **Constants:** UPPER_SNAKE_CASE (`PRIVILEGED_ROLES`, `AUTO_SCAN_INTERVAL`)
+- **CLI commands:** kebab-case or colon-separated (`nodes:list`, `schema:get`)
+
+### Type Patterns
+- Entity properties live in `Record<string, unknown>` — never hardcode field names.
+- Domain enum values are **Chinese string literals** and are canonical. Never translate them.
+  ```ts
+  // Correct — preserve Chinese verbatim
+  enumValues: ["待响应", "处理中", "已解决", "已关闭"]
+  toStatus === "已解决"
+  ```
+- Use `interface` for data shapes, `type` for unions and utility types.
+- Shared types go in `packages/shared/src/types.ts`; re-export from `index.ts`.
+
+### Error Handling
+- Express routes: validate input, return `{ error: string }` with appropriate HTTP status.
+- Backend errors use structured logger: `log.warn/error(event, { fields })`.
+- Async Express handlers wrapped with `asyncHandler()` from `logger.ts`.
+- Frontend API client: throws `Error` with HTTP status and detail message.
+- User-facing error messages in Chinese where domain-appropriate.
+
+### Backend Patterns
+- **Router factory pattern:** each feature file exports `makeXxxRouter(repo, registry)` → Express Router.
+- **Dependency injection:** `createApp({ repo, registry })` — no globals, testable.
+- **Audit logging:** every mutating action calls `repo.logAudit(...)` or `repo.audit(...)`.
+- **Test helper:** `makeTestApp()` in `test/helpers.ts` creates a fresh in-memory app with temp schemas.
+- **Tests use supertest:** `request(app).post("/api/...").send(body)`.
+- **Never import `server.ts` in tests** — it starts listening. Use `createApp()` from `app.ts`.
+
+### Frontend Patterns
+- **API client:** `Api` class in `src/api.ts`, singleton `api` exported. All backend calls go through it.
+- **Pages:** functional components using hooks (`useState`, `useEffect`, `useCallback`).
+- **UI library:** Ant Design (`Table`, `Form`, `Modal`, `message`, etc.).
+- **Routing:** react-router-dom v6 with `BrowserRouter` in `App.tsx`.
+- **Config-driven tables:** `EntityTable` component renders columns from `NodeSchema.fields`.
+- **Frontend unit tests** use vitest (src/**/*.test.tsx); **e2e tests** use Playwright (e2e/**/*.spec.ts).
+- **Playwright config:** `fullyParallel: false, workers: 1` — sequential execution, single worker.
+
+### Config-Driven Schema Rules
+- Entity schemas are JSON files in `config/schemas/` (e.g., `attackTicket.json`, `person.json`).
+- **Adding/removing a field is a config change, never a DB migration.**
+- Business data lives in a `properties` JSON column on `nodes`/`edges` tables.
+- Schema changes at runtime via API (`PATCH /api/schema/:nodeType`) write back to the config file.
+- Tests mutate schema files; always run `npm run reset:schemas` between test suites.
+  `test:all` does this automatically; when running individual suites, do it manually.
+
+## Key Domain Concepts
+
+- **nodeType** — entity kind (attackTicket, person, contribution, etc.)
+- **Nodes** — universal data container with `nodeType` and `properties` JSON
+- **Edges** — typed relationships between nodes (ASSIGNED_TO, CONTRIBUTED_TO, etc.)
+- **ProgressLog** — append-only time series on attack tickets
+- **Knowledge Graph** — derived from structured data, never directly written to
+- **Entity resolution** — merge same person across sources (irreversible, audit-logged)
+
+## Deployment
+
+### Target Server (新前端部署)
+- **目标机**: `60.204.199.234`（Ubuntu 24.04, 30G RAM, 296G disk）
+- **跳板机**: `47.103.99.229`（必须通过此机器 SSH 跳转，不能直连目标机）
+- **跳板机凭据**: 见 `.env.deploy`（DEPLOY_HOST/USER/PASS）
+- **部署路径**: `/opt/combat-v2/`（目标机上）
+- **访问地址**: `http://60.204.199.234:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
+- **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
+- **部署脚本**: `scripts/deploy-v2/` 目录
+
+#### 部署命令（从 repo 根目录执行）
+```bash
+# 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
+git add -A && git commit -m "your message"
+
+# 一键部署（打包→跳板机→目标机→npm install→build→systemd restart）
+cd scripts/deploy-v2 && node deploy.mjs deploy
+
+# 仅重启服务（不重新上传代码）
+cd scripts/deploy-v2 && node deploy.mjs restart
+
+# 查看服务日志
+cd scripts/deploy-v2 && node deploy.mjs logs
+```
+
+#### 部署架构（2026-05-25 更新）
+- **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
+- **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
+- **Node 版本**：目标机自带 Node v24 但 better-sqlite3 不兼容，通过 systemd `PATH=/opt/node22-v2/bin` 使用 Node v22.14.0
+- **部署流程**：跳板机从 GitHub 拉代码 → `git archive` 打包 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
+- **不再使用 `stdinPut` 管道传输**（跳板机网络不稳定，SSH exec stdin 管道传 643KB 文件会超时）
+- 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
+
+#### 日志体系与文件路径
+
+**三层日志架构**，所有操作均有迹可查：
+
+| 层级 | 存储 | 覆盖范围 | 查看方式 |
+|------|------|----------|----------|
+| 结构化日志 | 文件 | 所有后端操作（94个日志点）+ 每个HTTP请求 | `tail -f /opt/combat-v2/backend.log` |
+| 审计日志 | SQLite `audit_log` 表 | 所有数据变更（CREATE/UPDATE/DELETE/PROGRESS/ESCALATE/MERGE 等，21个审计点） | 前端"审计日志"页面 |
+| 操作日志 | SQLite `op_logs` 表 | 前端API调用、路由导航、全局错误 | 前端"操作日志"页面 |
+
+**生产环境日志文件路径**：
+- 目标机 (60.204.199.234): **`/opt/combat-v2/backend.log`**
+- 直连机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
+- 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log` 写入
+
+**日志查看命令**：
+```bash
+# 通过部署脚本查看（最近30行）
+cd scripts/deploy-v2 && node deploy.mjs logs
+
+# SSH 直连查看实时日志
+ssh root@60.204.199.234 'tail -f /opt/combat-v2/backend.log'
+
+# 按关键词搜索
+ssh root@60.204.199.234 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
+ssh root@60.204.199.234 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
+
+# journalctl 方式（与 backend.log 内容相同）
+ssh root@60.204.199.234 'journalctl -u combat-v2 --no-pager -n 50'
+```
+
+**后端日志事件速查**（`logger.ts` 中的 event 名称，可用于 grep）：
+- 认证: `auth.login`, `auth.register`, `auth.password_changed`, `auth.user_created/updated/deleted`
+- 节点CRUD: `node.create`, `node.update`, `node.delete`, `node.transition`
+- Schema: `schema.fieldOp`, `schema.create`, `schema.delete`
+- 备份: `backup.created`, `backup.deleted`, `backup.restore_pending`, `backup.scheduled`
+- 导入: `import.done`, `import.skip`, `import.parse_fail`
+- 邮件: `email.test`, `email.send`
+- 合并: `merge.start`, `merge.done`
+- 升级: `escalation.triggered`, `escalation.scan.done`
+- 提醒: `reminders.scan.done`
+- 求助: `help_request.create`, `help_request.feedback`, `help_request.email_sent/fail`
+- Bug: `bug_report.create`, `bug_report.update`, `bug_report.delete`
+- HTTP: `http.request`（所有请求）, `http.error`, `http.unhandled`
+- 动态标签: `ticket_tab.created`, `ticket_tab.updated`, `ticket_tab.deleted`, `ticket_tab.reordered`
+
+## Frontend-v2 Architecture
+
+- **Stack:** React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 strict
+- **Dev port:** 5174, API proxied to localhost:3001
+- **Production:** backend Express on port 3001 serves both API and frontend static files (single port)
+- **Layout:** collapsible sidebar (200→64px) + fixed top bar with user Dropdown (displayName + role + logout)
+- **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter, BugReport, DailyReport, LoginPage, MergePage, OperationLog, ProposalsPage, RelatedPage, RemindersPage, SchemaWizard, SearchPage, UserManagement
+- **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
+- **Settings system:** `src/hooks/useSettings.ts` — auto-loads config from `/api/settings`, fallback to hardcoded defaults; all dropdown Selects use `getValues(key, fallback)` pattern
+
+## Auth System (认证系统)
+
+### Backend
+- **File**: `apps/backend/src/auth.ts` — auth router + user admin router + JWT middleware + bcrypt hashing
+- **DB**: `users` table (id, username, password_hash, role, display_name, created_at, updated_at)
+- **Default admin**: auto-created on first boot (`admin` / `admin123`)
+- **JWT**: 7-day expiry, secret from `JWT_SECRET` env or default
+- **Auth middleware**: `authMiddleware` gates all `/api/*` routes EXCEPT public paths
+- **Public paths**: `/api/auth/login`, `/api/auth/register`, `/api/help/feedback/*`, `POST /api/bug-reports`
+- **COMBAT_NO_AUTH=1**: bypasses auth entirely (for E2E tests); `/api/auth/me` returns default admin without token
+
+### Frontend
+- **AuthProvider**: `src/hooks/useAuth.tsx` — context provider with login/logout/isAdmin/isLeader
+- **LoginPage**: `src/pages/LoginPage.tsx` — username/password form
+- **UserManagement**: `src/pages/UserManagement.tsx` — admin-only user CRUD (Modal-based)
+- **AppLayout header**: user Dropdown (displayName + role + logout) replaces old role Select
+- **AuthGuard**: redirects unauthenticated users to `/login`
+- **Token storage**: `localStorage('combat-token')` + `localStorage('combat-user')`
+- **Role from auth**: role is derived from logged-in user, NOT from manual Select dropdown
+
+### E2E Test Bypass
+- `COMBAT_NO_AUTH=1` set in `playwright.config.ts` webServer env
+- Backend returns admin user for unauthenticated `/api/auth/me` requests
+- Frontend `AuthProvider` calls `api.getMe()` on startup → gets admin user → logged in automatically
+- All page-level `.ant-select` indices shifted from N to N-1 (no more header Select at index 0)
+
+### CLI Commands
+- `auth:login`, `auth:register`, `auth:me`, `auth:change-password`
+- `users:list`, `users:create`, `users:update`, `users:delete`
+
+## E2E Test Hard-Won Discoveries (Frontend-v2)
+
+### Ant Design 5 自动在2字符中文按钮文本间插入空格
+Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格。Playwright 选择器需用正则匹配如 `/导\s?出/`、`/确\s?定/`、`/删\s?除/`、`/添\s?加/`。4字符按钮如"新建攻关"不受影响。
+
+### Ant Design Select 下拉 — "Element is outside of the viewport"
+Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
+
+### 页面上多个 Select 的索引规则
+- Header 不再有 `.ant-select`（已替换为 Dropdown 用户菜单）
+- 页面级筛选 Select 从 index 0 开始
+- Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
+- **HelpCenter drawer 内有 5 个 Select**：ticketId[0], requesterName[1], targetName[2], targetEmail(非Select), category[3], question(非Select)
+- **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
+
+### Backend 审计日志 action 和 entityType 是大写英文
+- **action 值为大写**: `CREATE`, `UPDATE`, `DELETE`, `PROGRESS`, `SETTING`, `ESCALATE`, `MERGE`
+- **entityType 值是通用类型**: `node`, `edge`, `schema`, `setting`, `proposal`, `reminder`（**不是** `person`、`attackTicket` 等 nodeType 名称）
+- 前端 AuditLog 页面的筛选选项必须与这些大写值精确匹配
+
+### 贡献等级(贡献等级) 创建需要 Leader/Admin 角色
+后端 `gradeGate()` 函数（`routes.ts:31`）对 `contribution` nodeType 的 `贡献等级` 字段做了角色门控：
+- `X-Role` header 缺失 → 信任（允许，如 CLI/测试）
+- `X-Role: normal` → **403 Forbidden**
+- `X-Role: leader` 或 `admin` → 允许
+- **前端默认角色是 `normal`**（从 `localStorage.getItem('combat-role')` 读取）
+- **E2E 测试创建带贡献等级的贡献时，必须用 `page.addInitScript(() => localStorage.setItem('combat-role', 'leader'))` 设置角色**
+
+### Playwright 多次 Toast 消息导致严格模式违规
+当连续操作产生多条 Ant Design message toast 时（如快速连续状态流转），`getByText('状态流转成功')` 可能匹配到多条。**必须用 `.first()` 或更精确的选择器**。
+
+### Drawer 关闭不会提交数据
+测试验证：打开 drawer、填写数据、点击关闭按钮（`.ant-drawer-close`）不会创建任何数据。这是回归防护测试之一。
+
+## 前端设计规范（Frontend-v2 Design System）
+
+以下规范从攻关管理、人员与荣誉两大特性打磨中提炼，后续所有新页面必须遵循以保持风格一致。
+
+### 1. 页面结构三段式
+
+每个列表/主页面遵循固定布局：
+
+```
+┌─ 页头 ─────────────────────────────────────────┐
+│  左: <Title level={4} style={{margin:0}}>标题   │
+│  右: <Space> 操作按钮组                          │
+├─ 筛选栏 ────────────────────────────────────────┤
+│  <Space wrap> Select筛选 + Input搜索 + ...      │
+├─ 内容区 ────────────────────────────────────────┤
+│  loading ? <Skeleton> : <Table> / <Card>        │
+└─────────────────────────────────────────────────┘
+```
+
+- **页头**：`display:flex; justify-content:space-between; margin-bottom:16`
+- **标题**：统一 `Title level={4}`，`margin:0`
+- **主按钮**：`type="primary"`，icon + 两字中文（新建/录入/添加）
+- **次按钮**：默认样式，icon + 中文（导出/导入）
+- **筛选栏**：`<Space wrap>`，Select 宽 120-140px，Search Input 宽 220-260px
+
+### 2. Drawer 规范
+
+所有表单抽屉必须遵循：
+
+| 属性 | 值 | 原因 |
+|------|-----|------|
+| `width` | 创建/编辑: 480, 详情: 560 | 表单紧凑，详情宽松 |
+| `destroyOnClose` | `true` | 避免残留状态 |
+| `maskClosable` | `false` | 防误触关闭 |
+| 提交按钮位置 | `extra={<Button>}` | 固定在顶部，始终可见 |
+| 关闭时 | `form.resetFields()` | 清空表单 |
+
+**字段分组**：表单内用 `<Divider orientation="left" orientationMargin={0}>组名</Divider>` 分隔：
+- 基础信息 / 人员信息 / 详细信息（AttackList、AttackDetail）
+- 贡献详情 / 关联信息（Contributions）
+- 组织信息（PeopleList）
+
+**编辑 vs 创建**：复用相同字段，但用独立的 `editOpen`/`drawerOpen` 状态和独立 Form 实例。
+
+### 3. 表格规范
+
+```tsx
+<Table
+  rowKey="id"
+  dataSource={data}
+  columns={columns}
+  size="middle"                           // 列表用middle，详情内嵌用small
+  pagination={{
+    pageSize: PAGE_SIZE,                  // 20
+    showSizeChanger: true,
+    pageSizeOptions: PAGE_SIZE_OPTIONS,   // [10, 20, 50, 100]
+    showTotal: (t) => `共 ${t} 条`
+  }}
+/>
+```
+
+**Scroll 规则**（2026-05-27 更新）：
+- 有固定列（`fixed: 'left'` 或 `fixed: 'right'`）的表格：`scroll={{ x: true }}`
+- 无固定列的表格：**不设 scroll prop**，让浏览器原生 `table-layout: auto` 自动分配列宽
+- 每个表格有且仅有 1 个"弹性列"（内容最多的列），设 `ellipsis: true`，不设 `width`
+- 其他短内容列设合理的固定 `width`
+
+**列定义模式**：
+- 名称/标题列：`fixed: 'left'`，可点击跳转用 `<a>`
+- 状态列：`<StatusTag>` 组件，宽度 120
+- 时间列：`<Tooltip title={完整时间}>{短时间}</Tooltip>`，默认 `defaultSortOrder: 'descend'`
+- 操作列：`fixed: 'right'`，宽度 80-150，编辑用 `<a>`，删除用 `<a style={{color:'#ff4d4f'}}>` + Popconfirm
+- 长文本列：`ellipsis: true` 或截断渲染
+
+**行点击跳转**：列表级 `onRow` + 列级 `<a>` 配合，点击非链接区域整行跳转。
+
+### 4. 详情页规范
+
+```
+┌─ 返回导航 ──────────────────────────────┐
+│  <Button type="link" icon={<ArrowLeft/>}>  返回列表
+├─ 标题栏 ────────────────────────────────┤
+│  左: <Title level={4}>标题 <StatusTag/>  │
+│      <Text type="secondary">时间信息</Text>│
+│  右: <Space> 操作按钮组                   │
+├─ 状态Steps ─────────────────────────────┤
+│  <Steps size="small" current={index} /> │
+├─ 摘要卡片 ──────────────────────────────┤
+│  <Card size="small"> <Descriptions>     │
+├─ 主内容 ────────────────────────────────┤
+│  <Row gutter={16}>                       │
+│    <Col span={18}> <Tabs> </Col>         │
+│    <Col span={6}> 侧边栏卡片 </Col>       │
+└─────────────────────────────────────────┘
+```
+
+- **返回按钮**：`type="link"`，`paddingLeft:0`
+- **标题+状态**：同一行 `<Title>` + `<StatusTag>`
+- **时间线**：`Text type="secondary"`，用 dayjs fromNow + Tooltip 完整时间
+- **操作按钮顺序**：主功能 → 次功能 → 危险操作（删除用 `danger` + Popconfirm）
+- **Tabs图标**：每个 tab label 带 icon（`<span><Icon /> 名称</span>`）
+- **必填项缺失**：顶部 `<Alert type="warning">` 提示
+
+### 5. 状态可视化规范
+
+**StatusTag 组件**：统一通过 `<StatusTag status={v} type="status|level|contribution" />` 渲染。
+
+**颜色体系**（在 `constants.ts` 中集中管理）：
+- `STATUS_COLOR`：待响应=gold, 处理中=blue, 进行中=cyan, 已解决=green, 已关闭=default
+- `STATUS_BAR_COLOR`：同上色系的 hex 值（用于图表柱状）
+- `LEVEL_COLOR`：高=red, 中=orange, 低=blue
+- `CONTRIBUTION_COLOR`：核心=red, 关键=orange, 普通=blue
+- `HELP_STATUS_COLOR`：待回复=gold, 已回复=green
+- `SUPPORT_STATUS_COLOR`：待确认=default, 支持中=processing, 已完成=success, 已撤销=error
+- `ACTION_COLOR`：CREATE=green, UPDATE=blue, DELETE=red, PROGRESS=cyan, SETTING=purple, ESCALATE=orange, MERGE=gold
+- `ACTION_LABEL`：CREATE→创建, UPDATE→更新, DELETE→删除, PROGRESS→进展, SETTING→设置, ESCALATE→升级, MERGE→合并
+- `ENTITY_TYPE_LABEL`：node→节点, edge→关系, schema→表结构, setting→设置, proposal→提案, reminder→提醒
+- `PROPOSAL_STATUS_COLOR`：待审批=gold, 已通过=green, 已拒绝=red
+- `REMINDER_STATUS_COLOR`：待发送=gold, 已发送=green, 已忽略=default
+- `REMINDER_KIND_LABEL`：问题单跟催/FE Deadline 提醒/CCB 提醒
+- `BUG_SEVERITY_COLOR`：严重=red, 较高=orange, 一般=blue, 建议=default
+- `BUG_STATUS_COLOR`：待处理=gold, 处理中=blue, 已解决=green, 已关闭=default
+- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, releasePackage→版本包, weightFile→权重文件
+- 所有中文枚举值颜色必须定义在 constants.ts，不在组件中硬编码
+
+**Steps 生命周期**：详情页顶部用 `<Steps size="small">` 展示状态流转，当前步骤高亮。
+
+**排名徽章**：前3名用奖牌（🥇🥈🥉），其余用序号，统一用 `<Tag color>`。
+
+### 6. 人员选择器规范
+
+所有涉及选人的场景（攻关单处理人、贡献人等）：
+
+```tsx
+<Select
+  showSearch
+  allowClear
+  placeholder="从全员名单搜索"
+  options={personOptions}    // [{value: '姓名', label: '姓名 (部门)'}]
+  filterOption={(input, option) =>
+    (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+  }
+/>
+```
+
+- options 格式：`value=姓名, label=姓名 (部门)` — 显示部门便于区分同名
+- 必须 `showSearch` + `filterOption` — 中文模糊搜索
+
+### 7. 交互模式
+
+| 场景 | 模式 |
+|------|------|
+| 创建 | Drawer + Form + extra按钮 |
+| 编辑 | 独立 editOpen Drawer，预填 `editForm.setFieldsValue(node.properties)` |
+| 详情 | Drawer(width:560) + Descriptions(bordered, column:1) |
+| 删除 | `Popconfirm title="确认删除XX？"` + `<a style={{color:'#ff4d4f'}}>` |
+| 状态流转 | Drawer + Steps可视化 + Select选目标状态 |
+| 导出 | `api.exportNodes()` → Blob → `<a download>` |
+| 导入 | Drawer + Upload.Dragger |
+
+### 8. 加载与空状态
+
+- **首次加载**：`initialLoading` 状态，显示 `<Skeleton active paragraph={{rows:6}}>`
+- **静默刷新**：更新操作后 `fetchData(true)` 传 silent 参数，不闪 Skeleton
+- **空数据**：`<Empty description="暂无XX" image={Empty.PRESENTED_IMAGE_SIMPLE} />`
+- **错误状态**：`<Empty description={错误信息}><Button>重试</Button></Empty>`
+
+### 9. 常量管理
+
+所有可复用值集中在 `constants.ts`：
+- 颜色映射：`STATUS_COLOR`, `LEVEL_COLOR`, `CONTRIBUTION_COLOR`, `ACTION_COLOR`
+- 标签映射：`ACTION_LABEL`, `ENTITY_TYPE_LABEL`
+- 分页：`PAGE_SIZE=20`, `PAGE_SIZE_OPTIONS=[10,20,50,100]`
+- 时间格式：`DATE_FORMAT`, `DATE_FORMAT_FULL`, `DATE_FORMAT_SHORT`
+
+### 10. 命名约定
+
+| 类型 | 规范 | 示例 |
+|------|------|------|
+| 页面文件 | PascalCase | `AttackDetail.tsx`, `PeopleList.tsx` |
+| 状态变量 | `xxxOpen` | `editOpen`, `drawerOpen`, `transitionOpen` |
+| 提交中状态 | `xxxSubmitting` | `editSubmitting`, `transSubmitting` |
+| 加载状态 | `loading` / `initialLoading` | 列表用 loading，详情用 initialLoading |
+| Fetch函数 | `fetchData` / `fetchXxx` | `fetchDailyReports`, `fetchSupportNodes` |
+| 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
+
+### 11. 表格单元格防换行规范
+
+表格列中包含多段信息（键名+说明、名称+副标题）时，**禁止用 `<Space>` 横排**，必须用 `<div>` 纵向堆叠，否则中长文本必然换行导致行高不一致、对齐错乱。
+
+```tsx
+// ✗ 错误：横排挤压，label 长了就换行
+<Space><Text code>{key}</Text><Text type="secondary">({label})</Text></Space>
+
+// ✓ 正确：纵向堆叠，主次分明
+<div>
+  <Text strong code>{key}</Text>
+  {label && <div><Text type="secondary">{label}</Text></div>}
+</div>
+```
+
+## 工作流程规范
+
+### 测试状态标记机制
+**当所有测试通过时，必须在 AGENTS.md 的"当前测试状态"部分记录通过时间和数量。** 下次会话开始时先检查此标记：
+- 如果标记日期是今天且数量一致 → **跳过测试**，直接进入开发或部署
+- 如果代码有改动 → 运行测试后更新标记
+- 如果标记过期（>1天）→ 建议重新运行测试确认
+
+### 修改代码后必须做的事
+1. 修改前端源码 → 运行 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line`
+2. 修改后端源码 → 运行 `npm run test:backend`
+3. 全部通过后 → 更新 AGENTS.md 的"当前测试状态"标记
+4. 全部通过后 → **先 git commit** → 再执行 `cd scripts/deploy-v2 && node deploy.mjs deploy`
+
+### 部署前必须 git commit
+`git archive HEAD` 只打包已提交的文件。**未 commit 的改动不会出现在部署包中**，这是多次"部署后页面没变化"的根因。

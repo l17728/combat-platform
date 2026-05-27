@@ -25,35 +25,58 @@ Example: A test fails because `row.locator('a').filter({ hasText: '编辑' })` m
 ### 3. Fast MVP, TDD, Full E2E Coverage
 **Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend**; every feature must be covered.
 
-### 3. Run to Completion (Autonomous Execution)
+### 4. Run to Completion (Autonomous Execution)
 **Do not stop until all functional e2e tests (frontend + backend) pass and the product is manually usable.** Keep running through implementation, failures, and fixes autonomously. When a decision is required mid-execution, choose the most-recommended option and proceed — do not block on the user for routine decisions.
 
-### 4. Generalize Fixes (举一反三)
+### 5. Generalize Fixes (举一反三)
 **When a problem is found, fix the entire class of problems, not just the single instance.** Trace every divergent/leaf-node issue, and keep resolving until the problem space converges.
 
-### 5. CLI for Every Backend API
+### 6. CLI for Every Backend API
 **Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
 
-### 6. Deploy After Green
+### 7. Claude-as-Agent (邀请 Claude 参与任务分发)
+开发任务可以拆分为多个 agent 并行执行。**每次分发任务时，必须邀请 Claude 作为一个独立 agent 参与。** 邀请方式是通过 `claude` CLI 的 headless 无头模式分配任务（review、代码撰写、测试等），Claude 会自动读取 `CLAUDE.md` 获取独立指导原则。
+
+**调用方式**（通过 Bash 工具执行）：
+```bash
+# 无头模式：分配任务给 Claude，等待返回结果
+echo "任务描述（如：review apps/backend/src/routes.ts 的安全性）" | claude --dangerously-skip-permissions -p
+
+# 指定工作目录
+claude --dangerously-skip-permissions -p "实现 XXX 功能，遵循 TDD 流程" --cwd D:\fighting
+
+# 常见任务类型
+claude --dangerously-skip-permissions -p "review 最近的 git diff，检查举一反三问题"    # Review
+claude --dangerously-skip-permissions -p "为 XXX 编写 e2e 测试"                      # 测试撰写
+claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"              # 代码撰写
+```
+
+**原则**：
+- Claude 的指导文件是 `CLAUDE.md`（包含并行化、举一反三、TDD、CLI 同步、部署后验证等原则）
+- `AGENTS.md` = opencode agent 指导，`CLAUDE.md` = Claude Code agent 指导，两者原则一致但表述不同
+- 并行化指令优先级最高——"能并行的任务一定要并行处理，使用多个agent"
+- Claude CLI 执行的任务可以和 opencode 的 Task subagent 并行运行，互不阻塞
+
+### 8. Deploy After Green
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy to the test server** so the user can manually verify. Deploy credentials are in `.env.deploy` (gitignored) — **never hardcode server passwords in any committed file**.
 
-### 7. Domain Language: Chinese Only
+### 9. Domain Language: Chinese Only
 Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
 ```ts
 enumValues: ["待响应", "处理中", "已解决", "已关闭"]
 toStatus === "已解决"
 ```
 
-### 8. Config-Driven, No DDL Migrations
+### 10. Config-Driven, No DDL Migrations
 Adding/removing a field is a **config change** (JSON file), never a DB migration. Business data lives in `properties` JSON columns. Never hardcode business field names in any layer. UI renders from schema config at runtime.
 
-### 9. One Data Model, Many Views
+### 11. One Data Model, Many Views
 **Do not build per-table CRUD silos.** Build one unified model; each "combat table" is a projection/view over it. The core problem is cross-view association — the same person/task appears across many tables and must be linked.
 
-### 10. Structured Is Authoritative, KG Is Derived
+### 12. Structured Is Authoritative, KG Is Derived
 All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
 
-### 11. Post-Implementation Sync Checklist (特性完工例行检查)
+### 13. Post-Implementation Sync Checklist (特性完工例行检查)
 **Every feature implementation MUST complete the following checklist before marking done.** No exceptions, no deferrals:
 
 | # | Check | What to Do |
@@ -214,12 +237,14 @@ scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 
 | Script | Path | Usage |
 |--------|------|-------|
+| Demo seed | `scripts/mock-data/demo-seed.mjs` | `node scripts/mock-data/demo-seed.mjs --api http://HOST:3001` — full-featured demo data seeder (22 people, 30 tickets, 98 progress, 26 contributions, help requests, bug reports, proposals, tabs, edges, etc.) |
 | Mock seed | `scripts/mock-data/seed.mjs` | `node scripts/mock-data/seed.mjs [--api URL] [--count N]` — creates N people, attackTickets, contributions |
 | Mock wipe | `scripts/mock-data/wipe.mjs` | `node scripts/mock-data/wipe.mjs [--api URL] [--yes]` — deletes ALL nodes (irreversible!) |
 | Settings seed | `scripts/settings-seed.mjs` | `node scripts/settings-seed.mjs [--api URL]` — populates config center with default dropdown options |
 | Migrate export | `scripts/migrate/export.mjs` | `node scripts/migrate/export.mjs [--api URL] [--out DIR]` — exports all nodeTypes to xlsx files |
 | Migrate import | `scripts/migrate/import.mjs` | `node scripts/migrate/import.mjs [--api URL] [--dir DIR] [--dryRun]` — imports xlsx files via upsert |
-| Deploy v2 | `scripts/deploy-v2/deploy.mjs` | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline |
+| Deploy v2 | `scripts/deploy-v2/deploy.mjs` | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline (跳板机→目标机) |
+| Deploy direct | `scripts/deploy-v2/deploy-direct.mjs` | `cd scripts/deploy-v2 && node deploy-direct.mjs <host> <user> <pass>` — direct SSH deploy (e.g. 124.156.193.122) |
 | Deploy v1 | `scripts/deploy/deploy.mjs` | Old deployment for reference frontend only |
 
 ## Build / Dev / Test Commands
@@ -516,7 +541,6 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
   rowKey="id"
   dataSource={data}
   columns={columns}
-  scroll={{ x: 'max-content' }}          // 始终横向滚动
   size="middle"                           // 列表用middle，详情内嵌用small
   pagination={{
     pageSize: PAGE_SIZE,                  // 20
@@ -526,6 +550,12 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
   }}
 />
 ```
+
+**Scroll 规则**（2026-05-27 更新）：
+- 有固定列（`fixed: 'left'` 或 `fixed: 'right'`）的表格：`scroll={{ x: true }}`
+- 无固定列的表格：**不设 scroll prop**，让浏览器原生 `table-layout: auto` 自动分配列宽
+- 每个表格有且仅有 1 个"弹性列"（内容最多的列），设 `ellipsis: true`，不设 `width`
+- 其他短内容列设合理的固定 `width`
 
 **列定义模式**：
 - 名称/标题列：`fixed: 'left'`，可点击跳转用 `<a>`
