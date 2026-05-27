@@ -375,6 +375,32 @@ export const COMMANDS: CliCommand[] = [
       if (opts.keepCount) body.keepCount = Number(opts.keepCount);
       return { method: "PUT", path: "/api/backup/schedule", body };
     } },
+
+  // ---- ticket tabs (动态标签) ----
+  { name: "tabs:list", summary: "列出某攻关单的动态标签", usage: "tabs:list <ticketId>",
+    build: (pos) => { requirePos(pos, 1, "tabs:list <ticketId>"); return { method: "GET", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs` }; } },
+  { name: "tabs:create", summary: "创建动态标签（--type link|custom --title 标签名 [--config JSON] [--content 内容])", usage: "tabs:create <ticketId> --type <link|custom> --title <名> [--config <json>] [--content <内容>]",
+    build: (pos, opts) => { requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom> --title <名>");
+      const tabType = str(opts.type); if (!tabType || !["link", "custom"].includes(tabType)) throw new Error("--type 必须为 link 或 custom");
+      const title = str(opts.title); if (!title) throw new Error("缺少 --title");
+      const body: Record<string, unknown> = { tabType, title };
+      if (opts.config !== undefined) { try { body.config = JSON.parse(str(opts.config)!); } catch { throw new Error("--config 不是合法 JSON"); } }
+      if (opts.content !== undefined) body.content = str(opts.content);
+      return { method: "POST", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs`, body }; } },
+  { name: "tabs:update", summary: "更新动态标签（--title / --config / --content）", usage: "tabs:update <ticketId> <tabId> [--title <名>] [--config <json>] [--content <内容>]",
+    build: (pos, opts) => { requirePos(pos, 2, "tabs:update <ticketId> <tabId>");
+      const body: Record<string, unknown> = {};
+      if (opts.title !== undefined) { const t = str(opts.title); if (t) body.title = t; }
+      if (opts.config !== undefined) { try { body.config = JSON.parse(str(opts.config)!); } catch { throw new Error("--config 不是合法 JSON"); } }
+      if (opts.content !== undefined) body.content = str(opts.content);
+      if (Object.keys(body).length === 0) throw new Error("至少指定 --title / --config / --content 之一");
+      return { method: "PATCH", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs/${encodeURIComponent(pos[1])}`, body }; } },
+  { name: "tabs:delete", summary: "删除动态标签", usage: "tabs:delete <ticketId> <tabId>",
+    build: (pos) => { requirePos(pos, 2, "tabs:delete <ticketId> <tabId>"); return { method: "DELETE", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs/${encodeURIComponent(pos[1])}` }; } },
+  { name: "tabs:reorder", summary: "重排标签顺序（--order id1,id2,id3）", usage: "tabs:reorder <ticketId> --order <id1,id2,id3>",
+    build: (pos, opts) => { requirePos(pos, 1, "tabs:reorder <ticketId> --order <id1,id2,id3>");
+      const order = csv(opts.order); if (!order || order.length === 0) throw new Error("缺少 --order <id1,id2,id3>");
+      return { method: "PUT", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs/order`, body: { order } }; } },
 ];
 
 export function renderHelp(commandName?: string): unknown {

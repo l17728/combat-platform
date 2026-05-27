@@ -696,6 +696,38 @@ export class Api {
       body: JSON.stringify(cfg),
     });
   }
+
+  listTicketTabs(ticketId: string): Promise<TicketTab[]> {
+    return this.req<TicketTab[]>(`/api/tickets/${encodeURIComponent(ticketId)}/tabs`);
+  }
+
+  createTicketTab(ticketId: string, data: { tabType: string; title: string; config?: any; content?: string }): Promise<TicketTab> {
+    return this.req<TicketTab>(`/api/tickets/${encodeURIComponent(ticketId)}/tabs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateTicketTab(ticketId: string, tabId: string, data: { title?: string; config?: any; content?: string }): Promise<TicketTab> {
+    return this.req<TicketTab>(`/api/tickets/${encodeURIComponent(ticketId)}/tabs/${encodeURIComponent(tabId)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteTicketTab(ticketId: string, tabId: string): Promise<{ deleted: string }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/tabs/${encodeURIComponent(tabId)}`, { method: 'DELETE' });
+  }
+
+  reorderTicketTabs(ticketId: string, order: string[]): Promise<{ ok: boolean }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/tabs/order`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ order }),
+    });
+  }
 }
 
 export interface HelpRequest {
@@ -751,6 +783,19 @@ export interface BackupSchedule {
   intervalHours: number;
   keepCount: number;
   lastBackupAt: string | null;
+}
+
+export interface TicketTab {
+  id: string;
+  ticketId: string;
+  tabType: 'link' | 'custom';
+  title: string;
+  tabOrder: number;
+  config: string;
+  content: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const api = new Api('');

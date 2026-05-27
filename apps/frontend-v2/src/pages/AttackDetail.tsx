@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Space, Card, Descriptions, Timeline, Drawer, Form, Input, Select,
   message, Popconfirm, Spin, Tag, List, Avatar, Row, Col, Tabs, Table, Modal, Tree, Empty, Alert,
-  Tooltip, Steps, Divider, theme,
+  Tooltip, Steps, Divider, theme, Dropdown,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SwapOutlined, PlusOutlined, UserOutlined,
@@ -11,9 +11,12 @@ import {
   ClockCircleOutlined, ThunderboltOutlined, MinusCircleOutlined, SyncOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { api } from '../api.js';
-import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT } from '../constants.js';
+import { api, type TicketTab } from '../api.js';
+import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
+import AddTabModal from '../components/AddTabModal.js';
+import DynamicLinkTab from '../components/DynamicLinkTab.js';
+import DynamicCustomTab from '../components/DynamicCustomTab.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema, FieldType } from '@combat/shared';
 import type { DailyReportEntry, SupportNode, SupportTemplate } from '../api.js';
@@ -102,6 +105,9 @@ export default function AttackDetail() {
   const [newField, setNewField] = useState({ name: '', label: '', type: 'string' as FieldType });
   const { getValues } = useSettings();
 
+  const [dynamicTabs, setDynamicTabs] = useState<TicketTab[]>([]);
+  const [addTabOpen, setAddTabOpen] = useState(false);
+
   const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
   const SUPPORT_CATEGORIES = getValues('求助分类', FALLBACK_SUPPORT_CATEGORIES);
   const SUPPORT_STATUSES = getValues('求助状态', FALLBACK_SUPPORT_STATUSES);
@@ -143,7 +149,13 @@ export default function AttackDetail() {
     finally { setSupportLoading(false); }
   }, [id]);
 
-  useEffect(() => { fetchData(); fetchDailyReports(); fetchSupportNodes(); }, [fetchData, fetchDailyReports, fetchSupportNodes]);
+  const fetchDynamicTabs = useCallback(async () => {
+    if (!id) return;
+    try { setDynamicTabs(await api.listTicketTabs(id)); }
+    catch {}
+  }, [id]);
+
+  useEffect(() => { fetchData(); fetchDailyReports(); fetchSupportNodes(); fetchDynamicTabs(); }, [fetchData, fetchDailyReports, fetchSupportNodes, fetchDynamicTabs]);
 
   if (initialLoading || !node) return <Spin size="large" style={{ display: 'block', marginTop: 100 }} />;
 
@@ -259,6 +271,150 @@ export default function AttackDetail() {
     )},
   ];
 
+  const handleTabAdded = (newTab: TicketTab) => {
+    setDynamicTabs(prev => [...prev, newTab]);
+    setAddTabOpen(false);
+  };
+
+  const handleTabDeleted = (tabId: string) => {
+    setDynamicTabs(prev => prev.filter(t => t.id !== tabId));
+  };
+
+  const handleTabUpdated = (updated: TicketTab) => {
+    setDynamicTabs(prev => prev.map(t => t.id === updated.id ? updated : t));
+  };
+
+  const fixedTabItems = [
+    {
+      key: 'basic', label: <span><InfoCircleOutlined /> 基础信息</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
+            {basicFields.map(f => (
+              <Descriptions.Item key={f.name} label={f.label}>
+                {String(props[f.name] ?? '--')}
+              </Descriptions.Item>
+            ))}
+          </Descriptions>
+          {helpers.length > 0 && (
+            <>
+              <Divider orientation="left" orientationMargin={0}>找帮手推荐</Divider>
+              <List size="small" grid={{ column: 1 }} dataSource={helpers.slice(0, 3)} renderItem={(h, i) => (
+                <List.Item>
+                  <Space>
+                    <Tag color={i === 0 ? 'gold' : i === 1 ? '#c0c0c0' : '#cd7f32'}>#{i + 1}</Tag>
+                    <Avatar size="small" icon={<UserOutlined />} />
+                    <Text strong>{(h.person.properties['姓名'] as string) ?? h.person.id.slice(0, 8)}</Text>
+                    <Tag>得分 {h.score}</Tag>
+                    {h.reasons?.length > 0 && <Text type="secondary">{h.reasons[0]}</Text>}
+                  </Space>
+                </List.Item>
+              )} />
+            </>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'progress', label: <span><SwapOutlined /> 进展同步</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setProgressOpen(true)} style={{ marginBottom: 16 }}>追加进展</Button>
+          {progress.length === 0 ? <Empty description="暂无进展记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
+            <Timeline items={progress.map(p => ({
+              color: STATUS_COLOR[p.statusSnapshot] ?? 'gray',
+              children: <div><div><Text strong>{dayjs(p.updatedAt).format('MM/DD HH:mm')}</Text> <StatusTag status={p.statusSnapshot} /></div><Paragraph style={{ margin: '4px 0 0' }}>{p.content}</Paragraph></div>,
+            }))} />
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'dailyReport', label: <span><FileTextOutlined /> 日报更新</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { drForm.resetFields(); setDrModalOpen(true); }} style={{ marginBottom: 16 }}>创建</Button>
+          <Table size="small" loading={drLoading} dataSource={dailyReports} columns={drColumns} rowKey="id"
+            pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty description="暂无日报条目" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
+        </div>
+      ),
+    },
+    {
+      key: 'audit', label: <span><HistoryOutlined /> 历史记录</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          {auditLogs.length === 0 ? <Empty description="暂无审计记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
+            <List size="small" dataSource={auditLogs} renderItem={a => (
+              <List.Item>
+                <Space size={8}>
+                  <Text type="secondary">{dayjs(a.performedAt).format(DATE_FORMAT_SHORT)}</Text>
+                  <Tag color={ACTION_COLOR[a.action]}>{ACTION_LABEL[a.action] || a.action}</Tag>
+                  <Text>{a.performedBy}</Text>
+                  <Text type="secondary">{ENTITY_TYPE_LABEL[a.entityType] || a.entityType}</Text>
+                  {(() => {
+                    const ch = a.changes as Record<string, unknown> | undefined;
+                    if (!ch || typeof ch !== 'object' || Object.keys(ch).length === 0) return null;
+                    return (
+                      <Tooltip title={Object.entries(ch).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}>
+                        <Tag>{Object.keys(ch).length}项变更</Tag>
+                      </Tooltip>
+                    );
+                  })()}
+                </Space>
+              </List.Item>
+            )} />
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'support', label: <span><NodeIndexOutlined /> 求助网络</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <Space>
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingNode(null); supportForm.resetFields(); supportForm.setFieldsValue({ status: '待确认' }); setSupportModalOpen(true); }}>添加节点</Button>
+              {templates.length > 0 && (
+                <Select placeholder="应用模板" style={{ width: 160 }} allowClear
+                  onChange={(v) => v && handleApplyTemplate(v)}
+                  options={templates.map(t => ({ value: t.id, label: `${t.name} (${t.usageCount})` }))} />
+              )}
+            </Space>
+          </div>
+          {supportLoading ? <Spin /> : supportNodes.length === 0 ? <Empty description="暂无求助节点" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
+            <Tree treeData={buildTree(supportNodes)} defaultExpandAll titleRender={(nd: any) => (
+              <Space size={8}>
+                <Tag color="blue">{nd.category}</Tag>
+                <Text>{nd.domain}</Text>
+                <Text type="secondary">→</Text>
+                <Text>{nd.personName || '待指定'}</Text>
+                <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
+                <Button size="small" type="text" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); setEditingNode(nd); supportForm.setFieldsValue({ parentId: nd.parentId ?? undefined, category: nd.category, domain: nd.domain, personName: nd.personName ?? undefined, status: nd.status, note: nd.note }); setSupportModalOpen(true); }} />
+                <Popconfirm title="确认删除该节点？" onConfirm={() => handleDeleteSupportNode(nd.id)}>
+                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
+                </Popconfirm>
+              </Space>
+            )} />
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const dynamicTabItems = dynamicTabs.map(tab => ({
+    key: tab.id,
+    label: <span>{tab.tabType === 'link' ? <LinkOutlined /> : <FileTextOutlined />} {tab.title}</span>,
+    closable: true,
+    children: tab.tabType === 'link'
+      ? <DynamicLinkTab ticketId={id!} tab={tab} onDeleted={handleTabDeleted} />
+      : <DynamicCustomTab ticketId={id!} tab={tab} onDeleted={handleTabDeleted} onUpdate={handleTabUpdated} />,
+  }));
+
+  const allTabItems = [
+    ...fixedTabItems.map(item => ({ ...item, closable: false })),
+    ...dynamicTabItems,
+  ];
+
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
@@ -311,122 +467,23 @@ export default function AttackDetail() {
       <Row gutter={16}>
         <Col span={18}>
           <Card styles={{ body: { padding: 0 } }}>
-            <Tabs defaultActiveKey="basic" style={{ padding: '0 16px' }} items={[
-              {
-                key: 'basic', label: <span><InfoCircleOutlined /> 基础信息</span>,
-                children: (
-                  <div style={{ padding: '16px 0' }}>
-                    <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
-                      {basicFields.map(f => (
-                        <Descriptions.Item key={f.name} label={f.label}>
-                          {String(props[f.name] ?? '--')}
-                        </Descriptions.Item>
-                      ))}
-                    </Descriptions>
-                    {helpers.length > 0 && (
-                      <>
-                        <Divider orientation="left" orientationMargin={0}>找帮手推荐</Divider>
-                        <List size="small" grid={{ column: 1 }} dataSource={helpers.slice(0, 3)} renderItem={(h, i) => (
-                          <List.Item>
-                            <Space>
-                              <Tag color={i === 0 ? 'gold' : i === 1 ? '#c0c0c0' : '#cd7f32'}>#{i + 1}</Tag>
-                              <Avatar size="small" icon={<UserOutlined />} />
-                              <Text strong>{(h.person.properties['姓名'] as string) ?? h.person.id.slice(0, 8)}</Text>
-                              <Tag>得分 {h.score}</Tag>
-                              {h.reasons?.length > 0 && <Text type="secondary">{h.reasons[0]}</Text>}
-                            </Space>
-                          </List.Item>
-                        )} />
-                      </>
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: 'progress', label: <span><SwapOutlined /> 进展同步</span>,
-                children: (
-                  <div style={{ padding: '16px 0' }}>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setProgressOpen(true)} style={{ marginBottom: 16 }}>追加进展</Button>
-                    {progress.length === 0 ? <Empty description="暂无进展记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-                      <Timeline items={progress.map(p => ({
-                        color: STATUS_COLOR[p.statusSnapshot] ?? 'gray',
-                        children: <div><div><Text strong>{dayjs(p.updatedAt).format('MM/DD HH:mm')}</Text> <StatusTag status={p.statusSnapshot} /></div><Paragraph style={{ margin: '4px 0 0' }}>{p.content}</Paragraph></div>,
-                      }))} />
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: 'dailyReport', label: <span><FileTextOutlined /> 日报更新</span>,
-                children: (
-                  <div style={{ padding: '16px 0' }}>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => { drForm.resetFields(); setDrModalOpen(true); }} style={{ marginBottom: 16 }}>创建</Button>
-                    <Table size="small" loading={drLoading} dataSource={dailyReports} columns={drColumns} rowKey="id"
-                      pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty description="暂无日报条目" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
-                  </div>
-                ),
-              },
-              {
-                key: 'audit', label: <span><HistoryOutlined /> 历史记录</span>,
-                children: (
-                  <div style={{ padding: '16px 0' }}>
-                    {auditLogs.length === 0 ? <Empty description="暂无审计记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-                      <List size="small" dataSource={auditLogs} renderItem={a => (
-                        <List.Item>
-                          <Space size={8}>
-                            <Text type="secondary">{dayjs(a.performedAt).format(DATE_FORMAT_SHORT)}</Text>
-                            <Tag color={ACTION_COLOR[a.action]}>{ACTION_LABEL[a.action] || a.action}</Tag>
-                            <Text>{a.performedBy}</Text>
-                            <Text type="secondary">{ENTITY_TYPE_LABEL[a.entityType] || a.entityType}</Text>
-                            {(() => {
-                              const ch = a.changes as Record<string, unknown> | undefined;
-                              if (!ch || typeof ch !== 'object' || Object.keys(ch).length === 0) return null;
-                              return (
-                                <Tooltip title={Object.entries(ch).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}>
-                                  <Tag>{Object.keys(ch).length}项变更</Tag>
-                                </Tooltip>
-                              );
-                            })()}
-                          </Space>
-                        </List.Item>
-                      )} />
-                    )}
-                  </div>
-                ),
-              },
-              {
-                key: 'support', label: <span><NodeIndexOutlined /> 求助网络</span>,
-                children: (
-                  <div style={{ padding: '16px 0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                      <Space>
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingNode(null); supportForm.resetFields(); supportForm.setFieldsValue({ status: '待确认' }); setSupportModalOpen(true); }}>添加节点</Button>
-                        {templates.length > 0 && (
-                          <Select placeholder="应用模板" style={{ width: 160 }} allowClear
-                            onChange={(v) => v && handleApplyTemplate(v)}
-                            options={templates.map(t => ({ value: t.id, label: `${t.name} (${t.usageCount})` }))} />
-                        )}
-                      </Space>
-                    </div>
-                    {supportLoading ? <Spin /> : supportNodes.length === 0 ? <Empty description="暂无求助节点" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-                      <Tree treeData={buildTree(supportNodes)} defaultExpandAll titleRender={(nd: any) => (
-                        <Space size={8}>
-                          <Tag color="blue">{nd.category}</Tag>
-                          <Text>{nd.domain}</Text>
-                          <Text type="secondary">→</Text>
-                          <Text>{nd.personName || '待指定'}</Text>
-                          <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
-                          <Button size="small" type="text" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); setEditingNode(nd); supportForm.setFieldsValue({ parentId: nd.parentId ?? undefined, category: nd.category, domain: nd.domain, personName: nd.personName ?? undefined, status: nd.status, note: nd.note }); setSupportModalOpen(true); }} />
-                          <Popconfirm title="确认删除该节点？" onConfirm={() => handleDeleteSupportNode(nd.id)}>
-                            <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
-                          </Popconfirm>
-                        </Space>
-                      )} />
-                    )}
-                  </div>
-                ),
-              },
-            ]} />
+            <Tabs
+              type="editable-card"
+              hideAdd
+              activeKey={undefined}
+              style={{ padding: '0 16px' }}
+              items={allTabItems}
+              onEdit={(targetKey, action) => {
+                if (action === 'add') setAddTabOpen(true);
+                if (action === 'remove' && typeof targetKey === 'string') {
+                  const tab = dynamicTabs.find(t => t.id === targetKey);
+                  if (tab) handleTabDeleted(targetKey);
+                }
+              }}
+              tabBarExtraContent={
+                <Button size="small" icon={<PlusOutlined />} onClick={() => setAddTabOpen(true)}>添加标签</Button>
+              }
+            />
           </Card>
         </Col>
         <Col span={6}>
@@ -571,6 +628,8 @@ export default function AttackDetail() {
             options={['string', 'number', 'date', 'datetime', 'enum'].map(t => ({ value: t, label: t }))} />
         </Space>
       </Modal>
+
+      <AddTabModal ticketId={id!} open={addTabOpen} onClose={() => setAddTabOpen(false)} onCreated={handleTabAdded} />
     </div>
   );
 }
