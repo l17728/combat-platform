@@ -206,4 +206,74 @@ test.describe('动态标签', () => {
     await page.getByRole('tab', { name: /API创建标签/ }).click();
     await expect(page.getByPlaceholder('输入 Markdown 内容...')).toHaveValue('# Test\nHello', { timeout: 5000 });
   });
+
+  test('关联数据标签 - 带贡献数据显示', async ({ page }) => {
+    await page.request.post(`${API}/api/nodes/contribution`, {
+      data: { 标题: 'E2E测试贡献', 贡献人: '张三', 贡献类型: '技术' },
+    });
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'link', title: '相关贡献', config: { nodeType: 'contribution' } },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /相关贡献/ }).click();
+    await expect(page.getByText('相关贡献').first()).toBeVisible({ timeout: 5000 });
+  });
+
+  test('切换固定标签和动态标签不报错', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '动态Tab' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /进展同步/ }).click();
+    await expect(page.getByText(/追加进展|暂无进展/)).toBeVisible();
+
+    await page.getByRole('tab', { name: /动态Tab/ }).click();
+    await expect(page.getByPlaceholder('输入 Markdown 内容...')).toBeVisible();
+
+    await page.getByRole('tab', { name: /基础信息/ }).click();
+    await expect(page.getByText('E2E动态标签测试')).toBeVisible();
+  });
+
+  test('API reorder 后标签顺序正确', async ({ page }) => {
+    const tabA = await (await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '第一' },
+    })).json();
+    const tabB = await (await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '第二' },
+    })).json();
+
+    await page.request.put(`${API}/api/tickets/${ticketId}/tabs/order`, {
+      data: { order: [tabB.id, tabA.id] },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    const allTabs = page.getByRole('tab');
+    const tabTexts = await allTabs.allTextContents();
+    const idx1 = tabTexts.findIndex(t => t.includes('第二'));
+    const idx2 = tabTexts.findIndex(t => t.includes('第一'));
+    expect(idx1).toBeLessThan(idx2);
+  });
+
+  test('删除关联数据标签确认弹窗可取消', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'link', title: '取消删除测试' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /取消删除测试/ }).click();
+    await page.getByRole('button', { name: /删除标签/ }).click();
+    await page.getByRole('button', { name: /取\s?消/ }).click();
+
+    await expect(page.getByRole('tab', { name: /取消删除测试/ })).toBeVisible();
+  });
 });

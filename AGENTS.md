@@ -618,12 +618,11 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-27 最后验证）
-- **313/313 frontend-v2 e2e tests passing** (28 spec files, 全部通过)
-- **291/291 backend vitest tests passing** (50 test files, 全部通过)
-- 新增操作追踪系统(op-log): 自动记录用户API调用、页面导航、错误日志，支持管理员开关
-- 新增认证系统(auth): 登录页、用户管理CRUD、JWT认证、角色控制
-- E2E 测试通过 `COMBAT_NO_AUTH=1` 绕过认证，前端 AuthProvider 自动以 admin 身份登录
-- Header 角色 Select 已替换为用户 Dropdown（用户名+退出登录）
+- **325/325 frontend-v2 e2e tests passing** (29 spec files, 含 12 dynamic-tabs 测试)
+- **310/310 backend vitest tests passing** (51 test files, 含 23 ticket-tabs 测试)
+- 新增动态标签系统(ticket-tabs): 攻关单详情页动态标签（关联数据 + 自定义笔记），MD编辑器 + AI助手
+- 后端: CRUD router + reorder API，5 个 CLI 命令，结构化日志（含 title/fields 详情）
+- 前端: AddTabModal / DynamicLinkTab / DynamicCustomTab 组件，editable-card Tabs 集成
 
 ## 工作流程规范
 

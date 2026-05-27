@@ -189,4 +189,45 @@ describe("ticket-tabs router", () => {
     expect(t2.body).toHaveLength(1);
     expect(t2.body[0].title).toBe("T2 only");
   });
+
+  it("POST sets createdBy (api when no auth)", async () => {
+    const res = await request(app)
+      .post("/api/tickets/t1/tabs")
+      .send({ tabType: "custom", title: "creator test" });
+    expect(res.status).toBe(201);
+    expect(res.body.createdBy).toBe("api");
+  });
+
+  it("PATCH updates updatedAt timestamp", async () => {
+    const created = await request(app).post("/api/tickets/t1/tabs")
+      .send({ tabType: "custom", title: "time test" });
+    const tabId = created.body.id;
+    const createdAt = created.body.updatedAt;
+    await new Promise(r => setTimeout(r, 50));
+    const res = await request(app)
+      .patch(`/api/tickets/t1/tabs/${tabId}`)
+      .send({ content: "updated" });
+    expect(res.status).toBe(200);
+    expect(res.body.updatedAt).not.toBe(createdAt);
+  });
+
+  it("PATCH ignores empty title update", async () => {
+    const created = await request(app).post("/api/tickets/t1/tabs")
+      .send({ tabType: "link", title: "original" });
+    const tabId = created.body.id;
+    const res = await request(app)
+      .patch(`/api/tickets/t1/tabs/${tabId}`)
+      .send({ title: "   ", content: "kept" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("original");
+    expect(res.body.content).toBe("kept");
+  });
+
+  it("DELETE logs include title", async () => {
+    const created = await request(app).post("/api/tickets/t1/tabs")
+      .send({ tabType: "custom", title: "log test" });
+    const tabId = created.body.id;
+    const res = await request(app).delete(`/api/tickets/t1/tabs/${tabId}`);
+    expect(res.status).toBe(200);
+  });
 });

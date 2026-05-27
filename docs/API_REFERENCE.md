@@ -408,6 +408,25 @@ BFS 图谱快照（沿 REF/ANCHORED_TO/CONFLICTS_WITH/OVERLAPS_WITH 边遍历）
 ### `PUT /api/op-logs/settings`
 切换开关。body = `{enabled: boolean}`。返回 `{enabled}`。
 
+## 动态标签（Ticket Tabs）
+
+### `GET /api/tickets/:id/tabs`
+列出某攻关单的所有动态标签。按 `tab_order` 升序、`created_at` 排序。返回 `TicketTab[]`。
+
+### `POST /api/tickets/:id/tabs`
+创建动态标签。body = `{tabType: "link"|"custom", title: string, config?: object, content?: string}`。tabType 和 title 必填。自动递增 tab_order。返回 201 `TicketTab`。
+
+### `PATCH /api/tickets/:id/tabs/:tabId`
+更新标签。body = `{title?, config?, content?}`。至少一个字段。404 若标签不存在。返回 `TicketTab`。
+
+### `DELETE /api/tickets/:id/tabs/:tabId`
+删除标签。404 若不存在。返回 `{deleted: tabId}`。
+
+### `PUT /api/tickets/:id/tabs/order`
+重排标签顺序。body = `{order: [id1, id2, ...]}`（ID 数组，按新顺序）。返回 `{ok: true}`。
+
+**TicketTab 结构**：`{id, ticketId, tabType, title, tabOrder, config, content, createdBy, createdAt, updatedAt}`。
+
 ## 错误码约定
 
 - 400：客户端错误（参数缺失、validateNode 失败、enum 不合法、字符串类型守卫）。

@@ -113,7 +113,7 @@ export function makeTicketTabsRouter(db: DB): Router {
     params.push(tabId);
     db.prepare(`UPDATE ticket_tabs SET ${updates.join(", ")} WHERE id = ?`).run(...params);
     const row = db.prepare("SELECT * FROM ticket_tabs WHERE id = ?").get(tabId) as any;
-    log.info("ticket_tab.updated", { ticketId: id, tabId });
+    log.info("ticket_tab.updated", { ticketId: id, tabId, fields: updates.filter(u => !u.startsWith('updated_at')) });
     res.json(rowToTab(row));
   }));
 
@@ -122,7 +122,7 @@ export function makeTicketTabsRouter(db: DB): Router {
     const existing = db.prepare("SELECT * FROM ticket_tabs WHERE id = ? AND ticket_id = ?").get(tabId, id) as any;
     if (!existing) return res.status(404).json({ error: "标签不存在" });
     db.prepare("DELETE FROM ticket_tabs WHERE id = ?").run(tabId);
-    log.info("ticket_tab.deleted", { ticketId: id, tabId });
+    log.info("ticket_tab.deleted", { ticketId: id, tabId, title: existing.title });
     res.json({ deleted: tabId });
   }));
 

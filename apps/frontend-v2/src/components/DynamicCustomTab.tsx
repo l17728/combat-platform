@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Input, Button, Space, Popconfirm, message, Divider, Card, Empty, Spin, Collapse } from 'antd';
+import { Input, Button, Space, Popconfirm, message, Divider, Card, Empty, Spin } from 'antd';
 import { DeleteOutlined, RobotOutlined, SendOutlined, ExpandOutlined, ShrinkOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { api, type TicketTab } from '../api.js';
@@ -107,8 +107,6 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
       message.error(e.message);
     }
   };
-
-  const mdBlockIndex = blocks.findIndex(b => b.type === 'markdown');
 
   return (
     <div style={{ padding: '16px 0' }}>

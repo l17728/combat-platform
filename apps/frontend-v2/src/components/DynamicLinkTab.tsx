@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Table, Tag, Space, Button, Empty, Spin, message, Popconfirm } from 'antd';
-import { LinkOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api, type TicketTab } from '../api.js';
 import { LINKABLE_NODE_TYPES, NODE_TYPE_LABEL } from '../constants.js';
 import type { GraphNode } from '@combat/shared';
