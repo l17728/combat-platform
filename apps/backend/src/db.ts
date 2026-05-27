@@ -80,6 +80,19 @@ export function openDb(path: string): DB {
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS ticket_tabs (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
+      title TEXT NOT NULL,
+      tab_order INTEGER NOT NULL DEFAULT 0,
+      config TEXT NOT NULL DEFAULT '{}',
+      content TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
   `);
   return db;
 }

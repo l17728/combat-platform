@@ -1,6 +1,6 @@
 import { type Page, type Locator } from '@playwright/test';
 
-const API = 'http://localhost:3001';
+const API = process.env.E2E_API_URL || 'http://localhost:3201';
 
 export { API };
 

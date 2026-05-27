@@ -28,8 +28,9 @@ if (existsSync(frontendDist)) {
   log.info("server.serving_frontend", { dir: frontendDist });
 }
 
-app.listen(3001, () => {
-  console.log("backend on :3001");
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, () => {
+  console.log(`backend on :${PORT}`);
 
   const AUTO_SCAN_INTERVAL = 5 * 60 * 1000;
   setInterval(() => {

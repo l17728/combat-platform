@@ -618,11 +618,13 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
 ### 当前测试状态（2026-05-27 最后验证）
-- **325/325 frontend-v2 e2e tests passing** (29 spec files, 含 12 dynamic-tabs 测试)
-- **310/310 backend vitest tests passing** (51 test files, 含 24 ticket-tabs 测试，含级联删除验证)
+- **330/330 frontend-v2 e2e tests passing** (29 spec files, 含 17 dynamic-tabs 测试)
+- **315/315 backend vitest tests passing** (51 test files, 含 24 ticket-tabs 测试，含级联删除验证)
 - 新增动态标签系统(ticket-tabs): 攻关单详情页动态标签（关联数据 + 自定义笔记），MD编辑器 + AI助手
 - 后端: CRUD router + reorder API，5 个 CLI 命令，结构化日志（含 title/fields 详情）
 - 前端: AddTabModal / DynamicLinkTab / DynamicCustomTab 组件，editable-card Tabs 集成
+- E2E 端口修复: vite.config.ts 使用 VITE_API_PORT 环境变量，backup-restore/help-button 测试使用 helpers.API
+- 动态标签测试修复: Radio.Button 使用 label locator，strict mode violations 用更精确选择器
 
 ## 工作流程规范
 

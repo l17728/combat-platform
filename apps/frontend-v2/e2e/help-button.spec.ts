@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { waitForTable } from './helpers';
+import { waitForTable, API } from './helpers';
 
 async function findHelpButton(page: import('@playwright/test').Page) {
   const byTestId = page.locator('[data-testid="page-help-btn"]').first();
@@ -52,7 +52,7 @@ test.describe('帮助按钮', () => {
   }
 
   test('攻击详情页 - 帮助按钮', async ({ page, request }) => {
-    const res = await request.post('http://localhost:3001/api/nodes/attackTicket', {
+    const res = await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E帮助按钮测试', 状态: '处理中' },
     });
     const ticket = await res.json();
@@ -94,7 +94,7 @@ test.describe('帮助按钮', () => {
   });
 
   test('个人荣誉页面帮助按钮', async ({ page, request }) => {
-    await request.post('http://localhost:3001/api/nodes/contribution', {
+    await request.post(`${API}/api/nodes/contribution`, {
       data: { 贡献人: 'E2E帮助测试人', 贡献等级: '核心', 贡献类型: '实施', 描述: 'E2E帮助贡献' },
     });
 
@@ -114,7 +114,7 @@ test.describe('帮助按钮', () => {
   });
 
   test('关联全景页面帮助按钮', async ({ page, request }) => {
-    const res = await request.post('http://localhost:3001/api/nodes/attackTicket', {
+    const res = await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E关联帮助测试', 状态: '处理中' },
     });
     const ticket = await res.json();

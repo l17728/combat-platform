@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { selectOption } from './helpers.js';
 
-const BASE = 'http://localhost:3001';
+const BASE = process.env.E2E_API_URL || 'http://localhost:3201';
 
 test.describe('数据库备份恢复', () => {
   test.beforeEach(async ({ page }) => {
