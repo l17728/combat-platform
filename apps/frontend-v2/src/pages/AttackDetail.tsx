@@ -31,11 +31,7 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title, Text, Paragraph } = Typography;
-const FALLBACK_STATUS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
-const FALLBACK_SUPPORT_CATEGORIES = ['环境', '领域专家', '团队协作', '资源'];
-const FALLBACK_SUPPORT_STATUSES = ['待确认', '支持中', '已完成', '已撤销'];
-const FALLBACK_DR_TYPES = ['进展通报', '风险通报'];
-const STATUS_STEPS = FALLBACK_STATUS;
+const STATUS_STEPS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
 const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 const SUMMARY_FIELD_IDS = new Set(['标题', '问题单号', '事件单号', '事件级别', '影响及现存风险', '客户名称', '故障发生时间', '当前处理人', '攻关组长']);
 const TEAM_FIELDS = new Set(['攻关组长', '攻关成员']);
@@ -115,10 +111,10 @@ export default function AttackDetail() {
     { key: 'team', label: '攻关成员' },
   ];
 
-  const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
-  const SUPPORT_CATEGORIES = getValues('求助分类', FALLBACK_SUPPORT_CATEGORIES);
-  const SUPPORT_STATUSES = getValues('求助状态', FALLBACK_SUPPORT_STATUSES);
-  const DR_TYPES = getValues('日报类型', FALLBACK_DR_TYPES);
+  const STATUS_OPTIONS = getValues('状态').length > 0 ? getValues('状态') : STATUS_STEPS;
+  const SUPPORT_CATEGORIES = getValues('求助分类');
+  const SUPPORT_STATUSES = getValues('求助状态');
+  const DR_TYPES = getValues('日报类型');
 
   const [initialLoading, setInitialLoading] = useState(true);
   const fetchData = useCallback(async (silent?: boolean) => {

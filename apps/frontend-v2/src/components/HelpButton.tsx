@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Modal } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export default function HelpButton({ title, content }: { title: string; content: string }) {
   const [open, setOpen] = useState(false);
@@ -23,8 +24,8 @@ export default function HelpButton({ title, content }: { title: string; content:
         width={560}
         destroyOnClose
       >
-        <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
-          <ReactMarkdown>{content}</ReactMarkdown>
+        <div className="markdown-body" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: 8 }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
         </div>
       </Modal>
     </>

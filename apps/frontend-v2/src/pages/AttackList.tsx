@@ -20,8 +20,6 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title } = Typography;
-const FALLBACK_STATUS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
-const FALLBACK_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'];
 const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 
 const STORAGE_KEY = 'attack-list-visible-columns';
@@ -50,8 +48,8 @@ export default function AttackList() {
   });
   const { getValues } = useSettings();
 
-  const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
-  const LEVEL_OPTIONS = getValues('事件级别', FALLBACK_LEVELS);
+  const STATUS_OPTIONS = getValues('状态');
+  const LEVEL_OPTIONS = getValues('事件级别');
 
   const fetchData = useCallback(async () => {
     setLoading(true);

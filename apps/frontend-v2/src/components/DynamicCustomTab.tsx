@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Input, Button, Space, message, Divider, Card } from 'antd';
 import { DeleteOutlined, RobotOutlined, SendOutlined, SearchOutlined, EditOutlined, UpOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { api, type TicketTab } from '../api.js';
 
@@ -151,8 +152,8 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
                         style={{ maxWidth: 300 }}
                       />
                     </div>
-                    <div style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, background: '#fafafa' }}>
-                      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{previewMd}</ReactMarkdown>
+                    <div className="markdown-body" style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, background: '#fafafa' }}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{previewMd}</ReactMarkdown>
                     </div>
                   </>
                 )}

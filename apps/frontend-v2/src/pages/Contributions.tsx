@@ -15,14 +15,12 @@ import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 
 const { Title } = Typography;
-const FALLBACK_CONTRIB_TYPES = ['实施', '发现', '协调', '指导', '支持'];
-const FALLBACK_CONTRIB_LEVELS = ['核心', '关键', '普通'];
 
 export default function Contributions() {
   const navigate = useNavigate();
   const { getValues } = useSettings();
-  const CONTRIB_TYPES = getValues('贡献类型', FALLBACK_CONTRIB_TYPES);
-  const CONTRIB_LEVELS = getValues('贡献等级', FALLBACK_CONTRIB_LEVELS);
+  const CONTRIB_TYPES = getValues('贡献类型');
+  const CONTRIB_LEVELS = getValues('贡献等级');
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [levelFilter, setLevelFilter] = useState<string | undefined>();

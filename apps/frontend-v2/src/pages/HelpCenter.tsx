@@ -25,13 +25,11 @@ import HELP from '../help-content.js';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const FALLBACK_CATEGORIES = ['环境', '领域专家', '团队协作', '资源'];
-const FALLBACK_HELP_STATUS = ['待回复', '已回复'];
 
 export default function HelpCenter() {
   const { getValues } = useSettings();
-  const CATEGORY_OPTIONS = getValues('求助分类', FALLBACK_CATEGORIES);
-  const HELP_STATUS_OPTIONS = getValues('求助中心状态', FALLBACK_HELP_STATUS);
+  const CATEGORY_OPTIONS = getValues('求助分类');
+  const HELP_STATUS_OPTIONS = getValues('求助中心状态');
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
