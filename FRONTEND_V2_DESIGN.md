@@ -24,10 +24,12 @@ SLA 上升、自定义命令、Schema 管理等。
 
 ### 2.1 技术栈
 ```
-React 18 + Vite 6 + Ant Design 5 + react-router-dom 7 + TypeScript 5 (strict)
+React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 (strict)
 图标: @ant-design/icons
 日期: dayjs
-API: 原生 fetch 封装 → 60.204.199.234:3001
+API: 原生 fetch 封装 → 124.156.193.122:3001
+列拖拽: react-resizable + @dnd-kit/sortable
+认证: JWT (7天过期) + bcrypt + RBAC角色
 ```
 
 ### 2.2 布局
