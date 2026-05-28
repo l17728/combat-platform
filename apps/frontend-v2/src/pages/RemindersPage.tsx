@@ -168,11 +168,13 @@ export default function RemindersPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          跟催提醒
-        </Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            跟催提醒
+          </Title>
           <HelpButton title={HELP.reminders.title} content={HELP.reminders.content} />
+        </div>
+        <Space>
           <Select
             allowClear
             placeholder="状态筛选"

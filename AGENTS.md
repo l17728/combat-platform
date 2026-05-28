@@ -123,14 +123,15 @@ Do NOT create or modify any files under `apps/frontend/`.
 
 ## Deployment
 
-### Target Server (新前端部署)
-- **目标机**: `60.204.199.234`（Ubuntu 24.04, 30G RAM, 296G disk）
-- **跳板机**: `47.103.99.229`（必须通过此机器 SSH 跳转，不能直连目标机）
-- **跳板机凭据**: 见 `.env.deploy`（DEPLOY_HOST/USER/PASS）
-- **部署路径**: `/opt/combat-v2/`（目标机上）
-- **访问地址**: `http://60.204.199.234:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
+### Production Server (生产环境 — 唯一部署目标)
+- **服务器**: `124.156.193.122`（直连 SSH，用户 `root`，密码见 `.env.deploy`）
+- **部署路径**: `/opt/combat-v2/`
+- **访问地址**: `http://124.156.193.122:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
 - **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
-- **部署脚本**: `scripts/deploy-v2/` 目录
+- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+- **默认登录**: `admin` / `admin123`
+
+> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 #### 部署命令（从 repo 根目录执行）
 ```bash
@@ -140,26 +141,17 @@ git add -A && git commit -m "your message"
 # 安装部署脚本依赖（仅首次）
 cd scripts/deploy-v2 && npm install && cd ../..
 
-# 检查目标机状态
-cd scripts/deploy-v2 && node deploy.mjs check
+# 一键部署（直连 SSH → 目标机）
+cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 
-# 一键部署（打包→跳板机→目标机→npm install→build→systemd restart）
-cd scripts/deploy-v2 && node deploy.mjs deploy
-
-# 仅重启服务（不重新上传代码）
-cd scripts/deploy-v2 && node deploy.mjs restart
-
-# 查看服务日志
-cd scripts/deploy-v2 && node deploy.mjs logs
+# 查看日志
+ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 ```
 
-#### 部署架构（2026-05-25 更新）
+#### 部署架构（2026-05-28 更新）
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
-- **Node 版本**：目标机自带 Node v24 但 better-sqlite3 不兼容，通过 systemd `PATH=/opt/node22-v2/bin` 使用 Node v22.14.0
-- **部署流程**：跳板机从 GitHub 拉代码 → `git archive` 打包 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
-- **不再使用 `stdinPut` 管道传输**（跳板机网络不稳定，SSH exec stdin 管道传 643KB 文件会超时）
-- 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
+- **直连部署**：`deploy-direct.mjs` 直连 SSH 到 124.156.193.122，无需跳板机
 
 #### 日志体系与文件路径
 
@@ -781,3 +773,37 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 ### Test Coverage
 - **15 backend unit tests**: `apps/backend/test/op-log.test.ts`（需 `COMBAT_NO_AUTH=1`）
 - **12 E2E tests**: `apps/frontend-v2/e2e/op-log.spec.ts`
+
+## 问题反馈标准修复流程
+
+现网用户通过"问题反馈"页面（`/bug-report`）提交问题，数据存储在 `bug_reports` 表。
+
+### 读取现网问题
+```bash
+# 登录获取 token
+TOKEN=$(curl -s -X POST http://124.156.193.122:3001/api/auth/login \
+  -H "content-type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).token))")
+
+# 读取全部问题（含已关闭）
+curl -s http://124.156.193.122:3001/api/bug-reports?status= \
+  -H "Authorization: Bearer $TOKEN" | node -e "process.stdin.on('data',d=>console.log(JSON.stringify(JSON.parse(d),null,2)))"
+
+# 仅读取待处理
+curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E7%90%86" \
+  -H "Authorization: Bearer $TOKEN" | node -e "process.stdin.on('data',d=>console.log(JSON.stringify(JSON.parse(d),null,2)))"
+```
+
+### 修复流程（标准 6 步）
+1. **读取问题** — 从现网 `GET /api/bug-reports?status=` 获取所有待处理问题
+2. **分析 & 分类** — bug 立即修，功能需求记录为 feature request
+3. **修复代码** — TDD：先写/改测试 → 改代码 → 确认测试通过
+4. **测试验证** — `npm run test:all` 或至少 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter line` + `npm run test:backend`
+5. **部署** — `git add -A && git commit -m "fix: ..."` → `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+6. **关闭问题** — 部署验证后，逐条 PATCH 对应 bug report 状态为"已关闭"：
+   ```bash
+   curl -s -X PATCH http://124.156.193.122:3001/api/bug-reports/<id> \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "content-type: application/json" \
+     -d '{"status":"已关闭","resolution":"已修复并部署","resolvedBy":"系统管理员"}'
+   ```

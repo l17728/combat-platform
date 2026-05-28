@@ -126,11 +126,16 @@ export function makeBugReportRouter(db: DB): Router {
       const row = db.prepare("SELECT * FROM bug_reports WHERE id=?").get(req.params.id) as any;
       if (!row) return res.status(404).json({ error: "未找到该问题" });
 
-      const { status, resolution, resolvedBy } = req.body ?? {};
+      const { status, resolution, resolvedBy, title, description, severity, pageUrl, reporter } = req.body ?? {};
       const now = new Date().toISOString();
       const updates: string[] = ["updated_at=?"];
       const params: any[] = [now];
 
+      if (title !== undefined) { updates.push("title=?"); params.push(title); }
+      if (description !== undefined) { updates.push("description=?"); params.push(description); }
+      if (severity !== undefined) { updates.push("severity=?"); params.push(severity); }
+      if (pageUrl !== undefined) { updates.push("page_url=?"); params.push(pageUrl); }
+      if (reporter !== undefined) { updates.push("reporter=?"); params.push(reporter); }
       if (status !== undefined) { updates.push("status=?"); params.push(status); }
       if (resolution !== undefined) { updates.push("resolution=?"); params.push(resolution); }
       if (resolvedBy !== undefined) { updates.push("resolved_by=?"); params.push(resolvedBy); }

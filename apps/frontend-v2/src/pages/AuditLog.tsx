@@ -95,9 +95,11 @@ export default function AuditLog() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>审计日志</Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>审计日志</Title>
           <HelpButton title={HELP.auditLog.title} content={HELP.auditLog.content} />
+        </div>
+        <Space>
           <span onClick={fetchLogs} style={{ cursor: 'pointer', color: token.colorPrimary }}><ReloadOutlined /> 刷新</span>
         </Space>
       </div>

@@ -97,7 +97,7 @@ export default function PeopleList() {
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['姓名'] as string) ?? '').localeCompare((b.properties['姓名'] as string) ?? ''),
     },
     { title: '工号', dataIndex: ['properties', '工号'], width: 110, ellipsis: true },
-    { title: '邮箱', dataIndex: ['properties', '邮箱'], ellipsis: true },
+    { title: '邮箱', dataIndex: ['properties', '邮箱'], width: 220, ellipsis: true },
     {
       title: '部门', dataIndex: ['properties', '部门'], width: 140, ellipsis: true,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['部门'] as string) ?? '').localeCompare((b.properties['部门'] as string) ?? ''),
@@ -120,9 +120,11 @@ export default function PeopleList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>全员名单</Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>全员名单</Title>
           <HelpButton title={HELP.peopleList.title} content={HELP.peopleList.content} />
+        </div>
+        <Space>
           <Button icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入名单</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出</Button>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>添加</Button>

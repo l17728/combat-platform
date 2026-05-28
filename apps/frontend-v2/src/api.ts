@@ -285,8 +285,20 @@ export class Api {
     return this.req<ImportPreview>(`/api/import?${p.toString()}`, { method: 'POST', body: fd });
   }
 
+  private async authFetch(path: string): Promise<Response> {
+    const headers: Record<string, string> = {};
+    const token = this.getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const role = (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
+    headers['X-Role'] = role;
+    return this.f(`${this.base}${path}`, { headers });
+  }
+
   exportNodes(nodeType: string): Promise<Blob> {
-    return this.f(`${this.base}/api/export/${nodeType}`).then((r) => r.blob());
+    return this.authFetch(`/api/export/${nodeType}`).then((r) => {
+      if (!r.ok) throw new Error(`导出失败: HTTP ${r.status}`);
+      return r.blob();
+    });
   }
 
   getEmailConfig(): Promise<SmtpConfigMasked> {
@@ -566,7 +578,7 @@ export class Api {
     return this.req(`/api/bug-reports/${id}`);
   }
 
-  updateBugReport(id: string, data: { status?: string; resolution?: string; resolvedBy?: string }): Promise<any> {
+  updateBugReport(id: string, data: { status?: string; resolution?: string; resolvedBy?: string; title?: string; description?: string; severity?: string; pageUrl?: string; reporter?: string }): Promise<any> {
     return this.req(`/api/bug-reports/${id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -672,7 +684,10 @@ export class Api {
   }
 
   downloadBackup(filename: string): Promise<Blob> {
-    return this.f(`${this.base}/api/backup/${encodeURIComponent(filename)}`).then(r => r.blob());
+    return this.authFetch(`/api/backup/${encodeURIComponent(filename)}`).then(r => {
+      if (!r.ok) throw new Error(`下载失败: HTTP ${r.status}`);
+      return r.blob();
+    });
   }
 
   deleteBackup(filename: string): Promise<{ deleted: string }> {

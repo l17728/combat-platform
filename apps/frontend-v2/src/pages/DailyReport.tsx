@@ -64,8 +64,12 @@ export default function DailyReportPage() {
 
   return (
     <div>
-      <Typography.Title level={4}>攻关日报</Typography.Title>
-      <HelpButton title={HELP.dailyReport.title} content={HELP.dailyReport.content} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>攻关日报</Typography.Title>
+          <HelpButton title={HELP.dailyReport.title} content={HELP.dailyReport.content} />
+        </div>
+      </div>
       <Row gutter={16} align="middle" style={{ marginBottom: 16 }}>
         <Col>
           <Space>

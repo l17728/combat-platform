@@ -260,12 +260,12 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const path = req.path;
   const publicPaths = [
-    "/api/auth/login",
-    "/api/auth/register",
-    "/api/help/feedback/",
-    "/api/bug-reports",
+    "/auth/login",
+    "/auth/register",
+    "/help/feedback/",
+    "/bug-reports",
   ];
-  if (publicPaths.some((p) => path.startsWith(p)) && (path === "/api/bug-reports" ? req.method === "POST" : true)) {
+  if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
   }
   const payload = verifyAuth(req);

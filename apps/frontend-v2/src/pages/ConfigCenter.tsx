@@ -116,9 +116,11 @@ export default function ConfigCenter() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>配置中心</Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>配置中心</Title>
           <HelpButton title={HELP.configCenter.title} content={HELP.configCenter.content} />
+        </div>
+        <Space>
           <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增配置</Button>
         </Space>

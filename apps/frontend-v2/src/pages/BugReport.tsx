@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Typography, Table, Tag, Space, Select, Button, Drawer, Form, Input, message,
-  Popconfirm, Empty, Tooltip, Image, Alert, Descriptions,
+  Popconfirm, Empty, Tooltip, Image, Alert, Descriptions, Divider,
 } from 'antd';
-import { BugOutlined, CameraOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { BugOutlined, CameraOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { BUG_SEVERITY_COLOR, BUG_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
 import { getCapturedLogs, clearCapturedLogs } from '../utils/console-capture.js';
@@ -19,11 +19,14 @@ export default function BugReport() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>('待处理');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingBug, setEditingBug] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [consoleLogs, setConsoleLogs] = useState<string>('');
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
 
   const fetchData = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true);
@@ -100,6 +103,25 @@ export default function BugReport() {
     }
   };
 
+  const handleEdit = async (values: any) => {
+    if (!editingBug) return;
+    try {
+      await api.updateBugReport(editingBug.id, {
+        title: values.title,
+        description: values.description,
+        severity: values.severity,
+        pageUrl: values.pageUrl,
+        reporter: values.reporter,
+      });
+      message.success('更新成功');
+      setEditOpen(false);
+      setEditingBug(null);
+      fetchData(true);
+    } catch (e: any) {
+      message.error(e.message);
+    }
+  };
+
   const capturePage = async () => {
     try {
       const canvas = await (window as any).__html2canvas?.(document.body);
@@ -157,6 +179,7 @@ export default function BugReport() {
       render: (_: unknown, record: any) => (
         <Space>
           <a onClick={() => { setDetail(record); setDetailOpen(true); }}>详情</a>
+          <a onClick={() => { setEditingBug(record); editForm.setFieldsValue({ title: record.title, description: record.description, severity: record.severity, pageUrl: record.pageUrl, reporter: record.reporter }); setEditOpen(true); }}>编辑</a>
           {record.status === '待处理' && (
             <a onClick={() => handleUpdate(record.id, '处理中')}>开始处理</a>
           )}
@@ -355,6 +378,13 @@ export default function BugReport() {
 
             <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
               <Space>
+                <Button icon={<EditOutlined />} onClick={() => {
+                  if (!detail) return;
+                  setDetailOpen(false);
+                  setEditingBug(detail);
+                  editForm.setFieldsValue({ title: detail.title, description: detail.description, severity: detail.severity, pageUrl: detail.pageUrl, reporter: detail.reporter });
+                  setEditOpen(true);
+                }}>编辑</Button>
                 {detail.status === '待处理' && (
                   <Button type="primary" onClick={() => { handleUpdate(detail.id, '处理中'); setDetailOpen(false); }}>
                     开始处理
@@ -377,6 +407,39 @@ export default function BugReport() {
             </div>
           </div>
         )}
+      </Drawer>
+
+      <Drawer
+        title="编辑问题反馈"
+        open={editOpen}
+        onClose={() => { setEditOpen(false); setEditingBug(null); editForm.resetFields(); }}
+        width={480}
+        destroyOnClose
+        maskClosable={false}
+        extra={<Button type="primary" onClick={() => editForm.submit()}>保存</Button>}
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEdit}>
+          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: '请输入问题标题' }]}>
+            <Input placeholder="简要描述发现的问题" />
+          </Form.Item>
+          <Form.Item name="severity" label="严重程度">
+            <Select options={[
+              { value: '严重', label: '严重' },
+              { value: '较高', label: '较高' },
+              { value: '一般', label: '一般' },
+              { value: '建议', label: '建议' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="description" label="问题描述">
+            <TextArea rows={4} placeholder="详细描述问题现象、复现步骤、预期行为等" />
+          </Form.Item>
+          <Form.Item name="reporter" label="报告人">
+            <Input placeholder="您的姓名（可选）" />
+          </Form.Item>
+          <Form.Item name="pageUrl" label="问题页面">
+            <Input placeholder="问题发生时的页面地址" />
+          </Form.Item>
+        </Form>
       </Drawer>
     </div>
   );

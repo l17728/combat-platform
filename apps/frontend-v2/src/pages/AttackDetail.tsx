@@ -423,11 +423,13 @@ export default function AttackDetail() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
-          <Title level={4} style={{ margin: 0 }}>{title} <StatusTag status={status} /></Title>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Title level={4} style={{ margin: 0 }}>{title} <StatusTag status={status} /></Title>
+            <HelpButton title={HELP.attackDetail.title} content={HELP.attackDetail.content} />
+          </div>
           <Text type="secondary">创建于 {dayjs(node.createdAt).format(DATE_FORMAT)} · 更新于 {dayjs(node.updatedAt).fromNow()}</Text>
         </div>
         <Space>
-          <HelpButton title={HELP.attackDetail.title} content={HELP.attackDetail.content} />
           <Link to={`/related/attackTicket/${id}`}><Button icon={<LinkOutlined />}>关联全景</Button></Link>
           <Button icon={<SwapOutlined />} onClick={() => setTransitionOpen(true)}>状态流转</Button>
           <Button icon={<EditOutlined />} onClick={() => { editForm.setFieldsValue(props as any); setEditOpen(true); }}>编辑信息</Button>

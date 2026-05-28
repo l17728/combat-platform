@@ -175,10 +175,12 @@ export default function SearchPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          全局搜索
-        </Title>
-        <HelpButton title={HELP.search.title} content={HELP.search.content} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            全局搜索
+          </Title>
+          <HelpButton title={HELP.search.title} content={HELP.search.content} />
+        </div>
       </div>
 
       <Space wrap style={{ marginBottom: 16, width: '100%' }}>

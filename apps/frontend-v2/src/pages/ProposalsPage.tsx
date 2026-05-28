@@ -218,11 +218,13 @@ export default function ProposalsPage() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          关系审批
-        </Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            关系审批
+          </Title>
           <HelpButton title={HELP.proposals.title} content={HELP.proposals.content} />
+        </div>
+        <Space>
           <Select
             allowClear
             placeholder="状态筛选"

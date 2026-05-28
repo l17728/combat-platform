@@ -43,8 +43,12 @@ export default function RelatedPage() {
   return (
     <div>
       <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ paddingLeft: 0, marginBottom: 8 }}>返回</Button>
-      <Typography.Title level={4} style={{ marginBottom: 16 }}>关联全景：{nodeType} / {id.slice(0, 8)}</Typography.Title>
-      <HelpButton title={HELP.relatedPage.title} content={HELP.relatedPage.content} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>关联全景：{nodeType} / {id.slice(0, 8)}</Typography.Title>
+          <HelpButton title={HELP.relatedPage.title} content={HELP.relatedPage.content} />
+        </div>
+      </div>
       <Space style={{ marginBottom: 16 }}>
         <span>深度：</span>
         <Select value={depth} onChange={setDepth} style={{ width: 80 }}

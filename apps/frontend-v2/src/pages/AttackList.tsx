@@ -165,9 +165,11 @@ export default function AttackList() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>攻关作战台</Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>攻关作战台</Title>
           <HelpButton title={HELP.attackList.title} content={HELP.attackList.content} />
+        </div>
+        <Space>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>新建攻关</Button>
           <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>导出</Button>
         </Space>

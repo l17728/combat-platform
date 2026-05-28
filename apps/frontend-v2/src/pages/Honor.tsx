@@ -64,12 +64,14 @@ export default function Honor() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          <TrophyOutlined style={{ color: '#faad14', marginRight: 8 }} />
-          荣誉殿堂
-        </Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            <TrophyOutlined style={{ color: '#faad14', marginRight: 8 }} />
+            荣誉殿堂
+          </Title>
           <HelpButton title={HELP.honor.title} content={HELP.honor.content} />
+        </div>
+        <Space>
           <Select placeholder="选择周期" allowClear style={{ width: 140 }} value={period} onChange={setPeriod}
             options={quarters.map((p) => ({ value: p, label: p }))} />
           <Button icon={<ExportOutlined />} onClick={handleExport}>导出数据</Button>

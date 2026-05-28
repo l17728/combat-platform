@@ -153,9 +153,11 @@ export default function HelpCenter() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>求助中心</Title>
-        <Space>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>求助中心</Title>
           <HelpButton title={HELP.helpCenter.title} content={HELP.helpCenter.content} />
+        </div>
+        <Space>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
             发起求助
           </Button>
