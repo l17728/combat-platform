@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { GraphNode, NodeSchema, FieldType } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
@@ -177,7 +178,7 @@ export default function AttackList() {
 
   const columns = useMemo(() => {
     const idCol = {
-      title: '编号', width: 90, fixed: 'left' as const,
+      key: 'id', title: '编号', width: 90, fixed: 'left' as const,
       render: (_: unknown, r: GraphNode) => (
         <Tooltip title={r.id}><a onClick={() => navigate(`/attack/${r.id}`)}>{r.id.slice(0, 8)}</a></Tooltip>
       ),
@@ -185,19 +186,19 @@ export default function AttackList() {
 
     const fieldColMap: Record<string, Record<string, unknown>> = {
       '标题': {
-        title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
+        key: '标题', title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
         render: (text: string, r: GraphNode) => <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>,
         sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
       },
       '状态': {
-        title: '状态', dataIndex: ['properties', '状态'], width: 100,
+        key: '状态', title: '状态', dataIndex: ['properties', '状态'], width: 100,
         render: (v: string) => <StatusTag status={v} />,
         sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
       },
-      '当前处理人': { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100, ellipsis: true },
-      '事件级别': { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
-      '问题单号': { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 120, ellipsis: true },
-      '客户名称': { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
+      '当前处理人': { key: '处理人', title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100, ellipsis: true },
+      '事件级别': { key: '事件级别', title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
+      '问题单号': { key: '问题单号', title: '问题单号', dataIndex: ['properties', '问题单号'], width: 120, ellipsis: true },
+      '客户名称': { key: '客户', title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
     };
 
     const dataCols = visibleColumns
@@ -209,6 +210,7 @@ export default function AttackList() {
       .map(name => {
         const f = schema?.fields.find(fd => fd.name === name && !fd.retired);
         return {
+          key: name,
           title: f?.label || name,
           dataIndex: ['properties', name],
           width: 120,
@@ -223,14 +225,14 @@ export default function AttackList() {
       });
 
     const updateCol = {
-      title: '更新', dataIndex: 'updatedAt', width: 100,
+      key: '更新', title: '更新', dataIndex: 'updatedAt', width: 100,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).fromNow()}</Tooltip>,
       sorter: (a: GraphNode, b: GraphNode) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
       defaultSortOrder: 'descend' as const,
     };
 
     const opsCol = {
-      title: '操作', width: 80, fixed: 'right' as const,
+      key: '操作', title: '操作', width: 80, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (
         <Popconfirm title={`确认删除「${r.properties['标题'] ?? r.id.slice(0, 8)}」？`} onConfirm={() => handleDelete(r.id)}>
           <a style={{ color: '#ff4d4f' }}>删除</a>
@@ -240,6 +242,12 @@ export default function AttackList() {
 
     return [idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
   }, [visibleColumns, schema, navigate, handleDelete]);
+
+  const { columns: flexCols, FlexWrapper, persistWidths } = useFlexTable('attackTicket', columns);
+
+  const tableComponents = useMemo(() => ({
+    header: { cell: FlexHeaderCell },
+  }), []);
 
   return (
     <div>
@@ -289,12 +297,15 @@ export default function AttackList() {
       </Space>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
-        <Table rowKey="id" dataSource={filteredNodes} columns={columns}
-          scroll={{ x: true }}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
-          size="middle"
-          onRow={(r) => ({ onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); }, style: { cursor: 'pointer' } })}
-        />
+        <FlexWrapper>
+          <Table rowKey="id" dataSource={filteredNodes} columns={flexCols}
+            components={tableComponents}
+            scroll={{ x: true }}
+            pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
+            size="middle"
+            onRow={(r) => ({ onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); }, style: { cursor: 'pointer' } })}
+          />
+        </FlexWrapper>
       )}
 
       <Drawer title="新建攻关任务" width={520} open={drawerOpen} onClose={() => { setDrawerOpen(false); form.resetFields(); }} destroyOnClose maskClosable={false}

@@ -37,7 +37,7 @@ test.describe('攻关作战台 - 列表', () => {
     await expect(page.getByRole('cell', { name: '待响应' }).first()).toBeVisible();
   });
 
-  test('filters by field and value via checkbox', async ({ page, request }) => {
+  test('filters by field and single checkbox value', async ({ page, request }) => {
     await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E筛选待响应', 状态: '待响应' },
     });
@@ -58,6 +58,147 @@ test.describe('攻关作战台 - 列表', () => {
 
     await expect(page.getByText('E2E筛选待响应')).not.toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
+  });
+
+  test('multi-select checkbox uses OR logic', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E多选待响应', 状态: '待响应' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E多选处理中', 状态: '处理中' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E多选已关闭', 状态: '已关闭' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+    await expect(page.locator('.ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '待响应' }).locator('input').click();
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '处理中' }).locator('input').click();
+
+    await expect(page.getByText('E2E多选待响应')).toBeVisible();
+    await expect(page.getByText('E2E多选处理中')).toBeVisible();
+    await expect(page.getByText('E2E多选已关闭')).not.toBeVisible();
+  });
+
+  test('unchecking checkbox removes filter', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E取消勾选单', 状态: '处理中' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E保留单', 状态: '待响应' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+
+    const checkbox = page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '处理中' }).locator('input');
+    await checkbox.click();
+    await expect(page.getByText('E2E取消勾选单')).toBeVisible();
+    await expect(page.getByText('E2E保留单')).not.toBeVisible();
+
+    await checkbox.click();
+    await expect(page.getByText('E2E取消勾选单')).toBeVisible();
+    await expect(page.getByText('E2E保留单')).toBeVisible();
+  });
+
+  test('clearing field select shows all data', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E清空A', 状态: '待响应' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E清空B', 状态: '已解决' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '待响应' }).locator('input').click();
+    await expect(page.getByText('E2E清空B')).not.toBeVisible();
+
+    await fieldSelect.locator('.ant-select-clear').click();
+    await expect(page.locator('.ant-checkbox-group')).not.toBeVisible();
+    await expect(page.getByText('E2E清空A')).toBeVisible();
+    await expect(page.getByText('E2E清空B')).toBeVisible();
+  });
+
+  test('switching field resets checkbox selection', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E切字段单', 状态: '待响应', 事件级别: 'P1' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E切字段其他', 状态: '已解决', 事件级别: 'P3' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '待响应' }).locator('input').click();
+    await expect(page.getByText('E2E切字段其他')).not.toBeVisible();
+
+    await selectOption(page, fieldSelect, '事件级别');
+    await expect(page.getByText('E2E切字段单')).toBeVisible();
+    await expect(page.getByText('E2E切字段其他')).toBeVisible();
+  });
+
+  test('search and field filter combine', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E组合搜索A', 状态: '处理中', 当前处理人: '张三' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E组合搜索B', 状态: '处理中', 当前处理人: '李四' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E组合搜索C', 状态: '待响应', 当前处理人: '张三' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '处理中' }).locator('input').click();
+
+    await expect(page.getByText('E2E组合搜索A')).toBeVisible();
+    await expect(page.getByText('E2E组合搜索B')).toBeVisible();
+    await expect(page.getByText('E2E组合搜索C')).not.toBeVisible();
+
+    await page.getByPlaceholder('搜索标题/单号/处理人').fill('张三');
+    await expect(page.getByText('E2E组合搜索A')).toBeVisible();
+    await expect(page.getByText('E2E组合搜索B')).not.toBeVisible();
+    await expect(page.getByText('E2E组合搜索C')).not.toBeVisible();
+  });
+
+  test('filters by non-enum field like 客户名称', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E客户甲', 状态: '处理中', 客户名称: '客户甲' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E客户乙', 状态: '处理中', 客户名称: '客户乙' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '客户名称');
+    await expect(page.locator('.ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '客户甲' }).locator('input').click();
+    await expect(page.getByText('E2E客户甲')).toBeVisible();
+    await expect(page.getByText('E2E客户乙')).not.toBeVisible();
   });
 
   test('searches by keyword', async ({ page, request }) => {
@@ -321,15 +462,17 @@ test.describe('列设置 — 自定义显示字段', () => {
     });
     await page.goto('/attack');
     await waitForTable(page);
-    await expect(page.getByRole('columnheader', { name: '编号' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '状态' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '处理人' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '事件级别' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '问题单号' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '客户' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '更新' })).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '操作' })).toBeVisible();
+    const th = page.locator('.ant-table-thead th');
+    const headerTexts = (await th.allTextContents()).map(t => t.trim());
+    expect(headerTexts).toContain('编号');
+    expect(headerTexts).toContain('标题');
+    expect(headerTexts).toContain('状态');
+    expect(headerTexts).toContain('处理人');
+    expect(headerTexts).toContain('事件级别');
+    expect(headerTexts).toContain('问题单号');
+    expect(headerTexts).toContain('客户');
+    expect(headerTexts).toContain('更新');
+    expect(headerTexts).toContain('操作');
   });
 
   test('unchecking column hides it from table', async ({ page, request }) => {
@@ -345,8 +488,10 @@ test.describe('列设置 — 自定义显示字段', () => {
 
     await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件级别' }).locator('input').click();
 
-    await expect(page.getByRole('columnheader', { name: '事件级别' })).not.toBeVisible();
-    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
+    const th = page.locator('.ant-table-thead th');
+    const headerTexts = (await th.allTextContents()).map(t => t.trim());
+    expect(headerTexts).not.toContain('事件级别');
+    expect(headerTexts).toContain('标题');
   });
 
   test('checking new column shows it in table', async ({ page, request }) => {
@@ -356,7 +501,8 @@ test.describe('列设置 — 自定义显示字段', () => {
     await page.goto('/attack');
     await waitForTable(page);
 
-    await expect(page.getByRole('columnheader', { name: '事件单号' })).not.toBeVisible();
+    let headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).not.toContain('事件单号');
 
     const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
     await settingsBtn.click();
@@ -364,7 +510,8 @@ test.describe('列设置 — 自定义显示字段', () => {
 
     await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件单号' }).locator('input').click();
 
-    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+    headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).toContain('事件单号');
     await expect(page.getByRole('cell', { name: 'INC-999' })).toBeVisible();
   });
 
@@ -377,11 +524,13 @@ test.describe('列设置 — 自定义显示字段', () => {
     await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
 
     await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '标题' }).locator('input').click();
-    await expect(page.getByRole('columnheader', { name: '标题' })).not.toBeVisible();
+    let headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).not.toContain('标题');
 
     await page.getByRole('button', { name: '重置默认' }).click();
 
-    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
+    headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).toContain('标题');
   });
 
   test('column selection persists after reload', async ({ page, request }) => {
