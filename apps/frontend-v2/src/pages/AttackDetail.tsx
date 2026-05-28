@@ -2,13 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Button, Space, Card, Descriptions, Timeline, Drawer, Form, Input, Select,
   message, Popconfirm, Spin, Tag, List, Avatar, Row, Col, Tabs, Table, Modal, Tree, Empty, Alert,
-  Tooltip, Steps, Divider, theme, Dropdown,
+  Tooltip, Steps, Divider, theme, Dropdown, Popover, Checkbox,
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, SwapOutlined, PlusOutlined, UserOutlined,
   DeleteOutlined, LinkOutlined, InfoCircleOutlined, HistoryOutlined,
   FileTextOutlined, NodeIndexOutlined, TeamOutlined, CheckCircleOutlined,
   ClockCircleOutlined, ThunderboltOutlined, MinusCircleOutlined, SyncOutlined,
+  CloseOutlined, AppstoreOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
@@ -107,6 +108,12 @@ export default function AttackDetail() {
 
   const [dynamicTabs, setDynamicTabs] = useState<TicketTab[]>([]);
   const [addTabOpen, setAddTabOpen] = useState(false);
+  const [visibleCards, setVisibleCards] = useState<string[]>(['helpers', 'team']);
+
+  const SIDEBAR_CARD_OPTIONS = [
+    { key: 'helpers', label: '找帮手推荐' },
+    { key: 'team', label: '攻关成员' },
+  ];
 
   const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
   const SUPPORT_CATEGORIES = getValues('求助分类', FALLBACK_SUPPORT_CATEGORIES);
@@ -296,22 +303,6 @@ export default function AttackDetail() {
               </Descriptions.Item>
             ))}
           </Descriptions>
-          {helpers.length > 0 && (
-            <>
-              <Divider orientation="left" orientationMargin={0}>找帮手推荐</Divider>
-              <List size="small" grid={{ column: 1 }} dataSource={helpers.slice(0, 3)} renderItem={(h, i) => (
-                <List.Item>
-                  <Space>
-                    <Tag color={i === 0 ? 'gold' : i === 1 ? '#c0c0c0' : '#cd7f32'}>#{i + 1}</Tag>
-                    <Avatar size="small" icon={<UserOutlined />} />
-                    <Text strong>{(h.person.properties['姓名'] as string) ?? h.person.id.slice(0, 8)}</Text>
-                    <Tag>得分 {h.score}</Tag>
-                    {h.reasons?.length > 0 && <Text type="secondary">{h.reasons[0]}</Text>}
-                  </Space>
-                </List.Item>
-              )} />
-            </>
-          )}
         </div>
       ),
     },
@@ -430,6 +421,25 @@ export default function AttackDetail() {
           <Text type="secondary">创建于 {dayjs(node.createdAt).format(DATE_FORMAT)} · 更新于 {dayjs(node.updatedAt).fromNow()}</Text>
         </div>
         <Space>
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            content={
+              <div style={{ minWidth: 180 }}>
+                <Checkbox.Group
+                  value={visibleCards}
+                  onChange={(vals) => setVisibleCards(vals as string[])}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
+                >
+                  {SIDEBAR_CARD_OPTIONS.map(opt => (
+                    <Checkbox key={opt.key} value={opt.key}>{opt.label}</Checkbox>
+                  ))}
+                </Checkbox.Group>
+              </div>
+            }
+          >
+            <Button icon={<AppstoreOutlined />}>面板</Button>
+          </Popover>
           <Link to={`/related/attackTicket/${id}`}><Button icon={<LinkOutlined />}>关联全景</Button></Link>
           <Button icon={<SwapOutlined />} onClick={() => setTransitionOpen(true)}>状态流转</Button>
           <Button icon={<EditOutlined />} onClick={() => { editForm.setFieldsValue(props as any); setEditOpen(true); }}>编辑信息</Button>
@@ -467,7 +477,7 @@ export default function AttackDetail() {
       )}
 
       <Row gutter={16}>
-        <Col span={18}>
+        <Col span={visibleCards.length > 0 ? 18 : 24}>
           <Card styles={{ body: { padding: 0 } }}>
             <Tabs
               type="editable-card"
@@ -488,9 +498,19 @@ export default function AttackDetail() {
             />
           </Card>
         </Col>
-        <Col span={6}>
-          {helpers.length > 0 && (
-            <Card title="找帮手推荐" size="small" style={{ marginBottom: 16 }} extra={<Tag>{helpers.length}人</Tag>}>
+        {visibleCards.length > 0 && <Col span={6}>
+          {visibleCards.includes('helpers') && helpers.length > 0 && (
+            <Card
+              title="找帮手推荐"
+              size="small"
+              style={{ marginBottom: 16 }}
+              extra={
+                <Space size={4}>
+                  <Tag>{helpers.length}人</Tag>
+                  <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setVisibleCards(prev => prev.filter(k => k !== 'helpers'))} />
+                </Space>
+              }
+            >
               <List size="small" dataSource={helpers} renderItem={(h, i) => (
                 <List.Item style={{ padding: '6px 0' }}>
                   <Space>
@@ -503,12 +523,23 @@ export default function AttackDetail() {
               )} />
             </Card>
           )}
-          <Card title="攻关成员" size="small" extra={<TeamOutlined />}>
-            <Descriptions column={1} size="small">
-              {teamFields.map(f => <Descriptions.Item key={f.name} label={f.label}>{String(props[f.name] ?? '-')}</Descriptions.Item>)}
-            </Descriptions>
-          </Card>
-        </Col>
+          {visibleCards.includes('team') && (
+            <Card
+              title="攻关成员"
+              size="small"
+              extra={
+                <Space size={4}>
+                  <TeamOutlined />
+                  <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setVisibleCards(prev => prev.filter(k => k !== 'team'))} />
+                </Space>
+              }
+            >
+              <Descriptions column={1} size="small">
+                {teamFields.map(f => <Descriptions.Item key={f.name} label={f.label}>{String(props[f.name] ?? '-')}</Descriptions.Item>)}
+              </Descriptions>
+            </Card>
+          )}
+        </Col>}
       </Row>
 
       <Drawer title="编辑攻关信息" width={520} open={editOpen} onClose={() => setEditOpen(false)} destroyOnClose maskClosable={false}
