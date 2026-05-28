@@ -5,6 +5,7 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { themeConfig } from './theme.js';
 import App from './App.js';
+import './markdown.css';
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

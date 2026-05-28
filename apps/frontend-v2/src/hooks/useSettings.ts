@@ -1,44 +1,30 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api.js';
 
-const cache: Record<string, { values: string[]; label?: string }> = {};
-let loaded = false;
-let loadPromise: Promise<void> | null = null;
-
-async function loadAll() {
-  if (loadPromise) return loadPromise;
-  loadPromise = (async () => {
-    try {
-      const all = await api.listSettings();
-      for (const [k, v] of Object.entries(all)) cache[k] = v;
-    } catch {}
-    loaded = true;
-  })();
-  return loadPromise;
-}
-
 export function useSettings() {
-  const [settings, setSettings] = useState<Record<string, { values: string[]; label?: string }>>({ ...cache });
-  const [ready, setReady] = useState(loaded);
+  const [settings, setSettings] = useState<Record<string, { values: string[]; label?: string }>>({});
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (loaded) { setSettings({ ...cache }); setReady(true); return; }
-    loadAll().then(() => { setSettings({ ...cache }); setReady(true); });
+    let cancelled = false;
+    api.listSettings()
+      .then(all => { if (!cancelled) { setSettings(all); setReady(true); } })
+      .catch(() => { if (!cancelled) setReady(true); });
+    return () => { cancelled = true; };
   }, []);
 
-  const getOptions = useCallback((key: string, fallback?: string[]): { value: string; label: string }[] => {
-    const vals = settings[key]?.values ?? fallback ?? [];
+  const getOptions = useCallback((key: string): { value: string; label: string }[] => {
+    const vals = settings[key]?.values ?? [];
     return vals.map(v => ({ value: v, label: v }));
   }, [settings]);
 
-  const getValues = useCallback((key: string, fallback?: string[]): string[] => {
-    return settings[key]?.values ?? fallback ?? [];
+  const getValues = useCallback((key: string): string[] => {
+    return settings[key]?.values ?? [];
   }, [settings]);
 
   const reload = useCallback(async () => {
-    loaded = false; loadPromise = null;
-    await loadAll();
-    setSettings({ ...cache });
+    const all = await api.listSettings();
+    setSettings(all);
   }, []);
 
   return { settings, ready, getOptions, getValues, reload };

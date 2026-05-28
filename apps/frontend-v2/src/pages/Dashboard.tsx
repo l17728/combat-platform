@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, List, Tag, Skeleton, Empty, Tooltip, theme } from 'antd';
+import { Row, Col, Card, Statistic, Typography, List, Tag, Skeleton, Empty, Tooltip, theme, Tabs } from 'antd';
 import {
   ThunderboltOutlined,
   CheckCircleOutlined,
   FileTextOutlined,
   ClockCircleOutlined,
+  DashboardOutlined,
+  NotificationOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { STATUS_COLOR, STATUS_BAR_COLOR, DATE_FORMAT_SHORT } from '../constants.js';
+import { STATUS_COLOR, STATUS_BAR_COLOR } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import type { DashboardSummary } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import InfoSquare from './InfoSquare.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -22,7 +25,7 @@ dayjs.locale('zh-cn');
 
 const { Title } = Typography;
 
-export default function Dashboard() {
+function DashboardContent() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +59,6 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>作战态势</Title>
-        <HelpButton title={HELP.dashboard.title} content={HELP.dashboard.content} />
-      </div>
-
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={12} md={6}>
           <Card hoverable onClick={() => navigate('/attack')} style={{ cursor: 'pointer' }}>
@@ -180,6 +178,37 @@ export default function Dashboard() {
           </Card>
         </Col>
       </Row>
+    </div>
+  );
+}
+
+export default function Dashboard() {
+  const [activeKey, setActiveKey] = useState('dashboard');
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+        <Tabs
+          activeKey={activeKey}
+          onChange={setActiveKey}
+          size="large"
+          items={[
+            {
+              key: 'dashboard',
+              label: <span><DashboardOutlined /> 作战态势</span>,
+              children: <DashboardContent />,
+            },
+            {
+              key: 'square',
+              label: <span><NotificationOutlined /> 信息广场</span>,
+              children: <InfoSquare />,
+            },
+          ]}
+        />
+        {activeKey === 'dashboard' && (
+          <HelpButton title={HELP.dashboard.title} content={HELP.dashboard.content} />
+        )}
+      </div>
     </div>
   );
 }

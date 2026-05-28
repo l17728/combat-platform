@@ -105,6 +105,7 @@ export const NODE_TYPE_LABEL: Record<string, string> = {
   'contribution': '贡献',
   'releasePackage': '版本包',
   'weightFile': '权重文件',
+  'infoCard': '信息卡片',
 };
 
 export const PAGE_SIZE = 20;
@@ -130,4 +131,18 @@ export const LINKABLE_EDGE_TYPES: Record<string, string> = {
 export const TAB_TYPE_LABEL: Record<string, string> = {
   'link': '关联数据',
   'custom': '自定义笔记',
+};
+
+export const INFO_IMPORTANCE_COLOR: Record<string, string> = {
+  '重要': 'red',
+  '一般': 'orange',
+  '普通': 'blue',
+};
+
+export const INFO_CATEGORY_COLOR: Record<string, string> = {
+  '通知': 'blue',
+  '公告': 'purple',
+  '经验': 'cyan',
+  '预警': 'red',
+  '其他': 'default',
 };
