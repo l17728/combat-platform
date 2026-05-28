@@ -37,7 +37,7 @@ test.describe('攻关作战台 - 列表', () => {
     await expect(page.getByRole('cell', { name: '待响应' }).first()).toBeVisible();
   });
 
-  test('filters by status', async ({ page, request }) => {
+  test('filters by field and value via checkbox', async ({ page, request }) => {
     await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E筛选待响应', 状态: '待响应' },
     });
@@ -50,8 +50,12 @@ test.describe('攻关作战台 - 列表', () => {
     await expect(page.getByText('E2E筛选待响应')).toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
 
-    const statusSelect = page.locator('.ant-select').nth(0);
-    await selectOption(page, statusSelect, '已解决');
+    const fieldSelect = page.locator('.ant-select').nth(0);
+    await selectOption(page, fieldSelect, '状态');
+
+    await expect(page.locator('.ant-checkbox-group')).toBeVisible();
+    await page.locator('.ant-checkbox-group').locator('label').filter({ hasText: '已解决' }).locator('input').click();
+
     await expect(page.getByText('E2E筛选待响应')).not.toBeVisible();
     await expect(page.getByText('E2E筛选已解决')).toBeVisible();
   });

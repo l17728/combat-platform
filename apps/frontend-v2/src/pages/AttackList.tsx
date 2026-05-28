@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Modal,
+  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Modal, Checkbox,
 } from 'antd';
 import { PlusOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
+import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, NodeSchema, FieldType } from '@combat/shared';
@@ -28,7 +28,8 @@ export default function AttackList() {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [schema, setSchema] = useState<NodeSchema | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>();
+  const [filterField, setFilterField] = useState<string | undefined>();
+  const [filterValues, setFilterValues] = useState<string[]>([]);
   const [searchText, setSearchText] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
@@ -45,10 +46,8 @@ export default function AttackList() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const filter: Record<string, string> = {};
-      if (statusFilter) filter['状态'] = statusFilter;
       const [nodeList, schemaData] = await Promise.all([
-        api.listNodes('attackTicket', filter),
+        api.listNodes('attackTicket'),
         api.getSchema('attackTicket'),
       ]);
       setNodes(nodeList);
@@ -58,23 +57,53 @@ export default function AttackList() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { api.listNodes('person').then(setPeople).catch(() => {}); }, []);
 
-  const filteredNodes = searchText
-    ? nodes.filter((n) => {
+  const fieldOptions = useMemo(() => {
+    if (!schema) return [];
+    return schema.fields
+      .filter(f => !f.retired)
+      .map(f => ({ value: f.name, label: f.label || f.name }));
+  }, [schema]);
+
+  const uniqueValues = useMemo(() => {
+    if (!filterField) return [];
+    const seen = new Set<string>();
+    for (const n of nodes) {
+      const v = n.properties[filterField];
+      if (v != null && v !== '') {
+        const s = String(v);
+        if (!seen.has(s)) seen.add(s);
+      }
+    }
+    return [...seen].sort();
+  }, [filterField, nodes]);
+
+  const filteredNodes = useMemo(() => {
+    let result = nodes;
+    if (filterField && filterValues.length > 0) {
+      result = result.filter(n => {
+        const v = n.properties[filterField];
+        return v != null && filterValues.includes(String(v));
+      });
+    }
+    if (searchText) {
+      const s = searchText.toLowerCase();
+      result = result.filter(n => {
         const p = n.properties;
-        const s = searchText.toLowerCase();
         return (
           (p['标题'] as string)?.toLowerCase().includes(s) ||
           (p['问题单号'] as string)?.toLowerCase().includes(s) ||
           (p['当前处理人'] as string)?.toLowerCase().includes(s) ||
           (p['客户名称'] as string)?.toLowerCase().includes(s)
         );
-      })
-    : nodes;
+      });
+    }
+    return result;
+  }, [nodes, filterField, filterValues, searchText]);
 
   const personOptions = people.map((p) => ({
     value: (p.properties['姓名'] as string) ?? '',
@@ -176,8 +205,14 @@ export default function AttackList() {
       </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
-        <Select placeholder="状态筛选" allowClear style={{ width: 140 }} value={statusFilter} onChange={setStatusFilter}
-          options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+        <Select placeholder="选择筛选字段" allowClear style={{ width: 160 }} value={filterField}
+          onChange={(v) => { setFilterField(v); setFilterValues([]); }}
+          options={fieldOptions} />
+        {filterField && uniqueValues.length > 0 && (
+          <Checkbox.Group value={filterValues} onChange={(v) => setFilterValues(v as string[])}
+            options={uniqueValues.map(val => ({ label: val, value: val }))}
+            style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px 12px', maxHeight: 80, overflowY: 'auto', padding: '4px 0' }} />
+        )}
         <Input placeholder="搜索标题/单号/处理人" prefix={<SearchOutlined />} style={{ width: 260 }}
           value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear />
       </Space>
