@@ -1,0 +1,61 @@
+{
+  "nodeType": "infoCard",
+  "label": "信息卡片",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "fields": [
+    {
+      "id": "标题",
+      "name": "标题",
+      "type": "string",
+      "label": "标题",
+      "required": true
+    },
+    {
+      "id": "摘要",
+      "name": "摘要",
+      "type": "string",
+      "label": "摘要"
+    },
+    {
+      "id": "内容",
+      "name": "内容",
+      "type": "string",
+      "label": "内容"
+    },
+    {
+      "id": "重要程度",
+      "name": "重要程度",
+      "type": "enum",
+      "label": "重要程度",
+      "required": true,
+      "enumValues": [
+        "重要",
+        "一般",
+        "普通"
+      ],
+      "optionsKey": "重要程度"
+    },
+    {
+      "id": "信息分类",
+      "name": "信息分类",
+      "type": "enum",
+      "label": "信息分类",
+      "required": true,
+      "enumValues": [
+        "通知",
+        "公告",
+        "经验",
+        "预警",
+        "其他"
+      ],
+      "optionsKey": "信息分类"
+    },
+    {
+      "id": "发布人",
+      "name": "发布人",
+      "type": "string",
+      "label": "发布人"
+    }
+  ]
+}

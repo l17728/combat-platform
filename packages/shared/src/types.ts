@@ -12,6 +12,7 @@ export interface FieldSchema {
   aliases?: string[];
   concept?: string;
   anchor?: string;
+  optionsKey?: string;
 }
 export interface NodeSchema {
   nodeType: string;

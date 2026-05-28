@@ -17,6 +17,34 @@ export interface SchemaSuggestion {
 
 const NODE_TYPE_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
+export function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository): void {
+  for (const ns of registry.getConfig().nodeTypes) {
+    for (const f of ns.fields) {
+      if (f.type === "enum" && f.enumValues && f.enumValues.length > 0) {
+        const key = `config:${f.name}`;
+        const existing = repo.getSetting(key);
+        if (!existing) {
+          repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${ns.label}.${f.label}` }), "schema-seed");
+        }
+      }
+    }
+  }
+  // Non-schema config keys used by the frontend
+  const uiDefaults: Record<string, { values: string[]; label: string }> = {
+    "求助分类": { values: ["环境", "领域专家", "团队协作", "资源"], label: "求助网络分类" },
+    "求助状态": { values: ["待确认", "支持中", "已完成", "已撤销"], label: "求助节点状态" },
+    "求助中心状态": { values: ["待回复", "已回复"], label: "求助中心筛选状态" },
+    "日报类型": { values: ["进展通报", "风险通报"], label: "攻关日报类型" },
+    "事件级别": { values: ["P1", "P2", "P3", "P4", "P4A", "P4B"], label: "事件级别" },
+  };
+  for (const [key, cfg] of Object.entries(uiDefaults)) {
+    const existing = repo.getSetting(`config:${key}`);
+    if (!existing) {
+      repo.setSetting(`config:${key}`, JSON.stringify(cfg), "schema-seed");
+    }
+  }
+}
+
 export function makeSchemaApiRouter(
   registry: SchemaRegistry,
   schemaDir: string,
@@ -139,6 +167,20 @@ export function makeSchemaApiRouter(
       }
 
       log.info("schema.create", { nodeType, fieldCount: normalizedFields.length });
+
+      // Auto-seed config center for enum fields that have enumValues but no optionsKey
+      for (const f of normalizedFields) {
+        if (f.type === "enum" && f.enumValues && f.enumValues.length > 0) {
+          const key = `config:${f.name}`;
+          const existing = repo.getSetting(key);
+          if (!existing) {
+            repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${label}.${f.label}` }), "schema-seed");
+          }
+          if (!f.optionsKey) {
+            f.optionsKey = f.name;
+          }
+        }
+      }
 
       const created = registry.getNodeSchema(nodeType);
       return res.status(201).json(created);

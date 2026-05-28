@@ -80,6 +80,9 @@ export class FileSchemaRegistry implements SchemaRegistry {
     } else if (op.op === "setAnchor") {
       if (typeof op.anchor !== "string") throw new Error("setAnchor 需要 anchor 字符串");
       find(op.id).anchor = op.anchor;
+    } else if (op.op === "setOptionsKey") {
+      if (op.optionsKey !== null && typeof op.optionsKey !== "string") throw new Error("setOptionsKey 需要 optionsKey 字符串或 null");
+      find(op.id).optionsKey = op.optionsKey ?? undefined;
     } else {
       throw new Error(`未知操作: ${(op as { op: string }).op}`);
     }
