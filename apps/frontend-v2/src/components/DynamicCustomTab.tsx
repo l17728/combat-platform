@@ -51,7 +51,7 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
   const [question, setQuestion] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [editorOpen, setEditorOpen] = useState(true);
+  const [editorOpen, setEditorOpen] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
