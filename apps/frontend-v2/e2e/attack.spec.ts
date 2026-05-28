@@ -512,7 +512,7 @@ test.describe('列设置 — 自定义显示字段', () => {
 
     headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
     expect(headerTexts).toContain('事件单号');
-    await expect(page.getByRole('cell', { name: 'INC-999' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'INC-999' }).first()).toBeVisible();
   });
 
   test('reset default restores default columns', async ({ page }) => {
@@ -545,12 +545,14 @@ test.describe('列设置 — 自定义显示字段', () => {
     await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
 
     await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件单号' }).locator('input').click();
-    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+    let headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).toContain('事件单号');
 
     await page.reload();
     await waitForTable(page);
 
-    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+    headerTexts = (await page.locator('.ant-table-thead th').allTextContents()).map(t => t.trim());
+    expect(headerTexts).toContain('事件单号');
 
     const afterReload = await page.evaluate(() => {
       const v = localStorage.getItem('attack-list-visible-columns');
