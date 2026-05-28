@@ -71,7 +71,7 @@ function ensureTable(db: DB) {
 export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: MailSender, baseUrl?: string): Router {
   ensureTable(db);
   const r = Router();
-  const BASE = baseUrl ?? process.env.HELP_BASE_URL ?? "http://60.204.199.234:3001";
+  const BASE = baseUrl ?? process.env.HELP_BASE_URL ?? "http://124.156.193.122:3001";
 
   r.post(
     "/help-requests",

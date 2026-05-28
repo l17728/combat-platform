@@ -9,12 +9,19 @@ export interface MailSender {
 
 export class NodemailerSender implements MailSender {
   async send(cfg: SmtpConfig, msg: { to: string[]; subject: string; body: string }): Promise<{ messageId: string }> {
-    const transport = nodemailer.createTransport({
+    const transportOpts: Record<string, unknown> = {
       host: cfg.host,
       port: cfg.port,
       secure: cfg.secure,
       auth: { user: cfg.username, pass: cfg.password },
-    });
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+    };
+    if (!cfg.secure && cfg.port === 587) {
+      transportOpts.requireTLS = true;
+    }
+    const transport = nodemailer.createTransport(transportOpts);
     const from = cfg.fromName ? `${cfg.fromName} <${cfg.fromEmail}>` : cfg.fromEmail;
     const info = await transport.sendMail({
       from,

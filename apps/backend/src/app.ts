@@ -26,7 +26,7 @@ import { makeEmailRouter } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
 import { requestLogger, log } from "./logger.js";
 import { makeResponsibilityRouter } from "./responsibility.js";
-import { makeSchemaApiRouter } from "./schema-api.js";
+import { makeSchemaApiRouter, seedConfigFromSchemas } from "./schema-api.js";
 import { makeUiCacheRouter } from "./ui-cache.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { makeDailyReportEntryRouter } from "./daily-report-entry.js";
@@ -51,6 +51,8 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", authMiddleware);
     app.use("/api", makeUserAdminRouter(deps.db));
   }
+
+  seedConfigFromSchemas(deps.registry, deps.repo);
 
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));

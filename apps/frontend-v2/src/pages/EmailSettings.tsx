@@ -6,6 +6,7 @@ import {
   Input,
   InputNumber,
   Button,
+  Switch,
   message,
   Skeleton,
   Space,
@@ -15,7 +16,7 @@ import type { SmtpConfigMasked } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function EmailSettings() {
   const [config, setConfig] = useState<SmtpConfigMasked | null>(null);
@@ -29,7 +30,15 @@ export default function EmailSettings() {
       .getEmailConfig()
       .then((c) => {
         setConfig(c);
-        form.setFieldsValue(c as any);
+        form.setFieldsValue({
+          host: c.host,
+          port: c.port,
+          secure: c.secure,
+          username: c.username,
+          password: '',
+          fromEmail: c.fromEmail,
+          fromName: c.fromName ?? '',
+        });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -38,7 +47,15 @@ export default function EmailSettings() {
   const handleSave = async (values: Record<string, unknown>) => {
     setSaving(true);
     try {
-      await api.putEmailConfig(values as any);
+      await api.putEmailConfig({
+        host: values.host,
+        port: values.port,
+        secure: values.secure,
+        username: values.username,
+        password: values.password,
+        fromEmail: values.fromEmail,
+        fromName: values.fromName,
+      } as any);
       message.success('保存成功');
     } catch (e: any) {
       message.error(e.message);
@@ -55,8 +72,12 @@ export default function EmailSettings() {
     }
     setTesting(true);
     try {
-      await api.testEmail(to);
-      message.success('测试邮件已发送');
+      const result = await api.testEmail(to);
+      if (result.ok) {
+        message.success('测试邮件发送成功');
+      } else {
+        message.error(`发送失败: ${result.error ?? '未知错误'}`);
+      }
     } catch (e: any) {
       message.error(e.message);
     } finally {
@@ -74,22 +95,42 @@ export default function EmailSettings() {
       </div>
 
       <Card style={{ maxWidth: 600 }}>
-        <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item name="host" label="SMTP 服务器">
-            <Input placeholder="smtp.example.com" />
+        <Form form={form} layout="vertical" onFinish={handleSave}
+          initialValues={{ port: 465, secure: true }}>
+          <Form.Item name="host" label="SMTP 服务器"
+            rules={[{ required: true, message: '请输入 SMTP 服务器地址' }]}>
+            <Input placeholder="例如: smtp.qq.com" />
           </Form.Item>
-          <Form.Item name="port" label="端口">
-            <InputNumber placeholder="465" min={1} max={65535} style={{ width: '100%' }} />
+          <Space style={{ width: '100%' }} direction="horizontal" size="large">
+            <Form.Item name="port" label="端口"
+              rules={[{ required: true, message: '请输入端口' }]}>
+              <InputNumber placeholder="465" min={1} max={65535} style={{ width: 160 }} />
+            </Form.Item>
+            <Form.Item name="secure" label="SSL/TLS" valuePropName="checked"
+              tooltip="端口 465 通常启用 SSL，端口 587 通常关闭">
+              <Switch checkedChildren="SSL" unCheckedChildren="OFF" />
+            </Form.Item>
+          </Space>
+          <Form.Item name="username" label="用户名（邮箱地址）"
+            rules={[{ required: true, message: '请输入邮箱地址' }]}>
+            <Input placeholder="例如: 3657768344@qq.com" />
           </Form.Item>
-          <Form.Item name="user" label="用户名">
-            <Input placeholder="发件人邮箱" />
+          <Form.Item name="password" label="密码 / 授权码"
+            rules={[{ required: true, message: '请输入密码或授权码' }]}>
+            <Input.Password placeholder="QQ邮箱请使用授权码" />
           </Form.Item>
-          <Form.Item name="pass" label="密码">
-            <Input.Password placeholder="••••••" />
+          <Form.Item name="fromEmail" label="发件人邮箱"
+            rules={[{ required: true, message: '请输入发件人邮箱' }]}>
+            <Input placeholder="与用户名相同，例如: 3657768344@qq.com" />
           </Form.Item>
-          <Form.Item name="from" label="发件人">
-            <Input placeholder="发件人名称 <email@example.com>" />
+          <Form.Item name="fromName" label="发件人名称（可选）">
+            <Input placeholder="例如: 作战管理平台" />
           </Form.Item>
+          {config?.passwordSet && !form.getFieldValue('password') && (
+            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              密码已保存。留空则保持原密码不变。
+            </Text>
+          )}
           <Space>
             <Button type="primary" htmlType="submit" loading={saving}>
               保存配置
