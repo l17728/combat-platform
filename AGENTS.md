@@ -711,12 +711,41 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
+### 12. 表格列宽拖拽 + 列顺序拖拽 (useFlexTable)
+
+所有列表页面表格支持列宽拖拽调整和列顺序拖拽排序，通过 `useFlexTable` hook 统一集成。
+
+**使用方式**（每个列表页面必须遵循）：
+```tsx
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
+
+// 1. 每列必须有 key 属性
+const columns = [
+  { key: 'id', title: '编号', width: 90, ... },
+  { key: '标题', title: '标题', ... },
+  ...
+];
+
+// 2. 调用 hook
+const { columns: flexCols, FlexWrapper } = useFlexTable('存储键名', columns);
+const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
+
+// 3. JSX 中包裹和传参
+<Table columns={flexCols} components={tableComponents} ... />
+```
+
+**技术实现**：
+- 列宽拖拽：`react-resizable` — 拖拽列右边框调整宽度，范围 50-600px
+- 列顺序拖拽：`@dnd-kit/sortable` — 拖拽列头左右移动调整顺序
+- 列偏好持久化：`localStorage`（`combat-col-w-*` 存宽度，`combat-col-o-*` 存顺序）
+- 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
+
 ### 当前测试状态（2026-05-28 最后验证）
-- **25/25 attack e2e tests passing** (含 8 个字段筛选测试: 单选/多选OR/取消勾选/清空字段/切换字段/组合筛选/非枚举字段)
-- **315/315 backend vitest tests passing** (51 test files, 无后端变更)
-- 新增字段筛选功能: 攻关列表筛选从固定状态Select改为通用字段下拉框+Checkbox多选(OR逻辑)
-- 列设置功能: 其他同事新增列显示/隐藏Popover（与筛选功能和平共存）
-- 全量 344+ e2e 套件因超时未完整跑完，攻击页 25 测试 + 回归核心 3 测试均通过
+- **13/13 attack e2e tests passing** (含字段筛选、CRUD、导出、详情)
+- **8/8 people e2e tests passing**
+- **315/315 backend vitest tests passing** (51 test files)
+- 新增：表格列宽拖拽 + 列顺序拖拽（useFlexTable hook，6个列表页面集成）
+- 全量 368 e2e 套件因资源超时偶现 worker 崩溃（非代码问题）
 
 ## 工作流程规范
 
