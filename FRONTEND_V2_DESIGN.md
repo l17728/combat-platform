@@ -35,7 +35,7 @@ API: 原生 fetch 封装 → 124.156.193.122:3001
 ### 2.2 布局
 ```
 ┌──────────────────────────────────────────────────────┐
-│ 顶部栏 48px: Logo + 全局搜索 + 角色切换 + 用户头像      │
+│ 顶部栏 48px: Logo + 用户 Dropdown (displayName + role + 登出) │
 ├────────┬─────────────────────────────────────────────┤
 │ 侧边栏  │ 内容区 (max-width 1400px, 居中)              │
 │ 200px  │                                             │
@@ -359,7 +359,7 @@ API: `POST /api/nodes/:id/transition`
 **后端流程**（新增）：
 1. 创建 helpRequest 节点（nodeType=helpRequest）
 2. 生成唯一反馈 token（UUID）
-3. 构造反馈链接：`http://60.204.199.234:3001/api/help/feedback/:token`
+3. 构造反馈链接：`http://124.156.193.122:3001/api/help/feedback/:token`
 4. 通过已有邮件系统发送邮件给求助对象
 5. 邮件内容包含：求助人、攻关单标题、求助内容、反馈链接
 
@@ -641,7 +641,7 @@ CREATE TABLE IF NOT EXISTS help_requests (
 {question}
 
 请点击以下链接回复：
-http://60.204.199.234:3001/api/help/feedback/{token}
+http://124.156.193.122:3001/api/help/feedback/{token}
 
 — 作战平台
 ```

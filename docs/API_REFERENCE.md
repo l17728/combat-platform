@@ -1,6 +1,6 @@
 # API 参考
 
-> Base：`http://localhost:3001`（开发）/ `http://60.204.199.234:3001`（部署服）。所有响应 `application/json`。错误：`{ error: string }` + 适当 HTTP 码。
+> Base：`http://localhost:3001`（开发）/ `http://124.156.193.122:3001`（部署服）。所有响应 `application/json`。错误：`{ error: string }` + 适当 HTTP 码。
 
 ## 认证（Auth）
 

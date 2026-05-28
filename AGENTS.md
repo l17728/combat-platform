@@ -190,24 +190,20 @@ ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 | 操作日志 | SQLite `op_logs` 表 | 前端API调用、路由导航、全局错误 | 前端"操作日志"页面 |
 
 **生产环境日志文件路径**：
-- 目标机 (60.204.199.234): **`/opt/combat-v2/backend.log`**
-- 直连机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
+- 生产机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
 - 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log` 写入
 
 **日志查看命令**：
 ```bash
-# 通过部署脚本查看（最近30行）
-cd scripts/deploy-v2 && node deploy.mjs logs
-
 # SSH 直连查看实时日志
-ssh root@60.204.199.234 'tail -f /opt/combat-v2/backend.log'
+ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 
 # 按关键词搜索
-ssh root@60.204.199.234 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
-ssh root@60.204.199.234 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
+ssh root@124.156.193.122 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
+ssh root@124.156.193.122 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
 
 # journalctl 方式（与 backend.log 内容相同）
-ssh root@60.204.199.234 'journalctl -u combat-v2 --no-pager -n 50'
+ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 ```
 
 **后端日志事件速查**（`logger.ts` 中的 event 名称，可用于 grep）：
@@ -225,12 +221,13 @@ ssh root@60.204.199.234 'journalctl -u combat-v2 --no-pager -n 50'
 - HTTP: `http.request`（所有请求）, `http.error`, `http.unhandled`
 - 动态标签: `ticket_tab.created`, `ticket_tab.updated`, `ticket_tab.deleted`, `ticket_tab.reordered`
 
-### Existing Deployment (参考前端，不要修改)
+### Existing Deployment (参考前端，不要修改，已停止更新)
 - **服务器**: `47.103.99.229`（Alibaba Cloud Linux）
 - **路径**: `/opt/combat/`
 - **前端端口**: 5173（vite preview）
 - **后端端口**: 3001（tsx server.ts）
 - **部署脚本**: `scripts/deploy/deploy.mjs` + `run-deploy.sh`
+- **状态**: 已停止部署新版本，仅保留参考
 
 ## Project Overview
 
@@ -488,24 +485,21 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 ### Drawer 关闭不会提交数据
 测试验证：打开 drawer、填写数据、点击关闭按钮（`.ant-drawer-close`）不会创建任何数据。这是回归防护测试之一。
 
-## Deploy Infrastructure (2026-05-24 已验证)
+## Deploy Infrastructure (2026-05-28 更新)
 
-### 跳板机 → 目标机 SSH Key 认证
-- 跳板机 (47.103.99.229) 上已生成 ed25519 密钥对（2026-05-24 创建）
-- 公钥已写入目标机 (60.204.199.234) 的 `~/.ssh/authorized_keys`
-- **密码**: 两台机器密码相同，见 `.env.deploy`
-- 如果 SSH key 认证失效，需要通过 `sshpass` 重新写入公钥：
-  ```
-  sshpass -p '<PASSWORD>' ssh root@60.204.199.234 'echo <PUBKEY> > ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'
-  ```
-- 跳板机上只有公钥没有私钥会导致认证失败。**必须在跳板机上用 `ssh-keygen` 生成完整的密钥对**
+### 直连部署（当前方式）
+- **生产服务器**: `124.156.193.122`（直连 SSH，无需跳板机）
+- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+- **Node 版本**: v22.22.3（通过 nvm 管理）
+- **systemd 服务**: `combat-v2.service`，自动重启，开机自启
+
+> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 ### 部署流程
 ```bash
-cd scripts/deploy-v2 && node deploy.mjs deploy
+cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 ```
-- 从 git HEAD 打包 → SFTP 到跳板机 → SCP 到目标机 → tar 解压 → npm install → build frontend-v2 → systemctl restart combat-v2
-- 后端通过 Node v22 (`/opt/node22-v2/`) 运行（better-sqlite3 不兼容 Node 24）
+- 从 git HEAD 打包 → 直连 SFTP 到生产机 → tar 解压 → npm install → build frontend-v2 → systemctl restart combat-v2
 - 前端 build 产物在 `apps/frontend-v2/dist/`，由后端 Express 静态服务
 
 ## 前端设计规范（Frontend-v2 Design System）
@@ -740,12 +734,13 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 列偏好持久化：`localStorage`（`combat-col-w-*` 存宽度，`combat-col-o-*` 存顺序）
 - 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
 
-### 当前测试状态（2026-05-28 最后验证）
-- **13/13 attack e2e tests passing** (含字段筛选、CRUD、导出、详情)
+### 当前测试状态（2026-05-29 最后验证）
+- **31/31 attack e2e tests passing** (含字段筛选、CRUD、导出、详情、列设置)
 - **8/8 people e2e tests passing**
 - **315/315 backend vitest tests passing** (51 test files)
+- 新增：列设置功能（Popover + Checkbox.Group，6个E2E测试）
 - 新增：表格列宽拖拽 + 列顺序拖拽（useFlexTable hook，6个列表页面集成）
-- 全量 368 e2e 套件因资源超时偶现 worker 崩溃（非代码问题）
+- 修复：Ant Design scroll.x 导致 `getByText` 严格模式违规，改用 `page.locator('tbody').first().getByText()` 限定表格范围
 
 ## 工作流程规范
 

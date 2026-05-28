@@ -950,7 +950,7 @@ cd scripts/deploy-v2 && node deploy.mjs restart
 cd scripts/deploy-v2 && node deploy.mjs logs
 ```
 
-部署架构：开发机 → 跳板机(47.103.99.229) → 目标机(60.204.199.234)。跳板机从 GitHub 拉代码打包后 SCP 到目标机，避免开发机→跳板机的 SSH 管道传输瓶颈。
+部署架构（2026-05-28 更新）：开发机 → 直连 SSH 到生产服务器 (124.156.193.122)。`deploy-direct.mjs` 从 git HEAD 打包后 SFTP 直传生产机，npm install + build + systemctl restart。旧跳板机部署已废弃。
 
 ---
 

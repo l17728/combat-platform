@@ -259,37 +259,31 @@ npx tsc --noEmit --workspace=@combat/shared
 
 ## Deployment
 
-### Target Server (新前端部署)
-- **目标机**: `60.204.199.234`（Ubuntu 24.04, 30G RAM, 296G disk）
-- **跳板机**: `47.103.99.229`（必须通过此机器 SSH 跳转，不能直连目标机）
-- **跳板机凭据**: 见 `.env.deploy`（DEPLOY_HOST/USER/PASS）
-- **部署路径**: `/opt/combat-v2/`（目标机上）
-- **访问地址**: `http://60.204.199.234:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
+### Production Server (生产环境 — 唯一部署目标)
+- **服务器**: `124.156.193.122`（直连 SSH，用户 `root`，密码见 `.env.deploy`）
+- **部署路径**: `/opt/combat-v2/`
+- **访问地址**: `http://124.156.193.122:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
 - **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
-- **部署脚本**: `scripts/deploy-v2/` 目录
+- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+
+> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 #### 部署命令（从 repo 根目录执行）
 ```bash
 # 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
 git add -A && git commit -m "your message"
 
-# 一键部署（打包→跳板机→目标机→npm install→build→systemd restart）
-cd scripts/deploy-v2 && node deploy.mjs deploy
+# 一键部署（直连 SSH → 目标机）
+cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 
-# 仅重启服务（不重新上传代码）
-cd scripts/deploy-v2 && node deploy.mjs restart
-
-# 查看服务日志
-cd scripts/deploy-v2 && node deploy.mjs logs
+# 查看日志
+ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 ```
 
-#### 部署架构（2026-05-25 更新）
+#### 部署架构（2026-05-28 更新）
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
-- **Node 版本**：目标机自带 Node v24 但 better-sqlite3 不兼容，通过 systemd `PATH=/opt/node22-v2/bin` 使用 Node v22.14.0
-- **部署流程**：跳板机从 GitHub 拉代码 → `git archive` 打包 → SCP 到目标机 → `tar xzf` → `npm install` → `npm run build` (frontend-v2) → `systemctl restart combat-v2`
-- **不再使用 `stdinPut` 管道传输**（跳板机网络不稳定，SSH exec stdin 管道传 643KB 文件会超时）
-- 跳板机 SSH 密钥 `/root/.ssh/id_ed25519` 已写入目标机 authorized_keys
+- **直连部署**：`deploy-direct.mjs` 直连 SSH 到 124.156.193.122，无需跳板机
 
 #### 日志体系与文件路径
 
@@ -302,24 +296,20 @@ cd scripts/deploy-v2 && node deploy.mjs logs
 | 操作日志 | SQLite `op_logs` 表 | 前端API调用、路由导航、全局错误 | 前端"操作日志"页面 |
 
 **生产环境日志文件路径**：
-- 目标机 (60.204.199.234): **`/opt/combat-v2/backend.log`**
-- 直连机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
+- 生产机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
 - 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log` 写入
 
 **日志查看命令**：
 ```bash
-# 通过部署脚本查看（最近30行）
-cd scripts/deploy-v2 && node deploy.mjs logs
-
 # SSH 直连查看实时日志
-ssh root@60.204.199.234 'tail -f /opt/combat-v2/backend.log'
+ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 
 # 按关键词搜索
-ssh root@60.204.199.234 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
-ssh root@60.204.199.234 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
+ssh root@124.156.193.122 'grep "auth.login" /opt/combat-v2/backend.log | tail -20'
+ssh root@124.156.193.122 'grep "ERROR" /opt/combat-v2/backend.log | tail -20'
 
 # journalctl 方式（与 backend.log 内容相同）
-ssh root@60.204.199.234 'journalctl -u combat-v2 --no-pager -n 50'
+ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 ```
 
 **后端日志事件速查**（`logger.ts` 中的 event 名称，可用于 grep）：

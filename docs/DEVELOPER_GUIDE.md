@@ -82,8 +82,8 @@ export interface ChannelAdapter { send(r: Reminder, actor: string): { sentAt: st
 
 ## 6. 部署纪律
 
-- 每个增量 acceptance 通过后部署到测试服（http://www.catown.cloud:5173/）由用户手工验证。
-- 部署脚本 `scripts/deploy/deploy.mjs` 通过 ssh2 把当前 git HEAD（含 schema 配置）打包到 47.103.99.229 并启动 Node 22 + better-sqlite3。
+- 每个增量 acceptance 通过后部署到生产服（http://124.156.193.122:3001/）由用户手工验证。
+- 部署脚本 `scripts/deploy-v2/deploy-direct.mjs` 通过直连 SSH 把当前 git HEAD 打包到 124.156.193.122 并启动 Node 22 + better-sqlite3。
 - **凭据永远不入 git**：放 `.env.deploy`（gitignored）。
 
 ## 7. 调试速查
@@ -109,7 +109,7 @@ export interface ChannelAdapter { send(r: Reminder, actor: string): { sentAt: st
 7. **test:all 连续两次全绿**（每轮前端口预清）。
 8. **§N.6 验收**：把 `- [ ]` 翻成 `- [x]` 引证据；空提交 `chore(accept): ...`。
 9. **tag**：`git tag -a increment-N-<slug> -m "..."`。
-10. **部署**：`cd scripts/deploy && node deploy.mjs deploy` → 验证 http://www.catown.cloud:5173/ 200 + in-server backend/frontend=200。
+10. **部署**：`cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>` → 验证 http://124.156.193.122:3001/ 200。
 11. 给用户简洁的完成报告 + 路线图剩余 + 待决策点。
 
 ## 9. 已交付增量索引（按时序）

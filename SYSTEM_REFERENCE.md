@@ -11,69 +11,57 @@
 ### 0.1 网络拓扑
 
 ```
-[开发机 Windows] --SSH--> [跳板机 47.103.99.229] --SSH--> [目标机 60.204.199.234]
-                              │                            │
-                              │  参考前端部署在这里          │  新前端 v2 部署在这里
-                              │  /opt/combat/               │  /opt/combat-v2/
-                              │  前端 :5173 后端 :3001      │  前端 :TBD 后端 :3001
+[开发机 Windows] --SSH直连--> [生产服务器 124.156.193.122]
+                                    │
+                                    │  新前端 v2 + 后端 部署在这里
+                                    │  /opt/combat-v2/
+                                    │  单端口 :3001（Express 同时服务 API + 前端静态文件）
 ```
 
-- **不能直连目标机 60.204.199.234**，必须经跳板机 SSH 跳转
-- 跳板机 lg.sh 内容：`ssh root@60.204.199.234`
+- **直连部署**：`scripts/deploy-v2/deploy-direct.mjs 124.156.193.122 root <password>`
+- **跳板机部署已废弃**（旧目标机 60.204.199.234 不再使用）
 
-### 0.2 跳板机（47.103.99.229，参考前端部署服务器）
+### 0.2 生产服务器（124.156.193.122）
+| 项目 | 值 |
+|------|-----|
+| OS | Ubuntu 22.04.5 LTS |
+| 用户 | root / Pass@865342（见 .env.deploy） |
+| Node | v22.22.3（通过 nvm 管理） |
+| 路径 | /opt/combat-v2/ |
+| 端口 | :3001（Express 同时服务 API + 前端静态文件） |
+| systemd | combat-v2.service（Restart=always，开机自启） |
+| 日志 | /opt/combat-v2/backend.log |
+| 访问地址 | http://124.156.193.122:3001/ |
+
+### 0.3 参考前端服务器（47.103.99.229，只读参考）
 | 项目 | 值 |
 |------|-----|
 | OS | Alibaba Cloud Linux (kernel 5.10) |
-| 用户 | root / Pass@865342（见 .env.deploy） |
-| Node | /opt/node22/bin/node v22.14.0（run-deploy.sh 安装的） |
 | 路径 | /opt/combat/ |
 | 前端 | vite preview :5173 |
 | 后端 | tsx src/server.ts :3001 |
-| SSH 密钥 | /root/.ssh/id_ed25519（已生成，已拷贝到目标机） |
-| sshpass | 已安装（/usr/bin/sshpass） |
+| **注意** | 不再部署新版本，仅保留参考 |
 
-### 0.3 目标机（60.204.199.234，新前端 v2 部署服务器）
-| 项目 | 值 |
-|------|-----|
-| OS | Ubuntu 24.04.3 LTS |
-| 内核 | 6.8.0-87-generic x86_64 |
-| RAM | 30GB（可用 ~26GB） |
-| 磁盘 | 296GB（已用 9.3GB，可用 274GB） |
-| 系统 Node | v24.13.0（**不兼容 better-sqlite3@11，不能用**） |
-| 系统 npm | v11.6.2 |
-| 运行 Node | v22.14.0（`/opt/node22-v2/bin/node`，run-backend.sh 自动安装） |
-| nginx | 未安装 |
-| pm2 | 未安装 |
-| 监听端口 | :22(SSH), :25565, :18789, :18791/18792(本地), **:3001(后端,已启动)** |
-| /opt/ | containerd/, pairproxy/, **combat-v2/** |
-| 部署路径 | `/opt/combat-v2/`（已部署，后端运行中） |
-
-### 0.4 SSH 跳转链路（已验证可用）
-```
-跳板机 → 目标机：ssh -o StrictHostKeyChecking=no root@60.204.199.234
-```
-- 跳板机已生成 ed25519 密钥，公钥已写入目标机 authorized_keys
-- 代码中通过 `scripts/deploy-v2/` 脚本自动化部署
-
-### 0.5 部署脚本位置
+### 0.4 部署脚本位置
 | 用途 | 路径 |
 |------|------|
-| 新前端 v2 部署 | `scripts/deploy-v2/` |
+| 直连部署（推荐） | `scripts/deploy-v2/deploy-direct.mjs` |
+| 跳板机部署（已废弃） | `scripts/deploy-v2/deploy.mjs` |
 | 参考前端部署（勿改） | `scripts/deploy/` |
 | 部署凭据（gitignored） | `.env.deploy` |
 
-### 0.6 部署流程（新前端 v2）
-1. 本地构建 `apps/frontend-v2/`（`npm run build --workspace=@combat/frontend-v2`）
+### 0.5 部署流程（新前端 v2）
+1. 本地 git commit 所有改动（`deploy-direct.mjs` 打包 git HEAD）
 2. 打包代码 + dist
-3. 经跳板机 SCP 到目标机 `/opt/combat-v2/`
-4. 目标机 npm install + 启动后端 + 启动前端（vite preview 或后续 nginx）
+3. 直连 SSH 到 124.156.193.122
+4. 解压到 /opt/combat-v2/ → npm install → 构建前端 → systemctl restart combat-v2
+5. 健康检查（前端 200 + API 可达）
 
 ---
 
 ## 1. 后端 API 端点清单（50+）
 
-Base URL: `http://localhost:3001`（开发）/ `http://47.103.99.229:3001`（部署）
+Base URL: `http://localhost:3001`（开发）/ `http://124.156.193.122:3001`（部署）
 
 ### 1.1 通用节点 CRUD
 | 方法 | 路径 | 说明 |
