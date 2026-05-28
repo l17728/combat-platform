@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Table, Input, Select, Button, List, Tag, message, Card, Space, Typography, Row, Col, Divider, Popconfirm, Popover,
+  Table, Input, Select, Button, List, Tag, message, Card, Space, Typography, Row, Col, Divider, Popconfirm, Popover, Tooltip,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, SearchOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SearchOutlined, CheckOutlined, LinkOutlined, DisconnectOutlined } from '@ant-design/icons';
 import type { FieldSchema, FieldType, NodeSchema } from '@combat/shared';
 import { api } from '../api.js';
 import type { SchemaSuggestion } from '../api.js';
+import { useSettings } from '../hooks/useSettings.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 
@@ -30,6 +31,7 @@ interface FieldRow {
   enumValues?: string[];
   concept?: string;
   anchor?: string;
+  optionsKey?: string;
 }
 
 function SuggestPopover({ fieldName, onReuse }: { fieldName: string; onReuse: (s: SchemaSuggestion) => void }) {
@@ -87,6 +89,8 @@ export default function SchemaWizard() {
   const [tableLabel, setTableLabel] = useState('');
   const [fieldRows, setFieldRows] = useState<FieldRow[]>([{ key: '0', name: '', label: '', type: 'string' }]);
   const [submitting, setSubmitting] = useState(false);
+  const { settings } = useSettings();
+  const settingKeys = Object.keys(settings).filter(k => !k.includes('.'));
 
   const loadSchemas = useCallback(async () => {
     setLoadingSchemas(true);
@@ -121,6 +125,7 @@ export default function SchemaWizard() {
         id: r.name.trim(), name: r.name.trim(), label: r.label.trim(), type: r.type,
         ...(r.type === 'ref' ? { refType: r.refType } : {}),
         ...(r.type === 'enum' && r.enumValues?.length ? { enumValues: r.enumValues } : {}),
+        ...(r.type === 'enum' ? { optionsKey: r.optionsKey || r.name.trim() } : {}),
         concept: r.concept, anchor: r.anchor,
       }));
       await api.createSchema({ nodeType: nodeType.trim(), label: tableLabel.trim(), fields });
@@ -141,12 +146,26 @@ export default function SchemaWizard() {
     } catch (e: any) { message.error(e.message); }
   };
 
+  const handleSetOptionsKey = async (nodeType: string, fieldId: string, optionsKey: string | null) => {
+    try {
+      const updated = await api.patchSchema(nodeType, { op: 'setOptionsKey', id: fieldId, optionsKey });
+      message.success(optionsKey ? `已绑定配置项"${optionsKey}"` : '已解除配置绑定');
+      await loadSchemas();
+      setSelectedSchema(updated);
+    } catch (e: any) { message.error(e.message); }
+  };
+
   const fieldEditorColumns = [
     { title: '字段名', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="status" value={row.name} onChange={e => updateFieldRow(row.key, { name: e.target.value })} style={{ width: 120 }} /> },
     { title: '标签', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="状态" value={row.label} onChange={e => updateFieldRow(row.key, { label: e.target.value })} style={{ width: 100 }} /> },
     { title: '类型', render: (_: unknown, row: FieldRow) => <Select size="small" value={row.type} onChange={v => updateFieldRow(row.key, { type: v })} style={{ width: 130 }} options={FIELD_TYPE_OPTIONS} /> },
     { title: '引用目标表', render: (_: unknown, row: FieldRow) => row.type === 'ref' ? <Select size="small" placeholder="选择引用表" value={row.refType} onChange={v => updateFieldRow(row.key, { refType: v })} style={{ width: 120 }} options={schemas.map(s => ({ value: s.nodeType, label: s.label || s.nodeType }))} /> : <Text type="secondary">—</Text> },
     { title: '枚举值', render: (_: unknown, row: FieldRow) => row.type === 'enum' ? <Input size="small" placeholder="待响应,处理中" value={(row.enumValues ?? []).join(',')} onChange={e => updateFieldRow(row.key, { enumValues: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} style={{ width: 140 }} /> : <Text type="secondary">—</Text> },
+    { title: '配置绑定', render: (_: unknown, row: FieldRow) => row.type === 'enum'
+      ? <Select size="small" allowClear placeholder="配置中心key" value={row.optionsKey || undefined} onChange={v => updateFieldRow(row.key, { optionsKey: v ?? '' })} style={{ width: 130 }}
+          options={[...settingKeys.map(k => ({ value: k, label: k })), { value: row.name, label: `${row.name}（自动）` }]}
+          showSearch optionFilterProp="label" />
+      : <Text type="secondary">—</Text> },
     { title: '概念', render: (_: unknown, row: FieldRow) => row.concept ? <Tag color="purple">{row.concept}</Tag> : <Text type="secondary">—</Text> },
     { title: '', render: (_: unknown, row: FieldRow) => <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFieldRow(row.key)} disabled={fieldRows.length <= 1} /> },
   ];
@@ -186,6 +205,13 @@ export default function SchemaWizard() {
                   { title: '标签', dataIndex: 'label' },
                   { title: '类型', dataIndex: 'type', render: (v: string) => <Tag>{v}</Tag> },
                   { title: '概念', dataIndex: 'concept', render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
+                  { title: '配置绑定', width: 160, render: (_: unknown, f: FieldSchema) => f.type === 'enum'
+                    ? <Select size="small" allowClear placeholder="选择配置项" value={f.optionsKey || undefined}
+                        onChange={v => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
+                        style={{ width: 140 }}
+                        options={[...settingKeys.map(k => ({ value: k, label: k })), { value: f.name, label: `${f.name}（自动）` }]}
+                        showSearch optionFilterProp="label" />
+                    : <Text type="secondary">—</Text> },
                 ]} />
             </Card>
           )}

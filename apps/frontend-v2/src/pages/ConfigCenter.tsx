@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Typography, Table, Button, Space, Input, Modal, Form, message, Popconfirm, Tag, Empty, Skeleton,
+  Typography, Table, Button, Space, Input, Modal, Form, message, Popconfirm, Tag, Empty, Skeleton, Alert,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
@@ -8,6 +8,7 @@ import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import type { NodeSchema } from '@combat/shared';
 
 const { Title, Text } = Typography;
 
@@ -27,6 +28,8 @@ export default function ConfigCenter() {
   const [editForm] = Form.useForm();
   const [searchText, setSearchText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SettingEntry | null>(null);
+  const [schemas, setSchemas] = useState<NodeSchema[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -35,7 +38,11 @@ export default function ConfigCenter() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const fetchSchemas = useCallback(async () => {
+    try { setSchemas(await api.listSchemas()); } catch {}
+  }, []);
+
+  useEffect(() => { fetchData(); fetchSchemas(); }, [fetchData, fetchSchemas]);
 
   const entries: SettingEntry[] = Object.entries(settings)
     .filter(([key]) => !key.includes('.'))
@@ -74,6 +81,28 @@ export default function ConfigCenter() {
     catch (e: any) { message.error(e.message); }
   };
 
+  const getImpactFields = useCallback((key: string): { nodeType: string; nodeLabel: string; fieldLabel: string; fieldId: string }[] => {
+    const results: { nodeType: string; nodeLabel: string; fieldLabel: string; fieldId: string }[] = [];
+    for (const schema of schemas) {
+      for (const f of schema.fields) {
+        if (f.optionsKey === key || (f.type === 'enum' && f.name === key && !f.optionsKey)) {
+          results.push({ nodeType: schema.nodeType, nodeLabel: schema.label, fieldLabel: f.label, fieldId: f.id });
+        }
+      }
+    }
+    return results;
+  }, [schemas]);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      await api.deleteSetting(deleteTarget.key);
+      message.success('配置已删除');
+      setDeleteTarget(null);
+      fetchData();
+    } catch (e: any) { message.error(e.message); }
+  };
+
   const openEdit = (entry: SettingEntry) => {
     setEditingKey(entry.key);
     editForm.setFieldsValue({
@@ -106,9 +135,7 @@ export default function ConfigCenter() {
       render: (_: unknown, r: SettingEntry) => (
         <Space>
           <a onClick={() => openEdit(r)}>编辑</a>
-          <Popconfirm title={`确认删除「${r.key}」？`} onConfirm={() => handleDelete(r.key)}>
-            <a style={{ color: '#ff4d4f' }}>删除</a>
-          </Popconfirm>
+          <a style={{ color: '#ff4d4f' }} onClick={() => setDeleteTarget(r)}>删除</a>
         </Space>
       ),
     },
@@ -185,6 +212,50 @@ export default function ConfigCenter() {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal title={`确认删除配置项「${deleteTarget?.key ?? ''}」`}
+        open={!!deleteTarget} onCancel={() => setDeleteTarget(null)}
+        footer={null} destroyOnClose width={520}>
+        {deleteTarget && (() => {
+          const impacts = getImpactFields(deleteTarget.key);
+          return (<>
+            <div style={{ marginBottom: 12 }}>
+              <Text>当前值：</Text>
+              <Space wrap size={[4, 4]} style={{ marginTop: 4 }}>
+                {deleteTarget.values.map((v, i) => <Tag key={i}>{v}</Tag>)}
+              </Space>
+            </div>
+            {impacts.length > 0 ? (
+              <Alert type="warning" showIcon style={{ marginBottom: 12 }}
+                message={`此配置被 ${impacts.length} 个字段引用，删除后这些字段将降级为自由输入框`}
+                description={
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+                    {impacts.map(imp => (
+                      <li key={`${imp.nodeType}.${imp.fieldId}`}>
+                        <Text strong>{imp.nodeLabel}</Text>
+                        <Text type="secondary"> ({imp.nodeType})</Text>
+                        {' → '}
+                        <Text code>{imp.fieldLabel}</Text>
+                      </li>
+                    ))}
+                  </ul>
+                } />
+            ) : (
+              <Alert type="info" showIcon style={{ marginBottom: 12 }}
+                message="此配置未被任何 schema 字段引用" />
+            )}
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary">字段绑定关系将保留，重新创建同名配置项即可恢复下拉框。</Text>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => setDeleteTarget(null)}>取消</Button>
+                <Button type="primary" danger onClick={handleDeleteConfirm}>确认删除</Button>
+              </Space>
+            </div>
+          </>);
+        })()}
       </Modal>
     </div>
   );
