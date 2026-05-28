@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Table, Tag, Space, Button, Empty, Spin, message, Popconfirm } from 'antd';
-import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Table, Tag, Space, Button, Empty, Spin } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import { api, type TicketTab } from '../api.js';
 import { LINKABLE_NODE_TYPES, NODE_TYPE_LABEL } from '../constants.js';
 import type { GraphNode } from '@combat/shared';
@@ -38,16 +38,6 @@ export default function DynamicLinkTab({ ticketId, tab, onDeleted }: Props) {
 
   useEffect(() => { fetchNodes(); }, [fetchNodes]);
 
-  const handleDelete = async () => {
-    try {
-      await api.deleteTicketTab(ticketId, tab.id);
-      message.success('标签已删除');
-      onDeleted(tab.id);
-    } catch (e: any) {
-      message.error(e.message);
-    }
-  };
-
   if (loading) return <Spin style={{ display: 'block', marginTop: 40 }} />;
 
   const columns = [
@@ -62,14 +52,11 @@ export default function DynamicLinkTab({ ticketId, tab, onDeleted }: Props) {
 
   return (
     <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ marginBottom: 12 }}>
         <Space>
           <Tag color="blue">{label}</Tag>
           <Button size="small" icon={<ReloadOutlined />} onClick={fetchNodes}>刷新</Button>
         </Space>
-        <Popconfirm title="确认删除此标签？" onConfirm={handleDelete}>
-          <Button size="small" danger icon={<DeleteOutlined />}>删除标签</Button>
-        </Popconfirm>
       </div>
       {nodes.length === 0 ? (
         <Empty description={`暂无${label}数据`} image={Empty.PRESENTED_IMAGE_SIMPLE} />

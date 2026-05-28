@@ -1,10 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Input, Button, Space, Popconfirm, message, Divider, Card, Empty, Spin } from 'antd';
-import { DeleteOutlined, RobotOutlined, SendOutlined, ExpandOutlined, ShrinkOutlined } from '@ant-design/icons';
+import { Input, Button, Space, message, Divider, Card } from 'antd';
+import { DeleteOutlined, RobotOutlined, SendOutlined, SearchOutlined, EditOutlined, UpOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { api, type TicketTab } from '../api.js';
 
 const { TextArea } = Input;
+
+function highlightMd(text: string, keyword: string): string {
+  if (!keyword) return text;
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(${escaped})`, 'gi'),
+    '<mark style="background:#ffe58f;padding:0 2px;border-radius:2px">$1</mark>');
+}
 
 interface ContentBlock {
   type: 'markdown' | 'faq-card';
@@ -41,6 +49,8 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
   const [chatOpen, setChatOpen] = useState(false);
   const [question, setQuestion] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [editorOpen, setEditorOpen] = useState(true);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -98,90 +108,116 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
     }
   };
 
-  const handleDeleteTab = async () => {
-    try {
-      await api.deleteTicketTab(ticketId, tab.id);
-      message.success('标签已删除');
-      onDeleted(tab.id);
-    } catch (e: any) {
-      message.error(e.message);
-    }
-  };
-
   return (
-    <div style={{ padding: '16px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+    <div style={{ padding: '16px 0', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Space>
-          <Button size="small" icon={chatOpen ? <ShrinkOutlined /> : <ExpandOutlined />} onClick={() => setChatOpen(!chatOpen)}>
+          <Button size="small" icon={<EditOutlined />} onClick={() => setEditorOpen(!editorOpen)}>
+            {editorOpen ? '收起编辑' : '展开编辑'}
+          </Button>
+          <Button size="small" icon={<RobotOutlined />} onClick={() => setChatOpen(!chatOpen)}>
             {chatOpen ? '收起AI助手' : 'AI助手'}
           </Button>
         </Space>
-        <Popconfirm title="确认删除此标签？" onConfirm={handleDeleteTab}>
-          <Button size="small" danger icon={<DeleteOutlined />}>删除标签</Button>
-        </Popconfirm>
       </div>
 
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          {blocks.map((block, idx) => {
-            if (block.type === 'markdown') {
-              return (
-                <div key={`md-${idx}`} style={{ marginBottom: 12 }}>
+      <div>
+        {blocks.map((block, idx) => {
+          if (block.type === 'markdown') {
+            const hasContent = block.content.trim().length > 0;
+            const previewMd = searchKeyword ? highlightMd(block.content, searchKeyword) : block.content;
+            return (
+              <div key={`md-${idx}`} style={{ marginBottom: 12 }}>
+                {editorOpen && (
                   <TextArea
                     value={block.content}
                     onChange={e => updateMdBlock(idx, e.target.value)}
                     placeholder="输入 Markdown 内容..."
                     autoSize={{ minRows: 6, maxRows: 20 }}
-                    style={{ fontFamily: 'monospace' }}
+                    style={{ fontFamily: 'monospace', marginBottom: 8 }}
                   />
-                  {block.content && (
-                    <div style={{ marginTop: 8, padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, background: '#fafafa' }}>
-                      <ReactMarkdown>{block.content}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return (
-              <Card key={block.id || `faq-${idx}`} size="small" style={{ marginBottom: 12 }}
-                extra={<Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFaqCard(idx)} />}
-                title={<Space><RobotOutlined style={{ color: '#1890ff' }} />{block.question || 'AI回答'}</Space>}
-              >
-                <div style={{ whiteSpace: 'pre-wrap' }}>{block.content}</div>
-                {block.citations && block.citations.length > 0 && (
+                )}
+                {hasContent && (
                   <>
-                    <Divider style={{ margin: '8px 0' }} />
-                    <div style={{ fontSize: 12, color: '#999' }}>
-                      引用：{block.citations.map((c, i) => (
-                        <span key={i}>{c.summary}{i < block.citations!.length - 1 ? '、' : ''}</span>
-                      ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <Input
+                        size="small"
+                        placeholder="搜索文档内容..."
+                        prefix={<SearchOutlined />}
+                        allowClear
+                        value={searchKeyword}
+                        onChange={e => setSearchKeyword(e.target.value)}
+                        onClear={() => setSearchKeyword('')}
+                        style={{ maxWidth: 300 }}
+                      />
+                    </div>
+                    <div style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, background: '#fafafa' }}>
+                      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{previewMd}</ReactMarkdown>
                     </div>
                   </>
                 )}
-              </Card>
-            );
-          })}
-        </div>
-
-        {chatOpen && (
-          <div style={{ width: 320, flexShrink: 0 }}>
-            <Card size="small" title={<Space><RobotOutlined /> AI助手</Space>} style={{ position: 'sticky', top: 0 }}>
-              <div style={{ marginBottom: 8 }}>
-                <TextArea
-                  value={question}
-                  onChange={e => setQuestion(e.target.value)}
-                  placeholder="提问关于此攻关单的问题..."
-                  autoSize={{ minRows: 3, maxRows: 6 }}
-                  onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleAsk(); } }}
-                />
               </div>
-              <Button type="primary" icon={<SendOutlined />} loading={chatLoading} onClick={handleAsk} block size="small">
-                提问
-              </Button>
+            );
+          }
+          return (
+            <Card key={block.id || `faq-${idx}`} size="small" style={{ marginBottom: 12 }}
+              extra={<Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFaqCard(idx)} />}
+              title={<Space><RobotOutlined style={{ color: '#1890ff' }} />{block.question || 'AI回答'}</Space>}
+            >
+              <div style={{ whiteSpace: 'pre-wrap' }}>{block.content}</div>
+              {block.citations && block.citations.length > 0 && (
+                <>
+                  <Divider style={{ margin: '8px 0' }} />
+                  <div style={{ fontSize: 12, color: '#999' }}>
+                    引用：{block.citations.map((c, i) => (
+                      <span key={i}>{c.summary}{i < block.citations!.length - 1 ? '、' : ''}</span>
+                    ))}
+                  </div>
+                </>
+              )}
             </Card>
-          </div>
-        )}
+          );
+        })}
       </div>
+
+      {chatOpen && (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 360,
+          background: '#fff',
+          borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 12px',
+            background: '#fafafa',
+            borderBottom: '1px solid #f0f0f0',
+          }}>
+            <Space><RobotOutlined style={{ color: '#1890ff' }} /> AI助手</Space>
+            <Button type="text" size="small" icon={<UpOutlined />} onClick={() => setChatOpen(false)}>收起</Button>
+          </div>
+          <div style={{ padding: 12 }}>
+            <TextArea
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              placeholder="提问关于此攻关单的问题..."
+              autoSize={{ minRows: 3, maxRows: 6 }}
+              onPressEnter={e => { if (!e.shiftKey) { e.preventDefault(); handleAsk(); } }}
+              style={{ marginBottom: 8 }}
+            />
+            <Button type="primary" icon={<SendOutlined />} loading={chatLoading} onClick={handleAsk} block size="small">
+              提问
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

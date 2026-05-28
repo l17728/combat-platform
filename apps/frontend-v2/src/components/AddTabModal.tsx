@@ -16,12 +16,17 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
   const [submitting, setSubmitting] = useState(false);
   const [tabType, setTabType] = useState<'link' | 'custom'>('link');
 
+  const DEFAULT_CUSTOM_TITLE = '信息广场';
+
   const handleSubmit = async (values: { tabType: 'link' | 'custom'; title: string }) => {
     setSubmitting(true);
     try {
+      const title = values.tabType === 'custom' && !values.title?.trim()
+        ? DEFAULT_CUSTOM_TITLE
+        : values.title;
       const tab = await api.createTicketTab(ticketId, {
         tabType: values.tabType,
-        title: values.title,
+        title,
         config: values.tabType === 'link' ? {} : undefined,
         content: values.tabType === 'custom' ? '' : undefined,
       });
@@ -33,6 +38,13 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
       message.error(e.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleTypeChange = (type: 'link' | 'custom') => {
+    setTabType(type);
+    if (type === 'custom') {
+      form.setFieldValue('title', '');
     }
   };
 
@@ -48,13 +60,13 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
     >
       <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ tabType: 'link' }}>
         <Form.Item name="tabType" label="标签类型" rules={[{ required: true }]}>
-          <Radio.Group onChange={e => setTabType(e.target.value)}>
+          <Radio.Group onChange={e => handleTypeChange(e.target.value)}>
             <Radio.Button value="link">{TAB_TYPE_LABEL['link']}</Radio.Button>
             <Radio.Button value="custom">{TAB_TYPE_LABEL['custom']}</Radio.Button>
           </Radio.Group>
         </Form.Item>
-        <Form.Item name="title" label="标签名称" rules={[{ required: true, message: '请输入标签名称' }]}>
-          <Input placeholder={tabType === 'link' ? '如：相关贡献、负责人...' : '如：会议笔记、技术方案...'} />
+        <Form.Item name="title" label="标签名称" rules={tabType === 'link' ? [{ required: true, message: '请输入标签名称' }] : []}>
+          <Input placeholder={tabType === 'link' ? '如：相关贡献、负责人...' : '留空则默认为「信息广场」'} />
         </Form.Item>
       </Form>
     </Modal>

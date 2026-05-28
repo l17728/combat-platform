@@ -394,7 +394,7 @@ export default function AttackDetail() {
 
   const dynamicTabItems = dynamicTabs.map(tab => ({
     key: tab.id,
-    label: <span>{tab.tabType === 'link' ? <LinkOutlined /> : <FileTextOutlined />} {tab.title}</span>,
+    label: <span style={tab.tabType === 'custom' && tab.title === '信息广场' ? { color: '#999' } : undefined}>{tab.tabType === 'link' ? <LinkOutlined /> : <FileTextOutlined />} {tab.title}</span>,
     closable: true,
     children: tab.tabType === 'link'
       ? <DynamicLinkTab ticketId={id!} tab={tab} onDeleted={handleTabDeleted} />
@@ -489,7 +489,23 @@ export default function AttackDetail() {
                 if (action === 'add') setAddTabOpen(true);
                 if (action === 'remove' && typeof targetKey === 'string') {
                   const tab = dynamicTabs.find(t => t.id === targetKey);
-                  if (tab) handleTabDeleted(targetKey);
+                  if (tab) {
+                    Modal.confirm({
+                      title: '删除标签',
+                      content: '不再保存，确认后将永久删除此标签。',
+                      okText: '确认删除',
+                      okType: 'danger',
+                      cancelText: '取消',
+                      onOk: async () => {
+                        try {
+                          await api.deleteTicketTab(id!, targetKey);
+                          handleTabDeleted(targetKey);
+                        } catch (e: any) {
+                          message.error('删除标签失败: ' + e.message);
+                        }
+                      },
+                    });
+                  }
                 }
               }}
               tabBarExtraContent={
