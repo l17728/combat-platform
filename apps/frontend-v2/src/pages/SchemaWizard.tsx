@@ -155,6 +155,24 @@ export default function SchemaWizard() {
     } catch (e: any) { message.error(e.message); }
   };
 
+  const handleRetireField = async (nodeType: string, fieldId: string) => {
+    try {
+      const updated = await api.patchSchema(nodeType, { op: 'retire', id: fieldId });
+      message.success('字段已停用');
+      await loadSchemas();
+      setSelectedSchema(updated);
+    } catch (e: any) { message.error(e.message); }
+  };
+
+  const handleUnretireField = async (nodeType: string, fieldId: string) => {
+    try {
+      const updated = await api.patchSchema(nodeType, { op: 'unretire', id: fieldId });
+      message.success('字段已恢复');
+      await loadSchemas();
+      setSelectedSchema(updated);
+    } catch (e: any) { message.error(e.message); }
+  };
+
   const fieldEditorColumns = [
     { title: '字段名', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="status" value={row.name} onChange={e => updateFieldRow(row.key, { name: e.target.value })} style={{ width: 120 }} /> },
     { title: '标签', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="状态" value={row.label} onChange={e => updateFieldRow(row.key, { label: e.target.value })} style={{ width: 100 }} /> },
@@ -201,10 +219,10 @@ export default function SchemaWizard() {
               extra={<Button size="small" type="text" onClick={() => setSelectedSchema(null)}>关闭</Button>}>
               <Table size="small" dataSource={selectedSchema.fields} rowKey="id" pagination={false}
                 columns={[
-                  { title: '字段ID', dataIndex: 'id', render: (v: string) => <Text code>{v}</Text> },
-                  { title: '标签', dataIndex: 'label' },
-                  { title: '类型', dataIndex: 'type', render: (v: string) => <Tag>{v}</Tag> },
-                  { title: '概念', dataIndex: 'concept', render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
+                  { title: '字段ID', dataIndex: 'id', width: 130, render: (v: string, f: FieldSchema) => <span><Text code style={{ whiteSpace: 'nowrap' }}>{v}</Text>{f.retired && <Tag color="default" style={{ marginLeft: 4, fontSize: 11 }}>停用</Tag>}</span> },
+                  { title: '标签', dataIndex: 'label', width: 100 },
+                  { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },
+                  { title: '概念', dataIndex: 'concept', width: 80, render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
                   { title: '配置绑定', width: 160, render: (_: unknown, f: FieldSchema) => f.type === 'enum'
                     ? <Select size="small" allowClear placeholder="选择配置项" value={f.optionsKey || undefined}
                         onChange={v => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
@@ -212,6 +230,11 @@ export default function SchemaWizard() {
                         options={[...settingKeys.map(k => ({ value: k, label: k })), { value: f.name, label: `${f.name}（自动）` }]}
                         showSearch optionFilterProp="label" />
                     : <Text type="secondary">—</Text> },
+                  { title: '', width: 60, render: (_: unknown, f: FieldSchema) => f.retired
+                    ? <Button size="small" type="link" onClick={() => handleUnretireField(selectedSchema.nodeType, f.id)}>恢复</Button>
+                    : <Popconfirm title={`确认停用字段"${f.label}"？`} description="停用后 UI 将不再显示该字段，已有数据不受影响" onConfirm={() => handleRetireField(selectedSchema.nodeType, f.id)}>
+                        <Button size="small" type="link" danger>停用</Button>
+                      </Popconfirm> },
                 ]} />
             </Card>
           )}
