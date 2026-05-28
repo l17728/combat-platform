@@ -449,7 +449,9 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with user Dropdown (displayName + role + logout)
 - **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter, BugReport, DailyReport, LoginPage, MergePage, OperationLog, ProposalsPage, RelatedPage, RemindersPage, SchemaWizard, SearchPage, UserManagement
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
-- **Settings system:** `src/hooks/useSettings.ts` — auto-loads config from `/api/settings`, fallback to hardcoded defaults; all dropdown Selects use `getValues(key, fallback)` pattern
+- **Settings system:** `src/hooks/useSettings.ts` — loads config from `/api/settings` on every page mount (no singleton cache); dropdown options come exclusively from config center, no hardcoded fallbacks
+- **DynamicField component:** `src/components/DynamicField.tsx` — renders Select when `optionsKey` has values in config center, degrades to Input when config entry is empty/missing
+- **Config-OptionsKey binding:** schema fields with `type: "enum"` have an `optionsKey` property pointing to a config center key; binding is managed in SchemaWizard; config center delete shows impact analysis before confirming
 
 ## E2E Test Hard-Won Discoveries (Frontend-v2)
 
@@ -737,7 +739,11 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 ### 当前测试状态（2026-05-29 最后验证）
 - **31/31 attack e2e tests passing** (含字段筛选、CRUD、导出、详情、列设置)
 - **8/8 people e2e tests passing**
+- **4/4 dashboard e2e tests passing** (含 Tabs 切换、统计卡片、最近活跃、状态分布)
+- **8/8 info-square e2e tests passing** (含卡片创建、详情查看、分类筛选、搜索、删除、Drawer关闭、Markdown渲染)
 - **315/315 backend vitest tests passing** (51 test files)
+- 新增：配置中心统一方案（optionsKey 绑定、DynamicField 组件、删除影响分析弹窗）
+- 新增：信息广场功能（infoCard nodeType，Dashboard Tabs，卡片网格 + Markdown 渲染 + 配置中心分类）
 - 新增：列设置功能（Popover + Checkbox.Group，6个E2E测试）
 - 新增：表格列宽拖拽 + 列顺序拖拽（useFlexTable hook，6个列表页面集成）
 - 修复：Ant Design scroll.x 导致 `getByText` 严格模式违规，改用 `page.locator('tbody').first().getByText()` 限定表格范围

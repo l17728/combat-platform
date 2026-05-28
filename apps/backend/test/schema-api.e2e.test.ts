@@ -49,13 +49,13 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
     cleanTestSchema();
   });
 
-  it("1. GET /api/schema/list 返回全部 16 个 nodeType", async () => {
+  it("1. GET /api/schema/list 返回全部 nodeType", async () => {
     const { app } = make();
     const res = await request(app).get("/api/schema/list");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    // 16 existing schemas (15 base + domain)
-    expect(res.body.length).toBe(16);
+    // 17 schemas (15 base + domain + infoCard)
+    expect(res.body.length).toBe(17);
     // Each should have nodeType and fields
     for (const s of res.body) {
       expect(typeof s.nodeType).toBe("string");

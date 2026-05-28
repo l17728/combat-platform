@@ -334,9 +334,19 @@ test.describe('攻关详情', () => {
 
     await page.getByRole('button', { name: '状态流转' }).click();
     await expect(page.locator('.ant-drawer')).toBeVisible();
+    await page.waitForTimeout(500);
     const drawer = page.locator('.ant-drawer');
     const drawerSelect = drawer.locator('.ant-select').first();
-    await selectOption(page, drawerSelect, '处理中', true);
+    await drawerSelect.scrollIntoViewIfNeeded();
+    await drawerSelect.locator('.ant-select-selector').click();
+    await page.waitForTimeout(500);
+    const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
+    await dropdown.waitFor({ state: 'visible', timeout: 10000 });
+    await page.waitForTimeout(300);
+    const opt = dropdown.locator('.ant-select-item-option').filter({ hasText: '处理中' }).first();
+    await opt.waitFor({ state: 'attached', timeout: 10000 });
+    await opt.dispatchEvent('click');
+    await page.waitForTimeout(300);
     await page.getByRole('button', { name: '确认流转' }).click();
     await expect(page.getByText('状态流转成功')).toBeVisible();
     await expect(page.getByText('处理中').first()).toBeVisible();

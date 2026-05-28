@@ -4,7 +4,7 @@ import { API, waitForTable } from './helpers';
 test.describe('作战态势 Dashboard', () => {
   test('renders stats cards and empty state', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible();
     await expect(page.locator('.ant-statistic-title', { hasText: /^进行中$/ })).toBeVisible();
     await expect(page.locator('.ant-statistic-title', { hasText: /^已闭环$/ })).toBeVisible();
     await expect(page.locator('.ant-statistic-title', { hasText: /^总攻关单$/ })).toBeVisible();

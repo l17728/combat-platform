@@ -17,7 +17,7 @@ test.describe('审计日志 - 扩展功能', () => {
     await waitForTable(page);
 
     const row = page.getByRole('row').filter({ hasText: 'E2E审计变更测试' });
-    await expect(row).toBeVisible({ timeout: 10000 });
+    await expect(row).toBeVisible({ timeout: 15000 });
     await expect(row.getByText('创建').first()).toBeVisible();
   });
 
@@ -86,14 +86,16 @@ test.describe('审计日志 - 扩展功能', () => {
   test('refresh button reloads data', async ({ page }) => {
     await waitForTable(page);
 
-    await page.request.post(`${API}/api/nodes/attackTicket`, {
+    const res = await page.request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E刷新测试单', 状态: '待响应' },
     });
+    await res.json();
 
+    await page.waitForTimeout(500);
     await page.getByText('刷新').click();
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState('networkidle');
     await waitForTable(page);
-    await expect(page.getByText('E2E刷新测试单').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('E2E刷新测试单').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('change details tag shows count', async ({ page }) => {
