@@ -136,7 +136,7 @@ export default function InfoSquare() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>信息广场</Title>
-        <Space wrap>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Select
             allowClear
             placeholder="信息分类"
@@ -163,7 +163,7 @@ export default function InfoSquare() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)}>
             发布信息
           </Button>
-        </Space>
+        </div>
       </div>
 
       {loading ? (

@@ -187,11 +187,17 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+      <div style={{ position: 'relative', marginBottom: 0 }}>
+        {activeKey === 'dashboard' && (
+          <div style={{ position: 'absolute', top: 8, right: 0, zIndex: 1 }}>
+            <HelpButton title={HELP.dashboard.title} content={HELP.dashboard.content} />
+          </div>
+        )}
         <Tabs
           activeKey={activeKey}
           onChange={setActiveKey}
           size="large"
+          style={{ width: '100%' }}
           items={[
             {
               key: 'dashboard',
@@ -205,9 +211,6 @@ export default function Dashboard() {
             },
           ]}
         />
-        {activeKey === 'dashboard' && (
-          <HelpButton title={HELP.dashboard.title} content={HELP.dashboard.content} />
-        )}
       </div>
     </div>
   );

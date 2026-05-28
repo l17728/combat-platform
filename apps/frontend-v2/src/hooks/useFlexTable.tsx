@@ -2,7 +2,6 @@ import { useMemo, useCallback, useRef, useState } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Resizable } from 'react-resizable';
 import type { ColumnType } from 'antd/es/table';
 import type { ReactNode } from 'react';
 
@@ -93,31 +92,52 @@ export function FlexHeaderCell({ id, width, onResize, children, ...rest }: {
     position: 'relative' as const,
   };
 
+  const handleResizeMouseDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!width || !onResize) return;
+
+    const startX = e.clientX;
+    const startWidth = width;
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const delta = ev.clientX - startX;
+      const newWidth = Math.max(50, Math.min(600, startWidth + delta));
+      onResize(newWidth);
+    };
+
+    const onPointerUp = () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, [width, onResize]);
+
   const resizeHandle = width && onResize ? (
     <span
-      style={{ position: 'absolute', right: -2, bottom: 0, width: 10, height: '100%', cursor: 'col-resize', zIndex: 2 }}
-      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 6,
+        cursor: 'col-resize',
+        zIndex: 2,
+      }}
+      onPointerDown={handleResizeMouseDown}
     />
-  ) : undefined;
-
-  if (width && onResize) {
-    return (
-      <Resizable width={width} height={0} axis="x" handleSize={[10, 0]}
-        minConstraints={[50, 0]} maxConstraints={[600, 0]} lockAspectRatio={false}
-        resizeHandles={['se']} transformScale={1}
-        handle={resizeHandle}
-        onResize={(_e, data) => onResize(data.size.width)}
-        draggableOpts={{ enableUserSelectHack: false }}>
-        <th ref={setNodeRef} style={sortableStyle} {...attributes} {...listeners} {...rest}>
-          {children}
-        </th>
-      </Resizable>
-    );
-  }
+  ) : null;
 
   return (
     <th ref={setNodeRef} style={sortableStyle} {...attributes} {...listeners} {...rest}>
       {children}
+      {resizeHandle}
     </th>
   );
 }
