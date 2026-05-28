@@ -218,20 +218,20 @@ export default function SchemaWizard() {
             <Card title={<Space><Text strong>{selectedSchema.label}</Text><Text code>{selectedSchema.nodeType}</Text></Space>} size="small"
               extra={<Button size="small" type="text" onClick={() => setSelectedSchema(null)}>关闭</Button>}>
               <Table size="small" dataSource={selectedSchema.fields} rowKey="id" pagination={false}
-                scroll={{ x: 700 }}
+                scroll={{ x: 960 }}
                 columns={[
                   { title: '字段ID', dataIndex: 'id', width: 200, render: (v: string, f: FieldSchema) => <span><Text code style={{ whiteSpace: 'nowrap' }}>{v}</Text>{f.retired && <Tag color="default" style={{ marginLeft: 4, fontSize: 11 }}>停用</Tag>}</span> },
-                  { title: '标签', dataIndex: 'label', width: 100 },
-                  { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag>{v}</Tag> },
-                  { title: '概念', dataIndex: 'concept', width: 80, render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
-                  { title: '配置绑定', width: 180, render: (_: unknown, f: FieldSchema) => f.type === 'enum'
+                  { title: '标签', dataIndex: 'label', width: 160 },
+                  { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag>{v}</Tag> },
+                  { title: '概念', dataIndex: 'concept', width: 100, render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
+                  { title: '配置绑定', width: 220, render: (_: unknown, f: FieldSchema) => f.type === 'enum'
                     ? <Select size="small" allowClear placeholder="选择配置项" value={f.optionsKey || undefined}
                         onChange={v => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
-                        style={{ width: 160 }}
+                        style={{ width: 200 }}
                         options={[...settingKeys.map(k => ({ value: k, label: k })), { value: f.name, label: `${f.name}（自动）` }]}
                         showSearch optionFilterProp="label" />
                     : <Text type="secondary">—</Text> },
-                  { title: '', width: 60, fixed: 'right', render: (_: unknown, f: FieldSchema) => f.retired
+                  { title: '', width: 80, fixed: 'right', render: (_: unknown, f: FieldSchema) => f.retired
                     ? <Button size="small" type="link" onClick={() => handleUnretireField(selectedSchema.nodeType, f.id)}>恢复</Button>
                     : <Popconfirm title={`确认停用字段"${f.label}"？`} description="停用后 UI 将不再显示该字段，已有数据不受影响" onConfirm={() => handleRetireField(selectedSchema.nodeType, f.id)}>
                         <Button size="small" type="link" danger>停用</Button>
