@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Modal, Checkbox,
+  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Modal, Checkbox, Popover,
 } from 'antd';
-import { PlusOutlined, ExportOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
@@ -23,6 +23,9 @@ const FALLBACK_STATUS = ['待响应', '处理中', '进行中', '已解决', '�
 const FALLBACK_LEVELS = ['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B'];
 const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 
+const STORAGE_KEY = 'attack-list-visible-columns';
+const DEFAULT_VISIBLE = ['标题', '状态', '当前处理人', '事件级别', '问题单号', '客户名称'];
+
 export default function AttackList() {
   const navigate = useNavigate();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -38,6 +41,12 @@ export default function AttackList() {
   const [exporting, setExporting] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
   const [newField, setNewField] = useState({ name: '', label: '', type: 'string' as FieldType });
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : DEFAULT_VISIBLE;
+    } catch { return DEFAULT_VISIBLE; }
+  });
   const { getValues } = useSettings();
 
   const STATUS_OPTIONS = getValues('状态', FALLBACK_STATUS);
@@ -154,42 +163,83 @@ export default function AttackList() {
     } catch (e: any) { message.error(e.message); }
   };
 
-  const columns = [
-    {
+  const columnOptions = useMemo(() => {
+    if (!schema) return [];
+    return schema.fields
+      .filter(f => !f.retired)
+      .map(f => ({ value: f.name, label: f.label || f.name }));
+  }, [schema]);
+
+  const handleVisibleColumnsChange = (checked: string[]) => {
+    setVisibleColumns(checked);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(checked)); } catch {}
+  };
+
+  const columns = useMemo(() => {
+    const idCol = {
       title: '编号', width: 90, fixed: 'left' as const,
       render: (_: unknown, r: GraphNode) => (
         <Tooltip title={r.id}><a onClick={() => navigate(`/attack/${r.id}`)}>{r.id.slice(0, 8)}</a></Tooltip>
       ),
-    },
-    {
-      title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
-      render: (text: string, r: GraphNode) => <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>,
-      sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
-    },
-    {
-      title: '状态', dataIndex: ['properties', '状态'], width: 100,
-      render: (v: string) => <StatusTag status={v} />,
-      sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
-    },
-    { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100, ellipsis: true },
-    { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
-    { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 120, ellipsis: true },
-    { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
-    {
+    };
+
+    const fieldColMap: Record<string, Record<string, unknown>> = {
+      '标题': {
+        title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
+        render: (text: string, r: GraphNode) => <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>,
+        sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
+      },
+      '状态': {
+        title: '状态', dataIndex: ['properties', '状态'], width: 100,
+        render: (v: string) => <StatusTag status={v} />,
+        sorter: (a: GraphNode, b: GraphNode) => ((a.properties['状态'] as string) ?? '').localeCompare((b.properties['状态'] as string) ?? ''),
+      },
+      '当前处理人': { title: '处理人', dataIndex: ['properties', '当前处理人'], width: 100, ellipsis: true },
+      '事件级别': { title: '事件级别', dataIndex: ['properties', '事件级别'], width: 80 },
+      '问题单号': { title: '问题单号', dataIndex: ['properties', '问题单号'], width: 120, ellipsis: true },
+      '客户名称': { title: '客户', dataIndex: ['properties', '客户名称'], width: 120, ellipsis: true },
+    };
+
+    const dataCols = visibleColumns
+      .filter(name => fieldColMap[name])
+      .map(name => fieldColMap[name]);
+
+    const dynamicCols = visibleColumns
+      .filter(name => !fieldColMap[name])
+      .map(name => {
+        const f = schema?.fields.find(fd => fd.name === name && !fd.retired);
+        return {
+          title: f?.label || name,
+          dataIndex: ['properties', name],
+          width: 120,
+          ellipsis: true,
+          render: (v: unknown) => {
+            if (v == null) return '-';
+            if (f?.type === 'datetime') return <Tooltip title={String(v)}>{dayjs(String(v)).format('MM-DD HH:mm')}</Tooltip>;
+            if (f?.type === 'date') return dayjs(String(v)).format('YYYY-MM-DD');
+            return String(v);
+          },
+        };
+      });
+
+    const updateCol = {
       title: '更新', dataIndex: 'updatedAt', width: 100,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).fromNow()}</Tooltip>,
       sorter: (a: GraphNode, b: GraphNode) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime(),
       defaultSortOrder: 'descend' as const,
-    },
-    {
+    };
+
+    const opsCol = {
       title: '操作', width: 80, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (
         <Popconfirm title={`确认删除「${r.properties['标题'] ?? r.id.slice(0, 8)}」？`} onConfirm={() => handleDelete(r.id)}>
           <a style={{ color: '#ff4d4f' }}>删除</a>
         </Popconfirm>
       ),
-    },
-  ];
+    };
+
+    return [idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
+  }, [visibleColumns, schema, navigate, handleDelete]);
 
   return (
     <div>
@@ -215,6 +265,27 @@ export default function AttackList() {
         )}
         <Input placeholder="搜索标题/单号/处理人" prefix={<SearchOutlined />} style={{ width: 260 }}
           value={searchText} onChange={(e) => setSearchText(e.target.value)} allowClear />
+        <Popover
+          title="选择显示列"
+          trigger="click"
+          placement="bottomRight"
+          content={(
+            <div style={{ maxHeight: 360, overflowY: 'auto', minWidth: 200 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Button type="link" size="small" onClick={() => handleVisibleColumnsChange(columnOptions.map(o => o.value))}>全选</Button>
+                <Button type="link" size="small" onClick={() => handleVisibleColumnsChange(DEFAULT_VISIBLE)}>重置默认</Button>
+              </div>
+              <Checkbox.Group
+                value={visibleColumns}
+                onChange={(v) => handleVisibleColumnsChange(v as string[])}
+                options={columnOptions}
+                style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+              />
+            </div>
+          )}
+        >
+          <Button icon={<SettingOutlined />} />
+        </Popover>
       </Space>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (

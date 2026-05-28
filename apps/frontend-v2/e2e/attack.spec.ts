@@ -303,3 +303,110 @@ test.describe('自定义字段 (+字段)', () => {
     await expect(page.locator('.ant-drawer').getByText('详情自定义').first()).toBeVisible();
   });
 });
+
+test.describe('列设置 — 自定义显示字段', () => {
+  test('shows column settings button and popover', async ({ page }) => {
+    await page.goto('/attack');
+    await waitForTable(page);
+    const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
+    await expect(settingsBtn).toBeVisible();
+    await settingsBtn.click();
+    await expect(page.locator('.ant-popover').getByText('选择显示列')).toBeVisible();
+    await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
+  });
+
+  test('default columns are visible', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E列默认', 状态: '处理中', 当前处理人: '张三', 事件级别: 'P2', 问题单号: 'PB001', 客户名称: '华为' },
+    });
+    await page.goto('/attack');
+    await waitForTable(page);
+    await expect(page.getByRole('columnheader', { name: '编号' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '状态' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '处理人' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '事件级别' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '问题单号' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '客户' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '更新' })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '操作' })).toBeVisible();
+  });
+
+  test('unchecking column hides it from table', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E隐藏列', 状态: '处理中' },
+    });
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
+    await settingsBtn.click();
+    await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件级别' }).locator('input').click();
+
+    await expect(page.getByRole('columnheader', { name: '事件级别' })).not.toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
+  });
+
+  test('checking new column shows it in table', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E显示新列', 状态: '处理中', 事件单号: 'INC-999' },
+    });
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    await expect(page.getByRole('columnheader', { name: '事件单号' })).not.toBeVisible();
+
+    const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
+    await settingsBtn.click();
+    await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件单号' }).locator('input').click();
+
+    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'INC-999' })).toBeVisible();
+  });
+
+  test('reset default restores default columns', async ({ page }) => {
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
+    await settingsBtn.click();
+    await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '标题' }).locator('input').click();
+    await expect(page.getByRole('columnheader', { name: '标题' })).not.toBeVisible();
+
+    await page.getByRole('button', { name: '重置默认' }).click();
+
+    await expect(page.getByRole('columnheader', { name: '标题' })).toBeVisible();
+  });
+
+  test('column selection persists after reload', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E持久化列', 状态: '处理中', 事件单号: 'INC-PERSIST' },
+    });
+    await page.goto('/attack');
+    await waitForTable(page);
+
+    const settingsBtn = page.getByRole('button').filter({ has: page.locator('.anticon-setting') });
+    await settingsBtn.click();
+    await expect(page.locator('.ant-popover .ant-checkbox-group')).toBeVisible();
+
+    await page.locator('.ant-popover .ant-checkbox-group').locator('label').filter({ hasText: '事件单号' }).locator('input').click();
+    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+
+    await page.reload();
+    await waitForTable(page);
+
+    await expect(page.getByRole('columnheader', { name: '事件单号' })).toBeVisible();
+
+    const afterReload = await page.evaluate(() => {
+      const v = localStorage.getItem('attack-list-visible-columns');
+      return v ? JSON.parse(v) : null;
+    });
+    expect(afterReload).toContain('事件单号');
+  });
+});
