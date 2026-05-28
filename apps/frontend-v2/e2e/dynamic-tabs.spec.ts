@@ -48,7 +48,7 @@ test.describe('动态标签', () => {
     await expect(modal).toBeVisible();
 
     await modal.locator('label').filter({ hasText: /自定义笔记/ }).click();
-    await modal.getByPlaceholder(/会议笔记/).fill('E2E测试笔记');
+    await modal.getByPlaceholder(/信息广场/).fill('E2E测试笔记');
     await modal.getByRole('button', btn('创建')).click();
 
     await expect(page.getByText('标签已创建').first()).toBeVisible({ timeout: 10000 });
@@ -103,11 +103,14 @@ test.describe('动态标签', () => {
     await page.goto(`/attack/${ticketId}`);
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('tab', { name: /待删除标签/ }).click();
-    await page.getByRole('button', { name: /删除标签/ }).click();
-    await page.getByRole('button', { name: /确\s?定/ }).click();
+    const tabEl = page.locator('.ant-tabs-tab').filter({ hasText: /待删除标签/ });
+    await tabEl.hover();
+    await tabEl.locator('.ant-tabs-tab-remove').click({ timeout: 5000 });
 
-    await expect(page.getByText('标签已删除').first()).toBeVisible({ timeout: 10000 });
+    const confirmModal = page.locator('.ant-modal').filter({ hasText: '不再保存' });
+    await expect(confirmModal).toBeVisible();
+    await confirmModal.getByRole('button', { name: /确认删除/ }).click();
+
     await expect(page.getByRole('tab', { name: /待删除标签/ })).not.toBeVisible({ timeout: 5000 });
   });
 
@@ -273,10 +276,105 @@ test.describe('动态标签', () => {
     await page.goto(`/attack/${ticketId}`);
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('tab', { name: /取消删除测试/ }).click();
-    await page.getByRole('button', { name: /删除标签/ }).click();
-    await page.getByRole('button', { name: /取\s?消/ }).click();
+    const tabEl = page.locator('.ant-tabs-tab').filter({ hasText: /取消删除测试/ });
+    await tabEl.hover();
+    await tabEl.locator('.ant-tabs-tab-remove').click({ timeout: 5000 });
+
+    const confirmModal = page.locator('.ant-modal').filter({ hasText: '不再保存' });
+    await expect(confirmModal).toBeVisible();
+    await confirmModal.getByRole('button', { name: /取\s?消/ }).click();
 
     await expect(page.getByRole('tab', { name: /取消删除测试/ })).toBeVisible();
+  });
+
+  test('X 按钮关闭标签 - 弹窗确认后永久删除', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: 'X删除测试' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('tab', { name: /X删除测试/ })).toBeVisible();
+
+    const tabEl = page.locator('.ant-tabs-tab').filter({ hasText: /X删除测试/ });
+    await tabEl.hover();
+    await tabEl.locator('.ant-tabs-tab-remove').click({ timeout: 5000 });
+
+    const confirmModal = page.locator('.ant-modal').filter({ hasText: '不再保存' });
+    await expect(confirmModal).toBeVisible();
+    await confirmModal.getByRole('button', { name: /确认删除/ }).click();
+
+    await expect(page.getByRole('tab', { name: /X删除测试/ })).not.toBeVisible({ timeout: 5000 });
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('tab', { name: /X删除测试/ })).not.toBeVisible();
+  });
+
+  test('X 按钮关闭标签 - 取消则保留', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: 'X取消测试' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    const tabEl = page.locator('.ant-tabs-tab').filter({ hasText: /X取消测试/ });
+    await tabEl.hover();
+    await tabEl.locator('.ant-tabs-tab-remove').click({ timeout: 5000 });
+
+    const confirmModal = page.locator('.ant-modal').filter({ hasText: '不再保存' });
+    await expect(confirmModal).toBeVisible();
+    await confirmModal.getByRole('button', { name: /取\s?消/ }).click();
+
+    await expect(page.getByRole('tab', { name: /X取消测试/ })).toBeVisible();
+  });
+
+  test('MD 搜索高亮 - 输入关键字后匹配文本标黄', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '搜索测试', content: '# 攻关进展\n本周完成了接口联调工作' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /搜索测试/ }).click();
+
+    const searchInput = page.getByPlaceholder('搜索文档内容...');
+    await expect(searchInput).toBeVisible();
+
+    await searchInput.fill('接口联调');
+    await expect(page.locator('mark').filter({ hasText: '接口联调' })).toBeVisible({ timeout: 5000 });
+  });
+
+  test('MD 搜索高亮 - X 清空搜索框取消高亮', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '搜索清除测试', content: '# 测试\n关键内容在这里' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /搜索清除测试/ }).click();
+
+    const searchInput = page.getByPlaceholder('搜索文档内容...');
+    await searchInput.fill('关键内容');
+    await expect(page.locator('mark').filter({ hasText: '关键内容' })).toBeVisible({ timeout: 5000 });
+
+    await page.locator('.ant-input-clear-icon').click();
+    await expect(searchInput).toHaveValue('');
+    await expect(page.locator('mark')).toHaveCount(0, { timeout: 3000 });
+  });
+
+  test('MD 搜索高亮 - 空内容时无搜索框', async ({ page }) => {
+    await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
+      data: { tabType: 'custom', title: '空搜索测试', content: '' },
+    });
+
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: /空搜索测试/ }).click();
+    await expect(page.getByPlaceholder('搜索文档内容...')).not.toBeVisible();
   });
 });
