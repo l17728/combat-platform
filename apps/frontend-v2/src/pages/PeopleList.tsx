@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Descriptions, Divider, Tag, Tooltip, Upload,
 } from 'antd';
@@ -6,6 +6,7 @@ import { PlusOutlined, UploadOutlined, ExportOutlined, SearchOutlined, EditOutli
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
@@ -92,19 +93,19 @@ export default function PeopleList() {
 
   const columns = [
     {
-      title: '姓名', dataIndex: ['properties', '姓名'], width: 100, fixed: 'left' as const,
+      key: '姓名', title: '姓名', dataIndex: ['properties', '姓名'], width: 100, fixed: 'left' as const,
       render: (v: string, r: GraphNode) => <a onClick={() => { setDetailNode(r); setDetailOpen(true); }}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['姓名'] as string) ?? '').localeCompare((b.properties['姓名'] as string) ?? ''),
     },
-    { title: '工号', dataIndex: ['properties', '工号'], width: 110, ellipsis: true },
-    { title: '邮箱', dataIndex: ['properties', '邮箱'], width: 220, ellipsis: true },
+    { key: '工号', title: '工号', dataIndex: ['properties', '工号'], width: 110, ellipsis: true },
+    { key: '邮箱', title: '邮箱', dataIndex: ['properties', '邮箱'], width: 220, ellipsis: true },
     {
-      title: '部门', dataIndex: ['properties', '部门'], width: 140, ellipsis: true,
+      key: '部门', title: '部门', dataIndex: ['properties', '部门'], width: 140, ellipsis: true,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['部门'] as string) ?? '').localeCompare((b.properties['部门'] as string) ?? ''),
     },
-    { title: '角色', dataIndex: ['properties', '角色'], width: 100, ellipsis: true },
+    { key: '角色', title: '角色', dataIndex: ['properties', '角色'], width: 100, ellipsis: true },
     {
-      title: '操作', width: 120, fixed: 'right' as const,
+      key: '操作', title: '操作', width: 120, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (
         <Space>
           <a onClick={() => { setEditingNode(r); editForm.setFieldsValue(r.properties as any); setEditOpen(true); }}>编辑</a>
@@ -116,6 +117,9 @@ export default function PeopleList() {
       ),
     },
   ];
+
+  const { columns: flexCols, FlexWrapper } = useFlexTable('person', columns);
+  const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
 
   return (
     <div>
@@ -139,9 +143,12 @@ export default function PeopleList() {
       </Space>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
-        <Table rowKey="id" dataSource={filtered} columns={columns}
-          scroll={{ x: true }}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }} size="middle" />
+        <FlexWrapper>
+          <Table rowKey="id" dataSource={filtered} columns={flexCols}
+            components={tableComponents}
+            scroll={{ x: true }}
+            pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }} size="middle" />
+        </FlexWrapper>
       )}
 
       <Drawer title="添加人员" width={480} open={drawerOpen} onClose={() => { setDrawerOpen(false); form.resetFields(); }} destroyOnClose maskClosable={false}

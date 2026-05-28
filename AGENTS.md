@@ -57,7 +57,33 @@ claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"  
 - 并行化指令优先级最高——"能并行的任务一定要并行处理，使用多个agent"
 - Claude CLI 执行的任务可以和 opencode 的 Task subagent 并行运行，互不阻塞
 
-### 8. Deploy After Green
+### 8. Local-First Development & Testing (本机先行，现网后行)
+**所有开发和测试必须先在本机完成，确认无误后再部署到现网。** 绝不能跳过本机验证直接部署到生产环境。
+
+**标准流程（严格顺序）**：
+1. **本机开发** — 编写代码 + 对应测试
+2. **本机后端测试** — `npm run test:backend` 全部通过
+3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
+4. **本机冒烟验证** — `npm run dev:backend` + `npm run dev:frontend-v2`，Playwright 脚本模拟真实用户操作（登录→浏览→创建→编辑→删除），确认功能正常
+5. **git commit** — 所有改动必须先提交
+6. **部署到现网** — `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+7. **现网验证** — Playwright 跑现网 `http://124.156.193.122:3001/`，确认部署后功能正常
+8. **关闭 issue** — 更新问题反馈状态为"已关闭"
+
+**本机冒烟验证脚本示例**：
+```javascript
+// 用 Playwright 在本机 localhost:5174 跑冒烟测试
+const { chromium } = require('playwright');
+// 登录 → 仪表盘 → 攻关列表 → 人员列表 → 导出 → 关闭
+```
+
+**原则**：
+- 本机是第一道防线，现网是最终确认
+- 现网验证不要删除原有数据，测试数据测试后清理
+- 部署后如果发现问题，先在本机复现，修复后再重新走流程
+- 现网问题反馈读取后，在本机环境复现和修复，不要直接在现网调试
+
+### 8.1 Deploy After Green
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy to the test server** so the user can manually verify. Deploy credentials are in `.env.deploy` (gitignored) — **never hardcode server passwords in any committed file**.
 
 ### 9. Domain Language: Chinese Only
@@ -685,14 +711,12 @@ cd scripts/deploy-v2 && node deploy.mjs deploy
 
 配置中心表格为例：配置键独占一行，label 灰色小字换行显示在下方，视觉整洁不挤压。此规范适用于所有表格中「主信息 + 辅助说明」的场景。
 
-### 当前测试状态（2026-05-27 最后验证）
-- **344/344 frontend-v2 e2e tests passing** (29 spec files, 含 17 dynamic-tabs 测试)
-- **315/315 backend vitest tests passing** (51 test files, 含 24 ticket-tabs 测试，含级联删除验证)
-- 新增动态标签系统(ticket-tabs): 攻关单详情页动态标签（关联数据 + 自定义笔记），MD编辑器 + AI助手
-- 后端: CRUD router + reorder API，5 个 CLI 命令，结构化日志（含 title/fields 详情）
-- 前端: AddTabModal / DynamicLinkTab / DynamicCustomTab 组件，editable-card Tabs 集成
-- E2E 端口修复: vite.config.ts 使用 VITE_API_PORT 环境变量，backup-restore/help-button 测试使用 helpers.API
-- 动态标签测试修复: Radio.Button 使用 label locator，strict mode violations 用更精确选择器
+### 当前测试状态（2026-05-28 最后验证）
+- **25/25 attack e2e tests passing** (含 8 个字段筛选测试: 单选/多选OR/取消勾选/清空字段/切换字段/组合筛选/非枚举字段)
+- **315/315 backend vitest tests passing** (51 test files, 无后端变更)
+- 新增字段筛选功能: 攻关列表筛选从固定状态Select改为通用字段下拉框+Checkbox多选(OR逻辑)
+- 列设置功能: 其他同事新增列显示/隐藏Popover（与筛选功能和平共存）
+- 全量 344+ e2e 套件因超时未完整跑完，攻击页 25 测试 + 回归核心 3 测试均通过
 
 ## 工作流程规范
 
@@ -802,8 +826,48 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 5. **部署** — `git add -A && git commit -m "fix: ..."` → `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
 6. **关闭问题** — 部署验证后，逐条 PATCH 对应 bug report 状态为"已关闭"：
    ```bash
-   curl -s -X PATCH http://124.156.193.122:3001/api/bug-reports/<id> \
-     -H "Authorization: Bearer $TOKEN" \
-     -H "content-type: application/json" \
-     -d '{"status":"已关闭","resolution":"已修复并部署","resolvedBy":"系统管理员"}'
-   ```
+    curl -s -X PATCH http://124.156.193.122:3001/api/bug-reports/<id> \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "content-type: application/json" \
+      -d '{"status":"已关闭","resolution":"已修复并部署","resolvedBy":"系统管理员"}'
+    ```
+
+## 踩坑记录 (Lessons Learned)
+
+**修复 BUG 引入的问题必须做到两点：一是总结根因记入此文档避免再犯，二是补充回归测试用例。**
+
+### L1. auth.ts publicPaths 路径前缀错误 (2026-05-28)
+- **现象**：匿名 POST /bug-reports 返回 401，导出 Excel 返回 401
+- **根因**：`authMiddleware` 挂载在 `/api` 下，`req.path` 已经去掉了 `/api` 前缀，但 `publicPaths` 写成了 `/api/auth/login`、`/api/bug-reports`（多了 `/api` 前缀）
+- **修复**：publicPaths 改为 `/auth/login`、`/bug-reports` 等
+- **教训**：Express 子路由中的 `req.path` 是**相对于挂载点**的路径，不是完整 URL 路径
+- **回归测试**：`apps/backend/test/auth.test.ts` 已覆盖 publicPaths 验证
+
+### L2. exportNodes/downloadBackup 缺少 auth header (2026-05-28)
+- **现象**：前端导出功能返回 401 Unauthorized
+- **根因**：`api.ts` 的 `exportNodes()` 和 `downloadBackup()` 使用原始 `this.f()` 发请求，没有带 Authorization header
+- **修复**：新增 `authFetch()` 私有方法，自动注入 Bearer token，所有 blob 下载改用 `authFetch()`
+- **教训**：任何新增的 API 调用方法都必须经过 `req()` 或 `authFetch()` 统一带 token，禁止直接用 `fetch`/`this.f()`
+- **回归测试**：需补充 E2E 测试验证导出功能在 auth 模式下正常
+
+### L3. HelpButton 位置不一致导致布局偏移 (2026-05-28)
+- **现象**：HelpButton 在 14 个页面中的 DOM 位置不统一（有的在 Title 上方，有的在 Title 右侧），导致修改时容易引入布局回归
+- **根因**：没有统一的 HelpButton 放置规范，各页面自行决定位置
+- **修复**：14 个页面统一为 `<div style={{ display:'flex', alignItems:'center', gap:8 }}><Title/><HelpButton/></div>` 模式
+- **教训**：跨页面的共享组件必须有统一的放置规范，新增页面也必须遵循
+- **回归测试**：AttackDetail 布局回归被 Claude CLI review 发现并修复
+
+### L4. 部署后灰屏 — 浏览器缓存旧 JS bundle (2026-05-28)
+- **现象**：用户部署后报告"登录后灰屏"
+- **排查**：Playwright 实测生产环境完全正常（Root HTML 23655 chars，仪表盘正常渲染），发现 `/api/auth/me` 有 401 但不影响功能（AuthProvider 竞态）
+- **根因**：浏览器缓存了旧版本 JS bundle，新部署后没有强制刷新。Vite build 的文件名带 hash，但 `index.html` 可能被浏览器缓存
+- **修复方案**：部署后提醒用户 Ctrl+Shift+R 强制刷新；后续考虑在 `server.ts` 对 `index.html` 添加 `Cache-Control: no-cache` header
+- **教训**：SPA 部署后 `index.html` 不能被缓存，否则用户会加载旧的 JS/CSS 文件引用（即使新文件已部署）
+- **预防**：部署脚本应自动重启服务 + 前端验证脚本应带 `cache: 'no-cache'`
+
+### L5. demo-seed 生成假 bug report 污染问题反馈 (2026-05-28)
+- **现象**：现网问题反馈页面出现 8 条虚假 issue（报告人：李四、王五、赵敏等），与真实用户反馈混在一起
+- **根因**：`demo-seed.mjs` 为了"覆盖多状态"在 bug_report 表插入了假 issue，reporter 是虚构人名，与用户真实提交的反馈无法区分
+- **修复**：1) 清理现网假 issue（按 reporter 筛选删除）；2) demo-seed 改为只创建 2 条已关闭的"演示数据"并明确标注
+- **教训**：seed/mock 脚本绝对不能生成伪造的用户反馈、审计日志、操作日志等业务数据。问题反馈是用户真实输入，填充假数据会误导开发和运维
+- **预防**：demo-seed 只生成结构性数据（人员、攻关单、贡献），不生成反馈类数据

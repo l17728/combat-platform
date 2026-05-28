@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Typography, Card, List, Tag, Skeleton, Empty, Select, Table, Space, Tabs, Button } from 'antd';
 import { TrophyOutlined, ExportOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { CONTRIBUTION_COLOR, PAGE_SIZE } from '../constants.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { LeaderboardEntry } from '@combat/shared';
 import type { TeamLeaderboardEntry } from '../api.js';
 import HelpButton from '../components/HelpButton.js';
@@ -106,18 +107,7 @@ export default function Honor() {
                   />
                 </Card>
                 <Card title="详细排行">
-                  <Table rowKey="贡献人" dataSource={entries} pagination={{ pageSize: PAGE_SIZE, showTotal: t => `共 ${t} 条` }} size="small"
-                    onRow={(r) => ({ onClick: () => navigate(`/honor/${encodeURIComponent(r.贡献人)}`), style: { cursor: 'pointer' } })}
-                    columns={[
-                      { title: '名次', width: 60, render: (_: unknown, __: unknown, i: number) => <RankTag rank={i} /> },
-                      { title: '贡献人', dataIndex: '贡献人', width: 100 },
-                      { title: '核心', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['核心'] ?? 0 },
-                      { title: '关键', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['关键'] ?? 0 },
-                      { title: '普通', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['普通'] ?? 0 },
-                      { title: '总数', dataIndex: '贡献数', width: 60 },
-                      { title: '加权分', dataIndex: 'score', width: 80, sorter: (a: LeaderboardEntry, b: LeaderboardEntry) => a.score - b.score },
-                    ]}
-                  />
+                  <HonorDetailTable entries={entries} navigate={navigate} />
                 </Card>
               </>
             ),
@@ -141,5 +131,29 @@ export default function Honor() {
         ]} />
       )}
     </div>
+  );
+}
+
+function HonorDetailTable({ entries, navigate }: { entries: LeaderboardEntry[]; navigate: (path: string) => void }) {
+  const columns = [
+    { key: '名次', title: '名次', width: 60, render: (_: unknown, __: unknown, i: number) => <RankTag rank={i} /> },
+    { key: '贡献人', title: '贡献人', dataIndex: '贡献人', width: 100 },
+    { key: '核心', title: '核心', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['核心'] ?? 0 },
+    { key: '关键', title: '关键', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['关键'] ?? 0 },
+    { key: '普通', title: '普通', width: 60, render: (_: unknown, r: LeaderboardEntry) => r.byLevel['普通'] ?? 0 },
+    { key: '总数', title: '总数', dataIndex: '贡献数', width: 60 },
+    { key: '加权分', title: '加权分', dataIndex: 'score', width: 80, sorter: (a: LeaderboardEntry, b: LeaderboardEntry) => a.score - b.score },
+  ];
+
+  const { columns: flexCols, FlexWrapper } = useFlexTable('honor', columns);
+  const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
+
+  return (
+    <FlexWrapper>
+      <Table rowKey="贡献人" dataSource={entries} columns={flexCols} components={tableComponents}
+        pagination={{ pageSize: PAGE_SIZE, showTotal: t => `共 ${t} 条` }} size="small"
+        onRow={(r) => ({ onClick: () => navigate(`/honor/${encodeURIComponent(r.贡献人)}`), style: { cursor: 'pointer' } })}
+      />
+    </FlexWrapper>
   );
 }

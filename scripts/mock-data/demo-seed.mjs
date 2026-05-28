@@ -280,43 +280,31 @@ async function seed() {
   console.log(`   ✓ ${helpCount} 条求助记录\n`);
 
   // ═══════════════════════════════════════════
-  // 8. 问题反馈 (BugReport page) — 8条
+  // 8. 问题反馈 (BugReport page) — 2条演示数据
+  // 注意：只创建少量已关闭的演示记录，不创建虚假的待处理issue
+  // 真实的用户反馈由问题反馈页面提交，不应由 seed 脚本伪造
   // ═══════════════════════════════════════════
-  console.log('8. 问题反馈 — 创建 8 条 Bug 报告...');
-  const bugs = [
-    { title: '攻关单列表页加载缓慢', severity: '严重', status: '待处理', reporter: '李四' },
-    { title: '贡献录入时偶现页面白屏', severity: '较高', status: '处理中', reporter: '王五' },
-    { title: '状态筛选下拉不显示已关闭', severity: '一般', status: '已解决', reporter: '赵敏' },
-    { title: '导出Excel文件名乱码', severity: '较高', status: '待处理', reporter: '陈静' },
-    { title: '搜索结果分页跳转后丢失关键词', severity: '一般', status: '待处理', reporter: '杨磊' },
-    { title: '仪表盘统计数字刷新延迟', severity: '一般', status: '已关闭', reporter: '黄浩' },
-    { title: '移动端侧边栏无法折叠', severity: '建议', status: '待处理', reporter: '周琳' },
-    { title: '人员详情页荣誉链接404', severity: '严重', status: '处理中', reporter: '吴涛' },
+  console.log('8. 问题反馈 — 创建演示数据...');
+  const demoBugs = [
+    { title: '演示：状态筛选功能优化建议', severity: '建议', reporter: '演示用户' },
+    { title: '演示：页面加载性能建议', severity: '建议', reporter: '演示用户' },
   ];
   let bugCount = 0;
-  for (const bug of bugs) {
+  for (const bug of demoBugs) {
     try {
       const res = await post('/api/bug-reports', {
         title: bug.title,
         severity: bug.severity,
-        description: `${bug.title}，需要尽快排查修复`,
+        description: '此为演示数据，用于展示问题反馈页面的各种状态。可随时删除。',
         reporter: bug.reporter,
-        pageUrl: 'http://localhost:3001/attack',
+        pageUrl: 'http://localhost:3001/',
       });
-      if (bug.status === '处理中') await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '处理中' }) });
-      if (bug.status === '已解决') {
-        await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '处理中' }) });
-        await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '已解决' }) });
-      }
-      if (bug.status === '已关闭') {
-        await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '处理中' }) });
-        await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '已解决' }) });
-        await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '已关闭' }) });
-      }
+      // 标记为已关闭，避免与真实反馈混淆
+      await fetch(`${API}/api/bug-reports/${res.id}`, { method: 'PATCH', headers, body: JSON.stringify({ status: '已关闭', resolution: '演示数据' }) });
       bugCount++;
     } catch (e) { /* skip */ }
   }
-  console.log(`   ✓ ${bugCount} 条 Bug 报告\n`);
+  console.log(`   ✓ ${bugCount} 条演示 Bug 报告（已关闭）\n`);
 
   // ═══════════════════════════════════════════
   // 9. 关系审批 (ProposalsPage) — 需要重复人员触发扫描
@@ -450,7 +438,7 @@ async function seed() {
   console.log('  /daily-report 攻关日报');
   console.log('  /proposals    关系审批 (重复人触发)');
   console.log('  /reminders    跟催提醒');
-  console.log('  /bug-report   问题反馈 (8条, 多状态)');
+  console.log('  /bug-report   问题反馈 (演示数据, 已关闭)');
   console.log('  /merge        人员合并 (2对重复人)');
   console.log('  /search       全局搜索');
   console.log('  /related/:t/:id 关联全景');

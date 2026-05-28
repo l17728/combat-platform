@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Typography, Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Tag, Skeleton,
 } from 'antd';
@@ -8,6 +8,7 @@ import { useAuth } from '../hooks/useAuth.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 
 const { Title } = Typography;
 
@@ -96,15 +97,15 @@ export default function UserManagement() {
   };
 
   const columns = [
-    { title: '用户名', dataIndex: 'username', width: 120, ellipsis: true },
-    { title: '显示名', dataIndex: 'displayName', ellipsis: true },
+    { key: 'username', title: '用户名', dataIndex: 'username', width: 120, ellipsis: true },
+    { key: 'displayName', title: '显示名', dataIndex: 'displayName', ellipsis: true },
     {
-      title: '角色', dataIndex: 'role', width: 100,
+      key: 'role', title: '角色', dataIndex: 'role', width: 100,
       render: (v: string) => <Tag color={ROLE_COLOR[v] ?? 'default'}>{ROLE_OPTIONS.find(r => r.value === v)?.label ?? v}</Tag>,
     },
-    { title: '创建时间', dataIndex: 'createdAt', width: 160, render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
+    { key: 'createdAt', title: '创建时间', dataIndex: 'createdAt', width: 160, render: (v: string) => v ? new Date(v).toLocaleString('zh-CN') : '-' },
     {
-      title: '操作', width: 120, render: (_: unknown, r: AuthUser) => (
+      key: '操作', title: '操作', width: 120, render: (_: unknown, r: AuthUser) => (
         <Space>
           <a onClick={() => { setEditingUser(r); editForm.setFieldsValue({ role: r.role, displayName: r.displayName }); setEditOpen(true); }}>编辑</a>
           <Popconfirm title="确认删除此用户？" onConfirm={() => handleDelete(r.id)}>
@@ -114,6 +115,9 @@ export default function UserManagement() {
       ),
     },
   ];
+
+  const { columns: flexCols, FlexWrapper } = useFlexTable('users', columns);
+  const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
 
   return (
     <div>
@@ -127,9 +131,11 @@ export default function UserManagement() {
       </div>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
-        <Table rowKey="id" dataSource={users} columns={columns} size="middle"
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
-         />
+        <FlexWrapper>
+          <Table rowKey="id" dataSource={users} columns={flexCols} components={tableComponents} size="middle"
+            pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
+          />
+        </FlexWrapper>
       )}
 
       <Modal title="新建用户" open={addOpen} onCancel={() => { setAddOpen(false); addForm.resetFields(); }} destroyOnClose

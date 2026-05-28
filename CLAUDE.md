@@ -28,28 +28,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 6. CLI for Every Backend API
 **Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
 
-### 7. Deploy After Green
+### 7. Local-First Development & Testing (本机先行，现网后行)
+**所有开发和测试必须先在本机完成，确认无误后再部署到现网。** 绝不能跳过本机验证直接部署到生产环境。
+
+**标准流程（严格顺序）**：
+1. **本机开发** — 编写代码 + 对应测试
+2. **本机后端测试** — `npm run test:backend` 全部通过
+3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
+4. **本机冒烟验证** — `npm run dev:backend` + `npm run dev:frontend-v2`，Playwright 脚本模拟真实用户操作，确认功能正常
+5. **git commit** — 所有改动必须先提交
+6. **部署到现网** — `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+7. **现网验证** — Playwright 跑现网确认功能正常
+8. **关闭 issue** — 更新问题反馈状态为"已关闭"
+
+### 8. Deploy After Green
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle.
 
 Deploy target host/user/password are stored **out of version control** — in the gitignored `.env.deploy` at repo root. **Never hardcode the server password in any committed file** (CLAUDE.md, scripts, code); read it from `.env.deploy` at deploy time.
 
-### 8. Domain Language: Chinese Only
+### 9. Domain Language: Chinese Only
 Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
 ```ts
 enumValues: ["待响应", "处理中", "已解决", "已关闭"]
 toStatus === "已解决"
 ```
 
-### 9. Config-Driven, No DDL Migrations
+### 10. Config-Driven, No DDL Migrations
 Adding/removing a field is a **config change** (JSON file), never a DB migration. Business data lives in `properties` JSON columns. Never hardcode business field names in any layer. UI renders from schema config at runtime.
 
-### 10. One Data Model, Many Views
+### 11. One Data Model, Many Views
 **Do not build per-table CRUD silos.** Build one unified model; each "combat table" is a projection/view over it. The core problem is cross-view association — the same person/task appears across many tables and must be linked.
 
-### 11. Structured Is Authoritative, KG Is Derived
+### 12. Structured Is Authoritative, KG Is Derived
 All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
 
-### 12. Post-Implementation Sync Checklist (特性完工例行检查)
+### 13. Post-Implementation Sync Checklist (特性完工例行检查)
 **Every feature implementation MUST complete the following checklist before marking done.** No exceptions, no deferrals:
 
 | # | Check | What to Do |

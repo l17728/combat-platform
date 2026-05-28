@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Table, Button, Space, Select, Drawer, Form, Input, message, Popconfirm, Typography, Skeleton, Divider, Tooltip,
 } from 'antd';
@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { CONTRIBUTION_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
@@ -135,18 +136,18 @@ export default function Contributions() {
 
   const columns = [
     {
-      title: '贡献人', dataIndex: ['properties', '贡献人'], width: 100, fixed: 'left' as const, ellipsis: true,
+      key: '贡献人', title: '贡献人', dataIndex: ['properties', '贡献人'], width: 100, fixed: 'left' as const, ellipsis: true,
       render: (v: string) => <a onClick={() => navigate(`/honor/${encodeURIComponent(v)}`)}>{v || '-'}</a>,
       sorter: (a: GraphNode, b: GraphNode) => ((a.properties['贡献人'] as string) ?? '').localeCompare((b.properties['贡献人'] as string) ?? ''),
     },
     {
-      title: '等级', dataIndex: ['properties', '贡献等级'], width: 80,
+      key: '等级', title: '等级', dataIndex: ['properties', '贡献等级'], width: 80,
       render: (v: string) => <StatusTag status={v} type="contribution" />,
     },
-    { title: '类型', dataIndex: ['properties', '贡献类型'], width: 80 },
-    { title: '描述', dataIndex: ['properties', '描述'], ellipsis: true },
+    { key: '类型', title: '类型', dataIndex: ['properties', '贡献类型'], width: 80 },
+    { key: '描述', title: '描述', dataIndex: ['properties', '描述'], ellipsis: true },
     {
-      title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], width: 140, ellipsis: true,
+      key: '关联攻关单', title: '关联攻关单', dataIndex: ['properties', '关联攻关单'], width: 140, ellipsis: true,
       render: (v: string) => {
         if (!v) return '--';
         const ticket = tickets.find(t => t.properties['标题'] === v);
@@ -154,15 +155,15 @@ export default function Contributions() {
         return v;
       },
     },
-    { title: '周期', dataIndex: ['properties', '周期'], width: 80 },
+    { key: '周期', title: '周期', dataIndex: ['properties', '周期'], width: 80 },
     {
-      title: '时间', dataIndex: 'createdAt', width: 80,
+      key: '时间', title: '时间', dataIndex: 'createdAt', width: 80,
       render: (v: string) => <Tooltip title={dayjs(v).format('YYYY-MM-DD HH:mm')}>{dayjs(v).format('MM/DD')}</Tooltip>,
       sorter: (a: GraphNode, b: GraphNode) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       defaultSortOrder: 'descend' as const,
     },
     {
-      title: '操作', width: 100, fixed: 'right' as const,
+      key: '操作', title: '操作', width: 100, fixed: 'right' as const,
       render: (_: unknown, r: GraphNode) => (
         <Space>
           <a onClick={() => { setEditingNode(r); editForm.setFieldsValue(r.properties as any); setEditOpen(true); }}>编辑</a>
@@ -173,6 +174,9 @@ export default function Contributions() {
       ),
     },
   ];
+
+  const { columns: flexCols, FlexWrapper } = useFlexTable('contribution', columns);
+  const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
 
   return (
     <div>
@@ -195,10 +199,13 @@ export default function Contributions() {
       </Space>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
-        <Table rowKey="id" dataSource={filtered} columns={columns}
-          scroll={{ x: true }}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
-          size="middle" />
+        <FlexWrapper>
+          <Table rowKey="id" dataSource={filtered} columns={flexCols}
+            components={tableComponents}
+            scroll={{ x: true }}
+            pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
+            size="middle" />
+        </FlexWrapper>
       )}
 
       <Drawer title="录入贡献" width={480} open={drawerOpen} onClose={() => { setDrawerOpen(false); form.resetFields(); }} destroyOnClose maskClosable={false}

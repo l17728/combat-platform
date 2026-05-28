@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Typography, Table, Button, Space, Input, Modal, Form, message, Popconfirm, Tag, Empty, Skeleton,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
+import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 
@@ -84,7 +85,7 @@ export default function ConfigCenter() {
 
   const columns = [
     {
-      title: '配置项', dataIndex: 'key', width: 200, ellipsis: true,
+      key: '配置项', title: '配置项', dataIndex: 'key', width: 200, ellipsis: true,
       render: (key: string, r: SettingEntry) => (
         <div>
           <Text strong code style={{ fontSize: 13 }}>{key}</Text>
@@ -93,7 +94,7 @@ export default function ConfigCenter() {
       ),
     },
     {
-      title: '可选值', dataIndex: 'values',
+      key: '可选值', title: '可选值', dataIndex: 'values',
       render: (values: string[]) => (
         <Space wrap size={[4, 4]}>
           {values.map((v, i) => <Tag key={i}>{v}</Tag>)}
@@ -101,7 +102,7 @@ export default function ConfigCenter() {
       ),
     },
     {
-      title: '操作', width: 120, fixed: 'right' as const,
+      key: '操作', title: '操作', width: 120, fixed: 'right' as const,
       render: (_: unknown, r: SettingEntry) => (
         <Space>
           <a onClick={() => openEdit(r)}>编辑</a>
@@ -112,6 +113,9 @@ export default function ConfigCenter() {
       ),
     },
   ];
+
+  const { columns: flexCols, FlexWrapper } = useFlexTable('configCenter', columns);
+  const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []);
 
   return (
     <div>
@@ -136,9 +140,11 @@ export default function ConfigCenter() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>新增配置</Button>
         </Empty>
       ) : (
-        <Table rowKey="key" dataSource={entries} columns={columns}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }}
-          size="middle" />
+        <FlexWrapper>
+          <Table rowKey="key" dataSource={entries} columns={flexCols} components={tableComponents}
+            pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: t => `共 ${t} 条` }}
+            size="middle" />
+        </FlexWrapper>
       )}
 
       <Modal title="新增配置" open={addOpen} onCancel={() => { setAddOpen(false); addForm.resetFields(); }}
