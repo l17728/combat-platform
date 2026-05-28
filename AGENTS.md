@@ -737,11 +737,12 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
 
 ### 当前测试状态（2026-05-29 最后验证）
-- **31/31 attack e2e tests passing** (含字段筛选、CRUD、导出、详情、列设置)
-- **8/8 people e2e tests passing**
-- **4/4 dashboard e2e tests passing** (含 Tabs 切换、统计卡片、最近活跃、状态分布)
-- **8/8 info-square e2e tests passing** (含卡片创建、详情查看、分类筛选、搜索、删除、Drawer关闭、Markdown渲染)
+- **348/348 frontend-v2 e2e tests passing**（全量回归，含新增 column-drag 列拖拽用例）
 - **315/315 backend vitest tests passing** (51 test files)
+- 修复：addField 拒绝重复 name（name 是属性/表单键，必须唯一）；attackTicket.json 清理 22 个 E2E 污染重复字段
+- 修复：去除攻关单创建/编辑抽屉内联「+字段」，字段新增统一到 SchemaWizard 选中表的「添加新字段」；"自定义字段" 分组改名「其它字段」并按 name 去重
+- 修复：useFlexTable 列拖拽彻底失效（onHeaderCell 未传 id → reorder 死；onResize 仅改 ref 无 setState → resize 死），现 resize/reorder 均生效并持久化
+- 修复：作战态势发布信息抽屉 重要程度/信息分类 改为上下排列
 - 新增：配置中心统一方案（optionsKey 绑定、DynamicField 组件、删除影响分析弹窗）
 - 新增：信息广场功能（infoCard nodeType，Dashboard Tabs，卡片网格 + Markdown 渲染 + 配置中心分类）
 - 新增：列设置功能（Popover + Checkbox.Group，6个E2E测试）

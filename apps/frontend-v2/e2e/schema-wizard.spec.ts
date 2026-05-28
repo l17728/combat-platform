@@ -128,4 +128,38 @@ test.describe('表结构管理', () => {
       await page.waitForTimeout(1000);
     }
   });
+
+  test('add field to existing table from detail card', async ({ page }) => {
+    const nt = 'e2eAddFld' + Date.now().toString(36);
+    const created = await page.request.post(`${API}/api/schema/nodeType`, {
+      headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+      data: { nodeType: nt, label: '加字段测试', fields: [{ id: 'name', name: 'name', label: '名称', type: 'string' }] },
+    });
+    expect(created.ok()).toBeTruthy();
+    try {
+      await page.reload();
+      await page.waitForLoadState('networkidle');
+
+      const row = page.locator('.ant-table-row').filter({ hasText: nt });
+      await row.click();
+      await expect(page.getByText('添加新字段')).toBeVisible();
+
+      const fieldName = '附加字段' + Date.now().toString(36);
+      await page.getByPlaceholder('字段名').fill(fieldName);
+      await page.getByPlaceholder('显示名(标签)').fill('附加显示名');
+      await page.getByRole('button', { name: '新增字段' }).click();
+
+      await expect(page.getByText(/已添加，相关页面将自动显示/)).toBeVisible();
+      const detailCard = page.locator('.ant-card').filter({ hasText: '字段详情' });
+      await expect(detailCard.getByText(fieldName)).toBeVisible();
+
+      const dup = await page.request.patch(`${API}/api/schema/${nt}`, {
+        headers: { 'Content-Type': 'application/json', 'X-Role': 'admin' },
+        data: { op: 'addField', field: { name: fieldName, type: 'string', label: '重复' } },
+      });
+      expect(dup.status()).toBe(400);
+    } finally {
+      await page.request.delete(`${API}/api/schema/nodeType/${nt}`, { headers: { 'X-Role': 'admin' } });
+    }
+  });
 });

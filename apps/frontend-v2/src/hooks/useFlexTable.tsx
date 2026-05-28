@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -23,20 +23,29 @@ export function useFlexTable<T>(storageKey: string, rawColumns: ColumnType<T>[])
   const savedOrder = useMemo(() => loadJSON(ORDER_PREFIX + storageKey) as string[] | null, [storageKey]);
 
   const [colOrder, setColOrder] = useState<string[] | null>(savedOrder);
-  const widthsRef = useRef(savedWidths);
+  const [widths, setWidths] = useState<Record<string, number>>(savedWidths);
+
+  useEffect(() => {
+    localStorage.setItem(WIDTH_PREFIX + storageKey, JSON.stringify(widths));
+  }, [widths, storageKey]);
 
   const applyWidth = useCallback((cols: ColumnType<T>[]) => {
     return cols.map((col) => {
       const key = colKey(col);
-      if (col.width === undefined) return col;
-      const w = widthsRef.current[key] ?? (col.width as number);
+      const hasWidth = col.width !== undefined;
+      const w = hasWidth ? (widths[key] ?? (col.width as number)) : undefined;
       return {
         ...col,
-        width: w,
-        onHeaderCell: () => ({ width: w, onResize: (nw: number) => { widthsRef.current = { ...widthsRef.current, [key]: Math.max(50, Math.min(600, nw)) }; } }),
+        ...(hasWidth ? { width: w } : {}),
+        onHeaderCell: () => ({
+          id: key,
+          ...(hasWidth
+            ? { width: w, onResize: (nw: number) => setWidths((prev) => ({ ...prev, [key]: Math.max(50, Math.min(600, nw)) })) }
+            : {}),
+        }),
       };
     });
-  }, []);
+  }, [widths]);
 
   const ordered = useMemo(() => {
     if (!colOrder) return applyWidth(rawColumns);
@@ -47,10 +56,6 @@ export function useFlexTable<T>(storageKey: string, rawColumns: ColumnType<T>[])
     colMap.forEach((c) => result.push(c));
     return applyWidth(result);
   }, [rawColumns, colOrder, applyWidth]);
-
-  const persistWidths = useCallback(() => {
-    localStorage.setItem(WIDTH_PREFIX + storageKey, JSON.stringify(widthsRef.current));
-  }, [storageKey]);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -77,7 +82,7 @@ export function useFlexTable<T>(storageKey: string, rawColumns: ColumnType<T>[])
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sensors, handleDragEnd, colOrder]);
 
-  return { columns: ordered, FlexWrapper, persistWidths };
+  return { columns: ordered, FlexWrapper };
 }
 
 export function FlexHeaderCell({ id, width, onResize, children, ...rest }: {

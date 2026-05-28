@@ -252,14 +252,12 @@ export default function InfoSquare() {
             <Input placeholder="请输入信息标题" maxLength={100} showCount />
           </Form.Item>
 
-          <Space style={{ width: '100%' }} size={16}>
-            <Form.Item name="importance" label="重要程度" rules={[{ required: true, message: '请选择' }]} style={{ width: '50%' }}>
-              <Select placeholder="选择程度" options={importanceOptions} />
-            </Form.Item>
-            <Form.Item name="category" label="信息分类" rules={[{ required: true, message: '请选择' }]} style={{ width: '50%' }}>
-              <Select placeholder="选择分类" options={categoryOptions} />
-            </Form.Item>
-          </Space>
+          <Form.Item name="importance" label="重要程度" rules={[{ required: true, message: '请选择' }]}>
+            <Select placeholder="选择程度" options={importanceOptions} />
+          </Form.Item>
+          <Form.Item name="category" label="信息分类" rules={[{ required: true, message: '请选择' }]}>
+            <Select placeholder="选择分类" options={categoryOptions} />
+          </Form.Item>
 
           <Form.Item name="summary" label="摘要">
             <Input.TextArea rows={2} placeholder="简短描述（可选，不填则自动截取正文）" maxLength={200} showCount />

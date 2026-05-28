@@ -57,6 +57,7 @@ export class FileSchemaRegistry implements SchemaRegistry {
     if (op.op === "addField") {
       const { name, type, label } = op.field;
       if (!name || !type || !label) throw new Error("addField 需要 name/type/label");
+      if (schema.fields.some(f => f.name === name)) throw new Error(`字段名「${name}」已存在`);
       const ids = new Set(schema.fields.map(f => f.id));
       let id = name, n = 2;
       while (ids.has(id)) id = `${name}#${n++}`;

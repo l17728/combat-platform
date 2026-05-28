@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Modal, Checkbox, Popover,
+  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Checkbox, Popover,
 } from 'antd';
 import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
 import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
-import type { GraphNode, NodeSchema, FieldType } from '@combat/shared';
+import type { GraphNode, NodeSchema } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import dayjs from 'dayjs';
@@ -38,8 +38,6 @@ export default function AttackList() {
   const [submitting, setSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [exporting, setExporting] = useState(false);
-  const [addFieldOpen, setAddFieldOpen] = useState(false);
-  const [newField, setNewField] = useState({ name: '', label: '', type: 'string' as FieldType });
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -146,21 +144,14 @@ export default function AttackList() {
     } catch (e: any) { message.error(e.message); } finally { setExporting(false); }
   };
 
-  const extraFields = (schema?.fields ?? []).filter(f => !f.retired && !HARDCODED_FIELDS.has(f.name));
-
-  const handleAddField = async () => {
-    if (!newField.name.trim()) { message.warning('请输入字段名'); return; }
-    try {
-      const updated = await api.patchSchema('attackTicket', {
-        op: 'addField',
-        field: { name: newField.name.trim(), label: newField.label.trim() || newField.name.trim(), type: newField.type },
-      });
-      setSchema(updated);
-      setAddFieldOpen(false);
-      setNewField({ name: '', label: '', type: 'string' });
-      message.success('字段已添加');
-    } catch (e: any) { message.error(e.message); }
-  };
+  const extraFields = useMemo(() => {
+    const seen = new Set<string>();
+    return (schema?.fields ?? []).filter(f => {
+      if (f.retired || HARDCODED_FIELDS.has(f.name) || seen.has(f.name)) return false;
+      seen.add(f.name);
+      return true;
+    });
+  }, [schema]);
 
   const columnOptions = useMemo(() => {
     if (!schema) return [];
@@ -241,7 +232,7 @@ export default function AttackList() {
     return [idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
   }, [visibleColumns, schema, navigate, handleDelete]);
 
-  const { columns: flexCols, FlexWrapper, persistWidths } = useFlexTable('attackTicket', columns);
+  const { columns: flexCols, FlexWrapper } = useFlexTable('attackTicket', columns);
 
   const tableComponents = useMemo(() => ({
     header: { cell: FlexHeaderCell },
@@ -341,7 +332,7 @@ export default function AttackList() {
           <Form.Item name="租户ID" label="租户ID"><Input placeholder="租户ID" /></Form.Item>
           {extraFields.length > 0 && (
             <>
-              <Divider orientation="left" orientationMargin={0}>自定义字段</Divider>
+              <Divider orientation="left" orientationMargin={0}>其它字段</Divider>
               {extraFields.map(f => (
                 <Form.Item key={f.id} name={f.name} label={f.label}>
                   {f.type === 'enum' ? (
@@ -359,19 +350,8 @@ export default function AttackList() {
               ))}
             </>
           )}
-          <div style={{ textAlign: 'center', marginTop: 8 }}>
-            <Button type="dashed" block icon={<PlusOutlined />} onClick={() => setAddFieldOpen(true)}>+字段</Button>
-          </div>
         </Form>
       </Drawer>
-      <Modal title="新增字段" open={addFieldOpen} okText="添加" onCancel={() => setAddFieldOpen(false)} onOk={handleAddField}>
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Input placeholder="字段名(name)" value={newField.name} onChange={e => setNewField(s => ({ ...s, name: e.target.value }))} />
-          <Input placeholder="显示名(label)" value={newField.label} onChange={e => setNewField(s => ({ ...s, label: e.target.value }))} />
-          <Select value={newField.type} style={{ width: 160 }} onChange={v => setNewField(s => ({ ...s, type: v }))}
-            options={['string', 'number', 'date', 'datetime', 'enum'].map(t => ({ value: t, label: t }))} />
-        </Space>
-      </Modal>
     </div>
   );
 }

@@ -89,6 +89,8 @@ export default function SchemaWizard() {
   const [tableLabel, setTableLabel] = useState('');
   const [fieldRows, setFieldRows] = useState<FieldRow[]>([{ key: '0', name: '', label: '', type: 'string' }]);
   const [submitting, setSubmitting] = useState(false);
+  const [newFieldDraft, setNewFieldDraft] = useState<{ name: string; label: string; type: FieldType; enumValues: string }>({ name: '', label: '', type: 'string', enumValues: '' });
+  const [addingField, setAddingField] = useState(false);
   const { settings } = useSettings();
   const settingKeys = Object.keys(settings).filter(k => !k.includes('.'));
 
@@ -144,6 +146,29 @@ export default function SchemaWizard() {
       if (selectedSchema?.nodeType === nt) setSelectedSchema(null);
       await loadSchemas();
     } catch (e: any) { message.error(e.message); }
+  };
+
+  const handleAddFieldToSchema = async () => {
+    if (!selectedSchema) return;
+    const name = newFieldDraft.name.trim();
+    const label = newFieldDraft.label.trim() || name;
+    if (!name) { message.warning('请输入字段名'); return; }
+    if (selectedSchema.fields.some(f => f.name === name)) { message.error(`字段名「${name}」已存在`); return; }
+    setAddingField(true);
+    try {
+      const enumValues = newFieldDraft.type === 'enum'
+        ? newFieldDraft.enumValues.split(',').map(s => s.trim()).filter(Boolean)
+        : undefined;
+      const updated = await api.patchSchema(selectedSchema.nodeType, {
+        op: 'addField',
+        field: { name, label, type: newFieldDraft.type, ...(enumValues && enumValues.length ? { enumValues } : {}) },
+      });
+      message.success(`字段「${label}」已添加，相关页面将自动显示`);
+      setNewFieldDraft({ name: '', label: '', type: 'string', enumValues: '' });
+      setSelectedSchema(updated);
+      await loadSchemas();
+    } catch (e: any) { message.error(e.message); }
+    finally { setAddingField(false); }
   };
 
   const handleSetOptionsKey = async (nodeType: string, fieldId: string, optionsKey: string | null) => {
@@ -261,6 +286,17 @@ export default function SchemaWizard() {
                     <Button size="small" type="link" danger>停用</Button>
                   </Popconfirm> },
             ]} />
+          <Divider orientation="left" orientationMargin={0} style={{ marginTop: 16 }}>添加新字段</Divider>
+          <Space wrap align="start">
+            <Input size="small" placeholder="字段名" value={newFieldDraft.name} onChange={e => setNewFieldDraft(s => ({ ...s, name: e.target.value }))} style={{ width: 140 }} />
+            <Input size="small" placeholder="显示名(标签)" value={newFieldDraft.label} onChange={e => setNewFieldDraft(s => ({ ...s, label: e.target.value }))} style={{ width: 140 }} />
+            <Select size="small" value={newFieldDraft.type} onChange={v => setNewFieldDraft(s => ({ ...s, type: v }))} style={{ width: 150 }} options={FIELD_TYPE_OPTIONS} />
+            {newFieldDraft.type === 'enum' && (
+              <Input size="small" placeholder="枚举值,逗号分隔" value={newFieldDraft.enumValues} onChange={e => setNewFieldDraft(s => ({ ...s, enumValues: e.target.value }))} style={{ width: 180 }} />
+            )}
+            <Button size="small" type="primary" icon={<PlusOutlined />} loading={addingField} onClick={handleAddFieldToSchema}>新增字段</Button>
+          </Space>
+          <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>添加后，攻关单等页面的表单会自动显示该字段，无需在其它页面单独新增。</Text></div>
         </Card>
       )}
     </div>

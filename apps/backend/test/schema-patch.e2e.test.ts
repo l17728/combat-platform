@@ -41,11 +41,13 @@ describe("PATCH /api/schema e2e", () => {
     expect(readFileSync(join(cfgDir, "attackTicket.json"), "utf8")).toBe(before);
     expect((await request(app).post("/api/nodes/attackTicket").send({ 标题: "still ok", 状态: "进行中" })).status).toBe(201);
   });
-  it("addField duplicate name gets #2 suffixed id", async () => {
+  it("addField rejects duplicate name (name is the property/form key)", async () => {
     const { app } = makeTestApp();
+    const before = (await request(app).get("/api/schema/attackTicket")).body.fields.length;
     const p = await request(app).patch("/api/schema/attackTicket").send({ op: "addField", field: { name: "标题", type: "string", label: "另一个标题" } });
-    expect(p.status).toBe(200);
-    expect(p.body.fields.some((f: any) => f.id === "标题#2")).toBe(true);
+    expect(p.status).toBe(400);
+    const after = (await request(app).get("/api/schema/attackTicket")).body.fields.length;
+    expect(after).toBe(before);
   });
   it("editEnum changes allowed values and is enforced", async () => {
     const { app } = makeTestApp();
