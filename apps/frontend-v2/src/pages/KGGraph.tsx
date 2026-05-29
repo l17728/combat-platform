@@ -206,8 +206,10 @@ export default function KGGraph() {
       if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
       const nd = graph.getNodeData(id) as any;
       const nodeType = nd?.data?.nodeType;
-      if (nodeType === 'attackTicket') navRef.current(`/attack/${id}`);
-      else if (nodeType) navRef.current(`/related/${nodeType}/${id}`);
+      const to = nodeType === 'attackTicket' ? `/attack/${id}` : nodeType ? `/related/${nodeType}/${id}` : '';
+      // 推迟到 g6 事件分发结束之后再导航,避免组件卸载→graph.destroy() 在 g6 内部
+      // 仍在处理双击(transform)时抽走 graph,导致 getTransformInstance 空引用崩溃。
+      if (to) setTimeout(() => navRef.current(to), 0);
     });
     fetchAndSet(graph);
     return () => {
