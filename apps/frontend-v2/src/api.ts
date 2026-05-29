@@ -1,5 +1,6 @@
 import type {
   GraphNode,
+  GraphSnapshot,
   ProgressLog,
   NodeSchema,
   FieldSchema,
@@ -287,6 +288,19 @@ export class Api {
     const p = new URLSearchParams({ dryRun: '1' });
     if (type) p.set('type', type);
     return this.req<ImportPreview>(`/api/import?${p.toString()}`, { method: 'POST', body: fd });
+  }
+
+  kgGraph(opts?: { types?: string[]; q?: string; limit?: number }): Promise<GraphSnapshot> {
+    const p = new URLSearchParams();
+    if (opts?.types?.length) p.set('types', opts.types.join(','));
+    if (opts?.q) p.set('q', opts.q);
+    if (opts?.limit) p.set('limit', String(opts.limit));
+    const qs = p.toString();
+    return this.req<GraphSnapshot>(`/api/kg/graph${qs ? `?${qs}` : ''}`);
+  }
+
+  graphSnapshot(nodeType: string, id: string, depth = 1): Promise<GraphSnapshot> {
+    return this.req<GraphSnapshot>(`/api/graph/snapshot/${nodeType}/${id}?depth=${depth}`);
   }
 
   listDocuments(): Promise<DocItem[]> {

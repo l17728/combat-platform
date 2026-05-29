@@ -20,6 +20,7 @@ import MergePage from './pages/MergePage.js';
 import SchemaWizard from './pages/SchemaWizard.js';
 import ConfigCenter from './pages/ConfigCenter.js';
 import SearchPage from './pages/SearchPage.js';
+import KGGraph from './pages/KGGraph.js';
 import ProposalsPage from './pages/ProposalsPage.js';
 import RemindersPage from './pages/RemindersPage.js';
 import BugReport from './pages/BugReport.js';
@@ -94,6 +95,7 @@ function AppInner() {
         <Route path="/schema" element={<SchemaWizard />} />
         <Route path="/config" element={<ConfigCenter />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/kg" element={<KGGraph />} />
         <Route path="/proposals" element={<ProposalsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/bug-report" element={<BugReport />} />

@@ -20,6 +20,7 @@ import {
   TableOutlined,
   ControlOutlined,
   SearchOutlined,
+  DeploymentUnitOutlined,
   AuditOutlined,
   BellOutlined,
   BugOutlined,
@@ -47,6 +48,7 @@ function getSelectedKey(path: string): string {
   if (path === '/reminders') return '/reminders';
   if (path.startsWith('/related')) return '/attack';
   if (path === '/search') return '/search';
+  if (path === '/kg') return '/kg';
   if (path === '/bug-report') return '/bug-report';
   if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup'].includes(path)) return path;
   return '/';
@@ -139,6 +141,11 @@ export function AppLayout() {
       key: '/search',
       icon: <SearchOutlined />,
       label: '全局搜索',
+    },
+    {
+      key: '/kg',
+      icon: <DeploymentUnitOutlined />,
+      label: '知识图谱',
     },
     {
       key: '/bug-report',
