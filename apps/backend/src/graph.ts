@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Repository, GraphSnapshot, GraphSnapshotNode, GraphSnapshotEdge, GraphNode } from "@combat/shared";
+import type { Repository, SchemaRegistry, GraphSnapshot, GraphSnapshotNode, GraphSnapshotEdge, GraphNode } from "@combat/shared";
 
 const VIZ_EDGE_TYPES = new Set(["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"]);
 
@@ -51,7 +51,44 @@ export function buildSnapshot(repo: Repository, rootId: string, maxDepth: number
   return { rootId, nodes: [...nodes.values()], edges: [...edges.values()] };
 }
 
-export function makeGraphRouter(repo: Repository): Router {
+/**
+ * §KG: 全图/筛选视图 — 跨类型收集节点(可按 nodeType 列表 + 关键词过滤),
+ * 再取这些节点之间的所有边。用于「知识图谱」可视化页面的整体视图;
+ * 单节点的上钻/下钻仍复用 buildSnapshot(/graph/snapshot/:type/:id)。
+ */
+export function buildGraph(
+  repo: Repository,
+  registry: SchemaRegistry,
+  opts: { types?: string[]; q?: string; limit?: number },
+): GraphSnapshot {
+  const limit = Math.max(1, Math.min(opts.limit ?? 500, 2000));
+  const types = opts.types?.length ? opts.types : registry.getConfig().nodeTypes.map(n => n.nodeType);
+  const q = (opts.q ?? "").trim().toLowerCase();
+  const nodes = new Map<string, GraphSnapshotNode>();
+  for (const nt of types) {
+    if (nodes.size >= limit) break;
+    for (const n of repo.queryNodes(nt)) {
+      if (nodes.size >= limit) break;
+      if (q) {
+        const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      nodes.set(n.id, { id: n.id, nodeType: n.nodeType, label: labelOf(n) });
+    }
+  }
+  const ids = new Set(nodes.keys());
+  const edges = new Map<string, GraphSnapshotEdge>();
+  for (const id of ids) {
+    for (const e of repo.queryEdges({ sourceId: id })) {
+      if (!ids.has(e.targetId)) continue;
+      const key = `${e.sourceId}->${e.targetId}:${e.edgeType}`;
+      if (!edges.has(key)) edges.set(key, { source: e.sourceId, target: e.targetId, edgeType: e.edgeType });
+    }
+  }
+  return { rootId: "", nodes: [...nodes.values()], edges: [...edges.values()] };
+}
+
+export function makeGraphRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
   r.get("/graph/snapshot/:nodeType/:id", (req, res) => {
     const node = repo.getNode(req.params.id);
@@ -60,6 +97,13 @@ export function makeGraphRouter(repo: Repository): Router {
     const rawDepth = Number(first(req.query.depth));
     const depth = Number.isFinite(rawDepth) && rawDepth >= 1 ? Math.min(3, Math.floor(rawDepth)) : 1;
     res.json(buildSnapshot(repo, node.id, depth));
+  });
+  r.get("/kg/graph", (req, res) => {
+    const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+    const types = req.query.types ? String(first(req.query.types)).split(",").map(s => s.trim()).filter(Boolean) : undefined;
+    const q = req.query.q ? String(first(req.query.q)) : undefined;
+    const limit = Number(first(req.query.limit)) || 500;
+    res.json(buildGraph(repo, registry, { types, q, limit }));
   });
   return r;
 }

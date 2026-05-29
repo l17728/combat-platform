@@ -1,0 +1,45 @@
+import { describe, it, expect } from "vitest";
+import request from "supertest";
+import { makeTestApp } from "./helpers.js";
+
+describe("知识图谱全图端点 /kg/graph", () => {
+  it("返回筛选后的节点与其间的边", async () => {
+    const { app, repo } = makeTestApp();
+    const t1 = repo.createNode("attackTicket", { 标题: "图测试单A", 状态: "处理中" }, "test");
+    const p1 = repo.createNode("person", { name: "图测试人" }, "test");
+    repo.createEdge("ASSIGNED_TO", t1.id, p1.id, {}, "test");
+
+    const res = await request(app).get("/api/kg/graph");
+    expect(res.status).toBe(200);
+    const ids = res.body.nodes.map((n: any) => n.id);
+    expect(ids).toContain(t1.id);
+    expect(ids).toContain(p1.id);
+    expect(res.body.edges.some((e: any) =>
+      e.source === t1.id && e.target === p1.id && e.edgeType === "ASSIGNED_TO")).toBe(true);
+    // 节点带 label 供可视化展示
+    expect(res.body.nodes.find((n: any) => n.id === t1.id).label).toBe("图测试单A");
+  });
+
+  it("按 types 过滤只返回指定类型节点", async () => {
+    const { app, repo } = makeTestApp();
+    repo.createNode("attackTicket", { 标题: "只要这个单", 状态: "待响应" }, "test");
+    repo.createNode("person", { name: "不应出现的人" }, "test");
+
+    const res = await request(app).get("/api/kg/graph?types=attackTicket");
+    expect(res.status).toBe(200);
+    expect(res.body.nodes.every((n: any) => n.nodeType === "attackTicket")).toBe(true);
+    expect(res.body.nodes.some((n: any) => n.label === "只要这个单")).toBe(true);
+    expect(res.body.nodes.some((n: any) => n.nodeType === "person")).toBe(false);
+  });
+
+  it("按关键词 q 过滤", async () => {
+    const { app, repo } = makeTestApp();
+    repo.createNode("attackTicket", { 标题: "关键词命中单KW", 状态: "处理中" }, "test");
+    repo.createNode("attackTicket", { 标题: "无关单", 状态: "处理中" }, "test");
+
+    const res = await request(app).get("/api/kg/graph?q=KW");
+    expect(res.status).toBe(200);
+    expect(res.body.nodes.some((n: any) => n.label === "关键词命中单KW")).toBe(true);
+    expect(res.body.nodes.some((n: any) => n.label === "无关单")).toBe(false);
+  });
+});
