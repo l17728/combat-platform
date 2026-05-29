@@ -270,11 +270,15 @@ export class Api {
   importXlsx(
     file: File,
     type?: string,
-  ): Promise<{ created: number; updated: number; skipped?: number }> {
+    createFields?: boolean,
+  ): Promise<{ created: number; updated: number; skipped?: number; createdFields?: string[] }> {
     const fd = new FormData();
     fd.append('file', file);
-    const qs = type ? `?type=${encodeURIComponent(type)}` : '';
-    return this.req(`/api/import${qs}`, { method: 'POST', body: fd });
+    const p = new URLSearchParams();
+    if (type) p.set('type', type);
+    if (createFields) p.set('createFields', '1');
+    const qs = p.toString();
+    return this.req(`/api/import${qs ? `?${qs}` : ''}`, { method: 'POST', body: fd });
   }
 
   importPreview(file: File, type?: string): Promise<ImportPreview> {

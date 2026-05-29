@@ -8,6 +8,9 @@ import {
   Table,
   message,
   Space,
+  Checkbox,
+  Tag,
+  Alert,
 } from 'antd';
 import { UploadOutlined, ExportOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
@@ -28,24 +31,30 @@ const NODE_TYPES = [
 export default function ImportExport() {
   const [nodeType, setNodeType] = useState<string>('attackTicket');
   const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [createFields, setCreateFields] = useState(false);
   const [importing, setImporting] = useState(false);
 
   const handlePreview = async (file: File) => {
     try {
       const result = await api.importPreview(file, nodeType);
       setPreview(result);
+      setPendingFile(file);
       message.info('预览完成');
     } catch (e: any) {
       message.error(e.message);
     }
   };
 
-  const handleImport = async (file: File) => {
+  const handleImport = async () => {
+    if (!pendingFile) { message.warning('请先拖入文件预览'); return; }
     setImporting(true);
     try {
-      const result = await api.importXlsx(file, nodeType);
-      message.success(`导入完成：新增 ${result.created}，更新 ${result.updated}${result.skipped ? `，跳过 ${result.skipped}` : ''}`);
+      const result = await api.importXlsx(pendingFile, nodeType, createFields);
+      const newFieldsMsg = result.createdFields?.length ? `，新建字段 ${result.createdFields.length}` : '';
+      message.success(`导入完成：新增 ${result.created}，更新 ${result.updated}${result.skipped ? `，跳过 ${result.skipped}` : ''}${newFieldsMsg}`);
       setPreview(null);
+      setPendingFile(null);
     } catch (e: any) {
       message.error(e.message);
     } finally {
@@ -103,24 +112,30 @@ export default function ImportExport() {
           <div>
             <div style={{ marginBottom: 12 }}>
               <Text>预览结果：新增 {String(preview.willCreate ?? 0)}，更新 {String(preview.willUpdate ?? 0)}，跳过 {String(preview.skipped ?? 0)}</Text>
-              <Button
-                type="primary"
-                loading={importing}
-                onClick={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = '.xlsx,.xls';
-                  input.onchange = (e) => {
-                    const f = (e.target as HTMLInputElement).files?.[0];
-                    if (f) handleImport(f);
-                  };
-                  input.click();
-                }}
-                style={{ marginLeft: 12 }}
-              >
-                确认导入
-              </Button>
             </div>
+            {preview.newColumns && preview.newColumns.length > 0 && (
+              <Alert
+                type="info"
+                showIcon
+                style={{ marginBottom: 12 }}
+                message={`检测到 ${preview.newColumns.length} 个未匹配字段的列`}
+                description={
+                  <div>
+                    <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
+                      {preview.newColumns.map((c) => <Tag key={c}>{c}</Tag>)}
+                    </Space>
+                    <div>
+                      <Checkbox checked={createFields} onChange={(e) => setCreateFields(e.target.checked)}>
+                        自动创建这些字段(string 类型)后一并导入
+                      </Checkbox>
+                    </div>
+                  </div>
+                }
+              />
+            )}
+            <Button type="primary" loading={importing} onClick={handleImport}>
+              确认导入
+            </Button>
           </div>
         )}
       </Card>
