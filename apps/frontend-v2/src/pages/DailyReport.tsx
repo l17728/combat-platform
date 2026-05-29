@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Typography, DatePicker, Statistic, Row, Col, Descriptions, Card, List, Button, message, Empty, Skeleton, Tag, Space, theme } from 'antd';
-import { CopyOutlined, LeftOutlined, RightOutlined, SendOutlined } from '@ant-design/icons';
+import { Typography, DatePicker, Statistic, Row, Col, Descriptions, Card, List, Button, message, Empty, Skeleton, Tag, Space, theme, Modal, Select } from 'antd';
+import { CopyOutlined, LeftOutlined, RightOutlined, SendOutlined, MailOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../api.js';
 import { STATUS_COLOR } from '../constants.js';
@@ -33,6 +33,12 @@ export default function DailyReportPage() {
   const [r, setR] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [notifyOpen, setNotifyOpen] = useState(false);
+  const [collecting, setCollecting] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [collected, setCollected] = useState<string[]>([]);
+  const [groupOptions, setGroupOptions] = useState<string[]>([]);
+  const [notifyGroups, setNotifyGroups] = useState<string[]>([]);
   const { token } = theme.useToken();
   const navigate = useNavigate();
 
@@ -60,6 +66,54 @@ export default function DailyReportPage() {
     finally { setPublishing(false); }
   };
 
+  const openNotify = async () => {
+    if (!r) return;
+    setCollecting(true);
+    try {
+      const persons = new Set<string>();
+      const tickets = await api.listNodes('attackTicket').catch(() => []);
+      const byId = new Map(tickets.map(t => [t.id, t]));
+      for (const s of r.sections) {
+        const t = byId.get(s.ticketId);
+        if (!t) continue;
+        for (const f of ['当前处理人', '攻关组长', '攻关申请人']) {
+          const v = String(t.properties[f] ?? '').trim();
+          if (v) persons.add(v);
+        }
+        for (const m of String(t.properties['攻关成员'] ?? '').split(/[,，、\s]+/)) {
+          const v = m.trim();
+          if (v) persons.add(v);
+        }
+      }
+      const snLists = await Promise.all(r.sections.map(s => api.listSupportNodes(s.ticketId).catch(() => [])));
+      for (const list of snLists) for (const sn of list) {
+        const v = String(sn.personName ?? '').trim();
+        if (v) persons.add(v);
+      }
+      setCollected([...persons]);
+      const groups = await api.listNodes('emailGroup').catch(() => []);
+      setGroupOptions(groups.map(g => String(g.properties['组名'] ?? '')).filter(Boolean));
+      setNotifyGroups([]);
+      setNotifyOpen(true);
+    } finally { setCollecting(false); }
+  };
+
+  const sendNotify = async () => {
+    if (!r) return;
+    setSending(true);
+    try {
+      const res = await api.sendEmail({
+        subject: `攻关日报 ${r.date}`,
+        body: reportToText(r),
+        personNames: collected,
+        groupNames: notifyGroups,
+      });
+      if (res.ok) { message.success(`已发送给 ${res.recipients.length} 个收件人`); setNotifyOpen(false); }
+      else message.error(`发送失败：${res.error || '未知错误'}`);
+    } catch (e: any) { message.error(e.message); }
+    finally { setSending(false); }
+  };
+
   const shiftDate = (delta: number) => setDate(d => d.add(delta, 'day'));
 
   return (
@@ -82,7 +136,8 @@ export default function DailyReportPage() {
         <Col>
           <Space>
             <Button icon={<CopyOutlined />} onClick={copy} disabled={!r || loading}>复制</Button>
-            <Button icon={<SendOutlined />} onClick={publish} loading={publishing} disabled={!r || loading} type="primary">发布日报</Button>
+            <Button icon={<SendOutlined />} onClick={publish} loading={publishing} disabled={!r || loading}>发布日报</Button>
+            <Button icon={<MailOutlined />} onClick={async () => { await publish(); await openNotify(); }} loading={collecting} disabled={!r || loading} type="primary">发布并通知</Button>
           </Space>
         </Col>
       </Row>
@@ -124,6 +179,44 @@ export default function DailyReportPage() {
           ))}
         </>
       )}
+
+      <Modal
+        title="邮件通知 — 发送日报"
+        open={notifyOpen}
+        onCancel={() => setNotifyOpen(false)}
+        onOk={sendNotify}
+        okText="发送"
+        confirmLoading={sending}
+        width={560}
+        destroyOnClose
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <div>
+            <Typography.Text type="secondary">从当天日报涉及的攻关单自动收集相关人（处理人/组长/申请人/成员/求助网络负责人）：</Typography.Text>
+            <div style={{ marginTop: 6 }}>
+              {collected.length === 0
+                ? <Typography.Text type="secondary">未收集到相关人</Typography.Text>
+                : collected.map(n => <Tag key={n} style={{ marginBottom: 4 }}>{n}</Tag>)}
+            </div>
+          </div>
+          <div>
+            <Typography.Text type="secondary">追加邮件群组（如领导组，可多选）：</Typography.Text>
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ width: '100%', marginTop: 6 }}
+              placeholder="选择邮件群组"
+              value={notifyGroups}
+              onChange={setNotifyGroups}
+              options={groupOptions.map(g => ({ value: g, label: g }))}
+              notFoundContent="暂无群组，请到「邮件设置」配置"
+            />
+          </div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            人名将解析为人员邮箱、群组展开为成员邮箱，后端合并去重后发送；正文为当天日报内容。需先在「邮件设置」配置 SMTP。
+          </Typography.Text>
+        </Space>
+      </Modal>
     </div>
   );
 }

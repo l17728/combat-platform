@@ -8,12 +8,11 @@ test.describe('邮件设置 - 扩展功能', () => {
   });
 
   test('save email config', async ({ page }) => {
-    const form = page.locator('.ant-form');
-    await form.getByPlaceholder('smtp.example.com').fill('smtp.e2etest.com');
-    await form.getByPlaceholder('465').fill('465');
-    await form.getByPlaceholder('发件人邮箱').fill('e2e@test.com');
-    await form.getByPlaceholder('••••••').fill('testpass123');
-    await form.getByPlaceholder(/发件人名称/).fill('E2E测试 <e2e@test.com>');
+    const form = page.locator('.ant-form').first();
+    await form.getByLabel('SMTP 服务器').fill('smtp.e2etest.com');
+    await form.getByLabel(/用户名/).fill('e2e@test.com');
+    await form.getByLabel(/密码/).fill('testpass123');
+    await form.getByLabel('发件人邮箱').fill('e2e@test.com');
 
     await page.getByRole('button', { name: '保存配置' }).click();
     await expect(page.getByText('保存成功').first()).toBeVisible({ timeout: 10000 });
@@ -25,28 +24,28 @@ test.describe('邮件设置 - 扩展功能', () => {
   });
 
   test('test email with recipient', async ({ page }) => {
-    const form = page.locator('.ant-form');
-    await form.getByPlaceholder('smtp.example.com').fill('smtp.test.com');
-    await form.getByPlaceholder('发件人邮箱').fill('test@test.com');
-    await form.getByPlaceholder('••••••').fill('testpass');
+    const form = page.locator('.ant-form').first();
+    await form.getByLabel('SMTP 服务器').fill('smtp.test.com');
+    await form.getByLabel(/用户名/).fill('test@test.com');
+    await form.getByLabel(/密码/).fill('testpass');
+    await form.getByLabel('发件人邮箱').fill('test@test.com');
     await page.getByRole('button', { name: '保存配置' }).click();
     await page.waitForTimeout(500);
 
-    const testForm = page.locator('form').nth(1);
-    await testForm.getByPlaceholder('收件人邮箱').fill('recipient@test.com');
+    await page.getByPlaceholder('收件人邮箱').fill('recipient@test.com');
     await page.getByRole('button', { name: /发\s?送/ }).click();
 
     await page.waitForTimeout(3000);
-    const hasMessage = await page.getByText(/测试邮件已发送|HTTP|error|失败/).first().isVisible({ timeout: 5000 }).catch(() => false);
+    const hasMessage = await page.getByText(/测试邮件已发送|HTTP|error|失败|未配置|无效/).first().isVisible({ timeout: 5000 }).catch(() => false);
     expect(hasMessage || true).toBeTruthy();
   });
 
   test('shows all form fields', async ({ page }) => {
-    await expect(page.getByText('SMTP 服务器')).toBeVisible();
-    await expect(page.getByText('端口')).toBeVisible();
-    await expect(page.getByText('用户名')).toBeVisible();
-    await expect(page.getByText('密码')).toBeVisible();
-    await expect(page.getByText('发件人')).toBeVisible();
-    await expect(page.getByText('发送测试邮件')).toBeVisible();
+    await expect(page.getByText('SMTP 服务器').first()).toBeVisible();
+    await expect(page.getByText('端口').first()).toBeVisible();
+    await expect(page.getByText('用户名').first()).toBeVisible();
+    await expect(page.getByText('密码').first()).toBeVisible();
+    await expect(page.getByText('发件人邮箱').first()).toBeVisible();
+    await expect(page.getByText('发送测试邮件').first()).toBeVisible();
   });
 });

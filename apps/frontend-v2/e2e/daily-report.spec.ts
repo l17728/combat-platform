@@ -46,6 +46,12 @@ test.describe('攻关日报', () => {
     await expect(copyBtn).toBeVisible();
   });
 
+  test('发布并通知 opens email-notify modal with group select', async ({ page }) => {
+    await page.getByRole('button', { name: '发布并通知' }).click();
+    await expect(page.locator('.ant-modal').filter({ hasText: '邮件通知' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('追加邮件群组')).toBeVisible();
+  });
+
   test('publish button shows feedback', async ({ page }) => {
     const res = await page.request.post(`${API}/api/nodes/attackTicket`, {
       headers: { 'Content-Type': 'application/json', 'X-Role': 'leader' },

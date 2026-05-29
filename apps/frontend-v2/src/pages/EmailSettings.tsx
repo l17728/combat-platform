@@ -10,9 +10,12 @@ import {
   message,
   Skeleton,
   Space,
+  Table,
+  Modal,
+  Popconfirm,
 } from 'antd';
 import { api } from '../api.js';
-import type { SmtpConfigMasked } from '@combat/shared';
+import type { SmtpConfigMasked, GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 
@@ -25,6 +28,13 @@ export default function EmailSettings() {
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [form] = Form.useForm();
+
+  const [groups, setGroups] = useState<GraphNode[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<GraphNode | null>(null);
+  const [groupForm] = Form.useForm();
 
   useEffect(() => {
     api
@@ -44,6 +54,64 @@ export default function EmailSettings() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const fetchGroups = async () => {
+    setGroupsLoading(true);
+    try {
+      const list = await api.listNodes('emailGroup');
+      setGroups(list);
+    } catch (e: any) {
+      message.error(e.message);
+    } finally {
+      setGroupsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
+
+  const openCreateGroup = () => {
+    setEditingGroup(null);
+    groupForm.resetFields();
+    setGroupModalOpen(true);
+  };
+
+  const openEditGroup = (node: GraphNode) => {
+    setEditingGroup(node);
+    groupForm.setFieldsValue(node.properties);
+    setGroupModalOpen(true);
+  };
+
+  const handleGroupSubmit = async (values: Record<string, unknown>) => {
+    setGroupSaving(true);
+    try {
+      if (editingGroup) {
+        await api.updateNode(editingGroup.id, values);
+        message.success('群组更新成功');
+      } else {
+        await api.createNode('emailGroup', values);
+        message.success('群组创建成功');
+      }
+      setGroupModalOpen(false);
+      groupForm.resetFields();
+      await fetchGroups();
+    } catch (e: any) {
+      message.error(e.message);
+    } finally {
+      setGroupSaving(false);
+    }
+  };
+
+  const handleGroupDelete = async (id: string) => {
+    try {
+      await api.deleteNode(id);
+      message.success('群组删除成功');
+      await fetchGroups();
+    } catch (e: any) {
+      message.error(e.message);
+    }
+  };
 
   const handleSave = async (values: Record<string, unknown>) => {
     setSaving(true);
@@ -152,6 +220,75 @@ export default function EmailSettings() {
           </Space>
         </div>
       </Card>
+
+      <Card style={{ marginTop: 24, maxWidth: 900 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <Title level={5} style={{ margin: 0 }}>邮件群组</Title>
+          <Button type="primary" onClick={openCreateGroup}>新建群组</Button>
+        </div>
+        <Table<GraphNode>
+          rowKey="id"
+          size="small"
+          loading={groupsLoading}
+          dataSource={groups}
+          pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
+          columns={[
+            {
+              title: '组名',
+              dataIndex: ['properties', '组名'],
+              render: (_: unknown, node) => String(node.properties['组名'] ?? ''),
+            },
+            {
+              title: '成员邮箱',
+              dataIndex: ['properties', '成员邮箱'],
+              ellipsis: true,
+              render: (_: unknown, node) => String(node.properties['成员邮箱'] ?? ''),
+            },
+            {
+              title: '描述',
+              dataIndex: ['properties', '描述'],
+              ellipsis: true,
+              render: (_: unknown, node) => String(node.properties['描述'] ?? ''),
+            },
+            {
+              title: '操作',
+              width: 120,
+              render: (_: unknown, node) => (
+                <Space size="middle">
+                  <a onClick={() => openEditGroup(node)}>编辑</a>
+                  <Popconfirm title="确认删除该群组？" onConfirm={() => handleGroupDelete(node.id)}>
+                    <a style={{ color: '#ff4d4f' }}>删除</a>
+                  </Popconfirm>
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Modal
+        title={editingGroup ? '编辑群组' : '新建群组'}
+        open={groupModalOpen}
+        onCancel={() => setGroupModalOpen(false)}
+        onOk={() => groupForm.submit()}
+        confirmLoading={groupSaving}
+        destroyOnClose
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form form={groupForm} layout="vertical" onFinish={handleGroupSubmit}>
+          <Form.Item name="组名" label="组名"
+            rules={[{ required: true, message: '请输入组名' }]}>
+            <Input placeholder="例如: 领导组" />
+          </Form.Item>
+          <Form.Item name="成员邮箱" label="成员邮箱">
+            <Input.TextArea rows={3} placeholder="多个邮箱用逗号分隔，如 a@x.com, b@x.com" />
+          </Form.Item>
+          <Form.Item name="描述" label="描述">
+            <Input placeholder="可选" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }
