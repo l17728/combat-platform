@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, type ChangeEvent } from 'react';
 import {
   Typography, Table, Button, Space, Tag, Empty, Skeleton, Upload, Modal, Form, Input, message, Popconfirm, Tooltip,
 } from 'antd';
-import { UploadOutlined, LinkOutlined, ReloadOutlined, CopyOutlined, DownloadOutlined } from '@ant-design/icons';
+import { UploadOutlined, LinkOutlined, ReloadOutlined, CopyOutlined, DownloadOutlined, InboxOutlined } from '@ant-design/icons';
 import type { UploadProps } from 'antd';
 import { api, type DocItem } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
@@ -28,6 +28,7 @@ export default function DocumentCenter() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkForm] = Form.useForm();
   const [linkSubmitting, setLinkSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const docUrl = (d: DocItem) =>
     d.type === 'link' ? (d.url ?? '') : `${window.location.origin}/api/documents/${d.id}/download`;
@@ -41,22 +42,38 @@ export default function DocumentCenter() {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
+  const uploadOne = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      await api.uploadDocument(file, file.name, uploader);
+      message.success(`「${file.name}」已上传`);
+      fetchDocs();
+    } catch (e: any) {
+      message.error(e.message);
+      throw e;
+    } finally {
+      setUploading(false);
+    }
+  }, [uploader, fetchDocs]);
+
+  // Native <input type=file> click, triggered directly from the button's
+  // onClick within the user gesture — the most browser-compatible way to open
+  // the file dialog (avoids any wrapper indirection that some locked-down
+  // browsers block). Drag-drop below is the dialog-free fallback.
+  const handleNativeFiles = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    for (const f of files) {
+      try { await uploadOne(f); } catch { /* message already shown */ }
+    }
+    e.target.value = '';
+  };
+
   const uploadProps: UploadProps = {
     showUploadList: false,
     multiple: true,
     customRequest: async ({ file, onSuccess, onError }) => {
-      setUploading(true);
-      try {
-        await api.uploadDocument(file as File, (file as File).name, uploader);
-        onSuccess?.({});
-        message.success(`「${(file as File).name}」已上传`);
-        fetchDocs();
-      } catch (e: any) {
-        onError?.(e);
-        message.error(e.message);
-      } finally {
-        setUploading(false);
-      }
+      try { await uploadOne(file as File); onSuccess?.({}); }
+      catch (e) { onError?.(e as Error); }
     },
   };
 
@@ -130,15 +147,21 @@ export default function DocumentCenter() {
         <Space>
           <Button icon={<ReloadOutlined />} onClick={fetchDocs}>刷新</Button>
           <Button icon={<LinkOutlined />} onClick={() => setLinkOpen(true)}>添加链接</Button>
-          <Upload {...uploadProps}>
-            <Button icon={<UploadOutlined />} type="primary" loading={uploading}>上传文档</Button>
-          </Upload>
+          <Button icon={<UploadOutlined />} type="primary" loading={uploading}
+            onClick={() => fileInputRef.current?.click()}>上传文档</Button>
+          <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={handleNativeFiles} />
         </Space>
       </div>
 
       <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
         上传文件或添加外链；用「复制链接 / 复制Markdown」把文档地址粘贴到信息广场、动态标签等 Markdown 内容中引用。
       </Text>
+
+      <Upload.Dragger {...uploadProps} style={{ marginBottom: 16 }}>
+        <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+        <p className="ant-upload-text">拖拽文件到此处上传（无需弹出系统选择框）</p>
+        <p className="ant-upload-hint">支持多文件，单个最大 50MB。若点击上方按钮无法弹出系统选择框，请直接把文件从资源管理器拖到这里。</p>
+      </Upload.Dragger>
 
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : docs.length === 0 ? (
         <Empty description="暂无文档，点击「上传文档」或「添加链接」" />
