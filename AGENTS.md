@@ -741,11 +741,17 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 **代码规模（cloc 2.08，排除 node_modules/dist/.git）**：TypeScript 30,693 行 / 287 文件；Markdown 15,152、JSON 10,381、JavaScript 1,567 —— 源码合计约 **57,965 行 / 383 文件**。
 
-**本会话（截图反馈 / 文档上传 / 返回保留搜索 等）**
-- 前端 e2e **隔离运行全绿**：attack 43/43、lifecycle 38/38、document-center、system-navigation、bug-report。
-- ⚠️ 全量 392 用例满负载(~18min)跑：**379 过 / 约 13 个时序抖动**（状态流转 4.2/4.5/6.2/6.3、regression 状态流转、info-square 空态、dynamic-tabs、audit-log-extended）——**单独跑均通过**，属满负载 + 测试间数据未隔离的历史抖动，待单独收敛到零。
-- 后端无改动，沿用 319/319。
-- 已修确定性 stale 用例：仪表盘标题 heading→tab（auth-flow/lifecycle/regression/system-navigation）、配置中心删除为 Modal「确认删除」非 Popconfirm、邮件设置改用精确标签、selectOption/selectOptionContaining 加开下拉重试。
+**前端 e2e 全量套件 393/393 全绿**（~13.7min，单 worker，`NODE_ENV=test`）；后端无改动沿用 **319/319**。本会话把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
+
+| 类 | 用例 | 实证真根因 | 修复 |
+|---|------|-----------|------|
+| **配置污染** | 状态流转 ×5（lifecycle 4.2/4.5/6.2/6.3、regression:64） | `config-center.spec.ts:62` 盲点配置表**第一行**「编辑」改成「新值A/B/C」。全量下第一行恰是 `config:状态`（启动 `seedConfigFromSchemas` 从 alarmGovernance/告警治理跟踪 首次 seed）→ attackTicket 状态流转下拉读**共享全局 `config:状态` 键**，丢失"处理中"等。残留 DB `config:状态={新值A,新值B,新值C}` 为铁证。 | 改为精确编辑自建的 `e2eTestConfig` 行（仿 :89 删除用例 + 搜索过滤），不碰第一行 |
+| **审计刷屏** | audit-log-extended :10/:86 | E2E webServer 未设 `NODE_ENV=test` → 每次建/改单触发 `routes.ts` postSave 的 `syncConflicts` 全量重建 O(n²) 冲突边，海量「创建 关系」审计把目标节点 CREATE 挤出「最新 200 条」窗口（同文件带筛选的 :24/:46/:63 不受影响，反向印证）。 | `playwright.config.ts` 后端 env 加 `NODE_ENV=test`，激活 `routes.ts:20` 的 postSave 跳过 |
+| **数据累积** | info-square:11 | 断言「暂无信息」空态，但全量下前序用例累积了 infoCard。 | 断言前用 `page.request` GET `/api/nodes/infoCard` + 逐个 DELETE 再 reload |
+| **真实失效** | dynamic-tabs ×4（:82/:95/:227/:255） | `DynamicCustomTab` 编辑器默认折叠（`editorOpen=false`，commit 550b82e/accadba 的有意 UX），测试未点「展开编辑」即断言 Markdown 框——**隔离即复现，与负载无关**。 | 4 用例断言/填写 Markdown 框前先点「展开编辑」 |
+
+- 辅助加固：`e2e/helpers.ts` `pickOption` 先等下拉内任一 option 渲染再过滤目标 + 超时 4→5s / 重试 3→4 次（吸收 AntD 下拉 portal 渲染竞态）。
+- 关键教训：**"隔离过、全量挂"未必是时序抖动**；配置/数据是整段 webServer 生命周期共享（DB 仅启动清一次），跨用例污染共享全局 key（如 `config:状态`）才是常见真因——务必查残留 DB / 失败快照取实证，勿臆测"负载抖动"。
 - 上线特性：文档上传(原生 input + 拖拽区)、全局悬浮「截图反馈」(html2canvas 截当前页 + 记录链接)、问题反馈截图(拖拽 + Ctrl+V 粘贴 + 中文框)、console 捕获启动安装(修复「预览已捕获日志」恒空)、文档中心操作列防换行、攻关详情返回保留列表搜索/筛选(筛选入 URL + navigate(-1))。
 
 **硬核发现（环境约束）**：受控/企业浏览器可在策略层禁用「系统文件选择对话框」(如 Chrome `AllowFileSelectionDialogs=Disabled`)，此时**任何**点击式文件上传(含原生 `<input type=file>`)都弹不出对话框、前端无法绕过；**拖拽上传 / Ctrl+V 粘贴 / html2canvas 截图**走的是非对话框通道，是这类环境下唯一可用的上传方式 —— 新增上传入口务必提供拖拽/粘贴兜底。

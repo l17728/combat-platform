@@ -88,6 +88,7 @@ test.describe('动态标签', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('tab', { name: /编辑器测试/ }).click();
+    await page.getByRole('button', { name: /展开编辑/ }).click();
     await expect(page.getByPlaceholder('输入 Markdown 内容...')).toBeVisible();
     await expect(page.getByRole('button', { name: /AI助手/ })).toBeVisible();
   });
@@ -101,6 +102,7 @@ test.describe('动态标签', () => {
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('tab', { name: /MD预览测试/ }).click();
+    await page.getByRole('button', { name: /展开编辑/ }).click();
     const textarea = page.getByPlaceholder('输入 Markdown 内容...');
     await textarea.fill('# Hello World\nThis is a test.');
     await expect(page.getByRole('heading', { name: 'Hello World' })).toBeVisible({ timeout: 5000 });
@@ -234,6 +236,7 @@ test.describe('动态标签', () => {
 
     await expect(page.getByRole('tab', { name: /API创建标签/ })).toBeVisible();
     await page.getByRole('tab', { name: /API创建标签/ }).click();
+    await page.getByRole('button', { name: /展开编辑/ }).click();
     await expect(page.getByPlaceholder('输入 Markdown 内容...')).toHaveValue('# Test\nHello', { timeout: 5000 });
   });
 
@@ -264,6 +267,7 @@ test.describe('动态标签', () => {
     await expect(page.getByRole('button', { name: /追加进展/ })).toBeVisible();
 
     await page.getByRole('tab', { name: /动态Tab/ }).click();
+    await page.getByRole('button', { name: /展开编辑/ }).click();
     await expect(page.getByPlaceholder('输入 Markdown 内容...')).toBeVisible();
 
     await page.getByRole('tab', { name: /基础信息/ }).click({ force: true });

@@ -67,23 +67,27 @@ test.describe('配置中心', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const editLinks = page.locator('.ant-table-row').getByText('编辑');
-    if (await editLinks.first().isVisible()) {
-      await editLinks.first().click();
-      await page.waitForTimeout(500);
+    // Target THIS test's own config row — never the blind first row, which under
+    // full-suite accumulation is config:状态 (seeded from alarmGovernance) and
+    // whose corruption would break every later attackTicket 状态流转 test.
+    await page.getByPlaceholder('搜索配置键名').fill('e2eTestConfig');
+    await page.waitForTimeout(300);
+    const row = page.locator('.ant-table-row').filter({ hasText: 'e2eTestConfig' });
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await row.getByText(/编\s?辑/).click();
+    await page.waitForTimeout(500);
 
-      const modal = page.locator('.ant-modal');
-      await expect(modal).toBeVisible();
+    const modal = page.locator('.ant-modal');
+    await expect(modal).toBeVisible();
 
-      const valuesTextarea = modal.locator('textarea');
-      await valuesTextarea.clear();
-      await valuesTextarea.fill('新值A, 新值B, 新值C');
+    const valuesTextarea = modal.locator('textarea');
+    await valuesTextarea.clear();
+    await valuesTextarea.fill('新值A, 新值B, 新值C');
 
-      await modal.getByRole('button', { name: /保\s?存/ }).click();
-      await page.waitForTimeout(1000);
+    await modal.getByRole('button', { name: /保\s?存/ }).click();
+    await page.waitForTimeout(1000);
 
-      await expect(page.getByText('新值A')).toBeVisible();
-    }
+    await expect(page.getByText('新值A')).toBeVisible();
   });
 
   test('delete config item via modal', async ({ page }) => {

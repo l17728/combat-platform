@@ -13,21 +13,25 @@ async function pickOption(page: Page, selectLocator: Locator, filter: string | R
   let lastErr: unknown;
   // AntD renders the dropdown in a body-level portal and the open click
   // occasionally races (dropdown shows but options not yet populated, or the
-  // click toggles it shut). Retry the open-and-pick to absorb that flakiness.
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // click toggles it shut). Under heavy full-suite load the option render lags
+  // further behind the dropdown container. Wait for ANY option to materialise
+  // (proves the list is populated) before filtering for the target, and retry
+  // the whole open-and-pick to absorb that flakiness.
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       await selectLocator.locator('.ant-select-selector').click();
       const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 4000 });
-      await page.waitForTimeout(150);
+      await dropdown.waitFor({ state: 'visible', timeout: 5000 });
+      await dropdown.locator('.ant-select-item-option').first().waitFor({ state: 'attached', timeout: 5000 });
       const opt = dropdown.locator('.ant-select-item-option').filter({ hasText: filter }).first();
-      await opt.waitFor({ state: 'attached', timeout: 4000 });
+      await opt.waitFor({ state: 'attached', timeout: 5000 });
+      await opt.scrollIntoViewIfNeeded();
       await opt.dispatchEvent('click');
       return;
     } catch (e) {
       lastErr = e;
       await page.keyboard.press('Escape').catch(() => {});
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(400);
     }
   }
   throw lastErr;

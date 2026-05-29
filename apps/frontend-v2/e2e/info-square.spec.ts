@@ -8,7 +8,17 @@ test.describe('信息广场', () => {
     await expect(page.getByRole('heading', { name: '信息广场' })).toBeVisible();
   });
 
-  test('renders empty state and publish button', async ({ page }) => {
+  test('renders empty state and publish button', async ({ page, request }) => {
+    // Full-suite runs accumulate infoCards from sibling tests; the empty-state
+    // assertion needs a clean slate, so purge infoCards before re-rendering.
+    const existing = await request.get(`${API}/api/nodes/infoCard`);
+    for (const card of (await existing.json()) as { id: string }[]) {
+      await request.delete(`${API}/api/nodes/${card.id}`);
+    }
+    await page.reload();
+    await page.getByRole('tab', { name: /信息广场/ }).click();
+    await expect(page.getByRole('heading', { name: '信息广场' })).toBeVisible();
+
     await expect(page.getByRole('button', { name: /发布信息/ })).toBeVisible();
     await expect(page.getByText('暂无信息')).toBeVisible();
   });
