@@ -9,10 +9,6 @@ Environment=PATH=/root/.nvm/versions/node/v22.22.3/bin:/usr/local/sbin:/usr/loca
 Environment=COMBAT_API=http://localhost:3001
 Environment=COMBAT_DB_PATH=/opt/combat-v2/data/combat.sqlite
 Environment=COMBAT_UPLOAD_DIR=/opt/combat-v2/data/uploads
-Environment=HERMES_AGENT=1
-Environment=HERMES_API=http://localhost:3001
-Environment=HERMES_MODEL=huawei_cloud/glm-5
-Environment=HERMES_TIMEOUT_MS=180000
 ExecStart=/root/.nvm/versions/node/v22.22.3/bin/npx tsx src/server.ts
 Restart=always
 RestartSec=5
