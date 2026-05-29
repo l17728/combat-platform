@@ -4,6 +4,7 @@ import { CopyOutlined, LeftOutlined, RightOutlined, SendOutlined } from '@ant-de
 import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../api.js';
 import { STATUS_COLOR } from '../constants.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import StatusTag from '../components/StatusTag.js';
 import type { DailyReport } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
@@ -43,12 +44,9 @@ export default function DailyReportPage() {
 
   const copy = async () => {
     if (!r) return;
-    try {
-      await navigator.clipboard.writeText(reportToText(r));
-      message.success('已复制到剪贴板');
-    } catch {
-      message.error('复制失败');
-    }
+    const ok = await copyToClipboard(reportToText(r));
+    if (ok) message.success('已复制到剪贴板');
+    else message.error('复制失败');
   };
 
   const publish = async () => {

@@ -21,6 +21,7 @@ import { api } from '../api.js';
 import type { HelpRequest } from '../api.js';
 import { HELP_STATUS_COLOR, PAGE_SIZE } from '../constants.js';
 import { useSettings } from '../hooks/useSettings.js';
+import { copyToClipboard } from '../utils/clipboard.js';
 import type { GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
@@ -46,8 +47,9 @@ export default function HelpCenter() {
 
   const feedbackUrl = (r: HelpRequest) => `${window.location.origin}/help/feedback/${r.feedbackToken}`;
   const copyLink = async (r: HelpRequest) => {
-    try { await navigator.clipboard.writeText(feedbackUrl(r)); message.success('反馈链接已复制'); }
-    catch { message.warning('复制失败，请手动复制'); }
+    const ok = await copyToClipboard(feedbackUrl(r));
+    if (ok) message.success('反馈链接已复制');
+    else message.warning('复制失败，请手动复制');
   };
 
   const fetchData = useCallback(async () => {
