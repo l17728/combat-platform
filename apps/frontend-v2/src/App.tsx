@@ -26,6 +26,7 @@ import BugReport from './pages/BugReport.js';
 import UserManagement from './pages/UserManagement.js';
 import OperationLog from './pages/OperationLog.js';
 import BackupRestore from './pages/BackupRestore.js';
+import DocumentCenter from './pages/DocumentCenter.js';
 import NotFound from './components/NotFound.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 import { AuthProvider, useAuth } from './hooks/useAuth.js';
@@ -98,6 +99,7 @@ function AppInner() {
         <Route path="/users" element={<UserManagement />} />
         <Route path="/op-log" element={<OperationLog />} />
         <Route path="/backup" element={<BackupRestore />} />
+        <Route path="/documents" element={<DocumentCenter />} />
         <Route path="*" element={<NotFound />} />
       </Route>
     </Routes>

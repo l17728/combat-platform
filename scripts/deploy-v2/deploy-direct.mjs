@@ -145,6 +145,7 @@ WorkingDirectory=${DEPLOY_PATH}/apps/backend
 Environment=PATH=${resolvedPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=COMBAT_API=http://localhost:3001
 Environment=COMBAT_DB_PATH=${DEPLOY_PATH}/data/combat.sqlite
+Environment=COMBAT_UPLOAD_DIR=${DEPLOY_PATH}/data/uploads
 ExecStart=${resolvedPath}/npx tsx src/server.ts
 Restart=always
 RestartSec=5

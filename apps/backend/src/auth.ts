@@ -268,6 +268,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
   }
+  // Public document download: links embedded in MD content are clicked in a new
+  // tab without a Bearer token, so allow GET /documents/:id/download only.
+  if (req.method === "GET" && /^\/documents\/[^/]+\/download$/.test(path)) {
+    return next();
+  }
   const payload = verifyAuth(req);
   if (!payload) {
     res.status(401).json({ error: "未登录或 token 已过期" });

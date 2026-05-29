@@ -119,6 +119,11 @@ export function AppLayout() {
       label: '求助中心',
     },
     {
+      key: '/documents',
+      icon: <FileTextOutlined />,
+      label: '文档中心',
+    },
+    {
       key: 'review',
       icon: <AuditOutlined />,
       label: '审核管理',

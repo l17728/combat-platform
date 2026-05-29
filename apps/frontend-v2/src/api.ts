@@ -285,6 +285,27 @@ export class Api {
     return this.req<ImportPreview>(`/api/import?${p.toString()}`, { method: 'POST', body: fd });
   }
 
+  listDocuments(): Promise<DocItem[]> {
+    return this.req<DocItem[]>('/api/documents');
+  }
+  uploadDocument(file: File, name?: string, uploadedBy?: string): Promise<DocItem> {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (name) fd.append('name', name);
+    if (uploadedBy) fd.append('uploadedBy', uploadedBy);
+    return this.req<DocItem>('/api/documents', { method: 'POST', body: fd });
+  }
+  addDocumentLink(name: string, url: string, uploadedBy?: string): Promise<DocItem> {
+    return this.req<DocItem>('/api/documents/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name, url, uploadedBy }),
+    });
+  }
+  deleteDocument(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/documents/${id}`, { method: 'DELETE' });
+  }
+
   private async authFetch(path: string): Promise<Response> {
     const headers: Record<string, string> = {};
     const token = this.getToken();
@@ -743,6 +764,18 @@ export class Api {
       body: JSON.stringify({ order }),
     });
   }
+}
+
+export interface DocItem {
+  id: string;
+  name: string;
+  type: 'file' | 'link';
+  originalName: string | null;
+  mimetype: string | null;
+  size: number | null;
+  url: string | null;
+  uploadedBy: string | null;
+  createdAt: string;
 }
 
 export interface HelpRequest {

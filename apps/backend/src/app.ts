@@ -38,6 +38,7 @@ import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
+import { makeDocumentRouter } from "./documents.js";
 import type { DB } from "./db.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB; dbPath?: string }) {
@@ -91,6 +92,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeOpLogRouter(deps.db));
     app.use("/api", makeBackupRouter(deps.db, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(deps.db));
+    app.use("/api", makeDocumentRouter(deps.db));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });

@@ -5,6 +5,7 @@ import dayjs, { type Dayjs } from 'dayjs';
 import { api } from '../api.js';
 import { STATUS_COLOR } from '../constants.js';
 import { copyToClipboard } from '../utils/clipboard.js';
+import { useNavigate } from 'react-router-dom';
 import StatusTag from '../components/StatusTag.js';
 import type { DailyReport } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
@@ -33,6 +34,7 @@ export default function DailyReportPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const { token } = theme.useToken();
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
@@ -102,7 +104,7 @@ export default function DailyReportPage() {
           {r.sections.map(s => (
             <Card key={s.ticketId} size="small" style={{ marginBottom: 12 }}
               title={<Space><span>【{s.标题}】</span><StatusTag status={s.latestStatus} /></Space>}
-              extra={<a href={`#/attack/${s.ticketId}`} style={{ fontSize: 12 }}>查看详情</a>}>
+              extra={<a onClick={() => navigate(`/attack/${s.ticketId}`)} style={{ fontSize: 12, cursor: 'pointer' }}>查看详情</a>}>
               <List size="small" dataSource={s.entries} rowKey={(e) => `${s.ticketId}-${e.seqNo}`}
                 renderItem={(e) => (
                   <List.Item>

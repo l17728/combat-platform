@@ -185,6 +185,17 @@ export const COMMANDS: CliCommand[] = [
       if (!out) throw new Error("缺少 --out <path.xlsx>");
       return { method: "GET", path: `/api/export/${encodeURIComponent(pos[0])}`, saveTo: out }; } },
 
+  // ---- 文档中心 (documents) ----
+  { name: "documents:list", summary: "列出文档中心全部文档（文件/外链）", usage: "documents:list",
+    build: () => ({ method: "GET", path: "/api/documents" }) },
+  { name: "documents:upload", summary: "上传本地文件到文档中心", usage: "documents:upload --file <path> [--name <名称>]",
+    build: (_pos, opts) => { const file = str(opts.file); if (!file) throw new Error("缺少 --file <path>");
+      return { method: "POST", path: "/api/documents", uploadFile: file }; } },
+  { name: "documents:add-link", summary: "添加一个外链文档", usage: "documents:add-link --name <名称> --url <url>",
+    build: (_pos, opts) => ({ method: "POST", path: "/api/documents/link", body: { name: str(opts.name), url: str(opts.url) } }) },
+  { name: "documents:delete", summary: "按 id 删除文档（文件型同时删除磁盘文件）", usage: "documents:delete <id>",
+    build: (pos) => { requirePos(pos, 1, "documents:delete <id>"); return { method: "DELETE", path: `/api/documents/${encodeURIComponent(pos[0])}` }; } },
+
   // ---- escalation / SLA (§48) ----
   { name: "escalation:config-get", summary: "查看 SLA 上升责任矩阵配置", usage: "escalation:config-get",
     build: () => ({ method: "GET", path: "/api/escalation/config" }) },
