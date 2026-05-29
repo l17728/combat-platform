@@ -526,11 +526,11 @@ export class Api {
     return this.req(`/api/query/search?${p.toString()}`);
   }
 
-  hermesAsk(question: string): Promise<{ question: string; intent: string; answer: string; citations: { nodeId: string; nodeType: string; summary: string; link: string }[]; uiSpec?: any }> {
+  hermesAsk(question: string, context?: string): Promise<{ question: string; intent: string; answer: string; citations: { nodeId: string; nodeType: string; summary: string; link: string }[]; uiSpec?: any }> {
     return this.req('/api/hermes/ask', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(context ? { question, context } : { question }),
     });
   }
 

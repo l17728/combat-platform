@@ -90,7 +90,7 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
     if (!question.trim()) return;
     setChatLoading(true);
     try {
-      const result = await api.hermesAsk(question);
+      const result = await api.hermesAsk(question, `当前攻关单 id=${ticketId}(「本组/本单/这个攻关」均指此单)`);
       const faqCard: ContentBlock = {
         type: 'faq-card',
         content: result.answer,
