@@ -59,6 +59,7 @@ export default function KGGraph() {
   const baseIdsRef = useRef<Set<string>>(new Set());      // 基图节点(刷新得来),折叠时永不移除
   const addedByRef = useRef<Map<string, Set<string>>>(new Map()); // 邻居 id → 引入它的展开节点集合(引用计数)
   const expandedRef = useRef<Set<string>>(new Set());     // 当前已展开的节点
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null); // 单击防抖(dblclick 取消)
   const navRef = useRef(navigate);
   navRef.current = navigate;
 
@@ -71,6 +72,7 @@ export default function KGGraph() {
     setLoading(true);
     try {
       const snap = await api.kgGraph({ types: types.length ? types : undefined, q: q.trim() || undefined, limit: 500 });
+      if (graph.destroyed) return;                    // 组件已卸载,放弃渲染(防 g6 空引用)
       const data = toG6(snap);
       idsRef.current = new Set(data.nodes.map((n) => n.id));
       baseIdsRef.current = new Set(idsRef.current);   // 刷新即重置基图(= 折叠全部)
@@ -90,6 +92,7 @@ export default function KGGraph() {
   const expandNode = useCallback(async (graph: Graph, nodeId: string, nodeType: string) => {
     try {
       const snap = await api.graphSnapshot(nodeType, nodeId, 1);
+      if (graph.destroyed) return;                    // 卸载/导航后放弃
       const data = toG6(snap);
       const newNodes = data.nodes.filter((n) => !idsRef.current.has(n.id));
       // 记录引用计数:本次展开为这些新邻居记上 nodeId(已有节点不计,避免误删基图)
@@ -129,6 +132,7 @@ export default function KGGraph() {
       addedByRef.current.delete(id);
       expandedRef.current.delete(id);
     }
+    if (graph.destroyed) return;
     try {
       graph.removeNodeData(toRemove); // g6 v5 一并移除其相连边
       await graph.render();
@@ -175,23 +179,34 @@ export default function KGGraph() {
       behaviors: ['zoom-canvas', 'drag-canvas', 'drag-element'],
     });
     graphRef.current = graph;
+    // 单击延迟执行(展开/折叠),双击则取消单击并导航,避免双击同时触发图变更 + 卸载销毁的竞态
     graph.on('node:click', (e: any) => {
       const id = e?.target?.id;
       if (!id) return;
-      const nd = graph.getNodeData(id) as any;
-      const nodeType = nd?.data?.nodeType;
-      if (nodeType) toggleNode(graph, id, nodeType);
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        if (graph.destroyed) return;
+        const nd = graph.getNodeData(id) as any;
+        const nodeType = nd?.data?.nodeType;
+        if (nodeType) toggleNode(graph, id, nodeType);
+      }, 260);
     });
     graph.on('node:dblclick', (e: any) => {
       const id = e?.target?.id;
       if (!id) return;
+      if (clickTimerRef.current) { clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
       const nd = graph.getNodeData(id) as any;
       const nodeType = nd?.data?.nodeType;
       if (nodeType === 'attackTicket') navRef.current(`/attack/${id}`);
       else if (nodeType) navRef.current(`/related/${nodeType}/${id}`);
     });
     fetchAndSet(graph);
-    return () => { graph.destroy(); graphRef.current = null; };
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+      try { graph.destroy(); } catch { /* ignore double-destroy */ }
+      graphRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
