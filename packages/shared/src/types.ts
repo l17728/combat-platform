@@ -106,6 +106,9 @@ export interface ImportPreview {
   willUpdate: number;
   skipped: number;
   rows: ImportRowResult[];
+  // 灵活导入:数据中存在但未匹配任何已知字段(name/label/alias)的列名。
+  // createFields=1 时这些列会被自动建为 string 字段后再导入。
+  newColumns?: string[];
 }
 
 export interface SmtpConfig {

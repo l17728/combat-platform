@@ -21,6 +21,25 @@ function mapColumns(row: Record<string, unknown>, schema: NodeSchema): Record<st
   return out;
 }
 
+// 灵活导入:收集数据中存在、但未匹配任何已知字段(name/label/alias)的列名。
+// 这些列在 createFields 模式下会被自动建为 string 字段,实现"尽力而为最大化导入"。
+export function detectNewColumns(rows: Record<string, unknown>[], schema: NodeSchema): string[] {
+  const known = new Set<string>();
+  for (const f of schema.fields) {
+    known.add(f.name.trim());
+    known.add(f.label.trim());
+    for (const a of (f.aliases ?? [])) known.add(a.trim());
+  }
+  const out = new Set<string>();
+  for (const row of rows) {
+    for (const k of Object.keys(row)) {
+      const kt = k.trim();
+      if (kt && !known.has(kt)) out.add(kt);
+    }
+  }
+  return [...out];
+}
+
 function resolvePerson(repo: Repository, registry: SchemaRegistry, name?: string, employeeId?: string): string | null {
   const nameField = registry.getNodeSchema("person")?.fields.find(pf => pf.required && pf.type === "string");
   const nameKey = nameField?.id ?? "name";
@@ -75,7 +94,7 @@ export function analyzeImport(
     if (existing) { out.push({ rowIndex, action: "update", summary }); willUpdate++; }
     else { out.push({ rowIndex, action: "create", summary }); willCreate++; }
   });
-  return { nodeType, willCreate, willUpdate, skipped, rows: out };
+  return { nodeType, willCreate, willUpdate, skipped, rows: out, newColumns: detectNewColumns(rows, schema) };
 }
 
 export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Router {
@@ -84,6 +103,7 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const nodeType = String(first(req.query.type) ?? "attackTicket");
     const dryRun = first(req.query.dryRun) === "1" || first(req.query.dryRun) === "true";
+    const createFields = first(req.query.createFields) === "1" || first(req.query.createFields) === "true";
     const schema = registry.getNodeSchema(nodeType);
     if (!schema) return res.status(400).json({ error: `unknown nodeType: ${nodeType}` });
     if (!req.file?.buffer) return res.status(400).json({ error: "file 必填（multipart 字段名应为 file）" });
@@ -101,12 +121,27 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
     const plan = analyzeImport(repo, registry, nodeType, rows);
     if (dryRun) return res.json(plan);
 
+    // 灵活导入:把未匹配的列自动建为 string 字段,随后用更新后的 schema 重新映射,
+    // 实现"尽力而为最大化导入";建字段失败(如重名)只记日志、不阻断本次导入。
+    const createdFields: string[] = [];
+    if (createFields && plan.newColumns?.length) {
+      for (const col of plan.newColumns) {
+        try {
+          registry.applyFieldOp(nodeType, { op: "addField", field: { name: col, type: "string", label: col } });
+          createdFields.push(col);
+        } catch (e) {
+          log.warn("import.addField_fail", { nodeType, col, error: (e as Error).message });
+        }
+      }
+    }
+    const effectiveSchema = registry.getNodeSchema(nodeType) ?? schema;
+
     let created = 0, updated = 0;
     plan.rows.forEach((rr) => {
       if (rr.action === "skip") return;
       const raw = rows[rr.rowIndex];
-      const props = mapColumns(raw, schema);
-      const existing = findByIdentity(repo, schema, props);
+      const props = mapColumns(raw, effectiveSchema);
+      const existing = findByIdentity(repo, effectiveSchema, props);
       const node = existing
         ? repo.updateNode(existing.id, props, "import")
         : repo.createNode(nodeType, props, "import");
@@ -122,8 +157,8 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
     });
     const skippedRows = plan.rows.filter(r => r.action === "skip");
     for (const sr of skippedRows) log.warn("import.skip", { nodeType, rowIndex: sr.rowIndex, reason: sr.reason });
-    log.info("import.done", { nodeType, created, updated, skipped: plan.skipped, total: rows.length });
-    res.json({ created, updated, skipped: plan.skipped, skippedRows });
+    log.info("import.done", { nodeType, created, updated, skipped: plan.skipped, total: rows.length, createdFields });
+    res.json({ created, updated, skipped: plan.skipped, skippedRows, createdFields });
   });
   return r;
 }
