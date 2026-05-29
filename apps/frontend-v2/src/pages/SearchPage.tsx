@@ -164,7 +164,8 @@ export default function SearchPage() {
       title: '匹配度',
       dataIndex: 'score',
       key: 'score',
-      width: 70,
+      width: 110,
+      align: 'center' as const,
       sorter: (a: QueryHit, b: QueryHit) => a.score - b.score,
       render: (s: number) => (
         <Text type={s >= 3 ? 'danger' : s >= 2 ? 'warning' : undefined}>{s}</Text>

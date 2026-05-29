@@ -7,21 +7,32 @@ import type { RelatedResult } from '../api.js';
 import type { GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import { NODE_TYPE_LABEL } from '../constants.js';
 
 function detailLink(n: GraphNode): string {
   return n.nodeType === 'attackTicket' ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
 }
 
+// 取实体可读名;无名时回退到中文类型名,绝不展示数据库 UUID
 function label(n: GraphNode): string {
-  return String(n.properties['标题'] ?? n.properties['姓名'] ?? n.properties['贡献人'] ?? n.id);
+  const p = n.properties;
+  return String(
+    p['标题'] ?? p['攻关单号'] ?? p['版本号'] ?? p['名称'] ?? p['姓名'] ?? p['name'] ??
+    p['贡献人'] ?? p['组名'] ?? p['key'] ?? (NODE_TYPE_LABEL[n.nodeType] ?? n.nodeType),
+  );
 }
 
 export default function RelatedPage() {
   const { nodeType = '', id = '' } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState<RelatedResult | null>(null);
+  const [node, setNode] = useState<GraphNode | null>(null);
   const [depth, setDepth] = useState(1);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getNode(id).then(setNode).catch(() => setNode(null));
+  }, [id]);
 
   useEffect(() => {
     setLoading(true);
@@ -45,7 +56,10 @@ export default function RelatedPage() {
       <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} style={{ paddingLeft: 0, marginBottom: 8 }}>返回</Button>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Typography.Title level={4} style={{ margin: 0 }}>关联全景：{nodeType} / {id.slice(0, 8)}</Typography.Title>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            关联全景：{node ? label(node) : (NODE_TYPE_LABEL[nodeType] ?? nodeType)}
+          </Typography.Title>
+          <Tag>{NODE_TYPE_LABEL[nodeType] ?? nodeType}</Tag>
           <HelpButton title={HELP.relatedPage.title} content={HELP.relatedPage.content} />
         </div>
       </div>

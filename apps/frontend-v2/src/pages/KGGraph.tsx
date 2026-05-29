@@ -160,6 +160,7 @@ export default function KGGraph() {
     const graph = new Graph({
       container: containerRef.current,
       autoResize: true,
+      animation: false, // 关闭动画:渲染同步,避免 force 布局持续 tick 与增删节点抢占 transform 导致崩溃
       layout: { type: 'd3-force', collide: { radius: 40 }, link: { distance: 120 } },
       node: {
         style: {
