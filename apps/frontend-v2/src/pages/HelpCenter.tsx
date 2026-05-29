@@ -12,8 +12,10 @@ import {
   Tag,
   Empty,
   Skeleton,
+  Descriptions,
+  Divider,
 } from 'antd';
-import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
+import { PlusOutlined, SearchOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import type { HelpRequest } from '../api.js';
@@ -39,7 +41,14 @@ export default function HelpCenter() {
   const [submitting, setSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [tickets, setTickets] = useState<GraphNode[]>([]);
+  const [detailReq, setDetailReq] = useState<HelpRequest | null>(null);
   const navigate = useNavigate();
+
+  const feedbackUrl = (r: HelpRequest) => `${window.location.origin}/help/feedback/${r.feedbackToken}`;
+  const copyLink = async (r: HelpRequest) => {
+    try { await navigator.clipboard.writeText(feedbackUrl(r)); message.success('反馈链接已复制'); }
+    catch { message.warning('复制失败，请手动复制'); }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -150,6 +159,16 @@ export default function HelpCenter() {
       width: 100,
       render: (v: string) => dayjs(v).format('MM/DD HH:mm'),
     },
+    {
+      title: '操作',
+      width: 120,
+      render: (_: unknown, r: HelpRequest) => (
+        <Space size={8}>
+          <a onClick={() => setDetailReq(r)}>{r.status === '已回复' ? '查看回复' : '查看'}</a>
+          {r.status !== '已回复' && <a onClick={() => copyLink(r)}>复制链接</a>}
+        </Space>
+      ),
+    },
   ];
 
   return (
@@ -160,6 +179,7 @@ export default function HelpCenter() {
           <HelpButton title={HELP.helpCenter.title} content={HELP.helpCenter.content} />
         </div>
         <Space>
+          <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
             发起求助
           </Button>
@@ -262,6 +282,47 @@ export default function HelpCenter() {
             <Input.TextArea rows={2} placeholder="可选" />
           </Form.Item>
         </Form>
+      </Drawer>
+
+      <Drawer
+        title="求助详情"
+        width={520}
+        open={!!detailReq}
+        onClose={() => setDetailReq(null)}
+        destroyOnClose
+      >
+        {detailReq && (
+          <>
+            <Descriptions column={1} size="small" bordered>
+              <Descriptions.Item label="攻关单">
+                <a onClick={() => { navigate(`/attack/${detailReq.ticketId}`); }}>{detailReq.ticketId.slice(0, 8)}</a>
+              </Descriptions.Item>
+              <Descriptions.Item label="求助人">{detailReq.requesterName}</Descriptions.Item>
+              <Descriptions.Item label="求助对象">{detailReq.targetName ?? detailReq.targetEmail}</Descriptions.Item>
+              <Descriptions.Item label="类型">{detailReq.category}</Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={HELP_STATUS_COLOR[detailReq.status] ?? 'default'}>{detailReq.status}</Tag></Descriptions.Item>
+              <Descriptions.Item label="求助内容"><div style={{ whiteSpace: 'pre-wrap' }}>{detailReq.question}</div></Descriptions.Item>
+              <Descriptions.Item label="发起时间">{dayjs(detailReq.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider orientation="left" orientationMargin={0}>回复</Divider>
+            {detailReq.status === '已回复' ? (
+              <Descriptions column={1} size="small" bordered>
+                <Descriptions.Item label="回复内容"><div style={{ whiteSpace: 'pre-wrap' }}>{detailReq.feedback || '—'}</div></Descriptions.Item>
+                <Descriptions.Item label="回复人">{detailReq.feedbackBy || '—'}</Descriptions.Item>
+                <Descriptions.Item label="回复时间">{detailReq.feedbackAt ? dayjs(detailReq.feedbackAt).format('YYYY-MM-DD HH:mm') : '—'}</Descriptions.Item>
+              </Descriptions>
+            ) : (
+              <div>
+                <Text type="secondary">尚未回复。可将以下反馈链接发给求助对象：</Text>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <Input readOnly value={feedbackUrl(detailReq)} />
+                  <Button icon={<CopyOutlined />} onClick={() => copyLink(detailReq)}>复制</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </Drawer>
     </div>
   );

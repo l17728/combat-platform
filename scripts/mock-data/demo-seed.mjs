@@ -10,6 +10,7 @@ const API = process.env.COMBAT_API || process.argv.includes('--api')
   : 'http://localhost:3001';
 
 const markdownDemo = readFileSync(new URL('./markdown-demo.md', import.meta.url), 'utf8');
+const raciMatrix = readFileSync(new URL('./raci-matrix.md', import.meta.url), 'utf8');
 
 let headers = { 'Content-Type': 'application/json' };
 
@@ -307,6 +308,7 @@ async function seed() {
     { 标题: '季度最佳攻关团队评选启动', 重要程度: '一般', 信息分类: '公告', 摘要: '团队荣誉评选开始', 内容: '本季度最佳攻关团队评选已启动，依据「团队贡献」记录的等级与数量综合评定。' },
     { 标题: 'CDN跨域访问失败处置经验', 重要程度: '普通', 信息分类: '经验', 摘要: 'CORS与回源配置排查', 内容: '检查 CORS 响应头与回源 Host 配置，多数跨域失败源于回源 Host 不匹配。' },
     { 标题: '春节保障期变更冻结预警', 重要程度: '重要', 信息分类: '预警', 摘要: '保障期非紧急变更冻结', 内容: '保障期内非紧急变更一律冻结，紧急变更需走应急审批流程。' },
+    { 标题: '技术团队 RACI 责任矩阵', 重要程度: '重要', 信息分类: '公告', 摘要: '基于 RACI 模型的技术团队职责分工矩阵', 内容: raciMatrix },
   ];
   let infoCount = 0;
   for (const card of infoCards) {

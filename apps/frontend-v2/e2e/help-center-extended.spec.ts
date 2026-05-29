@@ -111,6 +111,31 @@ test.describe('求助中心 - 扩展功能', () => {
     await expect(page.getByText('E2E不应存在的邮箱')).not.toBeVisible();
   });
 
+  test('view reply content and time after feedback submitted', async ({ page }) => {
+    const ticketRes = await page.request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E回复查看单', 状态: '处理中' },
+    });
+    const ticket = await ticketRes.json();
+    const hrRes = await page.request.post(`${API}/api/help-requests`, {
+      data: { ticketId: ticket.id, requesterName: '回复测试人', targetName: '专家B', targetEmail: 'reply@test.com', category: '环境', question: 'E2E回复查看问题文本' },
+    });
+    const hr = await hrRes.json();
+    await page.request.post(`${API}/api/help/feedback/${hr.feedbackToken}`, {
+      data: { feedback: 'E2E这是专家给出的回复内容', name: '专家B' },
+    });
+
+    await page.goto('/help');
+    await waitForTable(page);
+    const row = page.getByRole('row').filter({ hasText: 'E2E回复查看问题文本' });
+    await expect(row.getByText('已回复')).toBeVisible();
+    await row.getByText('查看回复').click();
+
+    const drawer = page.locator('.ant-drawer').filter({ hasText: '求助详情' });
+    await expect(drawer.getByText('E2E这是专家给出的回复内容')).toBeVisible();
+    await expect(drawer.getByText('专家B').first()).toBeVisible();
+    await expect(drawer.getByText('回复时间')).toBeVisible();
+  });
+
   test('help button visible', async ({ page }) => {
     await page.goto('/help');
     await page.waitForLoadState('networkidle');
