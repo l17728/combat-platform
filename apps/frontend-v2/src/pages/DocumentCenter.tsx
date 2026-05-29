@@ -126,9 +126,9 @@ export default function DocumentCenter() {
       sorter: (a: DocItem, b: DocItem) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     },
     {
-      title: '操作', width: 240, fixed: 'right' as const,
+      title: '操作', width: 300, fixed: 'right' as const,
       render: (_: unknown, d: DocItem) => (
-        <Space size={8}>
+        <Space size={8} wrap={false} style={{ whiteSpace: 'nowrap' }}>
           <a onClick={() => copyPlain(d)}>复制链接</a>
           <a onClick={() => copyMarkdown(d)}>复制Markdown</a>
           <a onClick={() => window.open(docUrl(d), '_blank')}>{d.type === 'link' ? '打开' : '下载'}</a>

@@ -94,8 +94,8 @@ test.describe('邮件设置', () => {
     await expect(page.getByRole('heading', { name: '邮件设置' })).toBeVisible();
     await expect(page.getByText('SMTP 服务器')).toBeVisible();
     await expect(page.getByText('端口')).toBeVisible();
-    await expect(page.getByText('用户名')).toBeVisible();
-    await expect(page.getByText('密码')).toBeVisible();
+    await expect(page.getByText('用户名（邮箱地址）')).toBeVisible();
+    await expect(page.getByText('密码 / 授权码')).toBeVisible();
     await expect(page.getByRole('button', { name: '保存配置' })).toBeVisible();
   });
 
