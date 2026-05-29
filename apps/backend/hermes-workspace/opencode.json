@@ -6,5 +6,12 @@
     "web-search-prime": { "enabled": false },
     "web-reader": { "enabled": false },
     "zread": { "enabled": false }
+  },
+  "provider": {
+    "huawei_cloud": {
+      "models": {
+        "glm-5": { "options": { "thinking": { "type": "disabled" } } }
+      }
+    }
   }
 }

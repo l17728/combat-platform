@@ -7,45 +7,47 @@ import { tool } from "@opencode-ai/plugin";
 const API = process.env.HERMES_API || "http://localhost:3001";
 const TOKEN = process.env.HERMES_TOKEN || "";
 
-async function get(path: string): Promise<string> {
-  try {
-    const res = await fetch(`${API}/api${path}`, {
-      headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
-    });
-    if (!res.ok) return JSON.stringify({ error: `HTTP ${res.status}`, path });
-    return JSON.stringify(await res.json());
-  } catch (e) {
-    return JSON.stringify({ error: String((e as Error).message), path });
-  }
+async function getJson(path: string): Promise<any> {
+  const res = await fetch(`${API}/api${path}`, {
+    headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
+  });
+  if (!res.ok) return { error: `HTTP ${res.status}`, path };
+  return res.json();
 }
 
-export const search = tool({
+// 一步到位检索:search + context 合并,把多轮工具往返压成一次。多数问答一次即可作答。
+export const lookup = tool({
   description:
-    "全文检索作战管理系统的记录(攻关单/人员/贡献/版本等)。返回命中节点的 id、nodeType、summary、score。" +
-    "用关键词(问题单号、攻关单标题片段、人名等)定位记录;拿到 id 后用 getContext 取详情。",
+    "一步检索作战管理系统。按关键词(问题单号、攻关单标题片段、人名等)搜索,并直接返回最匹配的若干条记录的" +
+    "完整字段(node)、近期进展(progress)、关联关系(related),以及命中的真实节点 id。多数问题一次调用即可作答。",
   args: {
     q: tool.schema.string().describe("检索关键词"),
-    limit: tool.schema.number().optional().describe("返回条数上限,默认 20"),
+    limit: tool.schema.number().optional().describe("展开详情的最大记录数,默认 3"),
   },
   async execute(args) {
-    return get(`/query/search?q=${encodeURIComponent(args.q)}&limit=${args.limit ?? 20}`);
-  },
-});
-
-export const getContext = tool({
-  description:
-    "按节点 id 取完整上下文:该节点全部字段(node)、关联关系(related)、进展时间线(progress)。" +
-    "用于回答某条记录的负责人/状态/进展/关联等细节。",
-  args: { id: tool.schema.string().describe("节点 id(来自 search 结果)") },
-  async execute(args) {
-    return get(`/query/context/${encodeURIComponent(args.id)}`);
+    const hitsRaw = await getJson(`/query/search?q=${encodeURIComponent(args.q)}&limit=20`);
+    const hits = Array.isArray(hitsRaw) ? hitsRaw : [];
+    const top = hits.slice(0, Math.max(1, Math.min(args.limit ?? 3, 5)));
+    const matches: any[] = [];
+    for (const h of top) {
+      const ctx = await getJson(`/query/context/${encodeURIComponent(h.id)}`);
+      matches.push({
+        id: h.id,
+        nodeType: h.nodeType,
+        summary: h.summary,
+        properties: ctx?.node?.properties ?? null,
+        progress: Array.isArray(ctx?.progress) ? ctx.progress.slice(-5) : [],
+        related: ctx?.related ?? null,
+      });
+    }
+    return JSON.stringify({ matches, totalHits: hits.length });
   },
 });
 
 export const recommendHelpers = tool({
   description: "对某个攻关单 id 推荐合适的帮手(基于贡献记录、共享问题单等),返回候选人员与推荐理由。",
-  args: { ticketId: tool.schema.string().describe("攻关单节点 id") },
+  args: { ticketId: tool.schema.string().describe("攻关单节点 id(来自 lookup 结果)") },
   async execute(args) {
-    return get(`/recommend/helpers/${encodeURIComponent(args.ticketId)}`);
+    return JSON.stringify(await getJson(`/recommend/helpers/${encodeURIComponent(args.ticketId)}`));
   },
 });

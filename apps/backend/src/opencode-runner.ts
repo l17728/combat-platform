@@ -95,6 +95,11 @@ export class OpencodeAgentRunner implements AgentRunner {
     }
   }
 
+  /** 预热:boot 时调用以提前 spawn/连接 serve,省掉首问冷启动(~常驻保活)。fire-and-forget。 */
+  warmup(): void {
+    this.getClient().catch((e) => log.warn("hermes.opencode.warmup_fail", { error: (e as Error).message }));
+  }
+
   dispose(): void {
     try { this.closeServer?.(); } catch { /* ignore */ }
   }
