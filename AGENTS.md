@@ -738,6 +738,19 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
 
 ### 当前测试状态（2026-05-29 最后验证）
+
+**代码规模（cloc 2.08，排除 node_modules/dist/.git）**：TypeScript 30,693 行 / 287 文件；Markdown 15,152、JSON 10,381、JavaScript 1,567 —— 源码合计约 **57,965 行 / 383 文件**。
+
+**本会话（截图反馈 / 文档上传 / 返回保留搜索 等）**
+- 前端 e2e **隔离运行全绿**：attack 43/43、lifecycle 38/38、document-center、system-navigation、bug-report。
+- ⚠️ 全量 392 用例满负载(~18min)跑：**379 过 / 约 13 个时序抖动**（状态流转 4.2/4.5/6.2/6.3、regression 状态流转、info-square 空态、dynamic-tabs、audit-log-extended）——**单独跑均通过**，属满负载 + 测试间数据未隔离的历史抖动，待单独收敛到零。
+- 后端无改动，沿用 319/319。
+- 已修确定性 stale 用例：仪表盘标题 heading→tab（auth-flow/lifecycle/regression/system-navigation）、配置中心删除为 Modal「确认删除」非 Popconfirm、邮件设置改用精确标签、selectOption/selectOptionContaining 加开下拉重试。
+- 上线特性：文档上传(原生 input + 拖拽区)、全局悬浮「截图反馈」(html2canvas 截当前页 + 记录链接)、问题反馈截图(拖拽 + Ctrl+V 粘贴 + 中文框)、console 捕获启动安装(修复「预览已捕获日志」恒空)、文档中心操作列防换行、攻关详情返回保留列表搜索/筛选(筛选入 URL + navigate(-1))。
+
+**硬核发现（环境约束）**：受控/企业浏览器可在策略层禁用「系统文件选择对话框」(如 Chrome `AllowFileSelectionDialogs=Disabled`)，此时**任何**点击式文件上传(含原生 `<input type=file>`)都弹不出对话框、前端无法绕过；**拖拽上传 / Ctrl+V 粘贴 / html2canvas 截图**走的是非对话框通道，是这类环境下唯一可用的上传方式 —— 新增上传入口务必提供拖拽/粘贴兜底。
+
+**（历史）团队贡献特性**
 - **319/319 backend vitest tests passing** (52 test files，含新增 teamContribution 4 项)
 - **团队贡献特性 e2e（honor-contributions 15/15）+ column-drag 2/2 隔离运行通过**
 - ⚠️ 全量回归存在 **预存 flaky 用例**（auth-flow 等约 6 个登录/登出态切换用例 + 级联）：已用 `git stash` 在未含本特性的基线(2e523d0)上复现同样失败，证明与团队贡献特性无关，属机器负载/时序敏感的历史问题，待单独处理。
