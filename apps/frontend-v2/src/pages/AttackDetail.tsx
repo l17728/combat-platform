@@ -362,11 +362,14 @@ export default function AttackDetail() {
           {supportLoading ? <Spin /> : supportNodes.length === 0 ? <Empty description="暂无求助节点" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
             <Tree treeData={buildTree(supportNodes)} defaultExpandAll titleRender={(nd: any) => (
               <Space size={8}>
-                <Tag color="blue">{nd.category}</Tag>
-                <Text>{nd.domain}</Text>
-                <Text type="secondary">→</Text>
-                <Text>{nd.personName || '待指定'}</Text>
-                <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
+                <Tooltip title={nd.note ? `备注：${nd.note}` : '无备注'}>
+                  <Space size={8}>
+                    <Tag color="blue">{nd.category}</Tag>
+                    <Text strong>{nd.personName || '待指定'}</Text>
+                    <Text type="secondary">· {nd.domain}</Text>
+                    <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
+                  </Space>
+                </Tooltip>
                 <Button size="small" type="text" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); setEditingNode(nd); supportForm.setFieldsValue({ parentId: nd.parentId ?? undefined, category: nd.category, domain: nd.domain, personName: nd.personName ?? undefined, status: nd.status, note: nd.note }); setSupportModalOpen(true); }} />
                 <Popconfirm title="确认删除该节点？" onConfirm={() => handleDeleteSupportNode(nd.id)}>
                   <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
@@ -643,7 +646,7 @@ export default function AttackDetail() {
 
       <Modal title={editingNode ? '编辑求助节点' : '添加求助节点'} open={supportModalOpen} onCancel={() => { setSupportModalOpen(false); setEditingNode(null); }} footer={null} destroyOnClose>
         <Form form={supportForm} layout="vertical" onFinish={handleSupportSubmit}>
-          <Form.Item name="parentId" label="上级节点（可选）"><Select allowClear placeholder="选择上级节点" options={supportNodes.filter(sn => !editingNode || sn.id !== editingNode.id).map(sn => ({ value: sn.id, label: sn.domain }))} /></Form.Item>
+          <Form.Item name="parentId" label="上级节点（求助对象/人）"><Select allowClear placeholder="选择上级求助对象" options={supportNodes.filter(sn => !editingNode || sn.id !== editingNode.id).map(sn => ({ value: sn.id, label: `${sn.personName || '待指定'}（${sn.domain}）` }))} /></Form.Item>
           <Form.Item name="category" label="大类" rules={[{ required: true, message: '请选择大类' }]}><Select placeholder="选择大类" options={SUPPORT_CATEGORIES.map(c => ({ value: c, label: c }))} /></Form.Item>
           <Form.Item name="domain" label="具体领域" rules={[{ required: true, message: '请输入具体领域' }]}><Input placeholder="请输入具体领域" /></Form.Item>
           <Form.Item name="personName" label="负责人姓名（可选）"><Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} /></Form.Item>
