@@ -752,13 +752,19 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 不要求 Excel 列与内置字段完全一致:`detectNewColumns` 识别未匹配 name/label/alias 的列;`/import?createFields=1` 逐列 `applyFieldOp` 建为 string 字段后用更新 schema 重映射导入(失败只记日志不阻断);`dryRun` 预览返回 `newColumns`。前端 ImportExport 预览展示未匹配列 + 勾选「自动创建字段」+ 复用已预览文件(免再弹原生框)。
 
 #### 3. 知识图谱可视化(`/kg` 菜单)
-后端 `GET /api/kg/graph?types=&q=&limit=`(`buildGraph` 跨类型筛节点+取其间边);前端 `KGGraph.tsx` 用 **@antv/g6 v5** 力导向图:按 nodeType 着色+图例、顶部多选筛选+关键词搜索、单击节点下钻展开 1 跳关联(复用 `/graph/snapshot`)、双击跳详情、刷新折叠回基图。
+后端 `GET /api/kg/graph?types=&q=&limit=`(`buildGraph` 跨类型筛节点+取其间边);前端 `KGGraph.tsx` 用 **@antv/g6 v5** 力导向图:按 nodeType 着色+图例、顶部多选筛选+关键词搜索、双击跳详情。
+- **单击节点折叠/展开切换**:展开取 1 跳邻域(复用 `/graph/snapshot`,含上钻/下钻方向);引用计数(`addedBy`)追踪邻居由谁引入,折叠移除本节点独占且非基图的邻居(级联),刷新=折叠全部。
+- **浮动 AI 问答**:可复用组件 `components/HermesChat.tsx`(FloatButton+Drawer)挂在 KG 页,底层即 `/hermes/ask`(与攻关详情 AI 助手**同一能力**);答案 markdown + 可点击溯源引用(跳对应节点)。agent 开启时为 opencode 图谱问答,否则规则引擎。
+
+> **现网 agent 策略**:`HERMES_AGENT` 默认**不在 systemd 常开**(GLM-5 单轮 ~2-3min 延迟会拖慢每次问答),现网 Hermes/KG 问答走**规则引擎(快)**;agent 基建已部署+本机验证,需要时手动设 `HERMES_AGENT=1` 启用(opt-in)。
 
 ### 当前测试状态（2026-05-29 最后验证）
 
 **代码规模（cloc 2.08，排除 node_modules/dist/.git）**：TypeScript 30,693 行 / 287 文件；Markdown 15,152、JSON 10,381、JavaScript 1,567 —— 源码合计约 **57,965 行 / 383 文件**。
 
-**前端 e2e 全量套件 395/395 全绿**（~14.1min，单 worker，`NODE_ENV=test`）；后端 **346/346**（59 文件）。本会话新增 Hermes agent 问答、灵活 Excel 导入、知识图谱可视化三大特性(详见下节),并把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
+**前端 e2e 全量套件 396/396 全绿**（~14min，单 worker，`NODE_ENV=test`,干净机器跑）；后端 **347/347**（59 文件）。本会话新增 Hermes agent 问答、灵活 Excel 导入、知识图谱可视化三大特性 + 多项增强(详见下节),并把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
+
+> ⚠️ **数据累积抖动注意**:people/honor/help-center 等少数用例在**机器被并发重负载占用时**会因数据累积(DB 仅启动清一次)触发严格模式重复匹配而偶发失败;**干净机器跑全绿**。跑全量 e2e 时勿同时跑其它重任务(后端测试/构建/agent 冒烟)。
 
 | 类 | 用例 | 实证真根因 | 修复 |
 |---|------|-----------|------|
