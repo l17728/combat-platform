@@ -78,7 +78,7 @@ export default function HelpCenter() {
   const handleSubmit = async (values: any) => {
     setSubmitting(true);
     try {
-      await api.createHelpRequest({
+      const res = await api.createHelpRequest({
         ticketId: values.ticketId,
         requesterName: values.requesterName,
         targetName: values.targetName,
@@ -87,7 +87,11 @@ export default function HelpCenter() {
         question: values.question,
         extraNote: values.extraNote,
       });
-      message.success('求助已发送');
+      if (res.emailSent) {
+        message.success('求助邮件已发送');
+      } else {
+        message.warning(`求助已创建，但邮件未发送（${res.emailNote || '邮箱未配置'}）。请到「邮件设置」配置 SMTP；或手动把反馈链接发给对方。`, 8);
+      }
       setDrawerOpen(false);
       form.resetFields();
       fetchData();

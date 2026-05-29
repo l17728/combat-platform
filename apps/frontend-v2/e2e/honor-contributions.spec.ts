@@ -146,6 +146,36 @@ test.describe('团队贡献', () => {
     await expect(row.getByText('李四')).toBeVisible();
     await expect(row.getByText('王五')).toBeVisible();
   });
+
+  test('edits a team contribution via drawer (组员 array prefilled)', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/teamContribution`, {
+      data: { 团队名称: 'E2E待编辑团队', 贡献等级: '普通', 贡献类型: '实施', 描述: '原始描述', 组长: '张三', 组员: ['李四'] },
+    });
+    await page.goto('/contributions');
+    await waitForTable(page);
+    const row = page.getByRole('row').filter({ hasText: 'E2E待编辑团队' });
+    await opsCell(row).getByText('编辑').click();
+    await waitForDrawer(page);
+    const drawer = page.locator('.ant-drawer');
+    const desc = drawer.getByPlaceholder('贡献描述');
+    await desc.fill('已更新的团队描述');
+    await page.locator('.ant-drawer-extra button').click();
+    await expect(page.getByText('更新成功')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'E2E待编辑团队', exact: true })).toBeVisible();
+  });
+
+  test('deletes a team contribution', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/teamContribution`, {
+      data: { 团队名称: 'E2E待删团队', 贡献等级: '普通', 贡献类型: '实施', 组长: '张三' },
+    });
+    await page.goto('/contributions');
+    await waitForTable(page);
+    const row = page.getByRole('row').filter({ hasText: 'E2E待删团队' });
+    await opsCell(row).getByText(/删\s?除/).click();
+    await page.getByRole('button', { name: /确\s?定/ }).click();
+    await expect(page.getByText('删除成功')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'E2E待删团队', exact: true })).not.toBeVisible();
+  });
 });
 
 test.describe('荣誉殿堂', () => {

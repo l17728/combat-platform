@@ -250,7 +250,8 @@ npx tsc --noEmit --workspace=@combat/shared
 
 ## Key Domain Concepts
 
-- **nodeType** — entity kind (attackTicket, person, contribution, etc.)
+- **nodeType** — entity kind (attackTicket, person, contribution, teamContribution, infoCard, etc.)
+- **团队贡献 (teamContribution)** — team-level contribution record (`config/schemas/teamContribution.json`); fields 团队名称(必填)/贡献类型/贡献等级(必填)/描述/组长(ref→person)/组员(names array)/关联攻关单/周期/记录时间. Uses the generic node CRUD API — no dedicated endpoint or CLI.
 - **Nodes** — universal data container with `nodeType` and `properties` JSON
 - **Edges** — typed relationships between nodes (ASSIGNED_TO, CONTRIBUTED_TO, etc.)
 - **ProgressLog** — append-only time series on attack tickets
@@ -334,6 +335,9 @@ ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 - **Production:** backend Express on port 3001 serves both API and frontend static files (single port)
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with user Dropdown (displayName + role + logout)
 - **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter, BugReport, DailyReport, LoginPage, MergePage, OperationLog, ProposalsPage, RelatedPage, RemindersPage, SchemaWizard, SearchPage, UserManagement
+  - **Contributions** 同时呈现「个人贡献」(contribution) + 「团队贡献」(teamContribution) 两张堆叠表格，按钮「录入个人贡献」「录入团队贡献」（团队抽屉：组长单选、组员从全员名单多选）。
+  - **Honor** tabs 为「个人排行」+「团队荣誉」（teamContribution 按贡献等级分组卡片 + 右侧详情）。
+- **自定义字段统一在 SchemaWizard 添加**（表结构管理）：选中某张表 → 「添加新字段」，UI 自动渲染；攻关单创建/编辑抽屉的内联「+字段」已移除，"自定义字段" 分组改名「其它字段」。
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
 - **Settings system:** `src/hooks/useSettings.ts` — auto-loads config from `/api/settings`, fallback to hardcoded defaults; all dropdown Selects use `getValues(key, fallback)` pattern
 
@@ -523,7 +527,7 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 - `REMINDER_KIND_LABEL`：问题单跟催/FE Deadline 提醒/CCB 提醒
 - `BUG_SEVERITY_COLOR`：严重=red, 较高=orange, 一般=blue, 建议=default
 - `BUG_STATUS_COLOR`：待处理=gold, 处理中=blue, 已解决=green, 已关闭=default
-- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, releasePackage→版本包, weightFile→权重文件
+- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, teamContribution→团队贡献, releasePackage→版本包, weightFile→权重文件, infoCard→信息卡片
 - 所有中文枚举值颜色必须定义在 constants.ts，不在组件中硬编码
 
 **Steps 生命周期**：详情页顶部用 `<Steps size="small">` 展示状态流转，当前步骤高亮。

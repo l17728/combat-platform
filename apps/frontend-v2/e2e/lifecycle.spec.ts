@@ -304,7 +304,7 @@ test.describe('生命周期故事 — 第五章：求助与协作', () => {
     await drawer.getByPlaceholder('请描述您需要帮助的内容...').fill('Lifecycle需要协助分析503错误原因');
 
     await page.locator('.ant-drawer-extra button').click();
-    await expect(page.getByText('求助已发送').first()).toBeVisible();
+    await expect(page.getByText(/求助(已创建|邮件已发送)/).first()).toBeVisible();
   });
 
   test('5.2 求助反馈公开链接提交', async ({ page, request }) => {
@@ -334,6 +334,7 @@ test.describe('生命周期故事 — 第五章：求助与协作', () => {
   });
 
   test('5.3 求助网络节点添加', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/person`, { data: { 姓名: '张前线', 部门: '前线组' } });
     const res = await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'Lifecycle求助节点单', 状态: '进行中' },
     });
@@ -347,9 +348,10 @@ test.describe('生命周期故事 — 第五章：求助与协作', () => {
 
     const modal = page.locator('.ant-modal');
     const modalSelects = modal.locator('.ant-select');
+    // selects: 上级节点[0], 大类[1], 负责人[2], 状态[3]
     await selectOption(page, modalSelects.nth(1), '环境');
     await modal.getByPlaceholder('请输入具体领域').fill('网络');
-    await modal.getByPlaceholder('请输入负责人姓名').fill('张前线');
+    await selectOption(page, modalSelects.nth(2), '张前线');
     await modal.getByPlaceholder('备注...').fill('需要申请额外计算资源');
 
     await modal.getByRole('button', { name: /提\s?交/ }).click();

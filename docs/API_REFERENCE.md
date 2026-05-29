@@ -151,6 +151,8 @@ body `{ decision: "通过"|"拒绝"|"修正", decidedBy, patch?:{targetNodeId} }
 
 复用通用 CRUD：`POST /api/nodes/releasePackage` / `POST /api/nodes/weightFile` 等。详见 `config/schemas/releasePackage.json` / `weightFile.json` 字段。共享锚点 `问题单号` 自动并入 coAnchored。
 
+> **通用节点端点适用于所有 nodeType**：`teamContribution`（团队贡献）、`infoCard`（信息广场卡片）等新增类型同样复用 `POST/PUT/DELETE/GET /api/nodes/:nodeType`，无专属端点或 CLI；字段见对应 `config/schemas/<nodeType>.json`。
+
 ## 增量导入（增量8 / §26）
 
 ### `POST /api/import?type=<nodeType>`

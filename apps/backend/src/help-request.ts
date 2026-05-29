@@ -111,10 +111,14 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
         updated_at: now,
       });
 
-      const feedbackLink = `${BASE}/api/help/feedback/${feedbackToken}`;
+      // Link points at the FRONTEND feedback form route (renders a form), not the
+      // JSON API endpoint. The form then GETs /api/help/feedback/:token for data.
+      const feedbackLink = `${BASE}/help/feedback/${feedbackToken}`;
       const emailSubject = `【作战平台求助】${requesterName} 就「${ticketTitle}」向您求助`;
       const emailBody = `${requesterName} 在攻关单「${ticketTitle}」中需要您的帮助：\n\n${question}\n\n请点击以下链接回复：\n${feedbackLink}\n\n— 作战平台`;
 
+      let emailSent = false;
+      let emailNote = "";
       try {
         const raw = repo.getSetting("smtp");
         if (raw) {
@@ -125,20 +129,24 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
               subject: emailSubject,
               body: emailBody,
             });
+            emailSent = true;
             log.info("help_request.email_sent", { id, to: targetEmail });
           } else {
+            emailNote = "邮箱未配置（SMTP 主机为空）";
             log.warn("help_request.no_smtp_host", { id });
           }
         } else {
+          emailNote = "邮箱未配置（未设置 SMTP），请到「邮件设置」配置";
           log.warn("help_request.no_smtp", { id });
         }
       } catch (e) {
+        emailNote = `邮件发送失败：${(e as Error).message}`;
         log.warn("help_request.email_fail", { id, error: (e as Error).message });
       }
 
-      log.info("help_request.create", { id, ticketId });
+      log.info("help_request.create", { id, ticketId, emailSent });
       const row = db.prepare("SELECT * FROM help_requests WHERE id=?").get(id) as any;
-      res.status(201).json(toHelpRequest(row));
+      res.status(201).json({ ...toHelpRequest(row), emailSent, emailNote, feedbackLink });
     }),
   );
 

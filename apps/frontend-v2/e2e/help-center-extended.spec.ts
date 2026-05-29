@@ -34,7 +34,7 @@ test.describe('求助中心 - 扩展功能', () => {
     await drawer.getByPlaceholder('可选').fill('E2E附加说明');
 
     await page.locator('.ant-drawer-extra button').click();
-    await expect(page.getByText('求助已发送').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/求助(已创建|邮件已发送)/).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('help request requires required fields', async ({ page }) => {

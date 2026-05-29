@@ -135,7 +135,7 @@ Rules:
 6. Shared types in `packages/shared/` can be extended (additive only) but not broken.
 
 The new frontend should leverage the full backend API surface:
-- Config-driven CRUD for 16+ nodeTypes (attackTicket, person, contribution, etc.)
+- Config-driven CRUD for 16+ nodeTypes (attackTicket, person, contribution, teamContribution, infoCard, etc.) — new nodeTypes need only a `config/schemas/<type>.json`; the generic `/api/nodes/:nodeType` API serves them with no new endpoint/CLI
 - Cross-view relations (REF edges, ANCHORED_TO anchors, concept grouping)
 - Hermes Q&A, search, recommendation, proposals approval
 - Import/export Excel, daily reports, reminders, conflict detection
@@ -422,7 +422,8 @@ npx tsc --noEmit --workspace=@combat/shared
 
 ## Key Domain Concepts
 
-- **nodeType** — entity kind (attackTicket, person, contribution, etc.)
+- **nodeType** — entity kind (attackTicket, person, contribution, teamContribution, infoCard, etc.)
+- **teamContribution（团队贡献）** — 团队级贡献记录（`config/schemas/teamContribution.json`）：团队名称(必填)/贡献类型/贡献等级(必填)/描述/组长(ref→person)/组员(姓名数组)/关联攻关单/周期/记录时间。Contributions 页底部表格录入，Honor 页「团队荣誉」tab 展示；走通用 node CRUD。
 - **Nodes** — universal data container with `nodeType` and `properties` JSON
 - **Edges** — typed relationships between nodes (ASSIGNED_TO, CONTRIBUTED_TO, etc.)
 - **ProgressLog** — append-only time series on attack tickets
@@ -626,7 +627,7 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 - `REMINDER_KIND_LABEL`：问题单跟催/FE Deadline 提醒/CCB 提醒
 - `BUG_SEVERITY_COLOR`：严重=red, 较高=orange, 一般=blue, 建议=default
 - `BUG_STATUS_COLOR`：待处理=gold, 处理中=blue, 已解决=green, 已关闭=default
-- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, releasePackage→版本包, weightFile→权重文件
+- `NODE_TYPE_LABEL`：attackTicket→攻关单, person→人员, contribution→贡献, teamContribution→团队贡献, releasePackage→版本包, weightFile→权重文件, infoCard→信息卡片
 - 所有中文枚举值颜色必须定义在 constants.ts，不在组件中硬编码
 
 **Steps 生命周期**：详情页顶部用 `<Steps size="small">` 展示状态流转，当前步骤高亮。

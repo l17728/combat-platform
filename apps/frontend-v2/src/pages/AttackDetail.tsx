@@ -646,7 +646,7 @@ export default function AttackDetail() {
           <Form.Item name="parentId" label="上级节点（可选）"><Select allowClear placeholder="选择上级节点" options={supportNodes.filter(sn => !editingNode || sn.id !== editingNode.id).map(sn => ({ value: sn.id, label: sn.domain }))} /></Form.Item>
           <Form.Item name="category" label="大类" rules={[{ required: true, message: '请选择大类' }]}><Select placeholder="选择大类" options={SUPPORT_CATEGORIES.map(c => ({ value: c, label: c }))} /></Form.Item>
           <Form.Item name="domain" label="具体领域" rules={[{ required: true, message: '请输入具体领域' }]}><Input placeholder="请输入具体领域" /></Form.Item>
-          <Form.Item name="personName" label="负责人姓名（可选）"><Input placeholder="请输入负责人姓名" /></Form.Item>
+          <Form.Item name="personName" label="负责人姓名（可选）"><Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} /></Form.Item>
           <Form.Item name="status" label="状态" initialValue="待确认"><Select options={SUPPORT_STATUSES.map(s => ({ value: s, label: s }))} /></Form.Item>
           <Form.Item name="note" label="备注"><Input.TextArea rows={3} placeholder="备注..." /></Form.Item>
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}><Space><Button onClick={() => { setSupportModalOpen(false); setEditingNode(null); }}>取消</Button><Button type="primary" htmlType="submit" loading={supportSubmitting}>提交</Button></Space></Form.Item>

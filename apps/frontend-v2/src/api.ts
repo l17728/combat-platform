@@ -761,6 +761,9 @@ export interface HelpRequest {
   feedbackAt: string | null;
   createdAt: string;
   updatedAt: string;
+  emailSent?: boolean;
+  emailNote?: string;
+  feedbackLink?: string;
 }
 
 export interface AuthUser {

@@ -41,7 +41,7 @@ test.describe('求助中心', () => {
 
     await page.locator('.ant-drawer-extra button').click();
 
-    await expect(page.getByText('求助已发送')).toBeVisible();
+    await expect(page.getByText(/求助(已创建|邮件已发送)/)).toBeVisible();
   });
 
   test('filters by status', async ({ page }) => {
