@@ -51,3 +51,25 @@ export const recommendHelpers = tool({
     return JSON.stringify(await getJson(`/recommend/helpers/${encodeURIComponent(args.ticketId)}`));
   },
 });
+
+// 读攻关单的自定义笔记标签(MD 文档),用于组员名单、排查记录等非结构化信息。
+export const ticketTabs = tool({
+  description:
+    "读取某攻关单下的自定义笔记标签(Markdown 文档)正文,如组员名单、排查记录等非结构化信息。" +
+    "当问题涉及笔记里记录的内容(而非结构化字段)时使用。",
+  args: { ticketId: tool.schema.string().describe("攻关单节点 id") },
+  async execute(args) {
+    const tabs = await getJson(`/tickets/${encodeURIComponent(args.ticketId)}/tabs`);
+    const out = (Array.isArray(tabs) ? tabs : [])
+      .filter((t: any) => t?.tabType === "custom")
+      .map((t: any) => {
+        let text = String(t?.content ?? "");
+        try {
+          const blocks = JSON.parse(text);
+          if (Array.isArray(blocks)) text = blocks.map((b: any) => String(b?.content ?? "")).join("\n").trim();
+        } catch { /* content 非 JSON,原样作为 MD */ }
+        return { title: t?.title ?? "", content: text };
+      });
+    return JSON.stringify(out);
+  },
+});

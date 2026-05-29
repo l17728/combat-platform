@@ -23,8 +23,9 @@ function linkFor(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
 }
 
-/** 数据字典 + a2 引用约定 + 问题。给 agent 一张"地图",数据由只读工具按需取。 */
-export function buildHermesPrompt(registry: SchemaRegistry, question: string): string {
+/** 数据字典 + a2 引用约定 + 问题。给 agent 一张"地图",数据由只读工具按需取。
+ *  context: 调用方提供的上下文(如当前攻关单),让"本组/本单"等指代可解析。 */
+export function buildHermesPrompt(registry: SchemaRegistry, question: string, context?: string): string {
   const dict = registry.getConfig().nodeTypes.map((ns) => {
     const fields = ns.fields
       .map((f) => (f.enumValues && f.enumValues.length ? `${f.name}(枚举:${f.enumValues.join("/")})` : f.name))
@@ -42,8 +43,11 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string): s
     "1. 只能通过提供的只读工具查询真实数据,严禁编造记录、字段或 ID。",
     "2. 查不到就如实回答「未找到相关记录」,不要杜撰。",
     "3. 用简体中文回答,简洁直接。",
-    "4. 回答正文之后另起一行输出你据以作答的真实节点 ID,格式:",
+    "4. 「攻关成员/攻关组长」等优先读结构化字段(getContext);若问及组员名单等非结构化信息,",
+    "   可用 hermes_ticketTabs(ticketId) 读该攻关单的自定义笔记标签 MD 文档。",
+    "5. 回答正文之后另起一行输出你据以作答的真实节点 ID,格式:",
     "   CITATIONS: <id1>, <id2>   (没有可引用记录时输出 CITATIONS: 空)",
+    ...(context ? ["", `当前上下文:${context}`] : []),
     "",
     `问题:${question}`,
   ].join("\n");
@@ -86,8 +90,9 @@ export async function answerWithAgent(
   registry: SchemaRegistry,
   question: string,
   runner: AgentRunner,
+  context?: string,
 ): Promise<HermesAnswer> {
-  const prompt = buildHermesPrompt(registry, question);
+  const prompt = buildHermesPrompt(registry, question, context);
   const text = await runner.run(prompt);
   const { answer, citedIds } = parseAgentOutput(text);
   const citations = buildCitations(repo, citedIds);

@@ -320,11 +320,12 @@ export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, run
   r.post("/hermes/ask", asyncHandler(async (req, res) => {
     const q = String(req.body?.question ?? "").trim();
     if (!q) return res.status(400).json({ error: "question 必填" });
+    const context = String(req.body?.context ?? "").trim() || undefined; // 调用方上下文(如当前攻关单),仅 agent 使用
     log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
     // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
     if (runner) {
       try {
-        const answer = await answerWithAgent(repo, registry, q, runner);
+        const answer = await answerWithAgent(repo, registry, q, runner, context);
         log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "agent" });
         return res.json(answer);
       } catch (e) {
