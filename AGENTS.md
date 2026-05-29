@@ -737,11 +737,28 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 列偏好持久化：`localStorage`（`combat-col-w-*` 存宽度，`combat-col-o-*` 存顺序）
 - 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
 
+### 本会话新增特性（2026-05-29）
+
+#### 1. Hermes agent 问答(opencode serve + SDK)
+"Hermes" 是"用 agent 做只读问答"的稳定概念,opencode 为可替换的具体 agent。`/api/hermes/ask` 契约不变(返回 `HermesAnswer`),实现可在规则引擎 ↔ agent 间切换。
+- **确定性核心** `apps/backend/src/hermes-agent.ts`:`AgentRunner` 接口 + `buildHermesPrompt`(数据字典) + `parseAgentOutput`(拆答案/引用 id) + `buildCitations`(按 id 回查节点做 **a2 校验**,丢弃编造 id = 防幻觉) + `answerWithAgent`。
+- **agent 实现** `apps/backend/src/opencode-runner.ts`:`createOpencodeServer` + `@opencode-ai/sdk`(`session.create`/`prompt`),取 `text` part 拼答案;失败/超时静默**回退规则引擎**。
+- **只读工作区** `apps/backend/hermes-workspace/.opencode/`:`tools/hermes.ts`(只读工具 `hermes_lookup` 一步检索 search+context、`hermes_recommendHelpers`,经 Bearer 调本机只读端点)+ `agents/hermes.md`(受限 agent,`bash/edit/write/webfetch: deny`)+ `opencode.json`(禁全局重型 MCP、glm-5 关 thinking)。`.opencode/node_modules` 由 opencode 自动安装、已 gitignore。
+- **环境变量**:`HERMES_AGENT=1` 开启 agent(默认关→规则引擎,现网零风险);`HERMES_MODEL`(默认 `huawei_cloud/glm-5`);`HERMES_OPENCODE_URL`(连外部 serve);`HERMES_TIMEOUT_MS`(默认 180000);`HERMES_API`(工具回调地址);token 由 `signServiceToken` 签发。
+- **实测**:本机冒烟 agent 端到端通(自主 lookup→组织答案→a2 双引用可点击)。瓶颈是 **GLM-5 单轮 ~50-80s 延迟,总 ~2-3min**(已合并工具/关 thinking/常驻预热;再快需换路由模型)。UI 有 loading,可接受。
+- **未完**:切片5 现网部署(需 prod 装 opencode workspace 依赖 + 设 `HERMES_AGENT=1` + prod opencode.json 华为云凭据);默认不开时走规则引擎,可安全先部署。
+
+#### 2. 灵活容错 Excel 导入(未知列自动建字段)
+不要求 Excel 列与内置字段完全一致:`detectNewColumns` 识别未匹配 name/label/alias 的列;`/import?createFields=1` 逐列 `applyFieldOp` 建为 string 字段后用更新 schema 重映射导入(失败只记日志不阻断);`dryRun` 预览返回 `newColumns`。前端 ImportExport 预览展示未匹配列 + 勾选「自动创建字段」+ 复用已预览文件(免再弹原生框)。
+
+#### 3. 知识图谱可视化(`/kg` 菜单)
+后端 `GET /api/kg/graph?types=&q=&limit=`(`buildGraph` 跨类型筛节点+取其间边);前端 `KGGraph.tsx` 用 **@antv/g6 v5** 力导向图:按 nodeType 着色+图例、顶部多选筛选+关键词搜索、单击节点下钻展开 1 跳关联(复用 `/graph/snapshot`)、双击跳详情、刷新折叠回基图。
+
 ### 当前测试状态（2026-05-29 最后验证）
 
 **代码规模（cloc 2.08，排除 node_modules/dist/.git）**：TypeScript 30,693 行 / 287 文件；Markdown 15,152、JSON 10,381、JavaScript 1,567 —— 源码合计约 **57,965 行 / 383 文件**。
 
-**前端 e2e 全量套件 393/393 全绿**（~13.7min，单 worker，`NODE_ENV=test`）；后端无改动沿用 **319/319**。本会话把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
+**前端 e2e 全量套件 395/395 全绿**（~14.1min，单 worker，`NODE_ENV=test`）；后端 **346/346**（59 文件）。本会话新增 Hermes agent 问答、灵活 Excel 导入、知识图谱可视化三大特性(详见下节),并把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
 
 | 类 | 用例 | 实证真根因 | 修复 |
 |---|------|-----------|------|
