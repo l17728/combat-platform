@@ -136,6 +136,10 @@ export const COMMANDS: CliCommand[] = [
     build: (pos, opts) => { requirePos(pos, 1, "daily-report:entry-create <ticketId> --currentProgress <s>");
       return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports`, body: {
         type: str(opts.type), currentProgress: str(opts.currentProgress), nextSteps: str(opts.nextSteps), createdBy: str(opts.by) } }; } },
+  { name: "daily-report:entry-update", summary: "编辑草稿日报条目（已发布不可改）", usage: "daily-report:entry-update <ticketId> <entryId> [--currentProgress <s>] [--nextSteps <s>] [--type <s>]",
+    build: (pos, opts) => { requirePos(pos, 2, "daily-report:entry-update <ticketId> <entryId>");
+      return { method: "PUT", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports/${encodeURIComponent(pos[1])}`, body: {
+        type: str(opts.type), currentProgress: str(opts.currentProgress), nextSteps: str(opts.nextSteps) } }; } },
   { name: "daily-report:entry-publish", summary: "把某攻关单下的某条日报条目从「草稿」改为「已发布」", usage: "daily-report:entry-publish <ticketId> <entryId>",
     build: (pos) => { requirePos(pos, 2, "daily-report:entry-publish <ticketId> <entryId>");
       return { method: "POST", path: `/api/nodes/${encodeURIComponent(pos[0])}/daily-reports/${encodeURIComponent(pos[1])}/publish` }; } },

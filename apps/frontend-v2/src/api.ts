@@ -428,6 +428,14 @@ export class Api {
     });
   }
 
+  updateDailyReportEntry(ticketId: string, entryId: string, data: { type?: string; currentProgress?: string; nextSteps?: string }): Promise<DailyReportEntry> {
+    return this.req<DailyReportEntry>(`/api/nodes/${ticketId}/daily-reports/${entryId}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+  }
+
   publishDailyReportEntry(ticketId: string, entryId: string): Promise<DailyReportEntry> {
     return this.req<DailyReportEntry>(`/api/nodes/${ticketId}/daily-reports/${entryId}/publish`, { method: 'POST' });
   }

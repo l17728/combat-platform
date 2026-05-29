@@ -89,6 +89,7 @@ export default function AttackDetail() {
   const [drModalOpen, setDrModalOpen] = useState(false);
   const [drForm] = Form.useForm();
   const [drSubmitting, setDrSubmitting] = useState(false);
+  const [editingDr, setEditingDr] = useState<DailyReportEntry | null>(null);
   const [drDetail, setDrDetail] = useState<DailyReportEntry | null>(null);
 
   const [supportNodes, setSupportNodes] = useState<SupportNode[]>([]);
@@ -213,7 +214,16 @@ export default function AttackDetail() {
   const createDailyReport = async (values: { type: string; currentProgress: string; nextSteps?: string }) => {
     if (!id) return;
     setDrSubmitting(true);
-    try { await api.createDailyReportEntry(id, values); message.success('日报条目已创建'); setDrModalOpen(false); drForm.resetFields(); fetchDailyReports(); }
+    try {
+      if (editingDr) {
+        await api.updateDailyReportEntry(id, editingDr.id, values);
+        message.success('日报条目已更新');
+      } else {
+        await api.createDailyReportEntry(id, values);
+        message.success('日报条目已创建');
+      }
+      setDrModalOpen(false); setEditingDr(null); drForm.resetFields(); fetchDailyReports();
+    }
     catch (e: any) { message.error(e.message); } finally { setDrSubmitting(false); }
   };
 
@@ -256,9 +266,10 @@ export default function AttackDetail() {
     { title: '下一步计划', dataIndex: 'nextSteps', render: (v: string) => v ? (v.length > 80 ? v.slice(0, 80) + '…' : v) : '--' },
     { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === '已发布' ? 'green' : 'default'}>{v}</Tag> },
     { title: '创建时间', dataIndex: 'createdAt', width: 150, render: (v: string) => dayjs(v).format('MM/DD HH:mm') },
-    { title: '操作', width: 150, render: (_: unknown, r: DailyReportEntry) => (
+    { title: '操作', width: 200, render: (_: unknown, r: DailyReportEntry) => (
       <Space size={4}>
         <Button size="small" type="link" onClick={() => setDrDetail(r)}>详情</Button>
+        <Button size="small" type="link" disabled={r.status === '已发布'} onClick={() => { setEditingDr(r); drForm.setFieldsValue({ type: r.type, currentProgress: r.currentProgress, nextSteps: r.nextSteps }); setDrModalOpen(true); }}>编辑</Button>
         <Button size="small" type="link" disabled={r.status === '已发布'} onClick={async () => { if (id) { await api.publishDailyReportEntry(id, r.id); message.success('已发布'); fetchDailyReports(); } }}>发布</Button>
         <Button size="small" type="link" danger disabled={r.status === '已发布'} onClick={async () => { if (id) { await api.deleteDailyReportEntry(id, r.id); message.success('已删除'); fetchDailyReports(); } }}>删除</Button>
       </Space>
@@ -311,7 +322,7 @@ export default function AttackDetail() {
       key: 'dailyReport', label: <span><FileTextOutlined /> 日报更新</span>,
       children: (
         <div style={{ padding: '16px 0' }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { drForm.resetFields(); setDrModalOpen(true); }} style={{ marginBottom: 16 }}>创建</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingDr(null); drForm.resetFields(); setDrModalOpen(true); }} style={{ marginBottom: 16 }}>创建</Button>
           <Table size="small" loading={drLoading} dataSource={dailyReports} columns={drColumns} rowKey="id"
             pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty description="暂无日报条目" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
         </div>
@@ -623,12 +634,12 @@ export default function AttackDetail() {
         </Form>
       </Drawer>
 
-      <Modal title="创建日报条目" open={drModalOpen} onCancel={() => setDrModalOpen(false)} footer={null} destroyOnClose>
+      <Modal title={editingDr ? '编辑日报条目' : '创建日报条目'} open={drModalOpen} onCancel={() => { setDrModalOpen(false); setEditingDr(null); }} footer={null} destroyOnClose>
         <Form form={drForm} layout="vertical" initialValues={{ type: '进展通报' }} onFinish={createDailyReport}>
           <Form.Item name="type" label="日报类型"><Select options={DR_TYPES.map(t => ({ value: t, label: t }))} /></Form.Item>
           <Form.Item name="currentProgress" label="当前进展" rules={[{ required: true, message: '当前进展必填' }]}><Input.TextArea rows={4} placeholder="请输入当前进展..." /></Form.Item>
           <Form.Item name="nextSteps" label="下一步计划"><Input.TextArea rows={3} placeholder="请输入下一步计划..." /></Form.Item>
-          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}><Space><Button onClick={() => setDrModalOpen(false)}>取消</Button><Button type="primary" htmlType="submit" loading={drSubmitting}>提交</Button></Space></Form.Item>
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}><Space><Button onClick={() => { setDrModalOpen(false); setEditingDr(null); }}>取消</Button><Button type="primary" htmlType="submit" loading={drSubmitting}>提交</Button></Space></Form.Item>
         </Form>
       </Modal>
 

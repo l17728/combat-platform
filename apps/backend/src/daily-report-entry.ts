@@ -58,6 +58,26 @@ export function makeDailyReportEntryRouter(db: DB): Router {
     res.status(201).json(entry);
   });
 
+  // PUT /api/nodes/:id/daily-reports/:eid — edit a draft entry; 已发布 后锁定不可改
+  r.put("/nodes/:id/daily-reports/:eid", (req, res) => {
+    const existing = db.prepare(`SELECT * FROM daily_report_entry WHERE id=? AND ticket_id=?`)
+      .get(req.params.eid, req.params.id) as any;
+    if (!existing) return res.status(404).json({ error: "not found" });
+    if (existing.status === "已发布") return res.status(400).json({ error: "已发布的日报不可编辑" });
+    const { type, currentProgress, nextSteps } = req.body ?? {};
+    if (currentProgress !== undefined && !String(currentProgress).trim()) {
+      return res.status(400).json({ error: "currentProgress 不能为空" });
+    }
+    db.prepare(`UPDATE daily_report_entry SET type=?, current_progress=?, next_steps=? WHERE id=?`).run(
+      type ?? existing.type,
+      currentProgress ?? existing.current_progress,
+      nextSteps ?? existing.next_steps,
+      req.params.eid,
+    );
+    log.info("daily_report_entry.update", { ticketId: req.params.id, id: req.params.eid });
+    res.json(toEntry(db.prepare(`SELECT * FROM daily_report_entry WHERE id=?`).get(req.params.eid)));
+  });
+
   // POST /api/nodes/:id/daily-reports/:eid/publish
   r.post("/nodes/:id/daily-reports/:eid/publish", (req, res) => {
     const existing = db.prepare(`SELECT * FROM daily_report_entry WHERE id=? AND ticket_id=?`)

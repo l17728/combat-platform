@@ -72,6 +72,25 @@ test.describe('攻关日报', () => {
     }
   });
 
+  test('section card 查看详情 navigates to attack detail', async ({ page }) => {
+    const res = await page.request.post(`${API}/api/nodes/attackTicket`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { '标题': 'E2E日报跳转单', '状态': '待响应' },
+    });
+    const { id } = await res.json();
+    await page.request.post(`${API}/api/nodes/${id}/progress`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { content: 'E2E跳转进展', statusSnapshot: '待响应', actor: 'e2e' },
+    });
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    const card = page.locator('.ant-card').filter({ hasText: 'E2E日报跳转单' });
+    if (await card.first().isVisible()) {
+      await card.first().getByText('查看详情').click();
+      await expect(page).toHaveURL(new RegExp(`/attack/${id}`));
+    }
+  });
+
   test('shows section cards for tickets with progress', async ({ page }) => {
     const res = await page.request.post(`${API}/api/nodes/attackTicket`, {
       headers: { 'Content-Type': 'application/json', 'X-Role': 'leader' },
@@ -93,5 +112,38 @@ test.describe('攻关日报', () => {
     if (await cardTitle.isVisible()) {
       await expect(page.getByText('日报卡测试')).toBeVisible();
     }
+  });
+});
+
+test.describe('攻关日报条目 - 编辑(草稿可改/已发布锁定)', () => {
+  test('edit a draft entry, then it is locked after publish', async ({ page }) => {
+    const res = await page.request.post(`${API}/api/nodes/attackTicket`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { '标题': 'E2E日报编辑单', '状态': '处理中' },
+    });
+    const { id } = await res.json();
+    await page.request.post(`${API}/api/nodes/${id}/daily-reports`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { type: '进展通报', currentProgress: 'E2E原始进展内容', nextSteps: '原计划' },
+    });
+
+    await page.goto(`/attack/${id}`);
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: /日报更新/ }).click();
+    await page.waitForTimeout(300);
+
+    const row = page.getByRole('row').filter({ hasText: 'E2E原始进展内容' });
+    await row.getByRole('button', { name: '编辑' }).click();
+    const modal = page.locator('.ant-modal').filter({ hasText: '编辑日报条目' });
+    await expect(modal).toBeVisible();
+    await modal.getByPlaceholder('请输入当前进展...').fill('E2E更新后的进展内容');
+    await modal.getByRole('button', { name: /提\s?交/ }).click();
+    await expect(page.getByText('日报条目已更新')).toBeVisible();
+    await expect(page.getByText('E2E更新后的进展内容')).toBeVisible();
+
+    const row2 = page.getByRole('row').filter({ hasText: 'E2E更新后的进展内容' });
+    await row2.getByRole('button', { name: '发布' }).click();
+    await expect(page.getByText('已发布').first()).toBeVisible();
+    await expect(row2.getByRole('button', { name: '编辑' })).toBeDisabled();
   });
 });
