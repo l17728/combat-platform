@@ -32,6 +32,16 @@ describe("知识图谱全图端点 /kg/graph", () => {
     expect(res.body.nodes.some((n: any) => n.nodeType === "person")).toBe(false);
   });
 
+  it("人员节点标签用姓名而非 id", async () => {
+    const { app, repo } = makeTestApp();
+    const p = repo.createNode("person", { 姓名: "张三人KG", 工号: "EKG1" }, "test");
+    const res = await request(app).get("/api/kg/graph?types=person");
+    const pn = res.body.nodes.find((n: any) => n.id === p.id);
+    expect(pn).toBeTruthy();
+    expect(pn.label).toBe("张三人KG");
+    expect(pn.label).not.toBe(p.id);
+  });
+
   it("按关键词 q 过滤", async () => {
     const { app, repo } = makeTestApp();
     repo.createNode("attackTicket", { 标题: "关键词命中单KW", 状态: "处理中" }, "test");

@@ -5,7 +5,16 @@ const VIZ_EDGE_TYPES = new Set(["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAP
 
 function labelOf(n: GraphNode): string {
   const p = n.properties;
-  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["name"] ?? p["贡献人"] ?? p["key"] ?? n.id);
+  // 贡献节点标签带类型后缀,避免与同名人员节点混淆(橘红「张三·实施」≠ 绿色人员「张三」)
+  if (n.nodeType === "contribution") {
+    const who = String(p["贡献人"] ?? "").trim();
+    const tag = String(p["贡献类型"] ?? p["贡献等级"] ?? "").trim();
+    if (who) return tag ? `${who}·${tag}` : `${who}(贡献)`;
+  }
+  return String(
+    p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ?? p["name"] ?? p["贡献人"] ??
+    p["组名"] ?? p["key"] ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? n.id,
+  );
 }
 
 /**

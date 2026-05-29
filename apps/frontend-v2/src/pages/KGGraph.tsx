@@ -67,6 +67,14 @@ export default function KGGraph() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [count, setCount] = useState<{ nodes: number; edges: number }>({ nodes: 0, edges: 0 });
+  const [presentTypes, setPresentTypes] = useState<string[]>([]); // 当前图中实际存在的类型(图例据此)
+
+  // 统计 + 图例同步:从图当前节点数据计算,保证图例与实际节点严格一致
+  const refreshStats = (graph: Graph) => {
+    const nodes = graph.getNodeData() as any[];
+    setCount({ nodes: nodes.length, edges: graph.getEdgeData().length });
+    setPresentTypes([...new Set(nodes.map((n) => n?.data?.nodeType).filter(Boolean))] as string[]);
+  };
 
   const fetchAndSet = useCallback(async (graph: Graph) => {
     setLoading(true);
@@ -80,7 +88,7 @@ export default function KGGraph() {
       expandedRef.current = new Set();
       graph.setData(data);
       await graph.render();
-      setCount({ nodes: data.nodes.length, edges: data.edges.length });
+      refreshStats(graph);
     } catch (e: any) {
       message.error(e.message);
     } finally {
@@ -107,7 +115,7 @@ export default function KGGraph() {
       if (newEdges.length) graph.addEdgeData(newEdges);
       expandedRef.current.add(nodeId);
       await graph.render();
-      setCount({ nodes: idsRef.current.size, edges: graph.getEdgeData().length });
+      refreshStats(graph);
       if (newNodes.length === 0) message.info('该节点没有更多可展开的关联(再次单击可折叠)');
     } catch (e: any) {
       message.error(e.message);
@@ -136,7 +144,7 @@ export default function KGGraph() {
     try {
       graph.removeNodeData(toRemove); // g6 v5 一并移除其相连边
       await graph.render();
-      setCount({ nodes: idsRef.current.size, edges: graph.getEdgeData().length });
+      refreshStats(graph);
     } catch (e: any) {
       message.error(e.message);
     }
@@ -243,8 +251,8 @@ export default function KGGraph() {
       <div style={{ marginBottom: 8 }}>
         <Space size={4} wrap>
           <Text type="secondary">单击节点展开/折叠关联(下钻/上钻)·双击跳转详情·滚轮缩放·拖拽平移 · 当前 {count.nodes} 节点 / {count.edges} 关系</Text>
-          {Object.entries(TYPE_COLORS).filter(([k]) => NODE_TYPE_LABEL[k]).map(([k, c]) => (
-            <Tag key={k} color={c}>{NODE_TYPE_LABEL[k] ?? k}</Tag>
+          {presentTypes.map((t) => (
+            <Tag key={t} color={TYPE_COLORS[t] ?? '#8c8c8c'}>{NODE_TYPE_LABEL[t] ?? t}</Tag>
           ))}
         </Space>
       </div>
