@@ -23,6 +23,17 @@ export interface JwtPayload {
   role: string;
 }
 
+/**
+ * Mint a short-lived service token for the local Hermes agent (opencode) so its
+ * read-only tools can call the authenticated API on localhost. Read-only is
+ * enforced at the tool layer (only GET wrappers) + agent permissions, not by
+ * the token role; the token only satisfies authMiddleware.
+ */
+export function signServiceToken(): string {
+  const payload: JwtPayload = { userId: "hermes-agent", username: "hermes-agent", role: "admin" };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "365d" });
+}
+
 function toUser(r: any): AuthUser {
   return {
     id: r.id,

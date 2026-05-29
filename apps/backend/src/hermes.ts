@@ -1,7 +1,8 @@
 import { Router } from "express";
 import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode, UiSpec } from "@combat/shared";
 import { recommendHelpers } from "./recommend.js";
-import { log } from "./logger.js";
+import { log, asyncHandler } from "./logger.js";
+import { answerWithAgent, type AgentRunner } from "./hermes-agent.js";
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
@@ -314,15 +315,25 @@ export function answerQuestion(
   };
 }
 
-export function makeHermesRouter(repo: Repository, registry: SchemaRegistry): Router {
+export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, runner?: AgentRunner): Router {
   const r = Router();
-  r.post("/hermes/ask", (req, res) => {
+  r.post("/hermes/ask", asyncHandler(async (req, res) => {
     const q = String(req.body?.question ?? "").trim();
     if (!q) return res.status(400).json({ error: "question 必填" });
-    log.info("hermes.ask.start", { question: q });
+    log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
+    // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
+    if (runner) {
+      try {
+        const answer = await answerWithAgent(repo, registry, q, runner);
+        log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "agent" });
+        return res.json(answer);
+      } catch (e) {
+        log.warn("hermes.ask.agent_fallback", { error: (e as Error).message });
+      }
+    }
     const answer = answerQuestion(repo, registry, q);
-    log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length });
+    log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "rule" });
     res.json(answer);
-  });
+  }));
   return r;
 }

@@ -39,6 +39,8 @@ import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
+import { OpencodeAgentRunner } from "./opencode-runner.js";
+import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
 
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB; dbPath?: string }) {
@@ -71,7 +73,16 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeRemindersRouter(deps.repo, deps.registry));
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
-  app.use("/api", makeHermesRouter(deps.repo, deps.registry));
+  // Hermes 概念用 agent(opencode)实现;默认关闭(HERMES_AGENT=1 开启),
+  // 关闭或失败时回退规则引擎,保证现网零风险接入。
+  const hermesRunner = process.env.HERMES_AGENT === "1"
+    ? new OpencodeAgentRunner({
+        directory: fileURLToPath(new URL("../hermes-workspace", import.meta.url)),
+        serverUrl: process.env.HERMES_OPENCODE_URL,
+        model: process.env.HERMES_MODEL || "huawei_cloud/glm-5",
+      })
+    : undefined;
+  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner));
   app.use("/api", makeGraphRouter(deps.repo));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));
