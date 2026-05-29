@@ -8,7 +8,7 @@ import {
   DashboardOutlined,
   NotificationOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
@@ -183,7 +183,8 @@ function DashboardContent() {
 }
 
 export default function Dashboard() {
-  const [activeKey, setActiveKey] = useState('dashboard');
+  const [searchParams] = useSearchParams();
+  const [activeKey, setActiveKey] = useState(searchParams.get('tab') === 'square' ? 'square' : 'dashboard');
 
   return (
     <div>

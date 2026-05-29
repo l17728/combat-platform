@@ -3,9 +3,13 @@
 // 用法: node scripts/mock-data/demo-seed.mjs [--api http://localhost:3001]
 // 前提: 后端 API 正在运行，数据库为空或可覆盖
 
+import { readFileSync } from 'node:fs';
+
 const API = process.env.COMBAT_API || process.argv.includes('--api')
   ? process.argv[process.argv.indexOf('--api') + 1]
   : 'http://localhost:3001';
+
+const markdownDemo = readFileSync(new URL('./markdown-demo.md', import.meta.url), 'utf8');
 
 let headers = { 'Content-Type': 'application/json' };
 
@@ -452,6 +456,17 @@ async function seed() {
         title: '关联贡献',
         tabType: 'link',
         config: { linkNodeType: 'contribution' },
+      });
+      tabCount++;
+    } catch (e) { /* skip */ }
+  }
+  // 第一个攻关单额外加一个「信息广场」标签，展示完整 Markdown 渲染
+  if (tickets.length > 0) {
+    try {
+      await post(`/api/tickets/${tickets[0].id}/tabs`, {
+        title: '信息广场',
+        tabType: 'custom',
+        content: markdownDemo,
       });
       tabCount++;
     } catch (e) { /* skip */ }

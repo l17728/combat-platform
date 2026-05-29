@@ -55,6 +55,30 @@ test.describe('动态标签', () => {
     await expect(page.getByRole('tab', { name: /E2E测试笔记/ })).toBeVisible();
   });
 
+  test('全局广场海报标签 - 多选信息广场卡片并展示', async ({ page }) => {
+    await page.request.post(`${API}/api/nodes/infoCard`, {
+      data: { 标题: 'E2E海报卡片', 重要程度: '重要', 信息分类: '通知', 摘要: 'E2E海报摘要', 发布人: '管理员' },
+    });
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('button', { name: /添加标签/ }).click();
+    const modal = page.locator('.ant-modal').filter({ hasText: '添加标签' });
+    await expect(modal).toBeVisible();
+
+    // 关联数据为默认类型；在「信息广场卡片」多选中选择卡片
+    await selectOption(page, modal.locator('.ant-select'), 'E2E海报卡片');
+    await modal.getByPlaceholder(/全局广场海报/).fill('全局广场海报');
+    await modal.getByRole('button', btn('创建')).click();
+
+    await expect(page.getByText('标签已创建').first()).toBeVisible({ timeout: 10000 });
+    const posterTab = page.getByRole('tab', { name: /全局广场海报/ });
+    await expect(posterTab).toBeVisible();
+    await posterTab.click();
+    await expect(page.getByText('E2E海报卡片').first()).toBeVisible();
+    await expect(page.getByRole('button', { name: /前往信息广场/ })).toBeVisible();
+  });
+
   test('自定义笔记标签 - 编辑器可见', async ({ page }) => {
     await page.request.post(`${API}/api/tickets/${ticketId}/tabs`, {
       data: { tabType: 'custom', title: '编辑器测试' },
