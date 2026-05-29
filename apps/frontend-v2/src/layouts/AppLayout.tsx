@@ -28,6 +28,7 @@ import {
   DownOutlined,
   EyeOutlined,
   DatabaseOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuth } from '../hooks/useAuth.js';
@@ -142,6 +143,11 @@ export function AppLayout() {
       key: '/bug-report',
       icon: <BugOutlined />,
       label: '问题反馈',
+    },
+    {
+      key: '/manual',
+      icon: <QuestionCircleOutlined />,
+      label: '帮助中心',
     },
     {
       key: 'system',
