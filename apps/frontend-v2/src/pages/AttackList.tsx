@@ -3,7 +3,7 @@ import {
   Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Checkbox, Popover,
 } from 'antd';
 import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
@@ -27,12 +27,13 @@ const DEFAULT_VISIBLE = ['标题', '状态', '当前处理人', '事件级别', 
 
 export default function AttackList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [schema, setSchema] = useState<NodeSchema | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filterField, setFilterField] = useState<string | undefined>();
-  const [filterValues, setFilterValues] = useState<string[]>([]);
-  const [searchText, setSearchText] = useState('');
+  const [filterField, setFilterField] = useState<string | undefined>(() => searchParams.get('field') || undefined);
+  const [filterValues, setFilterValues] = useState<string[]>(() => searchParams.getAll('val'));
+  const [searchText, setSearchText] = useState(() => searchParams.get('q') || '');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
@@ -110,6 +111,16 @@ export default function AttackList() {
     }
     return result;
   }, [nodes, filterField, filterValues, searchText]);
+
+  // Keep filters in the URL so returning from a detail page (browser back)
+  // restores the search/filter instead of dumping the user on the full list.
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (filterField) next.set('field', filterField);
+    filterValues.forEach((v) => next.append('val', v));
+    if (searchText) next.set('q', searchText);
+    setSearchParams(next, { replace: true });
+  }, [filterField, filterValues, searchText, setSearchParams]);
 
   const personOptions = people.map((p) => ({
     value: (p.properties['姓名'] as string) ?? '',

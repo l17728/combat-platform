@@ -475,7 +475,10 @@ export default function AttackDetail() {
   return (
     <div>
       <div style={{ marginBottom: 12 }}>
-        <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => navigate('/attack')} style={{ paddingLeft: 0 }}>返回列表</Button>
+        <Button type="link" icon={<ArrowLeftOutlined />} onClick={() => {
+          const idx = (window.history.state && (window.history.state as any).idx) as number | undefined;
+          if (idx && idx > 0) navigate(-1); else navigate('/attack');
+        }} style={{ paddingLeft: 0 }}>返回列表</Button>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>

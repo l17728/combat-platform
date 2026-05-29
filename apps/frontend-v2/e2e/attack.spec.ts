@@ -396,6 +396,34 @@ test.describe('攻关详情', () => {
     await expect(page).toHaveURL('/attack');
   });
 
+  test('preserves search filter when returning from detail', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E返回保留搜索专用', 状态: '处理中' },
+    });
+    await request.post(`${API}/api/nodes/attackTicket`, {
+      data: { 标题: 'E2E返回无关单', 状态: '处理中' },
+    });
+
+    await page.goto('/attack');
+    await waitForTable(page);
+    const tbody = page.locator('tbody').first();
+
+    await page.getByPlaceholder('搜索标题/单号/处理人').fill('返回保留搜索');
+    await expect(tbody.getByText('E2E返回保留搜索专用')).toBeVisible();
+    await expect(tbody.getByText('E2E返回无关单')).not.toBeVisible();
+    await expect(page).toHaveURL(/\/attack\?.*q=/);
+
+    await page.getByRole('cell', { name: 'E2E返回保留搜索专用' }).click();
+    await expect(page).toHaveURL(/\/attack\/[0-9a-f-]+/);
+
+    await page.getByRole('button', { name: '返回列表' }).click();
+    await expect(page).toHaveURL(/\/attack\?.*q=/);
+    await waitForTable(page);
+    await expect(page.getByPlaceholder('搜索标题/单号/处理人')).toHaveValue('返回保留搜索');
+    await expect(tbody.getByText('E2E返回保留搜索专用')).toBeVisible();
+    await expect(tbody.getByText('E2E返回无关单')).not.toBeVisible();
+  });
+
   test('shows helper recommendations', async ({ page, request }) => {
     await request.post(`${API}/api/nodes/person`, {
       data: { 姓名: 'E2E专家A' },
