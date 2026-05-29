@@ -60,7 +60,7 @@ export class OpencodeAgentRunner implements AgentRunner {
     const slash = model.indexOf("/");
     const providerID = slash > 0 ? model.slice(0, slash) : "huawei_cloud";
     const modelID = slash > 0 ? model.slice(slash + 1) : model;
-    const timeoutMs = this.opts.timeoutMs ?? 60000;
+    const timeoutMs = this.opts.timeoutMs ?? (Number(process.env.HERMES_TIMEOUT_MS) || 180000);
 
     const work = (async () => {
       const client = await this.getClient();

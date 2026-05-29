@@ -1,0 +1,10 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [],
+  "mcp": {
+    "zai-mcp-server": { "enabled": false },
+    "web-search-prime": { "enabled": false },
+    "web-reader": { "enabled": false },
+    "zread": { "enabled": false }
+  }
+}
