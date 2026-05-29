@@ -67,7 +67,7 @@ export interface RebuildKGResult { refEdges: number; anchorEdges: number; confli
 
 export type HermesIntent =
   | "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search"
-  | "contribution-by-person" | "recent-changes" | "find-helpers";
+  | "contribution-by-person" | "recent-changes" | "find-helpers" | "agent";
 
 export interface GraphSnapshotNode { id: string; nodeType: string; label: string; }
 export interface GraphSnapshotEdge { source: string; target: string; edgeType: string; }
