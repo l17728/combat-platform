@@ -54,8 +54,8 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
     const res = await request(app).get("/api/schema/list");
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
-    // 17 schemas (15 base + domain + infoCard)
-    expect(res.body.length).toBe(17);
+    // 18 schemas (15 base + domain + infoCard + teamContribution)
+    expect(res.body.length).toBe(18);
     // Each should have nodeType and fields
     for (const s of res.body) {
       expect(typeof s.nodeType).toBe("string");

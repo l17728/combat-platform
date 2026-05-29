@@ -248,6 +248,47 @@ async function seed() {
   console.log(`   ✓ ${contribCount} 条贡献记录\n`);
 
   // ═══════════════════════════════════════════
+  // 6b. 团队贡献 (teamContribution) — ~10条
+  // ═══════════════════════════════════════════
+  console.log('6b. 团队贡献 — 创建团队贡献记录...');
+  const teamNames = ['攻坚突击队', '护航保障队', '数据攻坚组', '网络应急队', '安全防护组', '平台护航组', '算法优化组', '运维保障队', '跨域协同组', '客户支撑队'];
+  const teamDescs = [
+    '团队协同攻坚完成核心故障根因定位与修复',
+    '组建跨域应急小组，7x24小时保障客户业务连续性',
+    '联合多部门推动复杂问题的端到端解决',
+    '团队共建自动化排查能力，大幅缩短MTTR',
+    '协同优化系统架构并完成容灾演练',
+    '团队牵头制定应急预案并组织实战演练',
+    '集中攻关性能瓶颈，整体吞吐提升显著',
+    '组团完成大规模数据迁移与一致性校验',
+  ];
+  let teamCount = 0;
+  for (const teamName of teamNames) {
+    try {
+      const leader = pick(people).properties['姓名'];
+      const members = [];
+      let guard = 0;
+      while (members.length < randInt(2, 4) && guard < 50) {
+        guard++;
+        const name = pick(people).properties['姓名'];
+        if (name !== leader && !members.includes(name)) members.push(name);
+      }
+      await post('/api/nodes/teamContribution', {
+        团队名称: teamName,
+        贡献类型: pick(['实施', '发现', '协调', '指导', '支持']),
+        贡献等级: pick(['核心', '关键', '普通']),
+        描述: pick(teamDescs),
+        组长: leader,
+        组员: members,
+        关联攻关单: tickets.length > 0 ? pick(tickets).properties['问题单号'] : undefined,
+        周期: pick(periods),
+      });
+      teamCount++;
+    } catch (e) { /* skip */ }
+  }
+  console.log(`   ✓ ${teamCount} 条团队贡献记录\n`);
+
+  // ═══════════════════════════════════════════
   // 7. 求助中心 (HelpCenter page) — 10条求助
   // ═══════════════════════════════════════════
   console.log('7. 求助中心 — 创建 10 条求助记录...');
@@ -431,8 +472,8 @@ async function seed() {
   console.log('  /attack       攻关作战台 (30张)');
   console.log('  /attack/:id   攻关详情 (进展/求助网络/日报/动态标签)');
   console.log('  /people       全员名单 (20+人, 含重复)');
-  console.log('  /contributions 贡献录入 (40条)');
-  console.log('  /honor        荣誉殿堂排行榜');
+  console.log('  /contributions 贡献录入 (40条, 含团队贡献)');
+  console.log('  /honor        荣誉殿堂排行榜 (含团队贡献)');
   console.log('  /honor/:name  个人荣誉详情');
   console.log('  /help         求助中心 (10条)');
   console.log('  /daily-report 攻关日报');

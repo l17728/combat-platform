@@ -1,0 +1,17 @@
+{
+  "nodeType": "teamContribution",
+  "label": "团队贡献",
+  "identityKeys": [],
+  "derivedToKG": true,
+  "fields": [
+    { "id": "团队名称", "name": "团队名称", "type": "string", "label": "团队名称", "required": true },
+    { "id": "贡献类型", "name": "贡献类型", "type": "string", "label": "贡献类型" },
+    { "id": "贡献等级", "name": "贡献等级", "type": "string", "label": "贡献等级", "required": true },
+    { "id": "描述", "name": "描述", "type": "string", "label": "贡献描述" },
+    { "id": "组长", "name": "组长", "type": "ref", "refType": "person", "label": "组长", "concept": "负责人" },
+    { "id": "组员", "name": "组员", "type": "string", "label": "组员" },
+    { "id": "关联攻关单", "name": "关联攻关单", "type": "string", "label": "关联攻关单" },
+    { "id": "周期", "name": "周期", "type": "string", "label": "周期" },
+    { "id": "记录时间", "name": "记录时间", "type": "datetime", "label": "记录时间" }
+  ]
+}

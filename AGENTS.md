@@ -737,8 +737,10 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 已集成页面：AttackList, PeopleList, Contributions, UserManagement, ConfigCenter, Honor
 
 ### 当前测试状态（2026-05-29 最后验证）
-- **348/348 frontend-v2 e2e tests passing**（全量回归，含新增 column-drag 列拖拽用例）
-- **315/315 backend vitest tests passing** (51 test files)
+- **319/319 backend vitest tests passing** (52 test files，含新增 teamContribution 4 项)
+- **团队贡献特性 e2e（honor-contributions 15/15）+ column-drag 2/2 隔离运行通过**
+- ⚠️ 全量回归存在 **预存 flaky 用例**（auth-flow 等约 6 个登录/登出态切换用例 + 级联）：已用 `git stash` 在未含本特性的基线(2e523d0)上复现同样失败，证明与团队贡献特性无关，属机器负载/时序敏感的历史问题，待单独处理。
+- **315/315 backend vitest tests passing**（特性前基线）
 - 修复：addField 拒绝重复 name（name 是属性/表单键，必须唯一）；attackTicket.json 清理 22 个 E2E 污染重复字段
 - 修复：去除攻关单创建/编辑抽屉内联「+字段」，字段新增统一到 SchemaWizard 选中表的「添加新字段」；"自定义字段" 分组改名「其它字段」并按 name 去重
 - 修复：useFlexTable 列拖拽彻底失效（onHeaderCell 未传 id → reorder 死；onResize 仅改 ref 无 setState → resize 死），现 resize/reorder 均生效并持久化

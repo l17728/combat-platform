@@ -16,7 +16,7 @@ const getOut = () => {
 };
 
 const NODE_TYPES = [
-  'person', 'attackTicket', 'contribution', 'oncall',
+  'person', 'attackTicket', 'contribution', 'teamContribution', 'oncall',
   'releasePackage', 'weightFile', 'dailyTask',
   'incidentTracking', 'changeIssue', 'issue400', 'issue5xx',
   'p3Incident', 'alarmGovernance', 'domain', 'experience',

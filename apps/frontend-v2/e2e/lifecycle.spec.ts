@@ -420,7 +420,7 @@ test.describe('生命周期故事 — 第七章：贡献录入与荣誉', () => 
     await page.goto('/contributions');
     await waitForTable(page);
 
-    await page.getByRole('button', { name: '录入贡献' }).click();
+    await page.getByRole('button', { name: '录入个人贡献' }).click();
     await waitForDrawer(page);
     const drawer = page.locator('.ant-drawer');
     const drawerSelects = drawer.locator('.ant-select');
@@ -431,7 +431,7 @@ test.describe('生命周期故事 — 第七章：贡献录入与荣誉', () => 
     await page.locator('.ant-drawer-extra button').click();
     await expect(page.getByText('录入成功')).toBeVisible();
 
-    await page.getByRole('button', { name: '录入贡献' }).click();
+    await page.getByRole('button', { name: '录入个人贡献' }).click();
     await waitForDrawer(page);
     const drawer2 = page.locator('.ant-drawer');
     const drawerSelects2 = drawer2.locator('.ant-select');

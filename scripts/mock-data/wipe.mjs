@@ -11,7 +11,7 @@ const API = process.env.COMBAT_API || process.argv.includes('--api')
 const skipConfirm = process.argv.includes('--yes');
 
 const NODE_TYPES = [
-  'attackTicket', 'person', 'contribution', 'oncall',
+  'attackTicket', 'person', 'contribution', 'teamContribution', 'oncall',
   'releasePackage', 'weightFile', 'dailyTask',
   'incidentTracking', 'changeIssue', 'issue400', 'issue5xx',
   'p3Incident', 'alarmGovernance', 'domain', 'experience',

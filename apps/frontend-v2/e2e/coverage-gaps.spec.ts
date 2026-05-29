@@ -32,19 +32,16 @@ test.describe('荣誉殿堂 - 缺失覆盖', () => {
     expect(download || true).toBeTruthy();
   });
 
-  test('team tab shows team leaderboard', async ({ page, request }) => {
-    await request.post(`${API}/api/nodes/person`, {
-      data: { 姓名: 'E2E团队成员', 部门: 'E2E测试部门' },
-    });
-    await request.post(`${API}/api/nodes/contribution`, {
-      data: { 贡献人: 'E2E团队成员', 贡献等级: '核心', 贡献类型: '实施', 描述: 'E2E团队贡献' },
+  test('team tab shows team contributions grouped by level', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/teamContribution`, {
+      data: { 团队名称: 'E2E覆盖团队', 贡献等级: '核心', 贡献类型: '实施', 描述: 'E2E团队贡献', 组长: 'E2E团队成员', 组员: ['甲', '乙'] },
     });
 
     await page.goto('/honor');
     await page.waitForLoadState('networkidle');
-    await page.getByRole('tab', { name: '团队排行' }).click();
+    await page.getByRole('tab', { name: '团队荣誉' }).click();
     await page.waitForTimeout(500);
-    await expect(page.getByText('团队').first()).toBeVisible();
+    await expect(page.getByText('E2E覆盖团队').first()).toBeVisible();
   });
 });
 

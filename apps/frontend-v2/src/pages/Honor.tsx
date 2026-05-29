@@ -1,12 +1,12 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Typography, Card, List, Tag, Skeleton, Empty, Select, Table, Space, Tabs, Button } from 'antd';
+import { Typography, Card, List, Tag, Skeleton, Empty, Select, Table, Space, Tabs, Button, Descriptions, Row, Col, Divider } from 'antd';
 import { TrophyOutlined, ExportOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { CONTRIBUTION_COLOR, PAGE_SIZE } from '../constants.js';
+import { CONTRIBUTION_COLOR, PAGE_SIZE, DATE_FORMAT_FULL } from '../constants.js';
 import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
-import type { LeaderboardEntry } from '@combat/shared';
-import type { TeamLeaderboardEntry } from '../api.js';
+import type { LeaderboardEntry, GraphNode } from '@combat/shared';
+import StatusTag from '../components/StatusTag.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import dayjs from 'dayjs';
@@ -24,7 +24,8 @@ function RankTag({ rank }: { rank: number }) {
 
 export default function Honor() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [teamEntries, setTeamEntries] = useState<TeamLeaderboardEntry[]>([]);
+  const [teamNodes, setTeamNodes] = useState<GraphNode[]>([]);
+  const [selected, setSelected] = useState<GraphNode | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<string | undefined>();
   const [tab, setTab] = useState('personal');
@@ -34,12 +35,30 @@ export default function Honor() {
     setLoading(true);
     Promise.all([
       api.getLeaderboard(period),
-      api.getTeamLeaderboard(period),
+      api.listNodes('teamContribution'),
     ]).then(([personal, team]) => {
       setEntries(personal);
-      setTeamEntries(team);
+      setTeamNodes(team);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [period]);
+
+  const teamFiltered = useMemo(
+    () => teamNodes.filter((n) => !period || String(n.properties['周期'] ?? '') === period),
+    [teamNodes, period],
+  );
+
+  const teamGroups = useMemo(() => {
+    const order = ['核心', '关键', '普通'];
+    const seen = new Set<string>(order);
+    const levels = [...order];
+    for (const n of teamFiltered) {
+      const lv = String(n.properties['贡献等级'] ?? '');
+      if (lv && !seen.has(lv)) { seen.add(lv); levels.push(lv); }
+    }
+    return levels
+      .map((lv) => ({ level: lv, nodes: teamFiltered.filter((n) => String(n.properties['贡献等级'] ?? '') === lv) }))
+      .filter((g) => g.nodes.length > 0);
+  }, [teamFiltered]);
 
   const quarters = (() => {
     const now = dayjs();
@@ -81,7 +100,7 @@ export default function Honor() {
 
       {loading ? (
         <Skeleton active paragraph={{ rows: 6 }} />
-      ) : entries.length === 0 ? (
+      ) : entries.length === 0 && teamFiltered.length === 0 ? (
         <Empty description="暂无贡献数据" />
       ) : (
         <Tabs activeKey={tab} onChange={setTab} items={[
@@ -114,18 +133,31 @@ export default function Honor() {
           },
           {
             key: 'team',
-            label: '团队排行',
-            children: teamEntries.length === 0 ? <Empty description="暂无团队数据" /> : (
-              <Card>
-                <Table rowKey="team" dataSource={teamEntries} pagination={false} size="small"
-                  columns={[
-                    { title: '名次', width: 60, render: (_: unknown, __: unknown, i: number) => <RankTag rank={i} /> },
-                    { title: '团队', dataIndex: 'team', width: 120 },
-                    { title: '贡献数', dataIndex: '贡献数', width: 80 },
-                    { title: '加权分', dataIndex: 'score', width: 100, sorter: (a: TeamLeaderboardEntry, b: TeamLeaderboardEntry) => a.score - b.score },
-                  ]}
-                />
-              </Card>
+            label: '团队荣誉',
+            children: teamFiltered.length === 0 ? <Empty description="暂无团队贡献" /> : (
+              <Row gutter={16}>
+                <Col span={16}>
+                  {teamGroups.map((group) => (
+                    <div key={group.level}>
+                      <Divider orientation="left" orientationMargin={0}>
+                        {group.level} · {group.nodes.length}
+                      </Divider>
+                      <Row gutter={[16, 16]}>
+                        {group.nodes.map((node) => (
+                          <Col xs={24} sm={12} key={node.id}>
+                            <TeamCard node={node} selected={selected?.id === node.id} onSelect={setSelected} />
+                          </Col>
+                        ))}
+                      </Row>
+                    </div>
+                  ))}
+                </Col>
+                <Col span={8}>
+                  <Card size="small" title="团队详情" style={{ position: 'sticky', top: 0 }}>
+                    {selected ? <TeamDetail node={selected} /> : <Empty description="选择左侧团队查看详情" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+                  </Card>
+                </Col>
+              </Row>
             ),
           },
         ]} />
@@ -155,5 +187,51 @@ function HonorDetailTable({ entries, navigate }: { entries: LeaderboardEntry[]; 
         onRow={(r) => ({ onClick: () => navigate(`/honor/${encodeURIComponent(r.贡献人)}`), style: { cursor: 'pointer' } })}
       />
     </FlexWrapper>
+  );
+}
+
+function asArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter(Boolean);
+  if (value == null || value === '') return [];
+  return [String(value)];
+}
+
+function TeamCard({ node, selected, onSelect }: { node: GraphNode; selected: boolean; onSelect: (n: GraphNode) => void }) {
+  const p = node.properties;
+  const level = String(p['贡献等级'] ?? '');
+  const members = asArray(p['组员']);
+  return (
+    <Card size="small" hoverable onClick={() => onSelect(node)}
+      style={selected ? { borderColor: '#1677ff', boxShadow: '0 0 0 2px rgba(22,119,255,0.2)' } : undefined}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Text strong ellipsis style={{ flex: 1 }}>{String(p['团队名称'] ?? '未命名团队')}</Text>
+        {level && <StatusTag status={level} type="contribution" />}
+      </div>
+      <div><Text type="secondary">类型：{String(p['贡献类型'] ?? '-')}</Text></div>
+      <div><Text type="secondary">组长：{String(p['组长'] ?? '-')}</Text></div>
+      <div><Text type="secondary">组员 × {members.length}</Text></div>
+      <div><Text type="secondary">关联攻关单：{String(p['关联攻关单'] ?? '-')}</Text></div>
+    </Card>
+  );
+}
+
+function TeamDetail({ node }: { node: GraphNode }) {
+  const p = node.properties;
+  const level = String(p['贡献等级'] ?? '');
+  const members = asArray(p['组员']);
+  return (
+    <Descriptions column={1} size="small" bordered>
+      <Descriptions.Item label="团队名称">{String(p['团队名称'] ?? '-')}</Descriptions.Item>
+      <Descriptions.Item label="等级">{level ? <StatusTag status={level} type="contribution" /> : '-'}</Descriptions.Item>
+      <Descriptions.Item label="类型">{String(p['贡献类型'] ?? '-')}</Descriptions.Item>
+      <Descriptions.Item label="周期">{String(p['周期'] ?? '-')}</Descriptions.Item>
+      <Descriptions.Item label="组长">{String(p['组长'] ?? '-')}</Descriptions.Item>
+      <Descriptions.Item label="组员">
+        {members.length > 0 ? members.map((m) => <Tag key={m}>{m}</Tag>) : '-'}
+      </Descriptions.Item>
+      <Descriptions.Item label="关联攻关单">{String(p['关联攻关单'] ?? '-')}</Descriptions.Item>
+      <Descriptions.Item label="记录时间">{node.createdAt ? dayjs(node.createdAt).format(DATE_FORMAT_FULL) : '-'}</Descriptions.Item>
+      <Descriptions.Item label="描述">{String(p['描述'] ?? '-')}</Descriptions.Item>
+    </Descriptions>
   );
 }

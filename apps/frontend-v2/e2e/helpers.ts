@@ -51,5 +51,5 @@ export async function waitForDrawer(page: Page): Promise<void> {
 }
 
 export async function waitForTable(page: Page): Promise<void> {
-  await page.locator('.ant-table').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('.ant-table').first().waitFor({ state: 'visible', timeout: 10000 });
 }

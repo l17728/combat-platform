@@ -6,7 +6,7 @@ test.describe('贡献录入', () => {
     await page.goto('/contributions');
     await waitForTable(page);
     await expect(page.getByRole('heading', { name: '贡献录入' })).toBeVisible();
-    await expect(page.getByRole('button', { name: '录入贡献' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '录入个人贡献' })).toBeVisible();
   });
 
   test('creates a contribution via drawer', async ({ page, request }) => {
@@ -20,7 +20,7 @@ test.describe('贡献录入', () => {
 
     await page.goto('/contributions');
     await waitForTable(page);
-    await page.getByRole('button', { name: '录入贡献' }).click();
+    await page.getByRole('button', { name: '录入个人贡献' }).click();
     await waitForDrawer(page);
 
     const drawer = page.locator('.ant-drawer');
@@ -108,10 +108,65 @@ test.describe('贡献录入', () => {
   });
 });
 
+test.describe('团队贡献', () => {
+  test('creates a team contribution via drawer with 组长/组员', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/person`, { data: { 姓名: 'E2E组长甲' } });
+    await request.post(`${API}/api/nodes/person`, { data: { 姓名: 'E2E组员乙' } });
+
+    await page.goto('/contributions');
+    await waitForTable(page);
+    await page.getByRole('button', { name: '录入团队贡献' }).click();
+    await waitForDrawer(page);
+
+    const drawer = page.locator('.ant-drawer');
+    await drawer.getByPlaceholder('团队名称').fill('E2E攻坚团队');
+    const sels = drawer.locator('.ant-select');
+    // 0=贡献类型 1=贡献等级 2=组长 3=组员 4=关联攻关单
+    await selectOption(page, sels.nth(1), '核心');
+    await drawer.getByPlaceholder('贡献描述').fill('E2E团队协同攻坚');
+    await selectOption(page, sels.nth(2), 'E2E组长甲');
+    await selectOption(page, sels.nth(3), 'E2E组员乙');
+    // 多选下拉保持打开，点回团队名称输入框关闭它，避免遮挡提交按钮
+    await drawer.getByPlaceholder('团队名称').click();
+
+    await page.locator('.ant-drawer-extra button').click();
+    await expect(page.getByText('录入成功')).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'E2E攻坚团队', exact: true })).toBeVisible();
+  });
+
+  test('lists team contribution with 组员 array rendered', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/teamContribution`, {
+      data: { 团队名称: 'E2E列表团队', 贡献等级: '关键', 贡献类型: '实施', 组长: '张三', 组员: ['李四', '王五'] },
+    });
+
+    await page.goto('/contributions');
+    await waitForTable(page);
+    await expect(page.getByRole('cell', { name: 'E2E列表团队', exact: true })).toBeVisible();
+    const row = page.getByRole('row').filter({ hasText: 'E2E列表团队' });
+    await expect(row.getByText('李四')).toBeVisible();
+    await expect(row.getByText('王五')).toBeVisible();
+  });
+});
+
 test.describe('荣誉殿堂', () => {
   test('shows page heading', async ({ page }) => {
     await page.goto('/honor');
     await expect(page.getByRole('heading', { name: '荣誉殿堂' })).toBeVisible();
+  });
+
+  test('团队荣誉 tab groups teams by level and shows detail on click', async ({ page, request }) => {
+    await request.post(`${API}/api/nodes/teamContribution`, {
+      data: { 团队名称: 'E2E荣誉团队', 贡献等级: '核心', 贡献类型: '实施', 描述: 'E2E团队荣誉描述', 组长: '赵敏', 组员: ['钱七', '孙八'] },
+    });
+
+    await page.goto('/honor');
+    await page.getByRole('tab', { name: '团队荣誉' }).click();
+    await expect(page.getByText('E2E荣誉团队').first()).toBeVisible();
+
+    await page.getByText('E2E荣誉团队').first().click();
+    // 右侧详情面板
+    await expect(page.getByText('E2E团队荣誉描述')).toBeVisible();
+    await expect(page.locator('.ant-descriptions').getByText('赵敏')).toBeVisible();
   });
 
   test('shows leaderboard with data', async ({ page, request }) => {

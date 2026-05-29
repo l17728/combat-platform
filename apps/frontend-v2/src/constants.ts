@@ -103,6 +103,7 @@ export const NODE_TYPE_LABEL: Record<string, string> = {
   'attackTicket': '攻关单',
   'person': '人员',
   'contribution': '贡献',
+  'teamContribution': '团队贡献',
   'releasePackage': '版本包',
   'weightFile': '权重文件',
   'infoCard': '信息卡片',
