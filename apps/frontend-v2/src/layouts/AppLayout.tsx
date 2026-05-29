@@ -32,6 +32,7 @@ import {
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useAuth } from '../hooks/useAuth.js';
+import FloatingFeedback from '../components/FloatingFeedback.js';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -271,6 +272,7 @@ export function AppLayout() {
           <PageBreadcrumb />
           <Outlet />
         </Content>
+        <FloatingFeedback />
       </Layout>
     </Layout>
   );
