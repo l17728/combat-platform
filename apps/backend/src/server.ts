@@ -11,7 +11,10 @@ import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
 import { log } from "./logger.js";
 
-const DB_PATH = join(process.cwd(), "combat.sqlite");
+// Persisted DB location. Defaults to cwd/combat.sqlite (local/test). In production
+// COMBAT_DB_PATH points outside the deploy dirs that `rm -rf` clears on each deploy,
+// so prod data survives deploys.
+const DB_PATH = process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite");
 applyRestorePending(DB_PATH);
 const db = openDb(DB_PATH);
 const repo = new SqliteRepository(db);

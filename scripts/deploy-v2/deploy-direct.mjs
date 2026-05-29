@@ -103,8 +103,11 @@ async function doDeploy(c, nodeBinPath) {
   log("3/5", "=== extracting on target ===");
   await run(c, "df -h / | tail -1", "disk");
   const ex = await run(c,
-    `mkdir -p ${DEPLOY_PATH} && ` +
+    `mkdir -p ${DEPLOY_PATH}/data && ` +
     `cd ${DEPLOY_PATH} && ` +
+    // Preserve the SQLite DB across deploys: move any legacy DB (old cwd location)
+    // into the persistent data/ dir BEFORE rm -rf deletes apps/. data/ is never removed.
+    "if [ -f apps/backend/combat.sqlite ] && [ ! -f data/combat.sqlite ]; then mv apps/backend/combat.sqlite* data/ 2>/dev/null || true; fi; " +
     "rm -rf config packages scripts apps node_modules 2>/dev/null; " +
     "tar xzf /tmp/combat-v2.tar.gz && " +
     "echo EXTRACT_OK"
@@ -141,6 +144,7 @@ Type=simple
 WorkingDirectory=${DEPLOY_PATH}/apps/backend
 Environment=PATH=${resolvedPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=COMBAT_API=http://localhost:3001
+Environment=COMBAT_DB_PATH=${DEPLOY_PATH}/data/combat.sqlite
 ExecStart=${resolvedPath}/npx tsx src/server.ts
 Restart=always
 RestartSec=5
@@ -155,6 +159,7 @@ WantedBy=multi-user.target`;
   await uploadFile(c, tmpSvc, "/tmp/combat-v2.service");
 
   await run(c,
+    `mkdir -p ${DEPLOY_PATH}/data && ` +
     "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
     "systemctl daemon-reload && " +
     "systemctl enable combat-v2 && " +
