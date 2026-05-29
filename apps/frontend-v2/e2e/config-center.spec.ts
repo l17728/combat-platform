@@ -86,7 +86,7 @@ test.describe('配置中心', () => {
     }
   });
 
-  test('delete config item via popconfirm', async ({ page }) => {
+  test('delete config item via modal', async ({ page }) => {
     await page.request.put(`${API}/api/settings/e2eDeleteTest`, {
       headers: { 'Content-Type': 'application/json' },
       data: { values: ['x'] },
@@ -95,14 +95,15 @@ test.describe('配置中心', () => {
     await page.waitForLoadState('networkidle');
 
     const row = page.locator('.ant-table-row').filter({ hasText: 'e2eDeleteTest' });
-    if (await row.isVisible()) {
-      await row.getByText(/删\s?除/).click();
-      await page.waitForTimeout(300);
-      await page.locator('.ant-popconfirm').getByRole('button', { name: /确\s?定|OK/ }).click();
-      await page.waitForTimeout(1000);
+    await expect(row).toBeVisible({ timeout: 10000 });
+    await row.getByText(/删\s?除/).click();
 
-      await expect(page.getByText('e2eDeleteTest')).not.toBeVisible();
-    }
+    const modal = page.locator('.ant-modal').filter({ hasText: '确认删除配置项' });
+    await expect(modal).toBeVisible();
+    await modal.getByRole('button', { name: '确认删除' }).click();
+
+    await expect(page.getByText('配置已删除').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('cell', { name: 'e2eDeleteTest' })).not.toBeVisible();
   });
 
   test('search clear button resets filter', async ({ page }) => {

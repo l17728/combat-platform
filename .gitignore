@@ -4,6 +4,7 @@ dist/
 apps/frontend/test-results/
 apps/frontend/playwright-report/
 test-results/
+apps/backend/uploads/
 .env
 .env.*
 .worktrees/

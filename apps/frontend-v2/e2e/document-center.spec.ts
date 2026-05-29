@@ -33,6 +33,18 @@ test.describe('文档中心', () => {
     await expect(page.getByText('删除成功')).toBeVisible();
   });
 
+  test('drag-drop zone uploads a file without the OS dialog', async ({ page }) => {
+    await page.goto('/documents');
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByText('拖拽文件到此处上传（无需弹出系统选择框）')).toBeVisible();
+
+    await page.locator('.ant-upload-drag input[type="file"]').setInputFiles({
+      name: 'E2E拖拽上传.txt', mimeType: 'text/plain', buffer: Buffer.from('drag drop bypasses dialog'),
+    });
+
+    await expect(page.getByRole('cell', { name: 'E2E拖拽上传.txt' })).toBeVisible({ timeout: 10000 });
+  });
+
   test('API-uploaded file is listed', async ({ page }) => {
     await page.request.post(`${API}/api/documents`, {
       multipart: { file: { name: 'E2E上传文件.txt', mimeType: 'text/plain', buffer: Buffer.from('e2e file content') } },

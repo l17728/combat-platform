@@ -7,6 +7,8 @@ Type=simple
 WorkingDirectory=/opt/combat-v2/apps/backend
 Environment=PATH=/root/.nvm/versions/node/v22.22.3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=COMBAT_API=http://localhost:3001
+Environment=COMBAT_DB_PATH=/opt/combat-v2/data/combat.sqlite
+Environment=COMBAT_UPLOAD_DIR=/opt/combat-v2/data/uploads
 ExecStart=/root/.nvm/versions/node/v22.22.3/bin/npx tsx src/server.ts
 Restart=always
 RestartSec=5

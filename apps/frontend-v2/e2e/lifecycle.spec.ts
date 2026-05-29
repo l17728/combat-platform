@@ -4,7 +4,7 @@ import { API, opsCell, selectOption, waitForDrawer, waitForTable } from './helpe
 test.describe('生命周期故事 — 第一章：平台初始化', () => {
   test('1.1 管理员登录后看到仪表盘', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible();
   });
 
   test('1.2 管理员创建用户（leader + 员工）', async ({ page, request }) => {
@@ -182,7 +182,7 @@ test.describe('生命周期故事 — 第四章：攻关处理（员工操作）
     });
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible();
   });
 
   test('4.2 状态流转：待响应 → 处理中', async ({ page, request }) => {
@@ -635,7 +635,7 @@ test.describe('生命周期故事 — 第十一章：数据管理', () => {
 
     await opsCell(page.getByRole('row').filter({ hasText: 'Lifecycle测试项' }))
       .locator('a').filter({ hasText: /删\s?除/ }).click();
-    await page.getByRole('button', { name: /确\s?定/ }).click();
+    await page.locator('.ant-modal').getByRole('button', { name: '确认删除' }).click();
     await expect(page.getByText('配置已删除').first()).toBeVisible();
   });
 });
@@ -647,7 +647,7 @@ test.describe('生命周期故事 — 第十二章：收尾验证', () => {
     });
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible();
   });
 
   test('12.2 全局搜索最终验证', async ({ page, request }) => {

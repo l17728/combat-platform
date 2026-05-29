@@ -101,12 +101,14 @@ test.describe('邮件设置', () => {
 
   test('saves email configuration', async ({ page }) => {
     await page.goto('/email');
-    await page.getByPlaceholder('smtp.example.com').fill('smtp.test.com');
-    await page.getByPlaceholder('465').fill('465');
-    await page.getByPlaceholder('发件人邮箱').fill('test@test.com');
-    await page.getByPlaceholder('发件人名称 <email@example.com>').fill('测试 <test@test.com>');
+    await page.waitForLoadState('networkidle');
+    const form = page.locator('.ant-form').first();
+    await form.getByLabel('SMTP 服务器').fill('smtp.test.com');
+    await form.getByLabel(/用户名/).fill('test@test.com');
+    await form.getByLabel(/密码/).fill('testpass123');
+    await form.getByLabel('发件人邮箱').fill('test@test.com');
     await page.getByRole('button', { name: '保存配置' }).click();
-    await expect(page.getByText('保存成功')).toBeVisible();
+    await expect(page.getByText('保存成功').first()).toBeVisible({ timeout: 10000 });
   });
 
   test('shows test email section', async ({ page }) => {
@@ -168,7 +170,7 @@ test.describe('导航与布局', () => {
 
   test('sidebar navigation works', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible();
 
     await page.locator('.ant-menu-submenu-title').filter({ hasText: '攻关管理' }).click();
     await page.locator('.ant-menu-item').filter({ hasText: '攻关作战台' }).click();
@@ -262,7 +264,9 @@ test.describe('导航与布局', () => {
         await target.click();
         await page.waitForTimeout(200);
       }
-      await expect(page.getByRole('heading', { name: p.heading })).toBeVisible({ timeout: 5000 });
+      await expect(
+        page.getByRole('heading', { name: p.heading }).or(page.getByRole('tab', { name: p.heading }))
+      ).toBeVisible({ timeout: 5000 });
     }
   });
 

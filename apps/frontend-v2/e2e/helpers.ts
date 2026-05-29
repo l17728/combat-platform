@@ -8,24 +8,38 @@ export function opsCell(row: Locator): Locator {
   return row.locator('td').last();
 }
 
+async function pickOption(page: Page, selectLocator: Locator, filter: string | RegExp): Promise<void> {
+  await selectLocator.scrollIntoViewIfNeeded();
+  let lastErr: unknown;
+  // AntD renders the dropdown in a body-level portal and the open click
+  // occasionally races (dropdown shows but options not yet populated, or the
+  // click toggles it shut). Retry the open-and-pick to absorb that flakiness.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await selectLocator.locator('.ant-select-selector').click();
+      const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
+      await dropdown.waitFor({ state: 'visible', timeout: 4000 });
+      await page.waitForTimeout(150);
+      const opt = dropdown.locator('.ant-select-item-option').filter({ hasText: filter }).first();
+      await opt.waitFor({ state: 'attached', timeout: 4000 });
+      await opt.dispatchEvent('click');
+      return;
+    } catch (e) {
+      lastErr = e;
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
+  throw lastErr;
+}
+
 export async function selectOption(
   page: Page,
   selectLocator: Locator,
   optionName: string,
   exact = false,
 ): Promise<void> {
-  await selectLocator.scrollIntoViewIfNeeded();
-  await selectLocator.locator('.ant-select-selector').click();
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
-    .last()
-    .waitFor({ state: 'visible', timeout: 5000 });
-  await page.waitForTimeout(200);
-  const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
-  const opt = exact
-    ? dropdown.locator('.ant-select-item-option').filter({ hasText: new RegExp(`^${optionName}$`) }).first()
-    : dropdown.locator('.ant-select-item-option').filter({ hasText: optionName }).first();
-  await opt.waitFor({ state: 'attached', timeout: 5000 });
-  await opt.dispatchEvent('click');
+  await pickOption(page, selectLocator, exact ? new RegExp(`^${optionName}$`) : optionName);
 }
 
 export async function selectOptionContaining(
@@ -33,16 +47,7 @@ export async function selectOptionContaining(
   selectLocator: Locator,
   text: string,
 ): Promise<void> {
-  await selectLocator.scrollIntoViewIfNeeded();
-  await selectLocator.locator('.ant-select-selector').click();
-  await page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
-    .last()
-    .waitFor({ state: 'visible', timeout: 5000 });
-  await page.waitForTimeout(200);
-  const dropdown = page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)').last();
-  const opt = dropdown.locator('.ant-select-item-option').filter({ hasText: text }).first();
-  await opt.waitFor({ state: 'attached', timeout: 5000 });
-  await opt.dispatchEvent('click');
+  await pickOption(page, selectLocator, text);
 }
 
 export async function waitForDrawer(page: Page): Promise<void> {

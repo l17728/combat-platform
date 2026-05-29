@@ -158,7 +158,9 @@ test.describe('回归防护 - 直接URL导航', () => {
 
     for (const p of pages) {
       await page.goto(p.url);
-      await expect(page.getByRole('heading', { name: p.heading })).toBeVisible({ timeout: 8000 });
+      await expect(
+        page.getByRole('heading', { name: p.heading }).or(page.getByRole('tab', { name: p.heading }))
+      ).toBeVisible({ timeout: 8000 });
     }
   });
 });

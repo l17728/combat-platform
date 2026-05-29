@@ -95,7 +95,7 @@ test.describe('认证流程 - 完整覆盖', () => {
 
   test('已登录状态访问 /login → 自动跳转到首页', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
     await page.goto('/login');
     await page.waitForURL(/\/(attack|)$/, { timeout: 5000 });
     await expect(page).not.toHaveURL(/\/login/);
@@ -103,7 +103,7 @@ test.describe('认证流程 - 完整覆盖', () => {
 
   test('登出 → 清除 localStorage 并跳转到 /login', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
 
     const userDropdown = page.locator('.ant-dropdown-trigger').last();
     await userDropdown.click();
@@ -119,7 +119,7 @@ test.describe('认证流程 - 完整覆盖', () => {
 
   test('登出后再次访问受保护路由 → 重定向到 /login', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
     const userDropdown = page.locator('.ant-dropdown-trigger').last();
     await userDropdown.click();
     await page.getByText('退出登录').click();
@@ -151,7 +151,7 @@ test.describe('认证流程 - 完整覆盖', () => {
     await page.getByPlaceholder('密码').fill('admin123');
     await page.getByRole('button', { name: /登\s?录/ }).click();
     await page.waitForURL(/\/(attack|)$/, { timeout: 10000 });
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
 
     await page.unroute('**/api/auth/me');
     await page.goto('/attack');
@@ -167,21 +167,21 @@ test.describe('认证流程 - 完整覆盖', () => {
     await page.getByPlaceholder('密码').fill('admin123');
     await page.getByRole('button', { name: /登\s?录/ }).click();
     await page.waitForURL(/\/(attack|)$/, { timeout: 10000 });
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
   });
 });
 
 test.describe('角色权限 UI 验证', () => {
   test('header 显示用户名和角色', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
     const userDropdown = page.locator('.ant-dropdown-trigger').last();
     await expect(userDropdown).toContainText('系统管理员');
   });
 
   test('admin 用户下拉菜单有用户管理入口', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: '作战态势' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('tab', { name: /作战态势/ })).toBeVisible({ timeout: 5000 });
     const userDropdown = page.locator('.ant-dropdown-trigger').last();
     await userDropdown.click();
     await expect(page.getByText('用户管理')).toBeVisible();
