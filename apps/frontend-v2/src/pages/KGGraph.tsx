@@ -55,6 +55,9 @@ export default function KGGraph() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
   const idsRef = useRef<Set<string>>(new Set());
+  const baseIdsRef = useRef<Set<string>>(new Set());      // 基图节点(刷新得来),折叠时永不移除
+  const addedByRef = useRef<Map<string, Set<string>>>(new Map()); // 邻居 id → 引入它的展开节点集合(引用计数)
+  const expandedRef = useRef<Set<string>>(new Set());     // 当前已展开的节点
   const navRef = useRef(navigate);
   navRef.current = navigate;
 
@@ -69,6 +72,9 @@ export default function KGGraph() {
       const snap = await api.kgGraph({ types: types.length ? types : undefined, q: q.trim() || undefined, limit: 500 });
       const data = toG6(snap);
       idsRef.current = new Set(data.nodes.map((n) => n.id));
+      baseIdsRef.current = new Set(idsRef.current);   // 刷新即重置基图(= 折叠全部)
+      addedByRef.current = new Map();
+      expandedRef.current = new Set();
       graph.setData(data);
       await graph.render();
       setCount({ nodes: data.nodes.length, edges: data.edges.length });
@@ -79,25 +85,62 @@ export default function KGGraph() {
     }
   }, [types, q]);
 
-  // drill-down: expand a node's 1-hop neighborhood, merging新节点/边
+  // 下钻展开:取节点 1 跳邻域并合并新节点/边;记录"谁引入了谁"用于折叠。
   const expandNode = useCallback(async (graph: Graph, nodeId: string, nodeType: string) => {
     try {
       const snap = await api.graphSnapshot(nodeType, nodeId, 1);
       const data = toG6(snap);
       const newNodes = data.nodes.filter((n) => !idsRef.current.has(n.id));
-      newNodes.forEach((n) => idsRef.current.add(n.id));
+      // 记录引用计数:本次展开为这些新邻居记上 nodeId(已有节点不计,避免误删基图)
+      for (const n of newNodes) {
+        if (!addedByRef.current.has(n.id)) addedByRef.current.set(n.id, new Set());
+        addedByRef.current.get(n.id)!.add(nodeId);
+        idsRef.current.add(n.id);
+      }
       if (newNodes.length) graph.addNodeData(newNodes);
-      // addEdgeData 忽略两端不存在的边;此处两端均已在图中
       const existingEdgeIds = new Set(graph.getEdgeData().map((e: any) => e.id));
       const newEdges = data.edges.filter((e) => !existingEdgeIds.has(e.id) && idsRef.current.has(e.source) && idsRef.current.has(e.target));
       if (newEdges.length) graph.addEdgeData(newEdges);
+      expandedRef.current.add(nodeId);
       await graph.render();
       setCount({ nodes: idsRef.current.size, edges: graph.getEdgeData().length });
-      if (newNodes.length === 0) message.info('该节点没有更多可展开的关联');
+      if (newNodes.length === 0) message.info('该节点没有更多可展开的关联(再次单击可折叠)');
     } catch (e: any) {
       message.error(e.message);
     }
   }, []);
+
+  // 折叠:移除本节点引入、且不再被其它展开节点持有、且非基图的邻居(级联清理)。
+  const collapseNode = useCallback(async (graph: Graph, nodeId: string) => {
+    const toRemove: string[] = [];
+    for (const [neighbor, holders] of addedByRef.current) {
+      if (!holders.has(nodeId)) continue;
+      holders.delete(nodeId);
+      if (holders.size === 0 && !baseIdsRef.current.has(neighbor)) toRemove.push(neighbor);
+    }
+    expandedRef.current.delete(nodeId);
+    if (toRemove.length === 0) {
+      message.info('该节点的关联已被其它节点共享,无可折叠项');
+      return;
+    }
+    for (const id of toRemove) {
+      idsRef.current.delete(id);
+      addedByRef.current.delete(id);
+      expandedRef.current.delete(id);
+    }
+    try {
+      graph.removeNodeData(toRemove); // g6 v5 一并移除其相连边
+      await graph.render();
+      setCount({ nodes: idsRef.current.size, edges: graph.getEdgeData().length });
+    } catch (e: any) {
+      message.error(e.message);
+    }
+  }, []);
+
+  const toggleNode = useCallback((graph: Graph, nodeId: string, nodeType: string) => {
+    if (expandedRef.current.has(nodeId)) collapseNode(graph, nodeId);
+    else expandNode(graph, nodeId, nodeType);
+  }, [expandNode, collapseNode]);
 
   useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
@@ -136,7 +179,7 @@ export default function KGGraph() {
       if (!id) return;
       const nd = graph.getNodeData(id) as any;
       const nodeType = nd?.data?.nodeType;
-      if (nodeType) expandNode(graph, id, nodeType);
+      if (nodeType) toggleNode(graph, id, nodeType);
     });
     graph.on('node:dblclick', (e: any) => {
       const id = e?.target?.id;
@@ -183,7 +226,7 @@ export default function KGGraph() {
 
       <div style={{ marginBottom: 8 }}>
         <Space size={4} wrap>
-          <Text type="secondary">单击节点展开关联(下钻)·双击跳转详情·滚轮缩放·拖拽平移 · 当前 {count.nodes} 节点 / {count.edges} 关系</Text>
+          <Text type="secondary">单击节点展开/折叠关联(下钻/上钻)·双击跳转详情·滚轮缩放·拖拽平移 · 当前 {count.nodes} 节点 / {count.edges} 关系</Text>
           {Object.entries(TYPE_COLORS).filter(([k]) => NODE_TYPE_LABEL[k]).map(([k, c]) => (
             <Tag key={k} color={c}>{NODE_TYPE_LABEL[k] ?? k}</Tag>
           ))}
