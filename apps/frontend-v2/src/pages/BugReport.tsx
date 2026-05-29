@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Typography, Table, Tag, Space, Select, Button, Drawer, Form, Input, message,
-  Popconfirm, Empty, Tooltip, Image, Alert, Descriptions, Divider,
+  Popconfirm, Empty, Tooltip, Image, Alert, Descriptions, Divider, Upload,
 } from 'antd';
-import { BugOutlined, CameraOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { BugOutlined, CameraOutlined, PlusOutlined, DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons';
+import type { UploadProps } from 'antd';
 import { api } from '../api.js';
 import { BUG_SEVERITY_COLOR, BUG_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
 import { getCapturedLogs, clearCapturedLogs } from '../utils/console-capture.js';
@@ -42,9 +43,12 @@ export default function BugReport() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const handleScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // 共享的截图处理函数
+  const processScreenshotFile = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      message.warning('只支持图片文件');
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) {
       message.warning('截图不能超过 5MB');
       return;
@@ -52,9 +56,52 @@ export default function BugReport() {
     const reader = new FileReader();
     reader.onload = () => {
       setScreenshot(reader.result as string);
+      message.success('截图已加载');
     };
     reader.readAsDataURL(file);
+  }, []);
+
+  const handleScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processScreenshotFile(file);
+    e.target.value = ''; // 允许重复选择同一文件
   };
+
+  // 拖拽上传配置
+  const screenshotUploadProps: UploadProps = {
+    accept: 'image/*',
+    showUploadList: false,
+    beforeUpload: (file) => {
+      processScreenshotFile(file);
+      return false; // 阻止自动上传
+    },
+  };
+
+  // 粘贴上传
+  const pasteAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            processScreenshotFile(file);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+    const area = pasteAreaRef.current;
+    if (area && drawerOpen) {
+      area.addEventListener('paste', handlePaste as any);
+      return () => area.removeEventListener('paste', handlePaste as any);
+    }
+  }, [drawerOpen, processScreenshotFile]);
 
   const handleSubmit = async (values: any) => {
     const logs = getCapturedLogs();
@@ -271,7 +318,7 @@ export default function BugReport() {
             <Input placeholder="问题发生时的页面地址" />
           </Form.Item>
 
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16 }} ref={pasteAreaRef} tabIndex={0}>
             <div style={{ marginBottom: 8, fontWeight: 500 }}>
               <CameraOutlined style={{ marginRight: 4 }} /> 截图
             </div>
@@ -283,7 +330,11 @@ export default function BugReport() {
                 </div>
               </div>
             )}
-            <input type="file" accept="image/*" onChange={handleScreenshot} style={{ fontSize: 13 }} />
+            <Upload.Dragger {...screenshotUploadProps} style={{ marginBottom: 8 }}>
+              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p className="ant-upload-text">拖拽图片到此处，或点击选择</p>
+              <p className="ant-upload-hint">支持 Ctrl+V 粘贴截图，最大 5MB</p>
+            </Upload.Dragger>
           </div>
 
           <div style={{ marginBottom: 16 }}>
