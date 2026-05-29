@@ -6,6 +6,7 @@ import { Graph } from '@antv/g6';
 import { api } from '../api.js';
 import type { GraphSnapshot } from '@combat/shared';
 import { NODE_TYPE_LABEL } from '../constants.js';
+import HermesChat from '../components/HermesChat.js';
 
 const { Title, Text } = Typography;
 
@@ -243,6 +244,8 @@ export default function KGGraph() {
           )}
         </div>
       </Spin>
+
+      <HermesChat title="知识图谱 AI 问答" placeholder="基于知识图谱提问,如:某攻关单谁负责 / 最近变动 / 某人的贡献" />
     </div>
   );
 }
