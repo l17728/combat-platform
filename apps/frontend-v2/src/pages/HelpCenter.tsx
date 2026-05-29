@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Typography,
   Table,
@@ -14,6 +14,7 @@ import {
   Skeleton,
   Descriptions,
   Divider,
+  Badge,
 } from 'antd';
 import { PlusOutlined, SearchOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -43,6 +44,8 @@ export default function HelpCenter() {
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [tickets, setTickets] = useState<GraphNode[]>([]);
   const [detailReq, setDetailReq] = useState<HelpRequest | null>(null);
+  const [hasNewReply, setHasNewReply] = useState(false);
+  const seenRepliedRef = useRef<Set<string> | null>(null);
   const navigate = useNavigate();
 
   const feedbackUrl = (r: HelpRequest) => `${window.location.origin}/help/feedback/${r.feedbackToken}`;
@@ -63,6 +66,10 @@ export default function HelpCenter() {
       setRequests(list);
       setPeople(ppl);
       setTickets(tkt);
+      // Baseline of already-replied ids (use full list so status filter doesn't skew it).
+      const full = statusFilter ? await api.listHelpRequests().catch(() => list) : list;
+      seenRepliedRef.current = new Set(full.filter(r => r.status === '已回复').map(r => r.id));
+      setHasNewReply(false);
     } catch (e: any) {
       message.error(e.message);
     } finally {
@@ -73,6 +80,20 @@ export default function HelpCenter() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Poll for newly-arrived replies; flag the refresh button instead of disrupting the list.
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      try {
+        const full = await api.listHelpRequests();
+        const seen = seenRepliedRef.current;
+        if (!seen) return;
+        const newlyReplied = full.some(r => r.status === '已回复' && !seen.has(r.id));
+        if (newlyReplied) setHasNewReply(true);
+      } catch { /* ignore poll errors */ }
+    }, 25000);
+    return () => clearInterval(timer);
+  }, []);
 
   const filtered = searchText
     ? requests.filter((r) => {
@@ -181,7 +202,16 @@ export default function HelpCenter() {
           <HelpButton title={HELP.helpCenter.title} content={HELP.helpCenter.content} />
         </div>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+          <Badge dot={hasNewReply} offset={[-2, 2]}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchData}
+              type={hasNewReply ? 'primary' : 'default'}
+              danger={hasNewReply}
+            >
+              {hasNewReply ? '有新回复，点击刷新' : '刷新'}
+            </Button>
+          </Badge>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
             发起求助
           </Button>
