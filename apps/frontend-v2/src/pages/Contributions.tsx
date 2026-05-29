@@ -180,7 +180,7 @@ export default function Contributions() {
 
   const ticketSelectOptions = tickets.map((t) => ({
     value: (t.properties['标题'] as string) ?? t.id,
-    label: `${t.id.slice(0, 8)} ${t.properties['标题'] ?? ''}`,
+    label: `${t.properties['标题'] ?? '(无标题)'}${t.properties['问题单号'] ? ` · ${t.properties['问题单号']}` : ''}`,
   }));
 
   const columns = [

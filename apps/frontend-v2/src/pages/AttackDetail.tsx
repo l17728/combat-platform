@@ -14,6 +14,7 @@ import {
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL, NODE_TYPE_LABEL } from '../constants.js';
+import { nodeLabel } from '../utils/nodeLabel.js';
 import StatusTag from '../components/StatusTag.js';
 import AddTabModal from '../components/AddTabModal.js';
 import DynamicLinkTab from '../components/DynamicLinkTab.js';
@@ -432,7 +433,7 @@ export default function AttackDetail() {
                           <List size="small" dataSource={items}
                             renderItem={(it, i) => {
                               const p = it.node.properties;
-                              const nm = String(p['标题'] ?? p['姓名'] ?? p['团队名称'] ?? p['name'] ?? it.node.id.slice(0, 8));
+                              const nm = String(p['标题'] ?? p['姓名'] ?? p['团队名称'] ?? p['name'] ?? nodeLabel(it.node));
                               return (
                                 <List.Item key={`${it.node.id}-${i}`}>
                                   <Space size={6} wrap>
@@ -601,7 +602,7 @@ export default function AttackDetail() {
                   <Space>
                     <Tag color={i === 0 ? 'gold' : i === 1 ? '#c0c0c0' : i === 2 ? '#cd7f32' : 'default'}>#{i + 1}</Tag>
                     <Avatar size="small" icon={<UserOutlined />} />
-                    <Text strong>{(h.person.properties['姓名'] as string) ?? h.person.id.slice(0, 8)}</Text>
+                    <Text strong>{(h.person.properties['姓名'] as string) ?? nodeLabel(h.person)}</Text>
                     <Text type="secondary">{h.score}分</Text>
                   </Space>
                 </List.Item>

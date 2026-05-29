@@ -5,6 +5,7 @@ import { SearchOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { QueryContext } from '../api.js';
 import { NODE_TYPE_LABEL } from '../constants.js';
+import { nodeLabel, detailPath } from '../utils/nodeLabel.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 
@@ -30,7 +31,7 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
       size="small"
       title={
         <Space>
-          <Text strong>{(props['标题'] || props['名称'] || props['name'] || ctx.node.id) as string}</Text>
+          <Text strong>{nodeLabel(ctx.node)}</Text>
           <Tag>{NODE_TYPE_LABEL[ctx.node.nodeType] || ctx.node.nodeType}</Tag>
         </Space>
       }
@@ -57,13 +58,13 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
           <Text type="secondary">关联节点 ({relatedCount})</Text>
           <div style={{ marginTop: 4 }}>
             {ctx.related.outgoing.slice(0, 5).map((r) => (
-              <Tag key={r.node.id} style={{ marginBottom: 4 }}>
-                {r.field}: {(r.node.properties['名称'] || r.node.properties['name'] || r.node.id) as string}
+              <Tag key={r.node.id} style={{ marginBottom: 4, cursor: 'pointer' }} onClick={() => navigate(detailPath(r.node))}>
+                {r.field}: {nodeLabel(r.node)}
               </Tag>
             ))}
             {ctx.related.incoming.slice(0, 5).map((r) => (
-              <Tag key={r.node.id} color="blue" style={{ marginBottom: 4 }}>
-                {r.field}: {(r.node.properties['名称'] || r.node.properties['name'] || r.node.id) as string}
+              <Tag key={r.node.id} color="blue" style={{ marginBottom: 4, cursor: 'pointer' }} onClick={() => navigate(detailPath(r.node))}>
+                {r.field}: {nodeLabel(r.node)}
               </Tag>
             ))}
           </div>

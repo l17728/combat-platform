@@ -136,7 +136,7 @@ export default function HelpCenter() {
 
   const ticketOptions = tickets.map((t) => ({
     value: t.id,
-    label: `${t.id.slice(0, 8)} ${(t.properties['标题'] as string) ?? ''}`,
+    label: `${(t.properties['标题'] as string) ?? '(无标题)'}${t.properties['问题单号'] ? ` · ${t.properties['问题单号']}` : ''}`,
   }));
 
   const personOptions = people.map((p) => ({

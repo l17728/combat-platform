@@ -2,13 +2,11 @@ import { Router } from "express";
 import type { Repository, SchemaRegistry, QueryHit } from "@combat/shared";
 import { buildRelated } from "./related-core.js";
 
-function summarize(p: Record<string, unknown>, id: string): string {
-  // human-readable label: walk common identity keys across all configured
-  // nodeTypes (attackTicket 标题/攻关单号, person name, contribution 贡献人,
-  // releasePackage 版本号, weightFile 名称, anchor nodes key) → id fallback.
-  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"]
-    ?? p["name"] ?? p["贡献人"] ?? p["key"]
-    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? p["组名"] ?? id);
+function summarize(p: Record<string, unknown>, _id: string): string {
+  // human-readable label across all nodeTypes;绝不回退到内部 UUID(用户无需看到 id)。
+  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"]
+    ?? p["name"] ?? p["贡献人"] ?? p["组名"] ?? p["key"]
+    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? "(无标题)");
 }
 
 export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Router {

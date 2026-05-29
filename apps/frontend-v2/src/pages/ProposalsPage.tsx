@@ -17,6 +17,7 @@ import { ScanOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import type { RelationProposal } from '../api.js';
 import { PROPOSAL_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
+import { nodeLabel } from '../utils/nodeLabel.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import dayjs from 'dayjs';
@@ -51,12 +52,9 @@ export default function ProposalsPage() {
             [...missing].map(async (id) => {
               try {
                 const node = await api.getNode(id);
-                newCache[id] = {
-                  name: (node.properties['名称'] || node.properties['姓名'] || node.properties['name'] || id) as string,
-                  type: node.nodeType,
-                };
+                newCache[id] = { name: nodeLabel(node), type: node.nodeType };
               } catch {
-                newCache[id] = { name: id.slice(0, 8), type: '?' };
+                newCache[id] = { name: '(已删除)', type: '?' };
               }
             }),
           );
@@ -101,7 +99,7 @@ export default function ProposalsPage() {
     [fetchData],
   );
 
-  const getNodeName = (id: string) => nodesCache[id]?.name || id.slice(0, 8);
+  const getNodeName = (id: string) => nodesCache[id]?.name || '(加载中)';
 
   const columns = [
     {
