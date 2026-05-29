@@ -130,6 +130,21 @@ test.describe('攻击详情 - 扩展功能', () => {
       await expect(page.getByText('节点已添加').first()).toBeVisible({ timeout: 10000 });
     });
 
+    test('click node shows person detail panel (basic info + KG relations header)', async ({ page }) => {
+      await page.request.post(`${API}/api/nodes/person`, { data: { 姓名: 'E2E求助负责人', 部门: '应急部', 邮箱: 'oncall@x.com' } });
+      const tRes = await page.request.post(`${API}/api/nodes/attackTicket`, { data: { 标题: 'E2E求助详情单', 状态: '处理中', 当前处理人: 'E2E求助负责人' } });
+      const t = await tRes.json();
+      await page.request.post(`${API}/api/support-nodes/${t.id}`, { data: { category: '环境', domain: '网络抓包', personName: 'E2E求助负责人', status: '待确认' } });
+
+      await page.goto(`/attack/${t.id}`);
+      await page.waitForLoadState('networkidle');
+      await page.getByRole('tab', { name: /求助网络/ }).click();
+      await page.locator('.ant-tree').getByText('E2E求助负责人').first().click();
+
+      await expect(page.getByText('应急部')).toBeVisible();
+      await expect(page.getByText('知识图谱关联（一跳）')).toBeVisible();
+    });
+
     test('support node requires category and domain', async ({ page }) => {
       await page.goto(`/attack/${ticketId}`);
       await page.waitForLoadState('networkidle');

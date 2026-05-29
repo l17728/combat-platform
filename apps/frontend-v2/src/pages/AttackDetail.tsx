@@ -13,14 +13,14 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
-import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL } from '../constants.js';
+import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL, NODE_TYPE_LABEL } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import AddTabModal from '../components/AddTabModal.js';
 import DynamicLinkTab from '../components/DynamicLinkTab.js';
 import DynamicCustomTab from '../components/DynamicCustomTab.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema } from '@combat/shared';
-import type { DailyReportEntry, SupportNode, SupportTemplate } from '../api.js';
+import type { DailyReportEntry, SupportNode, SupportTemplate, RelatedResult } from '../api.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import dayjs from 'dayjs';
@@ -94,6 +94,10 @@ export default function AttackDetail() {
 
   const [supportNodes, setSupportNodes] = useState<SupportNode[]>([]);
   const [supportLoading, setSupportLoading] = useState(false);
+  const [selectedPersonName, setSelectedPersonName] = useState<string | null>(null);
+  const [selectedPerson, setSelectedPerson] = useState<GraphNode | null>(null);
+  const [personRelated, setPersonRelated] = useState<RelatedResult | null>(null);
+  const [personPanelLoading, setPersonPanelLoading] = useState(false);
   const [supportModalOpen, setSupportModalOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<SupportNode | null>(null);
   const [supportSubmitting, setSupportSubmitting] = useState(false);
@@ -242,6 +246,21 @@ export default function AttackDetail() {
     catch (e: any) { message.error(e.message); }
   };
 
+  const selectSupportPerson = async (name: string | null | undefined) => {
+    const n = String(name ?? '').trim();
+    setSelectedPersonName(n || null);
+    setSelectedPerson(null);
+    setPersonRelated(null);
+    if (!n) return;
+    const person = people.find(p => String(p.properties['姓名'] ?? p.properties['name'] ?? '') === n);
+    if (!person) return;
+    setSelectedPerson(person);
+    setPersonPanelLoading(true);
+    try { setPersonRelated(await api.getRelated('person', person.id, { depth: 1 })); }
+    catch { setPersonRelated(null); }
+    finally { setPersonPanelLoading(false); }
+  };
+
   const handleApplyTemplate = async (templateId: string) => {
     if (!id) return;
     try {
@@ -371,22 +390,68 @@ export default function AttackDetail() {
             </Space>
           </div>
           {supportLoading ? <Spin /> : supportNodes.length === 0 ? <Empty description="暂无求助节点" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-            <Tree treeData={buildTree(supportNodes)} defaultExpandAll titleRender={(nd: any) => (
-              <Space size={8}>
-                <Tooltip title={nd.note ? `备注：${nd.note}` : '无备注'}>
+            <Row gutter={16}>
+              <Col span={14}>
+                <Tree treeData={buildTree(supportNodes)} defaultExpandAll titleRender={(nd: any) => (
                   <Space size={8}>
-                    <Tag color="blue">{nd.category}</Tag>
-                    <Text strong>{nd.personName || '待指定'}</Text>
-                    <Text type="secondary">· {nd.domain}</Text>
-                    <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
+                    <Tooltip title={nd.note ? `备注：${nd.note}` : '无备注'}>
+                      <Space size={8} style={{ cursor: 'pointer' }} onClick={() => selectSupportPerson(nd.personName)}>
+                        <Tag color="blue">{nd.category}</Tag>
+                        <Text strong style={selectedPersonName && nd.personName === selectedPersonName ? { color: '#1677ff' } : undefined}>{nd.personName || '待指定'}</Text>
+                        <Text type="secondary">· {nd.domain}</Text>
+                        <Tag color={SUPPORT_STATUS_COLOR[nd.status] ?? 'default'}>{nd.status}</Tag>
+                      </Space>
+                    </Tooltip>
+                    <Button size="small" type="text" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); setEditingNode(nd); supportForm.setFieldsValue({ parentId: nd.parentId ?? undefined, category: nd.category, domain: nd.domain, personName: nd.personName ?? undefined, status: nd.status, note: nd.note }); setSupportModalOpen(true); }} />
+                    <Popconfirm title="确认删除该节点？" onConfirm={() => handleDeleteSupportNode(nd.id)}>
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
+                    </Popconfirm>
                   </Space>
-                </Tooltip>
-                <Button size="small" type="text" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); setEditingNode(nd); supportForm.setFieldsValue({ parentId: nd.parentId ?? undefined, category: nd.category, domain: nd.domain, personName: nd.personName ?? undefined, status: nd.status, note: nd.note }); setSupportModalOpen(true); }} />
-                <Popconfirm title="确认删除该节点？" onConfirm={() => handleDeleteSupportNode(nd.id)}>
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} />
-                </Popconfirm>
-              </Space>
-            )} />
+                )} />
+              </Col>
+              <Col span={10}>
+                <Card size="small" title="负责人详情" style={{ position: 'sticky', top: 0 }}>
+                  {personPanelLoading ? <Spin /> : !selectedPersonName ? (
+                    <Empty description="点击左侧节点查看负责人详情与图谱关联" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : !selectedPerson ? (
+                    <Empty description={`未在全员名单中找到「${selectedPersonName}」`} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                  ) : (
+                    <>
+                      <Descriptions column={1} size="small" bordered>
+                        <Descriptions.Item label="姓名">{String(selectedPerson.properties['姓名'] ?? '-')}</Descriptions.Item>
+                        <Descriptions.Item label="部门">{String(selectedPerson.properties['部门'] ?? '-')}</Descriptions.Item>
+                        <Descriptions.Item label="工号">{String(selectedPerson.properties['工号'] ?? '-')}</Descriptions.Item>
+                        <Descriptions.Item label="邮箱">{String(selectedPerson.properties['邮箱'] ?? '-')}</Descriptions.Item>
+                        <Descriptions.Item label="角色">{String(selectedPerson.properties['角色'] ?? '-')}</Descriptions.Item>
+                      </Descriptions>
+                      <Divider orientation="left" orientationMargin={0} style={{ marginTop: 12 }}>知识图谱关联（一跳）</Divider>
+                      {(() => {
+                        const items = [...(personRelated?.incoming ?? []), ...(personRelated?.outgoing ?? [])];
+                        if (items.length === 0) return <Text type="secondary">暂无关联实体</Text>;
+                        return (
+                          <List size="small" dataSource={items}
+                            renderItem={(it, i) => {
+                              const p = it.node.properties;
+                              const nm = String(p['标题'] ?? p['姓名'] ?? p['团队名称'] ?? p['name'] ?? it.node.id.slice(0, 8));
+                              return (
+                                <List.Item key={`${it.node.id}-${i}`}>
+                                  <Space size={6} wrap>
+                                    <Tag color="geekblue">{it.field || it.concept || '关联'}</Tag>
+                                    <Tag>{NODE_TYPE_LABEL[it.node.nodeType] ?? it.node.nodeType}</Tag>
+                                    {it.node.nodeType === 'attackTicket'
+                                      ? <a onClick={() => navigate(`/attack/${it.node.id}`)}>{nm}</a>
+                                      : <Text>{nm}</Text>}
+                                  </Space>
+                                </List.Item>
+                              );
+                            }} />
+                        );
+                      })()}
+                    </>
+                  )}
+                </Card>
+              </Col>
+            </Row>
           )}
         </div>
       ),
