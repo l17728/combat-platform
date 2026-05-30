@@ -5,7 +5,7 @@ import { makeTestApp } from "./helpers.js";
 describe("op-log router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
 
-  beforeEach(() => {
+  beforeEach(async () => {
     ({ app } = makeTestApp());
   });
 

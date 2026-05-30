@@ -35,7 +35,7 @@ describe("增量34 后台自动化机制（§51, 仅后端）", () => {
     expect(r2.body.published).toBe(1);
     expect(Number((await request(app).get(`/api/nodes/${t.id}`)).body.properties["日报发布数量"])).toBe(2);
 
-    expect(repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id }).length).toBeGreaterThanOrEqual(2);
+    expect((await repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id })).length).toBeGreaterThanOrEqual(2);
   });
 
   it("51.2 jobs:tick 汇总跑 conflicts/escalation/reminders", async () => {
@@ -43,7 +43,7 @@ describe("增量34 后台自动化机制（§51, 仅后端）", () => {
     // 两个同负责人活跃单 → 1 对 CONFLICTS_WITH
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "并发1", 状态: "进行中", 当前处理人: "赵六" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "并发2", 状态: "进行中", 当前处理人: "赵六" });
-    const sum = tickScheduledJobs(repo, registry);
+    const sum = await tickScheduledJobs(repo, registry);
     expect(sum.conflicts).toBeGreaterThanOrEqual(1);
     expect(typeof sum.overlaps).toBe("number");
     expect(typeof sum.escalated).toBe("number");

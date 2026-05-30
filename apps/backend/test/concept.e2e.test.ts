@@ -40,9 +40,9 @@ describe("concept e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连", 当前处理人: "张三" });
     expect(c.status).toBe(201);
-    const edge = repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" })[0];
+    const edge = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" }))[0];
     expect(edge.properties["concept"]).toBe("负责人");
-    const pid = repo.queryNodes("person")[0].id;
+    const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
     expect(r.status).toBe(200);
     expect(r.body.incoming[0].concept).toBe("负责人");
@@ -52,7 +52,7 @@ describe("concept e2e", () => {
     const { app, repo } = makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "李四" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "李四", 贡献类型: "实施" });
-    const pid = repo.queryNodes("person")[0].id;
+    const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
     expect(r.body.incoming).toHaveLength(2);
     expect(r.body.incoming.map((x: any) => x.concept).sort()).toEqual(["负责人", "负责人"]);
@@ -61,7 +61,7 @@ describe("concept e2e", () => {
   it("ref field WITHOUT concept → related item concept is '' (RelatedPage falls back to nodeType)", async () => {
     const { app, repo } = makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "无concept边", 当前处理人: "钱七", 协办人: "钱七" });
-    const pid = repo.queryNodes("person")[0].id;
+    const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
     expect(r.body.incoming).toHaveLength(2);
     const byField = Object.fromEntries(r.body.incoming.map((x: any) => [x.field, x.concept]));

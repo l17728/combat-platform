@@ -37,7 +37,7 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
     const skipRow = r.body.rows.find((x: any) => x.action === "skip");
     expect(skipRow.reason).toContain("标题");
     // NOT written
-    expect(repo.queryNodes("attackTicket")).toHaveLength(0);
+    expect(await repo.queryNodes("attackTicket")).toHaveLength(0);
   });
 
   it("dryRun detects update on identity hit", async () => {
@@ -63,6 +63,6 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
     expect(r.body.skipped).toBe(1);
     expect(Array.isArray(r.body.skippedRows)).toBe(true);
     expect(r.body.skippedRows[0].reason).toContain("标题");
-    expect(repo.queryNodes("attackTicket")).toHaveLength(1);
+    expect(await repo.queryNodes("attackTicket")).toHaveLength(1);
   });
 });

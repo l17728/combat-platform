@@ -39,10 +39,10 @@ describe("refs e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连", 当前处理人: "张三" });
     expect(c.status).toBe(201);
-    const persons = repo.queryNodes("person");
+    const persons = await repo.queryNodes("person");
     expect(persons).toHaveLength(1);
     expect(persons[0].properties["name"]).toBe("张三");
-    const edges = repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
+    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
     expect(edges).toHaveLength(1);
     expect(edges[0].targetId).toBe(persons[0].id);
     expect(edges[0].properties["field"]).toBe("当前处理人");
@@ -51,7 +51,7 @@ describe("refs e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "张三" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 贡献类型: "实施" });
-    const pid = repo.queryNodes("person")[0].id;
+    const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
     expect(r.status).toBe(200);
     const inTypes = r.body.incoming.map((x: any) => x.node.nodeType).sort();
@@ -64,11 +64,11 @@ describe("refs e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "T", 当前处理人: "张三" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "张三" });
-    expect(repo.queryNodes("person")).toHaveLength(1);
+    expect(await repo.queryNodes("person")).toHaveLength(1);
     await request(app).put(`/api/nodes/${c.body.id}`).send({ 当前处理人: "李四" });
-    const persons = repo.queryNodes("person");
+    const persons = await repo.queryNodes("person");
     expect(persons.map(p => p.properties["name"]).sort()).toEqual(["张三", "李四"].sort());
-    const edges = repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
+    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
     expect(edges).toHaveLength(1);
     const li = persons.find(p => p.properties["name"] === "李四")!;
     expect(edges[0].targetId).toBe(li.id);

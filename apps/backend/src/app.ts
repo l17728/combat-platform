@@ -58,7 +58,9 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeUserAdminRouter(deps.db));
   }
 
-  seedConfigFromSchemas(deps.registry, deps.repo);
+  // Fire-and-forget — runs the seed in background; failures are logged but
+  // don't block server startup.
+  seedConfigFromSchemas(deps.registry, deps.repo).catch(() => { /* logged inside */ });
 
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));

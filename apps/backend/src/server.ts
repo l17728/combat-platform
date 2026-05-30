@@ -65,8 +65,8 @@ app.listen(PORT, () => {
 
   const AUTO_SCAN_INTERVAL = 5 * 60 * 1000;
   setInterval(() => {
-    try { scanEscalation(repo); } catch (e) { log.warn("auto_scan.escalation.fail", { error: (e as Error).message }); }
-    try { scanAndCreateReminders(repo, registry); } catch (e) { log.warn("auto_scan.reminders.fail", { error: (e as Error).message }); }
+    scanEscalation(repo).catch((e) => log.warn("auto_scan.escalation.fail", { error: (e as Error).message }));
+    scanAndCreateReminders(repo, registry).catch((e) => log.warn("auto_scan.reminders.fail", { error: (e as Error).message }));
   }, AUTO_SCAN_INTERVAL).unref();
   log.info("server.auto_scan.started", { intervalMs: AUTO_SCAN_INTERVAL });
 
@@ -77,5 +77,5 @@ app.listen(PORT, () => {
 });
 
 setInterval(() => {
-  try { tickScheduledJobs(repo, registry); } catch (e) { console.error("[jobs.tick]", e); }
+  tickScheduledJobs(repo, registry).catch((e) => console.error("[jobs.tick]", e));
 }, 3600_000).unref();

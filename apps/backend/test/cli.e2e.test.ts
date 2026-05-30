@@ -116,7 +116,7 @@ describe("§43 CLI core", () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });
 
-  it("parseArgs splits positional vs --opts (value and flag)", () => {
+  it("parseArgs splits positional vs --opts (value and flag)", async () => {
     const p = parseArgs(["a", "b", "--depth", "2", "--candidates"]);
     expect(p.positional).toEqual(["a", "b"]);
     expect(p.opts).toEqual({ depth: "2", candidates: true });
@@ -215,7 +215,7 @@ describe("§43 CLI core", () => {
     expect(after.some(e => e.id === entry.id)).toBe(false);
   });
 
-  it("CLI registry covers every backend API route (no orphan APIs)", () => {
+  it("CLI registry covers every backend API route (no orphan APIs)", async () => {
     // Whitelist of (METHOD path) pairs that intentionally have no 1:1 CLI command.
     // Empty for now — the audit requires every backend HTTP endpoint to be reachable from the CLI.
     const skip = new Set<string>([]);

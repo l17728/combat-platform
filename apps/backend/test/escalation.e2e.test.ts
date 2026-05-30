@@ -47,7 +47,7 @@ describe("§48 SLA 上升 + 责任矩阵 e2e", () => {
     const aud = (await request(app).get(`/api/audit?entityId=${t.id}&action=ESCALATE`)).body;
     expect(aud.length).toBeGreaterThanOrEqual(1);
     // ESCALATED_TO edge created
-    expect(repo.queryEdges({ sourceId: t.id, edgeType: "ESCALATED_TO" }).length).toBeGreaterThanOrEqual(1);
+    expect((await repo.queryEdges({ sourceId: t.id, edgeType: "ESCALATED_TO" })).length).toBeGreaterThanOrEqual(1);
 
     // idempotent: second scan does not re-escalate the same ticket
     const r2 = await request(app).post("/api/escalation/scan");

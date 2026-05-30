@@ -36,7 +36,7 @@ describe("alias e2e", () => {
     const r = await request(app).post("/api/import").attach("file", buf, "s.xlsx");
     expect(r.status).toBe(200);
     expect(r.body.created).toBe(1);
-    const t = repo.queryNodes("attackTicket")[0];
+    const t = (await repo.queryNodes("attackTicket"))[0];
     expect(t.properties["当前处理人"]).toBe("张三");
   });
   it("setAliases persists to config json + reload; then import uses the new alias", async () => {
@@ -49,7 +49,7 @@ describe("alias e2e", () => {
     expect(onDisk.fields.find((f: any) => f.id === "当前处理人").aliases).toEqual(["处理人", "PIC"]);
     const buf = xlsxBuf([{ 标题: "T2", PIC: "李四" }]);
     await request(app).post("/api/import").attach("file", buf, "s.xlsx");
-    const t = repo.queryNodes("attackTicket").find(n => n.properties["标题"] === "T2");
+    const t = (await repo.queryNodes("attackTicket")).find(n => n.properties["标题"] === "T2");
     expect(t!.properties["当前处理人"]).toBe("李四");
   });
   it("setAliases on unknown field id -> 400 and config unchanged", async () => {

@@ -7,7 +7,7 @@ import { makeTestApp } from "./helpers.js";
 
 describe("documents e2e", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
-  beforeAll(() => {
+  beforeAll(async () => {
     process.env.COMBAT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), "combat-uploads-"));
     app = makeTestApp().app;
   });

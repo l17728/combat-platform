@@ -61,7 +61,7 @@ describe("help-request e2e", () => {
     const sent: { msg: { to: string[]; subject: string; body: string } }[] = [];
     const fakeMail: MailSender = { async send(_cfg, msg) { sent.push({ msg }); return { messageId: "test" }; } };
     const { app, repo } = makeApp(fakeMail);
-    repo.setSetting("smtp", JSON.stringify({ host: "smtp.test", port: 587, secure: false, username: "u", password: "p", fromEmail: "a@b.com" }), "test");
+    await repo.setSetting("smtp", JSON.stringify({ host: "smtp.test", port: 587, secure: false, username: "u", password: "p", fromEmail: "a@b.com" }), "test");
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
       ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助",

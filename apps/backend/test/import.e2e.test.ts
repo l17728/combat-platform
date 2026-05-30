@@ -20,11 +20,11 @@ describe("import e2e", () => {
     const r = await request(app).post("/api/import").attach("file", buf, "s.xlsx");
     expect(r.status).toBe(200);
     expect(r.body.created).toBe(2);
-    expect(repo.queryNodes("attackTicket")).toHaveLength(2);
-    expect(repo.queryNodes("person")).toHaveLength(1); // entity resolution
-    const edges = repo.queryEdges({ edgeType: "ASSIGNED_TO" });
+    expect(await repo.queryNodes("attackTicket")).toHaveLength(2);
+    expect(await repo.queryNodes("person")).toHaveLength(1); // entity resolution
+    const edges = await repo.queryEdges({ edgeType: "ASSIGNED_TO" });
     expect(edges).toHaveLength(2);
-    const personId = repo.queryNodes("person")[0].id;
+    const personId = (await repo.queryNodes("person"))[0].id;
     expect(edges.every(e => e.targetId === personId)).toBe(true);
   });
 });

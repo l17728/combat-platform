@@ -85,7 +85,7 @@ describe("增量40 review 加固（缺陷修复 + 边界）", () => {
       await request(app).post(`/api/nodes/${t.id}/progress`).send({ content: "进展", statusSnapshot: "进行中" });
       await request(app).post(`/api/daily-report/publish`);
       await request(app).post(`/api/daily-report/publish`);
-      expect(repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id }).length).toBe(2);
+      expect((await repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id })).length).toBe(2);
     });
   });
 
@@ -128,6 +128,6 @@ describe("用户场景（end-to-end 视角）", () => {
       .attach("file", xlsxBuf([{ 标题: "正常单", 状态: "进行中" }]), "good.xlsx");
     expect(ok.status).toBe(200);
     expect(ok.body.created).toBe(1);
-    expect(repo.queryNodes("attackTicket").length).toBe(1);
+    expect((await repo.queryNodes("attackTicket")).length).toBe(1);
   });
 });

@@ -48,13 +48,13 @@ describe("relation proposals e2e", () => {
     await request(app).post("/api/proposals/scan").send({});
     const prop = (await request(app).get("/api/proposals?status=待审批")).body[0];
     const pid = prop.id;
-    const before = repo.queryNodes("person").length;
+    const before = (await repo.queryNodes("person")).length;
     const d = await request(app).post(`/api/proposals/${pid}/decide`).send({ decision: "通过", decidedBy: "运营" });
     expect(d.status).toBe(200);
-    expect(repo.queryNodes("person").length).toBe(before - 1);
+    expect((await repo.queryNodes("person")).length).toBe(before - 1);
     // merged-away source gone; surviving target = proposal.targetNodeId
-    expect(repo.getNode(prop.sourceNodeId)).toBeNull();
-    const survivor = repo.getNode(prop.targetNodeId);
+    expect(await repo.getNode(prop.sourceNodeId)).toBeNull();
+    const survivor = await repo.getNode(prop.targetNodeId);
     expect(survivor).not.toBeNull();
     // §20.4 边迁移 + 原引用可达: BOTH tickets' REF edges now resolve to the survivor
     const rel = await request(app).get(`/api/related/person/${prop.targetNodeId}`);
@@ -84,7 +84,7 @@ describe("relation proposals e2e", () => {
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "刘洋" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "刘阳" });
     await request(app).post("/api/proposals/scan").send({});
-    const persons = repo.queryNodes("person");
+    const persons = await repo.queryNodes("person");
     const pid = persons[0].id;
     const plain = await request(app).get(`/api/related/person/${pid}`);
     expect(plain.body.candidates).toBeUndefined();

@@ -39,12 +39,12 @@ function make() {
 }
 
 describe("Schema API e2e (增量: 动态新增表)", () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     // Ensure no leftover test schema
     cleanTestSchema();
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     // Clean up any test schema that was created
     cleanTestSchema();
   });
@@ -158,7 +158,7 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
     registry.reload();
 
     // Create a node of this type directly via repo
-    repo.createNode(TEST_NODE_TYPE, { title: "测试数据" }, "test");
+    await repo.createNode(TEST_NODE_TYPE, { title: "测试数据" }, "test");
 
     // Now try to delete — should 409 because data exists
     const deleteRes = await request(app).delete(`/api/schema/nodeType/${TEST_NODE_TYPE}`);

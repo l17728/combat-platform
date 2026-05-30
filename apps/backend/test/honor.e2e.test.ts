@@ -33,7 +33,7 @@ describe("honor e2e", () => {
     const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连攻关", 攻关单号: "GK-1" });
     const c = await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 关联攻关单: "GK-1", 贡献类型: "实施", 贡献等级: "核心" });
     expect(c.status).toBe(201);
-    const edges = repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" });
+    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" });
     expect(edges).toHaveLength(1);
     expect(edges[0].targetId).toBe(t.body.id);
   });
@@ -63,6 +63,6 @@ describe("honor e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/contribution").send({ 贡献人: "赵六", 贡献类型: "设计" });
     expect(c.status).toBe(201);
-    expect(repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(0);
+    expect(await repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(0);
   });
 });

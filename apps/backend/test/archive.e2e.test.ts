@@ -29,10 +29,10 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
     });
     expect(c.status).toBe(201);
     expect(c.body.properties["版本号"]).toBe("v1.0.0-RC");
-    const refs = repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
+    const refs = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
     expect(refs.length).toBe(1);
     expect(refs[0].properties["field"]).toBe("责任人");
-    const anchors = repo.queryEdges({ sourceId: c.body.id, edgeType: "ANCHORED_TO" });
+    const anchors = await repo.queryEdges({ sourceId: c.body.id, edgeType: "ANCHORED_TO" });
     expect(anchors.length).toBe(1);
     expect(anchors[0].properties["anchorKind"]).toBe("问题单号");
     const lst = await request(app).get("/api/nodes/releasePackage");

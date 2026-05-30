@@ -30,10 +30,10 @@ describe("cross-granularity anchor e2e", () => {
     const { app, repo } = makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 问题单号: "PB-1" });
     expect(c.status).toBe(201);
-    const anchors = repo.queryNodes("问题单号");
+    const anchors = await repo.queryNodes("问题单号");
     expect(anchors).toHaveLength(1);
     expect(anchors[0].properties["key"]).toBe("PB-1");
-    const e = repo.queryEdges({ sourceId: c.body.id, edgeType: "ANCHORED_TO" })[0];
+    const e = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "ANCHORED_TO" }))[0];
     expect(e.targetId).toBe(anchors[0].id);
     expect(e.properties["anchorKind"]).toBe("问题单号");
   });
@@ -42,9 +42,9 @@ describe("cross-granularity anchor e2e", () => {
     const { app, repo } = makeApp();
     const at = await request(app).post("/api/nodes/attackTicket").send({ 标题: "AT", 问题单号: "PB-9" });
     const co = await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 关联问题单: "PB-9" });
-    expect(repo.queryNodes("问题单号")).toHaveLength(1);
-    expect(repo.queryEdges({ sourceId: at.body.id, targetId: co.body.id })).toHaveLength(0);
-    expect(repo.queryEdges({ sourceId: co.body.id, targetId: at.body.id })).toHaveLength(0);
+    expect(await repo.queryNodes("问题单号")).toHaveLength(1);
+    expect(await repo.queryEdges({ sourceId: at.body.id, targetId: co.body.id })).toHaveLength(0);
+    expect(await repo.queryEdges({ sourceId: co.body.id, targetId: at.body.id })).toHaveLength(0);
     const relAt = await request(app).get(`/api/related/attackTicket/${at.body.id}`);
     expect(relAt.body.coAnchored.map((x: any) => x.node.id)).toContain(co.body.id);
     expect(relAt.body.coAnchored[0].anchorKind).toBe("问题单号");

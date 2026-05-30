@@ -25,7 +25,7 @@ function makeRealApp() {
 
 describe("teamContribution e2e", () => {
   let app: ReturnType<typeof makeRealApp>["app"];
-  beforeAll(() => { app = makeRealApp().app; });
+  beforeAll(async () => { app = makeRealApp().app; });
 
   it("schema is registered with expected fields", async () => {
     const s = await request(app).get("/api/schema/teamContribution");
