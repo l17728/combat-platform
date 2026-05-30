@@ -9,9 +9,12 @@ import {
   buildHermesPrompt,
   parseAgentOutput,
   buildCitations,
+  buildWelinkCitations,
   answerWithAgent,
   type AgentRunner,
 } from "../src/hermes-agent.js";
+import { ensureWelinkMessagesTable } from "../src/welink.js";
+import { randomUUID } from "node:crypto";
 
 function makeRepoRegistry() {
   const dir = mkdtempSync(join(tmpdir(), "hermes-agent-"));
@@ -97,6 +100,103 @@ describe("hermes-agent 确定性核心", () => {
       expect(ans.citations).toHaveLength(1);           // 编造ID 被丢弃
       expect(ans.citations[0].nodeId).toBe(t.id);
       expect(ans.citations[0].link).toBe(`/attack/${t.id}`);
+    });
+  });
+
+  describe("场景 3 — parseAgentOutput 解析 WELINK_CITATIONS", () => {
+    it("agent 输出含 WELINK_CITATIONS JSON → 解析为 welinkHints", () => {
+      const text = [
+        "小王在 [2026-05-29 11:05] 首次提到 OOM。",
+        "CITATIONS: 空",
+        'WELINK_CITATIONS: [{"messageId":"w42","brief":"我先看看 OOM"}]',
+      ].join("\n");
+      const r = parseAgentOutput(text);
+      expect(r.answer).toContain("小王");
+      expect(r.answer).not.toContain("WELINK_CITATIONS");
+      expect(r.citedIds).toEqual([]);
+      expect(r.welinkHints).toEqual([{ messageId: "w42", brief: "我先看看 OOM" }]);
+    });
+    it("不含 WELINK_CITATIONS → welinkHints 空", () => {
+      const r = parseAgentOutput("普通回答。\nCITATIONS: 空");
+      expect(r.welinkHints).toEqual([]);
+    });
+    it("WELINK_CITATIONS JSON 解析失败 → welinkHints 空(降级,不抛)", () => {
+      const r = parseAgentOutput("回答。\nCITATIONS: 空\nWELINK_CITATIONS: [乱码,不是 JSON]");
+      expect(r.welinkHints).toEqual([]);
+    });
+  });
+
+  describe("场景 3 — buildWelinkCitations(防幻觉回查 db)", () => {
+    function makeDbWith(rows: Array<{ ticketId: string; messageId: string; author?: string; content?: string }>) {
+      const dir = mkdtempSync(join(tmpdir(), "hermes-agent-welink-"));
+      const db = openDb(join(dir, "t.sqlite"));
+      ensureWelinkMessagesTable(db);
+      const stmt = db.prepare(
+        `INSERT INTO welink_messages (id, ticket_id, message_id, sent_at, author, content, attachments, raw, selected, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, '[]', NULL, 1, ?)`,
+      );
+      const now = new Date().toISOString();
+      for (const r of rows) {
+        stmt.run(randomUUID(), r.ticketId, r.messageId, "2026-05-29T10:00:00.000Z", r.author || "u1", r.content || "msg", now);
+      }
+      return db;
+    }
+
+    it("hints 命中真实消息 → 返回 kind=welink citation,link 含 welinkMsg query", () => {
+      const db = makeDbWith([{ ticketId: "ticket-A", messageId: "w42", author: "小王", content: "我先看看 OOM" }]);
+      const out = buildWelinkCitations(db, [{ messageId: "w42", brief: "我先看看 OOM" }], "ticket-A");
+      expect(out).toHaveLength(1);
+      expect(out[0].kind).toBe("welink");
+      expect(out[0].messageId).toBe("w42");
+      expect(out[0].ticketId).toBe("ticket-A");
+      expect(out[0].link).toContain("/attack/ticket-A");
+      expect(out[0].link).toContain("welinkMsg=w42");
+    });
+    it("hints 含编造 messageId → 该项被丢弃(防幻觉)", () => {
+      const db = makeDbWith([{ ticketId: "ticket-A", messageId: "w42", content: "真" }]);
+      const out = buildWelinkCitations(
+        db,
+        [{ messageId: "w42" }, { messageId: "编造-msg" }],
+        "ticket-A",
+      );
+      expect(out).toHaveLength(1);
+      expect(out[0].messageId).toBe("w42");
+    });
+    it("db 未注入 → 直接返回空数组,不抛", () => {
+      const out = buildWelinkCitations(undefined, [{ messageId: "w42" }], "ticket-A");
+      expect(out).toEqual([]);
+    });
+    it("空 hints → 空数组", () => {
+      const db = makeDbWith([]);
+      expect(buildWelinkCitations(db, [], "ticket-A")).toEqual([]);
+    });
+  });
+
+  describe("场景 3 — answerWithAgent 透传 welink 引用", () => {
+    it("agent 输出 WELINK_CITATIONS → citations 含 kind=welink 项", async () => {
+      const { repo, registry } = makeRepoRegistry();
+      // 准备 db + 一条 welink message
+      const dir = mkdtempSync(join(tmpdir(), "hermes-agent-welink-flow-"));
+      const db = openDb(join(dir, "t.sqlite"));
+      ensureWelinkMessagesTable(db);
+      const stmt = db.prepare(
+        `INSERT INTO welink_messages (id, ticket_id, message_id, sent_at, author, content, attachments, raw, selected, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, '[]', NULL, 1, ?)`,
+      );
+      stmt.run(randomUUID(), "ticket-X", "wid-1", "2026-05-29T10:00:00.000Z", "小王", "我先看看 OOM", new Date().toISOString());
+
+      const fake: AgentRunner = {
+        run: async () => [
+          "小王在 [2026-05-29 10:00] 首次提到 OOM。",
+          "CITATIONS: 空",
+          'WELINK_CITATIONS: [{"messageId":"wid-1","brief":"我先看看 OOM"}]',
+        ].join("\n"),
+      };
+      const ans = await answerWithAgent(repo, registry, "谁最早提 OOM", fake, "ticketId=ticket-X", db);
+      const welinkCites = ans.citations.filter((c) => c.kind === "welink");
+      expect(welinkCites).toHaveLength(1);
+      expect(welinkCites[0].messageId).toBe("wid-1");
+      expect(welinkCites[0].ticketId).toBe("ticket-X");
     });
   });
 });

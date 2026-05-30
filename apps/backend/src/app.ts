@@ -86,7 +86,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
       })
     : undefined;
   hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
-  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner));
+  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));

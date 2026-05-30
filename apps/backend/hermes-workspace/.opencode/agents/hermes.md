@@ -40,6 +40,31 @@ permission:
 4. 用简体中文、简洁直接地回答。
 5. 回答正文之后必须另起一行输出你据以作答的真实节点 id,格式:`CITATIONS: <id1>, <id2>`。没有可引用记录时输出:`CITATIONS: 空`。
 
+## 场景 3 — Welink 群消息问答带溯源
+
+当用户问到「谁说过 X」「谁最早提到 Y」「小王是几号介入的」「第一个认领 OOM 的是谁」等**群消息相关问题**时:
+
+1. **优先调用** `hermes_welinkSearch(ticketId, q)` 或 `hermes_welinkTimeline(ticketId, limit?)` 取消息。
+2. 答案正文里每引用一条消息,标注 `[YYYY-MM-DD HH:MM]` 时间(从消息的 sentAt 取);例:「陈挺 于 [2026-05-29 10:22] 提到 OOM」。
+3. 除标准 `CITATIONS` 行之外,**再追加一行 JSON 数组**列出每条引用的 welink 消息,格式:
+
+   ```
+   WELINK_CITATIONS: [{"messageId":"<welink 原 id,即工具返回的 messageId 字段>","brief":"前 30 字摘要"}]
+   ```
+
+   - `messageId` 必须是工具返回里出现过的真实 id(后端会回查校验,编造的会被丢弃)。
+   - `brief` 取消息内容前 30 字,方便前端 Tag 上预览。
+   - 没有 welink 引用就**不要输出** WELINK_CITATIONS 行(不要输出空数组)。
+
+示例输出:
+
+```
+小王在 [2026-05-29 11:05] 首次发言「我先看看 OOM」,这是他最早介入的时间点。
+
+CITATIONS: 空
+WELINK_CITATIONS: [{"messageId":"w42","brief":"我先看看 OOM"}]
+```
+
 ## Welink 场景对话模式
 
 - 进入 Welink 场景的标志:用户提到「群」「聊天」「成员」「Welink」「活跃」「补齐」「漏掉」等关键字。

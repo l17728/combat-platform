@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNod
 import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
 import { answerWithAgent, type AgentRunner } from "./hermes-agent.js";
+import type { DB } from "./db.js";
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
@@ -315,17 +316,89 @@ export function answerQuestion(
   };
 }
 
-export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, runner?: AgentRunner): Router {
+const WELINK_KEYWORDS = /群里|聊天|welink|说过|提到|介入|最早|第一个|谁先|什么时候|何时|哪天/i;
+const TICKET_ID_HINT_RE = /(?:ticketId|攻关单\s*id|ticket\s*id)\s*[=:：]\s*([a-zA-Z0-9-]+)/i;
+
+function extractTicketIdHint(context?: string): string | undefined {
+  if (!context) return undefined;
+  const m = context.match(TICKET_ID_HINT_RE);
+  return m ? m[1] : undefined;
+}
+
+// 从 question 里提取若干"关键词"(去标点+停用词后剩下的中英文词)。最多 4 个,长度 >=2。
+function extractKeywords(question: string): string[] {
+  const stop = /^(的|了|和|是|在|有|谁|什么|怎么|为|啥|吗|呢|啊|哪|个|条|条目|消息|群里|聊天|提到|说过|最早|介入|时候|何时|哪天|第一|第一个|起|开始)$/;
+  const tokens = question
+    .replace(/[?？。，,!！;；:：'"`「」『』()（）\[\]【】<>《》]/g, " ")
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  for (const t of tokens) {
+    // 去掉单字、去停用词
+    if (t.length < 2) continue;
+    if (stop.test(t)) continue;
+    out.push(t);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+/**
+ * 场景 3 兜底:agent 关闭或 agent 没给 welink 引用时,直接关键词扫 welink_messages,
+ * 取前 3 条返回 welink kind citation。链路保证:即便没 LLM,用户也能拿到溯源跳转。
+ */
+function welinkFallbackCitations(db: DB, question: string, ticketId: string): HermesCitation[] {
+  const keywords = extractKeywords(question);
+  if (keywords.length === 0) return [];
+  // 用 LIKE 串联;为每个 keyword 给一条 hit,按时间升序取前 3 条不重复
+  const seen = new Set<string>();
+  const out: HermesCitation[] = [];
+  for (const kw of keywords) {
+    const rows = db.prepare(
+      `SELECT id, ticket_id, message_id, sent_at, author, content
+         FROM welink_messages
+        WHERE ticket_id = ? AND deleted_at IS NULL AND content LIKE ?
+        ORDER BY sent_at ASC LIMIT 5`,
+    ).all(ticketId, `%${kw}%`) as any[];
+    for (const row of rows) {
+      const key = String(row.message_id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const brief = String(row.content || "").slice(0, 60);
+      out.push({
+        nodeId: `welink:${row.id}`,
+        nodeType: "welinkMessage",
+        summary: `${row.author} · ${String(row.sent_at).slice(0, 16).replace("T", " ")}${brief ? " · " + brief : ""}`,
+        link: `/attack/${row.ticket_id}?tab=welink&welinkMsg=${encodeURIComponent(row.message_id)}`,
+        kind: "welink",
+        messageId: String(row.message_id),
+        ticketId: String(row.ticket_id),
+      });
+      if (out.length >= 3) return out;
+    }
+  }
+  return out;
+}
+
+export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, runner?: AgentRunner, db?: DB): Router {
   const r = Router();
   r.post("/hermes/ask", asyncHandler(async (req, res) => {
     const q = String(req.body?.question ?? "").trim();
     if (!q) return res.status(400).json({ error: "question 必填" });
     const context = String(req.body?.context ?? "").trim() || undefined; // 调用方上下文(如当前攻关单),仅 agent 使用
     log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
+    const ticketIdHint = extractTicketIdHint(context);
     // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
     if (runner) {
       try {
-        const answer = await answerWithAgent(repo, registry, q, runner, context);
+        const answer = await answerWithAgent(repo, registry, q, runner, context, db);
+        // 场景 3 兜底:agent 没给 welink 引用但问题明显是群消息相关 → 补充关键词 hit
+        if (db && ticketIdHint && WELINK_KEYWORDS.test(q)
+            && !answer.citations.some((c) => c.kind === "welink")) {
+          const extra = welinkFallbackCitations(db, q, ticketIdHint);
+          if (extra.length > 0) answer.citations.push(...extra);
+        }
         log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "agent" });
         return res.json(answer);
       } catch (e) {
@@ -333,6 +406,11 @@ export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, run
       }
     }
     const answer = answerQuestion(repo, registry, q);
+    // 规则引擎本身不查 welink_messages,这里统一补 welink 兜底
+    if (db && ticketIdHint && WELINK_KEYWORDS.test(q)) {
+      const extra = welinkFallbackCitations(db, q, ticketIdHint);
+      if (extra.length > 0) answer.citations.push(...extra);
+    }
     log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "rule" });
     res.json(answer);
   }));
