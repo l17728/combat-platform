@@ -35,6 +35,7 @@ import type { MenuProps } from 'antd';
 import { useAuth } from '../hooks/useAuth.js';
 import FloatingFeedback from '../components/FloatingFeedback.js';
 import HermesChat from '../components/HermesChat.js';
+import CommandPalette from '../components/CommandPalette.js';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -281,6 +282,7 @@ export function AppLayout() {
         </Content>
         <FloatingFeedback />
         <HermesChat title="AI 问答" bottom={156} />
+        <CommandPalette />
       </Layout>
     </Layout>
   );
