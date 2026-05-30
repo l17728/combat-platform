@@ -1,16 +1,17 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Upload, Button, Space, Table, Input, Select, DatePicker, message, Popconfirm,
-  Tag, Typography, Empty, Alert, Tooltip, Modal,
+  Tag, Typography, Empty, Alert, Tooltip, Modal, Segmented,
 } from 'antd';
 import {
   InboxOutlined, DeleteOutlined, ReloadOutlined, RobotOutlined,
-  CheckSquareOutlined, ClearOutlined,
+  CheckSquareOutlined, ClearOutlined, UnorderedListOutlined, MessageOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import dayjs, { type Dayjs } from 'dayjs';
-import { api, type WelinkMessage, type WelinkUploadMessage } from '../api.js';
+import { api, type WelinkMessage } from '../api.js';
+import WelinkChatView from './WelinkChatView.js';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -21,25 +22,23 @@ interface Props {
 
 interface Stats { total: number; selected: number; deleted: number }
 
-function normalizeMessage(raw: any): WelinkUploadMessage | null {
+function normalizeMessage(raw: any): any {
   if (!raw || typeof raw !== 'object') return null;
   const messageId = String(raw.messageId ?? raw.id ?? raw.msgId ?? '').trim();
-  const sentAtSrc = raw.sentAt ?? raw.time ?? raw.timestamp ?? raw.sendTime;
-  const sentAt = sentAtSrc ? String(sentAtSrc) : '';
+  const sentAtSrc = raw.sentAt ?? raw.time ?? raw.timestamp ?? raw.sendTime ?? raw.serverSendTime;
+  const sentAt = sentAtSrc ?? '';
   const author = String(raw.author ?? raw.sender ?? raw.from ?? raw.userName ?? '').trim();
-  if (!messageId || !sentAt || !author) return null;
+  if (!messageId || sentAt === '' || sentAt == null || !author) return null;
+  // 透传原始字段(serverSendTime / contentType / images / 对象 content),后端解析
   return {
+    ...raw,
     messageId,
-    sentAt,
+    sentAt: typeof sentAt === 'number' ? sentAt : String(sentAt),
     author,
-    authorId: raw.authorId ?? raw.senderId ?? raw.fromId ?? undefined,
-    content: String(raw.content ?? raw.text ?? raw.message ?? ''),
-    attachments: Array.isArray(raw.attachments) ? raw.attachments : undefined,
-    raw,
   };
 }
 
-function parseUploadFile(file: File): Promise<WelinkUploadMessage[]> {
+function parseUploadFile(file: File): Promise<any[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -48,7 +47,7 @@ function parseUploadFile(file: File): Promise<WelinkUploadMessage[]> {
         const data = JSON.parse(text);
         const list = Array.isArray(data) ? data : Array.isArray(data?.messages) ? data.messages : null;
         if (!list) return reject(new Error('JSON 必须为消息数组或 { messages: [...] }'));
-        const normalized: WelinkUploadMessage[] = [];
+        const normalized: any[] = [];
         for (const m of list) {
           const n = normalizeMessage(m);
           if (n) normalized.push(n);
@@ -69,6 +68,11 @@ export default function WelinkTab({ ticketId }: Props) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'chat'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    const v = window.localStorage.getItem('combat-welink-view');
+    return v === 'chat' ? 'chat' : 'list';
+  });
 
   // 筛选状态
   const [authorFilter, setAuthorFilter] = useState<string[]>([]);
@@ -90,6 +94,12 @@ export default function WelinkTab({ ticketId }: Props) {
   }, [ticketId]);
 
   useEffect(() => { void fetchMessages(); }, [fetchMessages]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('combat-welink-view', viewMode);
+    }
+  }, [viewMode]);
 
   const authorOptions = useMemo(() => {
     const set = new Set<string>();
@@ -280,95 +290,114 @@ export default function WelinkTab({ ticketId }: Props) {
         <Text type="secondary">/ 纳入分析 {stats.selected} 条 / 已软删 {stats.deleted} 条</Text>
         <Text type="secondary">/ 当前显示 {filtered.length} 条</Text>
         <Button icon={<ReloadOutlined />} size="small" onClick={() => fetchMessages()}>刷新</Button>
-      </Space>
-
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Select
-          mode="multiple"
-          allowClear
-          showSearch
-          placeholder="发言人筛选"
-          style={{ minWidth: 200, maxWidth: 360 }}
-          value={authorFilter}
-          onChange={setAuthorFilter}
-          options={authorOptions}
-        />
-        <DatePicker.RangePicker
-          showTime
-          value={timeRange as any}
-          onChange={(v) => setTimeRange(v as any)}
-          placeholder={['起始时间', '截止时间']}
-        />
-        <Input
-          allowClear
-          placeholder="包含关键词"
-          style={{ width: 180 }}
-          value={keywordInclude}
-          onChange={(e) => setKeywordInclude(e.target.value)}
-        />
-        <Input
-          allowClear
-          placeholder="排除关键词"
-          style={{ width: 180 }}
-          value={keywordExclude}
-          onChange={(e) => setKeywordExclude(e.target.value)}
+        <Segmented
+          value={viewMode}
+          onChange={(v) => setViewMode(v as 'list' | 'chat')}
+          options={[
+            { label: <span><UnorderedListOutlined /> 列表视图</span>, value: 'list' },
+            { label: <span><MessageOutlined /> 聊天视图</span>, value: 'chat' },
+          ]}
         />
       </Space>
 
-      <Space wrap style={{ marginBottom: 12 }}>
-        <Button icon={<CheckSquareOutlined />} onClick={handleSelectAllFiltered}>全选当前</Button>
-        <Button onClick={handleInvertSelection}>反选当前</Button>
-        <Button onClick={handleClearSelection}>清空勾选</Button>
-        <Button onClick={() => handleToggleSelected(selectedRowKeys, true)} disabled={!selectedRowKeys.length}>
-          纳入分析 ({selectedRowKeys.length})
-        </Button>
-        <Button onClick={() => handleToggleSelected(selectedRowKeys, false)} disabled={!selectedRowKeys.length}>
-          排除分析 ({selectedRowKeys.length})
-        </Button>
-        <Popconfirm
-          title="确认软删勾选的消息？"
-          onConfirm={handleBatchDelete}
-          disabled={!selectedRowKeys.length}
-        >
-          <Button icon={<DeleteOutlined />} danger disabled={!selectedRowKeys.length}>
-            批量删除 ({selectedRowKeys.length})
-          </Button>
-        </Popconfirm>
-      </Space>
+      {viewMode === 'list' ? (
+        <>
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              placeholder="发言人筛选"
+              style={{ minWidth: 200, maxWidth: 360 }}
+              value={authorFilter}
+              onChange={setAuthorFilter}
+              options={authorOptions}
+            />
+            <DatePicker.RangePicker
+              showTime
+              value={timeRange as any}
+              onChange={(v) => setTimeRange(v as any)}
+              placeholder={['起始时间', '截止时间']}
+            />
+            <Input
+              allowClear
+              placeholder="包含关键词"
+              style={{ width: 180 }}
+              value={keywordInclude}
+              onChange={(e) => setKeywordInclude(e.target.value)}
+            />
+            <Input
+              allowClear
+              placeholder="排除关键词"
+              style={{ width: 180 }}
+              value={keywordExclude}
+              onChange={(e) => setKeywordExclude(e.target.value)}
+            />
+          </Space>
 
-      <div style={{ marginBottom: 12 }}>
-        <Space wrap>
-          <Button type="primary" icon={<RobotOutlined />} onClick={handleAnalyze}>
-            让 AI 分析(已选 {stats.selected} 条)
-          </Button>
-          <Popconfirm
-            title="确认物理清空该攻关单全部 Welink 消息？此操作不可恢复"
-            okText="清空"
-            okType="danger"
-            onConfirm={handleClearAll}
-            disabled={stats.total + stats.deleted === 0}
-          >
-            <Button icon={<ClearOutlined />} danger disabled={stats.total + stats.deleted === 0}>
-              清空全部消息
+          <Space wrap style={{ marginBottom: 12 }}>
+            <Button icon={<CheckSquareOutlined />} onClick={handleSelectAllFiltered}>全选当前</Button>
+            <Button onClick={handleInvertSelection}>反选当前</Button>
+            <Button onClick={handleClearSelection}>清空勾选</Button>
+            <Button onClick={() => handleToggleSelected(selectedRowKeys, true)} disabled={!selectedRowKeys.length}>
+              纳入分析 ({selectedRowKeys.length})
             </Button>
-          </Popconfirm>
-        </Space>
-      </div>
+            <Button onClick={() => handleToggleSelected(selectedRowKeys, false)} disabled={!selectedRowKeys.length}>
+              排除分析 ({selectedRowKeys.length})
+            </Button>
+            <Popconfirm
+              title="确认软删勾选的消息？"
+              onConfirm={handleBatchDelete}
+              disabled={!selectedRowKeys.length}
+            >
+              <Button icon={<DeleteOutlined />} danger disabled={!selectedRowKeys.length}>
+                批量删除 ({selectedRowKeys.length})
+              </Button>
+            </Popconfirm>
+          </Space>
 
-      <Table<WelinkMessage>
-        rowKey="id"
-        size="small"
-        loading={loading}
-        dataSource={filtered}
-        columns={columns}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as string[]),
-        }}
-        pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [20, 50, 100, 200], showTotal: (t) => `共 ${t} 条` }}
-        scroll={{ x: true }}
-        locale={{ emptyText: <Empty description="暂无 Welink 消息,先上传一份" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-      />
+          <div style={{ marginBottom: 12 }}>
+            <Space wrap>
+              <Button type="primary" icon={<RobotOutlined />} onClick={handleAnalyze}>
+                让 AI 分析(已选 {stats.selected} 条)
+              </Button>
+              <Popconfirm
+                title="确认物理清空该攻关单全部 Welink 消息？此操作不可恢复"
+                okText="清空"
+                okType="danger"
+                onConfirm={handleClearAll}
+                disabled={stats.total + stats.deleted === 0}
+              >
+                <Button icon={<ClearOutlined />} danger disabled={stats.total + stats.deleted === 0}>
+                  清空全部消息
+                </Button>
+              </Popconfirm>
+            </Space>
+          </div>
+
+          <Table<WelinkMessage>
+            rowKey="id"
+            size="small"
+            loading={loading}
+            dataSource={filtered}
+            columns={columns}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys as string[]),
+            }}
+            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [20, 50, 100, 200], showTotal: (t) => `共 ${t} 条` }}
+            scroll={{ x: true }}
+            locale={{ emptyText: <Empty description="暂无 Welink 消息,先上传一份" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+          />
+        </>
+      ) : (
+        <WelinkChatView
+          ticketId={ticketId}
+          messages={messages}
+          reload={() => fetchMessages(true)}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }
