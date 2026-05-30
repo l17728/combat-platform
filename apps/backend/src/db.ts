@@ -93,6 +93,22 @@ export function openDb(path: string): DB {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+    CREATE TABLE IF NOT EXISTS welink_messages (
+      id           TEXT PRIMARY KEY,
+      ticket_id    TEXT NOT NULL,
+      message_id   TEXT NOT NULL,
+      sent_at      TEXT NOT NULL,
+      author       TEXT NOT NULL,
+      author_id    TEXT,
+      content      TEXT NOT NULL,
+      attachments  TEXT NOT NULL DEFAULT '[]',
+      raw          TEXT,
+      selected     INTEGER NOT NULL DEFAULT 1,
+      deleted_at   TEXT,
+      created_at   TEXT NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS uk_welink_msg ON welink_messages(ticket_id, message_id);
+    CREATE INDEX IF NOT EXISTS idx_welink_msg_ticket ON welink_messages(ticket_id, sent_at);
   `);
   return db;
 }
