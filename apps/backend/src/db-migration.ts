@@ -52,8 +52,9 @@ export function makeDbMigrationRouter(adapter: DbAdapter, sqlitePath: string): R
     const tables: { name: string; rows: number }[] = [];
     for (const t of TABLES) {
       try {
-        const row = await adapter.queryOne<{ c: number }>(`SELECT COUNT(*) as c FROM ${t}`);
-        tables.push({ name: t, rows: row?.c ?? 0 });
+        const row = await adapter.queryOne<{ c: number | string }>(`SELECT COUNT(*) as c FROM ${t}`);
+        // Postgres returns BIGINT (COUNT) as string; SQLite returns number.
+        tables.push({ name: t, rows: Number(row?.c ?? 0) });
       } catch {
         tables.push({ name: t, rows: 0 });
       }

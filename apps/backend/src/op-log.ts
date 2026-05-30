@@ -108,11 +108,12 @@ export function makeOpLogRouter(adapter: DbAdapter): Router {
       `SELECT * FROM op_logs ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
       [...params, lim, off],
     );
-    const countRow = await adapter.queryOne<{ total: number }>(
+    const countRow = await adapter.queryOne<{ total: number | string }>(
       `SELECT COUNT(*) as total FROM op_logs ${where}`,
       params,
     );
-    res.json({ total: countRow?.total ?? 0, rows });
+    // Postgres returns BIGINT (COUNT) as string; SQLite returns number. Coerce.
+    res.json({ total: Number(countRow?.total ?? 0), rows });
   }));
 
   router.delete("/op-logs", asyncHandler(async (req, res) => {

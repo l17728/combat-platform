@@ -121,9 +121,11 @@ export function createApp(deps: {
     app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(adapter));
     app.use("/api", makeDocumentRouter(adapter));
-    if (deps.dbPath) {
-      app.use("/api", makeDbMigrationRouter(adapter, deps.dbPath));
-    }
+    // Always mount db-migration router (with adapter); sqlitePath may be empty
+    // on Postgres path — that's fine, /status reports kind correctly and the
+    // mutation endpoints validate input. The legacy `dbPath` branch stays for
+    // SQLite hot-migrate flows.
+    app.use("/api", makeDbMigrationRouter(adapter, deps.dbPath || ""));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });
