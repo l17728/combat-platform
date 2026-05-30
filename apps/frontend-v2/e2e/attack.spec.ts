@@ -443,15 +443,18 @@ test.describe('攻关详情', () => {
     }
   });
 
-  test('audit log section shows history', async ({ page, request }) => {
+  test('合规追溯入口在进展同步 tab 内,leader/admin 可见', async ({ page, request }) => {
+    // 历史记录 tab 已删除,关键审计合并到「进展同步」Timeline,
+    // 详情完整审计走「查看完整历史」按钮跳转 /audit?entityId=...
     const res = await request.post(`${API}/api/nodes/attackTicket`, {
       data: { 标题: 'E2E审计查看', 状态: '处理中' },
     });
     const ticket = await res.json();
 
     await page.goto(`/attack/${ticket.id}`);
-    await page.getByRole('tab', { name: '历史记录' }).click();
-    await expect(page.getByText('创建').first()).toBeVisible();
+    await page.getByRole('tab', { name: /进展同步/ }).click();
+    // 默认 e2e 是 admin,应该看到进展 tab 内的「查看完整历史」按钮
+    await expect(page.getByRole('button', { name: /查看完整历史/ })).toBeVisible();
   });
 });
 

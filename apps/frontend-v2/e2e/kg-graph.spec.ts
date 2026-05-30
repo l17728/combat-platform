@@ -33,14 +33,14 @@ test.describe('知识图谱', () => {
     await page.goto('/kg');
     await expect(page.getByRole('heading', { name: '知识图谱' })).toBeVisible();
 
-    // 浮动 AI 问答按钮(robot 图标)→ 打开抽屉
+    // 浮动 AI 问答按钮(robot 图标)→ 打开可拖拽浮窗(已从 Drawer 改为悬浮 div)
     await page.getByRole('button', { name: 'robot' }).click();
-    const drawer = page.locator('.ant-drawer').filter({ hasText: '知识图谱 AI 问答' });
-    await expect(drawer).toBeVisible();
-
-    await drawer.locator('textarea').fill('PB-KGQA-1 谁负责');
-    await drawer.getByRole('button', { name: /提\s?问/ }).click();
+    // 用面板标题文本定位浮窗(已不是 Drawer);拖拽头部 strong 文本"知识图谱 AI 问答"
+    await expect(page.getByText('知识图谱 AI 问答').first()).toBeVisible({ timeout: 5000 });
+    const textarea = page.locator('textarea').first();
+    await textarea.fill('PB-KGQA-1 谁负责');
+    await page.getByRole('button', { name: /提\s?问/ }).click();
     // 规则引擎(e2e 未开 agent)应快速返回包含该单的答案
-    await expect(drawer.getByText(/KG问答测试单|攻关单|未找到|记录/).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/KG问答测试单|攻关单|未找到|记录/).first()).toBeVisible({ timeout: 15000 });
   });
 });

@@ -765,11 +765,15 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-29 最后验证）
+### 当前测试状态（2026-05-30 最后验证）
 
-**代码规模（cloc 2.08，排除 node_modules/dist/.git）**：TypeScript 30,693 行 / 287 文件；Markdown 15,152、JSON 10,381、JavaScript 1,567 —— 源码合计约 **57,965 行 / 383 文件**。
+**前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **347/347**（59 文件）。
 
-**前端 e2e 全量套件 396/396 全绿**（~14min，单 worker，`NODE_ENV=test`,干净机器跑）；后端 **347/347**（59 文件）。本会话新增 Hermes agent 问答、灵活 Excel 导入、知识图谱可视化三大特性 + 多项增强(详见下节),并把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
+本会话新增/重构：审核管理移入系统管理（仅 admin 可访问 + AdminGuard）、攻关单成员多选 + 成员管理固定 tab（双向同步 攻关组长/攻关成员/成员列表）、自动「信息广场」自定义 tab、详情布局重构（面板默认收起、进展同步 Timeline 合并 progress + 过滤后审计：状态流转 green/升级 orange/合并 gold/成员变更 blue，删历史记录 tab，新增「合规追溯」侧边卡 leader+admin 可见）、AuditLog 支持 `?entityId=` 过滤、基础信息字段隐藏/恢复（按用户名 localStorage 持久化）、AI 助手浮窗可拖拽（DynamicCustomTab + HermesChat 都改造）、攻关单删除权限收紧（创建人本人，admin/leader 也不可见）。
+
+> page-health.spec.ts:17 已豁免 `/api/nodes/{uuid}` 类型的 404（AuditLog 反查已删除节点是 benign，UI 显示「(已删除)」）。
+
+### 历史测试状态（2026-05-29）本会话新增 Hermes agent 问答、灵活 Excel 导入、知识图谱可视化三大特性 + 多项增强(详见下节),并把上一轮残留的 12 个"历史抖动"用例**全部实证定位并清零**（均为真根因，非笼统时序抖动；此前误判为"满负载抖动"）：
 
 > ⚠️ **数据累积抖动注意**:people/honor/help-center 等少数用例在**机器被并发重负载占用时**会因数据累积(DB 仅启动清一次)触发严格模式重复匹配而偶发失败;**干净机器跑全绿**。跑全量 e2e 时勿同时跑其它重任务(后端测试/构建/agent 冒烟)。
 

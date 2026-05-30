@@ -28,12 +28,12 @@ test.describe('攻关单 - 成员管理与默认信息广场 tab', () => {
     const drawer = page.locator('.ant-drawer');
     await drawer.getByLabel('标题').fill('E2E成员多选单');
 
-    // 攻关组长 单选(找到对应的 form-item -> select)
-    const leaderItem = drawer.locator('.ant-form-item').filter({ hasText: '攻关组长' });
+    // 攻关组长 单选(用 getByLabel 精确匹配,避免 hasText:组长 误中含 tooltip 的成员项)
+    const leaderItem = drawer.locator('.ant-form-item').filter({ has: page.locator('label.ant-form-item-required, label').filter({ hasText: /^攻关组长$/ }) });
     await selectOption(page, leaderItem.locator('.ant-select').first(), '周组长');
 
     // 攻关成员 多选
-    const memberItem = drawer.locator('.ant-form-item').filter({ hasText: '攻关成员' });
+    const memberItem = drawer.locator('.ant-form-item').filter({ has: page.locator('label').filter({ hasText: /^攻关成员$/ }) });
     await selectOption(page, memberItem.locator('.ant-select').first(), '周成员一');
     await selectOption(page, memberItem.locator('.ant-select').first(), '周成员二');
 

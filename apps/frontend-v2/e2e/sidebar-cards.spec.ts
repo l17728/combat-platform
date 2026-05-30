@@ -1,14 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { API } from './helpers';
 
-function sidebarCard(title: string) {
-  return page => page.locator('.ant-col-6 .ant-card').filter({ hasText: new RegExp(title) });
+// 攻关详情侧边栏卡:面板默认收起,「合规追溯」(leader/admin)、「找帮手推荐」(全员)
+// 「攻关成员」卡已下线 — 内容并入「成员管理」固定 tab。
+function sidebarCard(title: string, page) {
+  return page.locator('.ant-col-6 .ant-card').filter({ hasText: new RegExp(title) });
 }
 
-test.describe('攻击详情 - 侧边栏卡片面板', () => {
+test.describe('攻关详情 - 侧边栏卡片面板', () => {
   let ticketId: string;
 
-  test.beforeEach(async ({ page, request }) => {
+  test.beforeEach(async ({ request }) => {
     const personRes = await request.post(`${API}/api/nodes/person`, {
       data: { 姓名: 'E2E面板测试人', 部门: '测试部' },
     });
@@ -32,10 +34,12 @@ test.describe('攻击详情 - 侧边栏卡片面板', () => {
     await expect(page.getByRole('button', { name: /面板/ })).toBeVisible();
   });
 
-  test('default team panel is visible on page load', async ({ page }) => {
+  test('面板默认收起,主内容占满', async ({ page }) => {
     await page.goto(`/attack/${ticketId}`);
     await page.waitForLoadState('networkidle');
-    await expect(sidebarCard('攻关成员')(page)).toBeVisible();
+    // 默认无侧边栏 Col
+    await expect(page.locator('.ant-col-6 .ant-card')).toHaveCount(0);
+    await expect(page.locator('.ant-col-24')).toBeVisible();
   });
 
   test('click panel button opens popover with checkbox options', async ({ page }) => {
@@ -46,63 +50,44 @@ test.describe('攻击详情 - 侧边栏卡片面板', () => {
     const popover = page.locator('.ant-popover:not(.ant-popover-hidden)');
     await expect(popover).toBeVisible();
     await expect(popover.getByText('找帮手推荐')).toBeVisible();
-    await expect(popover.getByText('攻关成员')).toBeVisible();
+    // admin 用户应能看到「合规追溯」选项(e2e 默认 admin)
+    await expect(popover.getByText('合规追溯')).toBeVisible();
   });
 
-  test('unchecking panel checkbox hides the panel', async ({ page }) => {
-    await page.goto(`/attack/${ticketId}`);
-    await page.waitForLoadState('networkidle');
-
-    await expect(sidebarCard('攻关成员')(page)).toBeVisible();
-
-    await page.getByRole('button', { name: /面板/ }).click();
-    const popover = page.locator('.ant-popover:not(.ant-popover-hidden)');
-    await expect(popover).toBeVisible();
-
-    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '攻关成员' }).click();
-
-    await expect(sidebarCard('攻关成员')(page)).not.toBeVisible({ timeout: 5000 });
-  });
-
-  test('re-checking panel checkbox shows the panel again', async ({ page }) => {
+  test('勾选「合规追溯」可显示该卡', async ({ page }) => {
     await page.goto(`/attack/${ticketId}`);
     await page.waitForLoadState('networkidle');
 
     await page.getByRole('button', { name: /面板/ }).click();
     const popover = page.locator('.ant-popover:not(.ant-popover-hidden)');
     await expect(popover).toBeVisible();
+    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '合规追溯' }).click();
 
-    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '攻关成员' }).click();
-    await expect(sidebarCard('攻关成员')(page)).not.toBeVisible({ timeout: 5000 });
-
-    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '攻关成员' }).click();
-    await expect(sidebarCard('攻关成员')(page)).toBeVisible({ timeout: 5000 });
+    await expect(sidebarCard('合规追溯', page)).toBeVisible({ timeout: 5000 });
+    await expect(sidebarCard('合规追溯', page).getByRole('button', { name: /查看完整历史/ })).toBeVisible();
   });
 
-  test('close button on card removes that panel', async ({ page }) => {
+  test('卡片关闭按钮可单独移除该卡', async ({ page }) => {
     await page.goto(`/attack/${ticketId}`);
     await page.waitForLoadState('networkidle');
 
-    const teamCard = sidebarCard('攻关成员')(page);
-    await expect(teamCard).toBeVisible();
-
-    const closeBtn = teamCard.locator('.ant-card-extra').locator('button').filter({ has: page.locator('.anticon-close') });
-    await closeBtn.click();
-
-    await expect(sidebarCard('攻关成员')(page)).not.toBeVisible({ timeout: 5000 });
-  });
-
-  test('main content expands when all panels are hidden', async ({ page }) => {
-    await page.goto(`/attack/${ticketId}`);
-    await page.waitForLoadState('networkidle');
-
+    // 先打开「合规追溯」卡
     await page.getByRole('button', { name: /面板/ }).click();
     const popover = page.locator('.ant-popover:not(.ant-popover-hidden)');
-    await expect(popover).toBeVisible();
+    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '合规追溯' }).click();
+    await page.keyboard.press('Escape');
 
-    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '攻关成员' }).click();
-    await popover.locator('.ant-checkbox-wrapper').filter({ hasText: '找帮手推荐' }).click();
+    const card = sidebarCard('合规追溯', page);
+    await expect(card).toBeVisible();
+    await card.locator('.ant-card-extra').locator('button').filter({ has: page.locator('.anticon-close') }).click();
+    await expect(sidebarCard('合规追溯', page)).not.toBeVisible({ timeout: 5000 });
+  });
 
+  test('全部取消勾选时主内容占满', async ({ page }) => {
+    await page.goto(`/attack/${ticketId}`);
+    await page.waitForLoadState('networkidle');
+
+    // 默认就是占满
     await expect(page.locator('.ant-col-24')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.ant-col-6')).not.toBeVisible();
   });
