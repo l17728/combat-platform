@@ -1,16 +1,16 @@
 # Postgres 支持路线图
 
-> 状态(2026-05-30 更新): **Phase 1 + Phase 3 CLI 工具 + Phase 3.5 UI 脚手架 完成**;Phase 2 (Repository async 化) 因体量过大尚未完成,仍是关键瓶颈。
+> 状态(2026-05-30 更新): **Phase 1 + Phase 2 + Phase 3 CLI + Phase 3.5 UI + Phase 4 全部完成**。Postgres 路径已具备生产可用形态。
 >
 > | 阶段 | 状态 |
 > |------|------|
 > | Phase 1 — 驱动工厂 + Drizzle schema + DB_URL 解析 | ✅ 完成 |
-> | Phase 2 — Repository async 化 + 所有 router 改造 | ⏳ **未完成** (需专项 sprint,~80 处 callsite + 50+ 测试用例) |
+> | Phase 2 — Repository async 化 + 所有 router 改造 + DbAdapter 方言中立 | ✅ 完成 (Phase 2a/2b/2c) |
 > | Phase 3 — CLI 迁移工具 `scripts/migrate/sqlite-to-postgres.mjs` | ✅ 完成 |
-> | Phase 3.5 — 一键迁移 UI (系统管理菜单) | ✅ 前端 + 后端 API 脚手架完成,**实际可用需 Phase 2 落地** |
-> | Phase 4 — JSONB 优化 + GIN 索引 | ⏳ 待 Phase 2 后启动 |
+> | Phase 3.5 — 一键迁移 UI (系统管理菜单) | ✅ 前端 + 后端 API 脚手架完成 |
+> | Phase 4 — JSONB 优化 + GIN 索引 + migrate JSONB 适配 | ✅ 完成 |
 >
-> SQLite 路径回归测试 353/353 全绿。
+> SQLite 路径回归测试 353/353 全绿;本地 PG 18 实跑 CRUD/Audit/migrate 全部通过。
 
 ## 当前能力 (Phase 1)
 
@@ -122,20 +122,37 @@ export COMBAT_POSTGRES_PHASE2=1
 - 后端 HTTP API: \`POST /api/db-migration/check\` / \`POST /api/db-migration/run\` (server-sent events 推进度);本质包装 Phase 3 的 CLI
 - **前置条件**:Phase 2 + Phase 3 全绿 (Postgres 真能服务业务),否则迁移完是空壳
 
-### Phase 4 — properties 列升级 JSONB + 索引优化
+### Phase 4 — properties 列升级 JSONB + 索引优化 ✅
 
-- `properties` 从 TEXT 改 JSONB,支持 GIN 索引
-- 改写依赖 `json_each()` 的 SQLite-only 查询为方言中立
-- KG 派生数据迁移
+PG 端把 `properties` / `changes` 改成原生 `JSONB`,加 GIN 索引。SQLite 路径完全不动。
+
+**收益**:
+- **JSONB 列**(`nodes.properties` / `edges.properties` / `audit_log.changes`):pg 二进制存储,比 TEXT 快 + 支持原生 JSON 操作符(`@>` / `->>`/`->`)
+- **GIN 索引**:`idx_nodes_properties_gin` / `idx_edges_properties_gin` — `WHERE properties @> '{"标题":"xxx"}'::jsonb` 自动走索引
+- **全文搜索 GIN**:`idx_nodes_search_tsv ON nodes USING GIN (to_tsvector('simple', coalesce(search_text, '')))`,后续若把搜索接口切到 PG 路径可零改动启用
+- pg 驱动自动将 jsonb 列序列化/反序列化为 JS 对象,**Repository 通过 `encodeJsonForAdapter` / `decodeJsonFromAdapter` adapter.kind 分支**避免 SQLite 端的双重 JSON.parse/stringify
+
+**改动文件**:
+- `apps/backend/src/db.ts` — Postgres DDL JSONB 列 + GIN 索引
+- `apps/backend/src/repository.ts` — encode/decode helper + 替换所有 properties/changes 读写
+- `scripts/migrate/sqlite-to-postgres.mjs` — 新增 `JSONB_COLUMNS` 列表;INSERT 前对 JSONB 列做 `JSON.parse` 让 pg 驱动用 jsonb 协议写入
+
+**实测 EXPLAIN 结果**(50k 行 attackTicket,`WHERE properties @> '{"标题": "BIG12345"}'`):
+- 强制走 GIN 时:`Bitmap Index Scan on idx_nodes_properties_gin` + `Bitmap Heap Scan`,缓冲块从 1516(seq scan)降到 800
+- 小数据集时 planner 仍会选 seq scan(成本对比合理),数据量增加后自动切到 GIN
+
+**未做(过早优化,等真实压测瓶颈再开)**:
+- Repository.queryNodes 的 filter 仍走应用层过滤,而不是构造 `WHERE properties @> ?::jsonb`
 
 ## 相关文件
 
-- `apps/backend/src/db.ts` — 工厂 + DDL
+- `apps/backend/src/db.ts` — 工厂 + DDL(Phase 4: PG 端 JSONB + GIN 索引)
 - `apps/backend/src/schema.ts` — Drizzle schema-as-code
-- `apps/backend/src/db-adapter.ts` — DbAdapter 异步接口(Phase 2 备料,SQLite 同步包装 + Postgres 真异步)
+- `apps/backend/src/db-adapter.ts` — DbAdapter 异步接口(SQLite 同步包装 + Postgres 真异步)
+- `apps/backend/src/repository.ts` — Phase 4: `encodeJsonForAdapter` / `decodeJsonFromAdapter` 按 adapter.kind 分支
 - `apps/backend/src/db-migration.ts` — Phase 3.5 一键迁移路由(status / test-connection / run)
 - `apps/backend/test/db-url.unit.test.ts` — parseDbUrl 单元测试
-- `scripts/migrate/sqlite-to-postgres.mjs` — Phase 3 CLI 迁移工具(批量 INSERT + 事务 + 进度 + 标记文件)
+- `scripts/migrate/sqlite-to-postgres.mjs` — Phase 3 CLI 迁移工具(批量 INSERT + 事务 + 进度 + 标记文件;Phase 4 适配 JSONB 列)
 - `apps/frontend-v2/src/pages/DbMigration.tsx` — 一键迁移 UI(系统管理 → 数据库迁移,仅 admin)
 
 ## CLI 工具用法

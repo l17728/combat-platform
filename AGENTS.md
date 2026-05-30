@@ -765,15 +765,23 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（feature/postgres-support 分支 · 2026-05-30 最后验证）
+### 当前测试状态（feature/postgres-support 分支 · 2026-05-30 Phase 4 完成）
 
-**后端 SQLite 路径 353/353 全绿**（60 文件，含 Phase 1 新增 6 个 parseDbUrl 单测）;前端 e2e 全量套件运行中。
+**后端 SQLite 路径 353/353 全绿**（60 文件）+ **本地 PG 18 实跑 OK**（CRUD/UPDATE/Audit + JSONB GIN 索引 + 中文 UTF-8 + migrate CLI 端到端验证）。
 
-分支已 push 至 origin/feature/postgres-support。新增交付：
+分支已 push 至 origin/feature/postgres-support。Postgres 支持全阶段完成：
 - Phase 1 基建（drizzle-orm + pg + schema 双方言 + DB_URL 解析工厂）
-- Phase 3 CLI 迁移工具（scripts/migrate/sqlite-to-postgres.mjs，事务/进度/标记）
+- Phase 2a/2b/2c：Repository async 化 + 11 router 改用 DbAdapter + PostgresAdapter 全套 + backup.ts pg_dump 分支
+- Phase 3 CLI 迁移工具（scripts/migrate/sqlite-to-postgres.mjs，事务/进度/标记 + Phase 4 JSONB 适配）
 - Phase 3.5 一键迁移 UI（系统管理 → 数据库迁移，前端 + 后端 3 个 API + AdminGuard 守卫）
-- Phase 2（Repository async 化）作为专项 sprint 单独排期，db-adapter.ts 已备料
+- **Phase 4**：PG 端 properties/changes 升级 JSONB + GIN 索引；Repository encode/decode adapter 分支；SQLite 路径完全不动
+
+**Phase 4 验证**：
+- `\d nodes`：`properties | jsonb` + `idx_nodes_properties_gin` (GIN) + `idx_nodes_search_tsv` (GIN to_tsvector)
+- `\d edges`：`properties | jsonb` + `idx_edges_properties_gin`
+- `\d audit_log`：`changes | jsonb`
+- `EXPLAIN ANALYZE` 50k 行 `WHERE properties @> '{"标题":"BIG12345"}'::jsonb` → `Bitmap Index Scan on idx_nodes_properties_gin`,buffer hits 从 1516 (seq) 降到 800 (GIN)
+- migrate CLI 实跑 SQLite (3 nodes + 17 audit) → PG `combat_phase4_mig`,pg_typeof(properties)=jsonb 内容正确解析为 JSON 对象(非字符串)
 
 详见 `docs/POSTGRES_SUPPORT.md` 路线图。
 
