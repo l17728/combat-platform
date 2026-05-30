@@ -7,6 +7,7 @@ import type { AgentRunner } from "./hermes-agent.js";
 import {
   runWelinkExtraction, listExtractions, getExtraction, updateExtraction, deleteExtraction,
 } from "./welink-extraction.js";
+import { parseMembers, syncMemberFields, type TeamMember, type TeamRole } from "./welink-members.js";
 
 export interface WelinkImage {
   filename?: string;
@@ -382,6 +383,154 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
     const item = getExtraction(db, req.params.extId);
     if (!item) return res.status(404).json({ error: "extraction 不存在" });
     res.json(item);
+  }));
+
+  // === Agent / 对话补齐用的 welink 端点 ===
+
+  // 关键词全文搜该 ticket 的 welink 消息(给 hermes_welink_search 用)
+  r.get("/tickets/:id/welink/search", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    const q = String(req.query.q ?? "").trim();
+    if (!q) return res.json({ matches: [] });
+    const rows = db.prepare(
+      `SELECT id, message_id, sent_at, author, content
+         FROM welink_messages
+        WHERE ticket_id = ? AND deleted_at IS NULL AND content LIKE ?
+        ORDER BY sent_at ASC LIMIT 50`,
+    ).all(ticketId, `%${q}%`) as any[];
+    res.json({
+      matches: rows.map((r) => ({
+        id: r.id,
+        messageId: r.message_id,
+        sentAt: r.sent_at,
+        author: r.author,
+        content: r.content,
+      })),
+    });
+  }));
+
+  // 精简时间线(给 hermes_welink_timeline 用)
+  r.get("/tickets/:id/welink/timeline", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "200"), 10) || 200));
+    const rows = db.prepare(
+      `SELECT id, message_id, sent_at, author, content
+         FROM welink_messages
+        WHERE ticket_id = ? AND deleted_at IS NULL
+        ORDER BY sent_at ASC LIMIT ?`,
+    ).all(ticketId, limit) as any[];
+    res.json({
+      timeline: rows.map((r) => ({
+        id: r.id,
+        messageId: r.message_id,
+        sentAt: r.sent_at,
+        author: r.author,
+        content: r.content,
+      })),
+    });
+  }));
+
+  // gap-analysis(活跃发言 vs 攻关单成员)— 给 hermes_welink_gap 用,也给前端"AI 抽取"展示用
+  r.get("/tickets/:id/welink/gap-analysis", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    if (!repo) return res.status(500).json({ error: "repo 未注入" });
+    const node = repo.getNode(ticketId);
+    if (!node) return res.status(404).json({ error: "攻关单不存在" });
+
+    const rows = db.prepare(
+      `SELECT author, COUNT(*) AS c
+         FROM welink_messages
+        WHERE ticket_id = ? AND deleted_at IS NULL
+        GROUP BY author
+        ORDER BY c DESC`,
+    ).all(ticketId) as Array<{ author: string; c: number }>;
+
+    // 反查工号 → 姓名(person 节点)
+    const nameByEmpNo = new Map<string, string>();
+    for (const p of repo.queryNodes("person")) {
+      const pp = p.properties as Record<string, unknown>;
+      const name = String(pp["姓名"] ?? pp["name"] ?? "").trim();
+      const empNo = String(pp["工号"] ?? pp["employeeId"] ?? pp["empNo"] ?? "").trim();
+      if (name && empNo) nameByEmpNo.set(empNo, name);
+      if (name) nameByEmpNo.set(name, name);
+    }
+
+    const members = parseMembers(node.properties as Record<string, unknown>);
+    const memberSet = new Set(members.map((m) => m.姓名));
+
+    const activeSenders = rows.map((r) => {
+      const resolvedName = nameByEmpNo.get(r.author) || null;
+      return {
+        senderId: r.author,
+        resolvedName,
+        appearedCount: r.c,
+        inTicket: resolvedName ? memberSet.has(resolvedName) : memberSet.has(r.author),
+      };
+    });
+
+    const gap = activeSenders
+      .filter((s) => !s.inTicket)
+      .map((s) => ({
+        name: s.resolvedName || s.senderId,
+        senderId: s.senderId,
+        appearedCount: s.appearedCount,
+        suggestion: "建议加入攻关成员",
+      }));
+
+    res.json({
+      ticketId,
+      welinkActiveSenders: rows.map((r) => r.author),
+      welinkActiveNames: activeSenders.map((s) => s.resolvedName || s.senderId),
+      ticketMembers: members,
+      gap,
+    });
+  }));
+
+  // 批量加成员(给 hermes_welink_add_members 用,也给前端"加入攻关成员"按钮用)
+  r.post("/tickets/:id/welink/add-members", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    if (!repo) return res.status(500).json({ error: "repo 未注入" });
+    const node = repo.getNode(ticketId);
+    if (!node) return res.status(404).json({ error: "攻关单不存在" });
+    const body = req.body as { names?: string[]; role?: TeamRole };
+    const names = Array.isArray(body?.names) ? body.names.map((s) => String(s).trim()).filter(Boolean) : [];
+    if (names.length === 0) return res.status(400).json({ error: "names 必须为非空数组" });
+    const role: TeamRole = body?.role === "组长" ? "组长" : "组员";
+
+    const current = parseMembers(node.properties as Record<string, unknown>);
+    const seen = new Set(current.map((m) => m.姓名));
+    let added = 0;
+    const next: TeamMember[] = [...current];
+    for (const n of names) {
+      if (seen.has(n)) continue;
+      next.push({ 姓名: n, 角色: role });
+      seen.add(n);
+      added++;
+    }
+    if (added > 0) {
+      repo.updateNode(ticketId, syncMemberFields(next), "welink");
+      log.info("welink.members.add", { ticketId, added, role });
+    }
+    res.json({ ok: true, added, members: next });
+  }));
+
+  // 单人改角色(给 hermes_welink_set_role 用)
+  r.post("/tickets/:id/welink/set-member-role", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    if (!repo) return res.status(500).json({ error: "repo 未注入" });
+    const node = repo.getNode(ticketId);
+    if (!node) return res.status(404).json({ error: "攻关单不存在" });
+    const { name, role } = req.body as { name?: string; role?: TeamRole };
+    if (!name || (role !== "组长" && role !== "组员")) {
+      return res.status(400).json({ error: "name + role(组长|组员) 必填" });
+    }
+    const current = parseMembers(node.properties as Record<string, unknown>);
+    const idx = current.findIndex((m) => m.姓名 === name);
+    if (idx < 0) return res.status(404).json({ error: `「${name}」不在成员列表中` });
+    const next = current.map((m, i) => (i === idx ? { ...m, 角色: role } : m));
+    repo.updateNode(ticketId, syncMemberFields(next), "welink");
+    log.info("welink.members.set_role", { ticketId, name, role });
+    res.json({ ok: true, members: next });
   }));
 
   return r;
