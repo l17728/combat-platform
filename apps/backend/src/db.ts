@@ -315,6 +315,71 @@ const POSTGRES_SCHEMA_DDL = `
       updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      severity TEXT NOT NULL DEFAULT '一般',
+      page_url TEXT NOT NULL DEFAULT '',
+      reporter TEXT NOT NULL DEFAULT '',
+      screenshot TEXT,
+      console_logs TEXT,
+      user_agent TEXT,
+      status TEXT NOT NULL DEFAULT '待处理',
+      resolution TEXT,
+      resolved_by TEXT,
+      resolved_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_status ON bug_reports(status);
+    CREATE INDEX IF NOT EXISTS idx_bug_reports_severity ON bug_reports(severity);
+    CREATE TABLE IF NOT EXISTS help_requests (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      requester_name TEXT NOT NULL,
+      target_name TEXT,
+      target_email TEXT NOT NULL,
+      category TEXT NOT NULL,
+      question TEXT NOT NULL,
+      extra_note TEXT,
+      feedback_token TEXT UNIQUE NOT NULL,
+      status TEXT NOT NULL DEFAULT '待回复',
+      feedback TEXT,
+      feedback_by TEXT,
+      feedback_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_help_requests_ticket ON help_requests(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_help_requests_status ON help_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_help_requests_token ON help_requests(feedback_token);
+    CREATE TABLE IF NOT EXISTS documents (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      filename TEXT,
+      original_name TEXT,
+      mimetype TEXT,
+      size INTEGER,
+      url TEXT,
+      uploaded_by TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
+    CREATE TABLE IF NOT EXISTS op_logs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      user_name TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '{}',
+      timestamp TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE INDEX IF NOT EXISTS idx_op_logs_session ON op_logs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_op_logs_user ON op_logs(user_name);
+    CREATE INDEX IF NOT EXISTS idx_op_logs_timestamp ON op_logs(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_op_logs_category ON op_logs(category);
   `;
 
 async function ensurePostgresSchema(pool: PgPool): Promise<void> {
