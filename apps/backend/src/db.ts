@@ -227,19 +227,24 @@ const SQLITE_SCHEMA_DDL = `
     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
   `;
 
+// Phase 4: Postgres-only JSONB + GIN — SQLite path unchanged. JSONB gives us:
+//   1. Native binary JSON storage (faster + smaller than TEXT)
+//   2. GIN indexes on properties for @>/->>/-> queries
+//   3. GIN to_tsvector on search_text for full-text search
+// Repository.ts encodes/decodes via adapter.kind branch so SQLite still gets TEXT JSON.
 const POSTGRES_SCHEMA_DDL = `
     CREATE TABLE IF NOT EXISTS nodes (
-      id TEXT PRIMARY KEY, "nodeType" TEXT NOT NULL, properties TEXT NOT NULL,
+      id TEXT PRIMARY KEY, "nodeType" TEXT NOT NULL, properties JSONB NOT NULL DEFAULT '{}'::jsonb,
       search_text TEXT, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS edges (
       id TEXT PRIMARY KEY, "edgeType" TEXT NOT NULL, "sourceId" TEXT NOT NULL,
-      "targetId" TEXT NOT NULL, properties TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+      "targetId" TEXT NOT NULL, properties JSONB NOT NULL DEFAULT '{}'::jsonb, created_at TEXT, updated_at TEXT);
     CREATE TABLE IF NOT EXISTS progress_log (
       id TEXT PRIMARY KEY, "ownerId" TEXT NOT NULL, "seqNo" INTEGER NOT NULL,
       content TEXT NOT NULL, "statusSnapshot" TEXT, "updatedBy" TEXT, "updatedAt" TEXT);
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY, action TEXT NOT NULL, "entityType" TEXT, "entityId" TEXT,
-      changes TEXT, "performedBy" TEXT, "performedAt" TEXT);
+      changes JSONB DEFAULT NULL, "performedBy" TEXT, "performedAt" TEXT);
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL,
       relation_type TEXT NOT NULL, confidence DOUBLE PRECISION, proposer_source TEXT,
@@ -257,6 +262,11 @@ const POSTGRES_SCHEMA_DDL = `
     CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log("ownerId", "seqNo");
     CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
     CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+    -- Phase 4: GIN indexes on JSONB + tsvector for property-key/value containment
+    -- and full-text search. 'simple' tsvector config keeps原文(适合中文,不做语言归一)。
+    CREATE INDEX IF NOT EXISTS idx_nodes_properties_gin ON nodes USING GIN (properties);
+    CREATE INDEX IF NOT EXISTS idx_edges_properties_gin ON edges USING GIN (properties);
+    CREATE INDEX IF NOT EXISTS idx_nodes_search_tsv ON nodes USING GIN (to_tsvector('simple', coalesce(search_text, '')));
     CREATE TABLE IF NOT EXISTS daily_report_entry (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
