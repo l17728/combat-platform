@@ -272,14 +272,18 @@ export default function AttackDetail() {
         私密授权人: JSON.stringify(values.授权人 ?? []),
         私密授权组: JSON.stringify(values.授权组 ?? []),
       });
-      message.success(isPrivate ? '私密配置已更新' : '已设置为私密');
       setPrivacyDrawerOpen(false);
-      fetchData(true);
+      await fetchData(true);
+      message.success(isPrivate ? '私密配置已更新' : '已设置为私密');
     } catch (e: any) { message.error(e.message); }
   };
   const cancelPrivacy = async () => {
     if (!id) return;
-    try { await api.updateNode(id, { 私密: '否' }); message.success('已取消私密'); fetchData(true); }
+    try {
+      await api.updateNode(id, { 私密: '否' });
+      await fetchData(true);
+      message.success('已取消私密');
+    }
     catch (e: any) { message.error(e.message); }
   };
 

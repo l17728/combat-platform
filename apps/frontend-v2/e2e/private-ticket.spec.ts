@@ -57,12 +57,15 @@ test.describe('攻关单私密功能', () => {
     await page.goto(`/attack/${ticket.id}`);
     await page.waitForLoadState('networkidle');
 
-    await page.getByRole('button', { name: /取消私密/ }).click();
-    await page.getByRole('button', { name: /确\s?定/ }).click();
+    await page.getByRole('button', { name: '取消私密' }).click();
+    // Popconfirm 出现后,在弹层内点 OK
+    await page.locator('.ant-popover .ant-btn-primary').filter({ hasText: /确\s?定/ }).click();
     await expect(page.getByText('已取消私密')).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(500); // 等 fetchData 完成 setState 再切换 UI
 
-    // 详情按钮恢复
-    await expect(page.getByRole('button', { name: /^设置私密$/ })).toBeVisible();
+    // 详情按钮恢复:仅剩「设置私密」,无「取消私密」/「管理私密授权」
+    await expect(page.getByRole('button', { name: '设置私密' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: '管理私密授权' })).toHaveCount(0);
     // 列表锁图标消失
     await page.goto('/attack');
     await waitForTable(page);
