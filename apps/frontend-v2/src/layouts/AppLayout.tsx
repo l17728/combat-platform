@@ -49,9 +49,7 @@ function getSelectedKey(path: string): string {
   if (path === '/proposals') return '/proposals';
   if (path === '/reminders') return '/reminders';
   if (path.startsWith('/related')) return '/attack';
-  if (path === '/search') return '/search';
-  if (path === '/kg') return '/kg';
-  if (path === '/bug-report') return '/bug-report';
+  if (['/search', '/kg', '/documents', '/bug-report', '/manual'].includes(path)) return path;
   if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return path;
   return '/';
 }
@@ -61,6 +59,7 @@ function getOpenKeysForPath(path: string): string[] {
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor')) return ['people'];
   if (path === '/proposals' || path === '/reminders') return ['system', 'review'];
   if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return ['system'];
+  if (['/documents', '/search', '/kg', '/bug-report', '/manual'].includes(path)) return ['tools'];
   return [];
 }
 
@@ -124,33 +123,21 @@ export function AppLayout() {
       label: '求助中心',
     },
     {
-      key: '/documents',
-      icon: <FileTextOutlined />,
-      label: '文档中心',
-    },
-    {
-      key: '/search',
-      icon: <SearchOutlined />,
-      label: '全局搜索',
-    },
-    {
-      key: '/kg',
-      icon: <DeploymentUnitOutlined />,
-      label: '知识图谱',
-    },
-    {
-      key: '/bug-report',
-      icon: <BugOutlined />,
-      label: '问题反馈',
-    },
-    {
-      key: '/manual',
-      icon: <QuestionCircleOutlined />,
-      label: '帮助中心',
+      key: 'tools',
+      icon: <ToolOutlined />,
+      label: '工具',
+      onTitleClick: () => navigate('/search'),
+      children: [
+        { key: '/search', label: '全局搜索', icon: <SearchOutlined /> },
+        { key: '/kg', label: '知识图谱', icon: <DeploymentUnitOutlined /> },
+        { key: '/documents', label: '文档中心', icon: <FileTextOutlined /> },
+        { key: '/bug-report', label: '问题反馈', icon: <BugOutlined /> },
+        { key: '/manual', label: '帮助中心', icon: <QuestionCircleOutlined /> },
+      ],
     },
     {
       key: 'system',
-      icon: <ToolOutlined />,
+      icon: <SettingOutlined />,
       label: '系统管理',
       onTitleClick: () => navigate('/import'),
       children: [
