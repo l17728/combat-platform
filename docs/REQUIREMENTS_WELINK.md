@@ -166,6 +166,51 @@ welink_extractions
 
 ---
 
+## 聊天视图实现细节(2026-05-30 更新)
+
+> 状态:**已实施**(`feature/welink-integration` 分支)
+
+### 已做(MVP)
+
+#### 原始格式适配
+- `welink_messages` 表新增三列:`content_type` / `content_json` / `images_json`(用 ALTER 增量添加,兼容已有数据)
+- 解析支持真实 Welink 字段命名:
+  - 消息 ID:`msgId` / `id` / `messageId` 三选一
+  - 时间戳:`serverSendTime` / `sentAt` / `time` / `timestamp` / `sendTime` 任一,epoch ms/sec 自动归一化为 ISO 8601
+  - 发言人:`sender` / `author` / `from` / `userName` 任一
+- 按 `contentType` 分类解析:
+  - `TEXT_MSG`:`content` 直存
+  - `CARD_MSG`:从 `content.cardContext.replyMsg.content` 提取主文本到 `content`,完整卡片 JSON 存 `content_json`
+  - `PICTURE_MSG`:`images` 数组存 `images_json`,`content` 默认 `[图片]`
+  - 其它/未知:对象 content 转 JSON,字符串 content 直存
+- 后端 e2e 覆盖三种 contentType + 时间戳归一化
+
+#### 聊天视图组件(`WelinkChatView.tsx`)
+- 经典聊天布局:
+  - 头像:姓名首字 / 工号末两字,基于 sender hash 得 HSL 颜色(同人同色)
+  - 姓名行:`[姓名] · [工号] · [HH:mm:ss]`;查无姓名时只显工号
+  - 气泡:浅灰背景 + 圆角 + max-width 70%
+- TEXT_MSG:普通文本气泡;`@提及` 蓝色高亮;`http(s)://` 自动渲染为 `<a target="_blank">`
+- CARD_MSG:上半部分灰色块显引用(preMsg);下半部分显回复(replyMsg)
+- PICTURE_MSG:气泡内嵌缩略图(max 200×200),点击 Ant Design Image 放大
+- 日期分隔:不同天用居中分隔条 + 中文星期
+- 时间分组:同发言人 5 分钟内连续消息合并为一组(只显示一次头像+姓名)
+- 工具栏:跳到最早 / 跳到最新 / 刷新;DatePicker 时段筛选;发言人多选筛选
+- 默认滚到最新一条
+- 姓名查询:从 `/api/nodes/person` 拉全员,构造 `工号→姓名` Map,前端缓存 5 分钟
+
+#### 视图切换
+- `WelinkTab` 顶部加 Segmented「列表视图 / 聊天视图」
+- 偏好持久化到 `localStorage('combat-welink-view')`
+- 列表视图保留所有原有功能(勾选/筛选/删除/AI 分析按钮)
+
+### 待做(下阶段)
+
+- **图片源加载策略**:目前直接 `<img src={url}>` 渲染原图;若 Welink CDN 需鉴权,可能要后端加 proxy
+- **AI 抽取 worker**:`analyze` 端点仍是占位,真实 LLM 调用未接
+- **gap_analysis 工具集**:对话式补齐成员/角色未实现
+- **滚动加载更多**:当前一次拉 2000 条上限,未做按时间分页加载
+
 ## 反向风险
 
 - **群里说的不一定是事实** — 群里的人不一定是攻关成员(可能只是路人围观)。AI 主动建议补齐可能造成"成员名单膨胀"。建议:
