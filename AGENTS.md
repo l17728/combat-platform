@@ -765,7 +765,19 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-30 最后验证）
+### 当前测试状态（2026-05-30 最后验证 — feature/welink-integration 分支）
+
+**feature/welink-integration 分支**:
+- **后端 vitest 377/377 全绿**(主干 347 + welink 模块 30+,场景 1+2+3+4+chatview 完整闭环)
+- **welink 模块 e2e 21/21 全绿**(welink-tab 5 / welink-chat-view 5 / welink-extraction 5 / welink-citation 3 / welink-download-prompt 3;命令:`npx playwright test --config=apps/frontend-v2/playwright.config.ts apps/frontend-v2/e2e/welink-*.spec.ts --reporter=line`)
+- 全套前端 e2e **待回归**(命令:`npx playwright test --config=apps/frontend-v2/playwright.config.ts`,约 14min,合并主干前跑一次)
+- 双端 `npx tsc --noEmit` 通过
+
+本分支新增:welink_messages 表 + 上传/列表/选中/批量删除/AI 抽取端点、WelinkTab(列表+聊天双视图)、WelinkExtractionsDrawer(5 类)、Hermes 工具集 welink_search/timeline/gap/add-members、citation kind='welink' 跳转 + WelinkChatView 高亮、Welink 下载工具引导 Alert(场景收尾)。
+
+---
+
+### 历史测试状态（2026-05-30 主干验证）
 
 **前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **347/347**（59 文件）。
 
