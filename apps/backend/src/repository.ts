@@ -10,12 +10,12 @@ import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, Relatio
  * write, and auto-deserializes jsonb → JS object on read). So the encode/decode
  * paths must branch on adapter.kind to avoid double-encoding on the PG side.
  */
-function encodeJsonForAdapter(adapter: DbAdapter, value: unknown): unknown {
+export function encodeJsonForAdapter(adapter: DbAdapter, value: unknown): unknown {
   if (adapter.kind === "postgres") return value;
   return JSON.stringify(value ?? {});
 }
 
-function decodeJsonFromAdapter(adapter: DbAdapter, value: unknown): any {
+export function decodeJsonFromAdapter(adapter: DbAdapter, value: unknown): any {
   if (value === null || value === undefined) return {};
   if (adapter.kind === "postgres") {
     // pg already deserialized jsonb columns to JS objects/arrays. But during
