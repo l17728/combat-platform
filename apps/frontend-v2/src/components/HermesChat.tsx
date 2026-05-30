@@ -9,7 +9,15 @@ import { useDraggable } from '../hooks/useDraggable.js';
 
 const { Text } = Typography;
 
-interface Citation { nodeId: string; nodeType: string; summary: string; link: string }
+interface Citation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;
+  link: string;
+  kind?: 'node' | 'welink';
+  messageId?: string;
+  ticketId?: string;
+}
 interface Msg { role: 'user' | 'assistant'; text: string; citations?: Citation[] }
 
 /**
@@ -139,11 +147,22 @@ export default function HermesChat({
                       <div style={{ marginTop: 6 }}>
                         <Text type="secondary" style={{ fontSize: 11 }}>来源:</Text>{' '}
                         <Space size={[4, 4]} wrap>
-                          {m.citations.map((c) => (
-                            <Tag key={c.nodeId} color="blue" style={{ cursor: 'pointer', margin: 0 }} onClick={() => { setOpen(false); navigate(c.link); }}>
-                              {c.summary}
-                            </Tag>
-                          ))}
+                          {m.citations.map((c) => {
+                            const isWelink = c.kind === 'welink';
+                            return (
+                              <Tooltip key={c.nodeId} title={isWelink ? '点击跳转到该群消息(将自动滚动并高亮)' : '点击跳转到该节点详情'}>
+                                <Tag
+                                  color={isWelink ? 'geekblue' : 'blue'}
+                                  style={{ cursor: 'pointer', margin: 0 }}
+                                  data-testid={isWelink ? 'hermes-welink-citation' : 'hermes-node-citation'}
+                                  data-welink-msg-id={c.messageId}
+                                  onClick={() => { setOpen(false); navigate(c.link); }}
+                                >
+                                  {isWelink ? '群消息 · ' : ''}{c.summary}
+                                </Tag>
+                              </Tooltip>
+                            );
+                          })}
                         </Space>
                       </div>
                     )}
