@@ -6,6 +6,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import type { MailSender } from "../src/mailer.js";
@@ -14,7 +15,7 @@ const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "con
 
 function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-email-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   const registry = new FileSchemaRegistry(CFG);
   const sent: { to: string[]; subject: string; body: string }[] = [];
   const fake: MailSender = {
@@ -112,7 +113,7 @@ describe("§45 email e2e", () => {
 
   it("test send failure surfaces as ok:false in body with HTTP 200", async () => {
     const dir = mkdtempSync(join(tmpdir(), "combat-email-fail-"));
-    const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+    const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
     const failing: MailSender = { send: async () => { throw new Error("connreset"); } };
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG), mailSender: failing });
     await request(app).put("/api/email/config").send(SMTP);

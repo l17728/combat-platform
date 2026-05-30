@@ -6,21 +6,24 @@ import type { DbAdapter } from "./db-adapter.js";
 export function makeOpLogRouter(adapter: DbAdapter): Router {
   const router = Router();
 
-  adapter.rawSqlite().exec(`
-    CREATE TABLE IF NOT EXISTS op_logs (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      user_name TEXT NOT NULL DEFAULT '',
-      category TEXT NOT NULL,
-      detail TEXT NOT NULL DEFAULT '{}',
-      timestamp TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_op_logs_session ON op_logs(session_id);
-    CREATE INDEX IF NOT EXISTS idx_op_logs_user ON op_logs(user_name);
-    CREATE INDEX IF NOT EXISTS idx_op_logs_timestamp ON op_logs(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_op_logs_category ON op_logs(category);
-  `);
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind === "sqlite") {
+    adapter.rawSqlite().exec(`
+      CREATE TABLE IF NOT EXISTS op_logs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        user_name TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL,
+        detail TEXT NOT NULL DEFAULT '{}',
+        timestamp TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_op_logs_session ON op_logs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_op_logs_user ON op_logs(user_name);
+      CREATE INDEX IF NOT EXISTS idx_op_logs_timestamp ON op_logs(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_op_logs_category ON op_logs(category);
+    `);
+  }
 
   const getSetting = async (key: string): Promise<string | null> => {
     const row = await adapter.queryOne<{ value: string }>(
@@ -32,8 +35,8 @@ export function makeOpLogRouter(adapter: DbAdapter): Router {
 
   const setSetting = async (key: string, value: string) => {
     await adapter.run(
-      "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-      [key, value],
+      "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+      [key, value, value],
     );
   };
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -12,8 +13,9 @@ import { fileURLToPath } from "node:url";
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-rem-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db: (repo as any).db };
+  const db = openDb(join(dir, "t.sqlite"));
+  const repo = new SqliteRepository(new SqliteAdapter(db));
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db };
 }
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 const daysAhead = (n: number) => new Date(Date.now() + n * 86400000).toISOString();

@@ -7,6 +7,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { makeSchemaApiRouter } from "../src/schema-api.js";
@@ -24,9 +25,9 @@ function cleanTestSchema() {
 }
 
 function make() {
-  const repo = new SqliteRepository(
+  const repo = new SqliteRepository(new SqliteAdapter(
     openDb(join(mkdtempSync(join(tmpdir(), "combat-schema-")), "t.sqlite")),
-  );
+  ));
   const registry = new FileSchemaRegistry(SCHEMA_DIR);
   // Wrap the createApp with schema-api router added
   const baseApp = createApp({ repo, registry });

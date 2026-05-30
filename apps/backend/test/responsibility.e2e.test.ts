@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { makeResponsibilityRouter } from "../src/responsibility.js";
 import { makeEscalationRouter } from "../src/escalation.js";
 import express from "express";
@@ -12,7 +13,7 @@ import { join } from "node:path";
 /** Make a test app with the responsibility router + escalation router (for config setup) */
 function make() {
   const dir = mkdtempSync(join(tmpdir(), "combat-resp-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   const app = express();
   app.use(express.json());
   app.use("/api", makeResponsibilityRouter(repo));

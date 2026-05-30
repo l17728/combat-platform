@@ -5,6 +5,7 @@ import { writeFileSync, mkdtempSync as mkdtemp } from "node:fs";
 import { runCli, renderHelp, parseArgs, COMMANDS, type HttpFn, type HttpRequest } from "../src/cli-core.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -142,7 +143,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend import closed loop: import file then list reads it back (§44)", async () => {
-    const repo = new SqliteRepository(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite")));
+    const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite"))));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
     // write a real xlsx fixture
     const ws = XLSX.utils.json_to_sheet([{ 标题: "CLI导入单", 状态: "进行中" }]);
@@ -193,7 +194,7 @@ describe("§43 CLI core", () => {
     process.env.COMBAT_NO_AUTH = "1";
     const dbPath = join(mkdtempSync(join(tmpdir(), "combat-cli-dre-")), "t.sqlite");
     const db = openDb(dbPath);
-    const repo = new SqliteRepository(db);
+    const repo = new SqliteRepository(new SqliteAdapter(db));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG), db });
     const http: HttpFn = async ({ method, path, body }) => {
       const m = method.toLowerCase() as "get" | "post" | "put" | "delete";
@@ -258,7 +259,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend closed loop: create then read back", async () => {
-    const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite")));
+    const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite"))));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
     // adapt supertest to the HttpFn signature
     const http: HttpFn = async ({ method, path, body }) => {

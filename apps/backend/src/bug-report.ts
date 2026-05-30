@@ -42,6 +42,8 @@ function toBugReport(r: any): BugReport {
 }
 
 function ensureTable(adapter: DbAdapter) {
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind !== "sqlite") return;
   adapter.rawSqlite().exec(`
     CREATE TABLE IF NOT EXISTS bug_reports (
       id TEXT PRIMARY KEY,

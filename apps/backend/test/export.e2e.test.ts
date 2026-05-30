@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
@@ -20,7 +21,7 @@ function makeApp() {
       { name: "退休字段", type: "string", label: "退休字段", retired: true },
     ],
   }));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo };
 }
 

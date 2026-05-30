@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -27,7 +28,7 @@ function makeRepoRegistry() {
     ],
   }));
   const db = openDb(join(dir, "t.sqlite"));
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(cfgDir);
   return { repo, registry };
 }

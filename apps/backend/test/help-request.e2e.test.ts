@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import type { MailSender } from "../src/mailer.js";
@@ -23,7 +24,7 @@ function makeApp(mailSender?: MailSender) {
   }));
   const dbPath = join(dir, "t.sqlite");
   const db = openDb(dbPath);
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(cfgDir);
   const app = createApp({ repo, registry, db, dbPath, mailSender });
   return { app, repo };

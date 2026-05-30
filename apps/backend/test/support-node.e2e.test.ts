@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -15,7 +16,7 @@ function makeApp() {
   process.env.COMBAT_NO_AUTH = "1";
   const dir = mkdtempSync(join(tmpdir(), "combat-sn-"));
   const db = openDb(join(dir, "t.sqlite"));
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(CFG);
   return { app: createApp({ repo, registry, db }), db };
 }

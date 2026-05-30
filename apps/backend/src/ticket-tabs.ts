@@ -17,6 +17,8 @@ export interface TicketTab {
 }
 
 export function ensureTicketTabsTable(adapter: DbAdapter): void {
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind !== "sqlite") return;
   adapter.rawSqlite().exec(`
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,

@@ -31,6 +31,8 @@ function toDoc(r: any) {
 }
 
 function ensureTable(adapter: DbAdapter) {
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind !== "sqlite") return;
   adapter.rawSqlite().exec(`
     CREATE TABLE IF NOT EXISTS documents (
       id TEXT PRIMARY KEY,

@@ -44,6 +44,8 @@ function toHelpRequest(r: any): HelpRequest {
 }
 
 function ensureTable(adapter: DbAdapter) {
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind !== "sqlite") return;
   adapter.rawSqlite().exec(`
     CREATE TABLE IF NOT EXISTS help_requests (
       id TEXT PRIMARY KEY,

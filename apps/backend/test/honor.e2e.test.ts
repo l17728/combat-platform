@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
@@ -23,7 +24,7 @@ function makeApp() {
       { name: "贡献类型", type: "enum", label: "贡献类型", required: true, enumValues: ["发现","设计","实施","协调","公关"] },
       { name: "贡献等级", type: "enum", label: "贡献等级", enumValues: ["普通","关键","核心"] },
       { name: "周期", type: "string", label: "周期" }] }));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo };
 }
 

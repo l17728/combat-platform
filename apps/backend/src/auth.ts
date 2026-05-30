@@ -45,22 +45,26 @@ function toUser(r: any): AuthUser {
   };
 }
 
-function ensureDefaultAdmin(adapter: DbAdapter): void {
-  // Synchronous boot path — SQLite only. Postgres path runs separate seed migration.
-  const db = adapter.rawSqlite();
-  const count = db.prepare("SELECT COUNT(*) as c FROM users").get() as { c: number };
-  if (count.c === 0) {
+async function ensureDefaultAdmin(adapter: DbAdapter): Promise<void> {
+  // Cross-dialect: uses adapter (SQLite + Postgres). Fire-and-forget at boot.
+  const row = await adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM users");
+  const count = Number(row?.c ?? 0);
+  if (count === 0) {
     const hash = bcrypt.hashSync("admin123", 10);
     const now = new Date().toISOString();
-    db.prepare(
-      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(randomUUID(), "admin", hash, "admin", "系统管理员", now, now);
+    await adapter.run(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [randomUUID(), "admin", hash, "admin", "系统管理员", now, now],
+    );
     log.info("auth.default_admin_created");
   }
 }
 
 export function makeAuthRouter(adapter: DbAdapter): Router {
-  ensureDefaultAdmin(adapter);
+  // Fire-and-forget — async seed, failures logged but don't block.
+  ensureDefaultAdmin(adapter).catch((err) =>
+    log.warn("auth.ensure_default_admin_failed", { error: (err as Error).message }),
+  );
   const r = Router();
 
   r.post("/auth/login", asyncHandler(async (req, res) => {

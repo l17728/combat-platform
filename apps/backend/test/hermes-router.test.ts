@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { makeHermesRouter } from "../src/hermes.js";
 import type { AgentRunner } from "../src/hermes-agent.js";
@@ -22,7 +23,7 @@ function makeRepoReg() {
         enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
     ],
   }));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   const registry = new FileSchemaRegistry(cfgDir);
   return { repo, registry };
 }

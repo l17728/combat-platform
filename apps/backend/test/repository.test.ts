@@ -4,13 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import type { Repository } from "@combat/shared";
 
 let repo: Repository;
 let db: ReturnType<typeof openDb>;
 beforeEach(async () => {
   db = openDb(join(mkdtempSync(join(tmpdir(), "combat-")), "t.sqlite"));
-  repo = new SqliteRepository(db);
+  repo = new SqliteRepository(new SqliteAdapter(db));
 });
 
 describe("SqliteRepository", () => {

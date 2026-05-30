@@ -39,7 +39,7 @@ const DB_PATH = parsed.kind === "sqlite"
 applyRestorePending(DB_PATH);
 const db = openDb(DB_PATH);
 const adapter = new SqliteAdapter(db);
-const repo = new SqliteRepository(db);
+const repo = new SqliteRepository(adapter);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
 const app = createApp({ repo, registry, adapter, dbPath: DB_PATH });
 

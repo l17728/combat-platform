@@ -3,10 +3,29 @@ import { readdir, unlink, stat, mkdir, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import multer from "multer";
 import Database from "better-sqlite3";
 import { log, asyncHandler } from "./logger.js";
 import type { DbAdapter } from "./db-adapter.js";
+
+async function makeBackup(adapter: DbAdapter, filePath: string): Promise<void> {
+  if (adapter.kind === "sqlite") {
+    await adapter.rawSqlite().backup(filePath);
+    return;
+  }
+  // Postgres path — shell out to pg_dump --format=custom.
+  const url = process.env.DB_URL;
+  if (!url) throw new Error("DB_URL is not set; cannot run pg_dump");
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn("pg_dump", ["--format=custom", `--file=${filePath}`, url], { stdio: "inherit" });
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`pg_dump exited ${code}`));
+    });
+  });
+}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -28,9 +47,10 @@ export async function getSchedule(adapter: DbAdapter) {
 async function setSchedule(adapter: DbAdapter, patch: Record<string, unknown>) {
   const cur = await getSchedule(adapter);
   const merged = { ...cur, ...patch };
+  const payload = JSON.stringify(merged);
   await adapter.run(
-    "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-    [SCHEDULE_KEY, JSON.stringify(merged)],
+    "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+    [SCHEDULE_KEY, payload, payload],
   );
   return merged;
 }
@@ -69,8 +89,7 @@ export function makeBackupRouter(adapter: DbAdapter, dbPath: string): Router {
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
     const fn = backupFilename();
     const fp = join(dir, fn);
-    // better-sqlite3 only — Postgres backup path handled separately (pg_dump).
-    await adapter.rawSqlite().backup(fp);
+    await makeBackup(adapter, fp);
     const info = await stat(fp);
     await setSchedule(adapter, { lastBackupAt: new Date().toISOString() });
     log.info("backup.created", { filename: fn, size: info.size });
@@ -157,7 +176,7 @@ export async function runScheduledBackup(adapter: DbAdapter, dbPath: string): Pr
   const dir = backupsDir(dbPath);
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
   const fn = backupFilename();
-  await adapter.rawSqlite().backup(join(dir, fn));
+  await makeBackup(adapter, join(dir, fn));
   const info = await stat(join(dir, fn));
   await setSchedule(adapter, { lastBackupAt: new Date().toISOString() });
   log.info("backup.scheduled", { filename: fn, size: info.size });

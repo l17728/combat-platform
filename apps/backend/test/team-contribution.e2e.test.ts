@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
@@ -18,7 +19,7 @@ function makeRealApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-team-"));
   const dbPath = join(dir, "t.sqlite");
   const db = openDb(dbPath);
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(realSchemas);
   return { app: createApp({ repo, registry, db, dbPath }), registry };
 }

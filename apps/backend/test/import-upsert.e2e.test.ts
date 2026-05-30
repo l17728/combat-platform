@@ -3,6 +3,7 @@ import request from "supertest";
 import * as XLSX from "xlsx";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -12,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function makeApp() {
-  const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-")), "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 function xlsxBuf(rows: Record<string, unknown>[]): Buffer {

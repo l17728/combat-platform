@@ -3,7 +3,10 @@ import { log, asyncHandler } from "./logger.js";
 import type { DbAdapter } from "./db-adapter.js";
 
 export function makeSettingsRouter(adapter: DbAdapter): Router {
-  adapter.rawSqlite().exec(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)`);
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind === "sqlite") {
+    adapter.rawSqlite().exec(`CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT)`);
+  }
 
   const r = Router();
 
