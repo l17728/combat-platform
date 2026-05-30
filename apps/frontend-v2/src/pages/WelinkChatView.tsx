@@ -13,6 +13,8 @@ interface Props {
   messages: WelinkMessage[];
   reload: () => Promise<void> | void;
   loading?: boolean;
+  /** 场景 3:从 Hermes citation 跳转过来,需要滚动到该 welink message 并加黄色背景 */
+  highlightMessageId?: string;
 }
 
 // 简单 hash → 0-360 hue,给每个发言人稳定颜色
@@ -133,7 +135,11 @@ function sectionByDate(groups: MessageGroup[]): DaySection[] {
   return sections;
 }
 
-function MessageBubble({ msg, nameMap }: { msg: WelinkMessage; nameMap: Map<string, string> }) {
+function MessageBubble({ msg, nameMap, highlighted }: {
+  msg: WelinkMessage;
+  nameMap: Map<string, string>;
+  highlighted?: boolean;
+}) {
   const card = msg.contentType === 'CARD_MSG' ? msg.contentJson?.cardContext : null;
   const preMsg = card?.preMsg;
   const replyMsg = card?.replyMsg;
@@ -142,8 +148,13 @@ function MessageBubble({ msg, nameMap }: { msg: WelinkMessage; nameMap: Map<stri
     <div
       data-testid="welink-bubble"
       data-content-type={msg.contentType}
+      data-welink-msg-id={msg.messageId}
+      className={highlighted ? 'welink-msg-highlight' : undefined}
       style={{
-        background: '#f5f5f5',
+        background: highlighted ? '#fffbe6' : '#f5f5f5',
+        border: highlighted ? '1px solid #ffe58f' : undefined,
+        boxShadow: highlighted ? '0 0 0 2px rgba(255, 197, 61, 0.4)' : undefined,
+        transition: 'background 0.3s, box-shadow 0.3s',
         borderRadius: 8,
         padding: '8px 12px',
         maxWidth: '70%',
@@ -230,11 +241,13 @@ export function clearWelinkPersonCache() {
   personCache = null;
 }
 
-export default function WelinkChatView({ messages, reload, loading }: Props) {
+export default function WelinkChatView({ messages, reload, loading, highlightMessageId }: Props) {
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [authorFilter, setAuthorFilter] = useState<string[]>([]);
   const [timeRange, setTimeRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 当前激活的高亮 messageId(由 prop 触发,2 秒后清空)
+  const [activeHighlight, setActiveHighlight] = useState<string | undefined>(highlightMessageId);
 
   useEffect(() => {
     let cancelled = false;
@@ -280,13 +293,36 @@ export default function WelinkChatView({ messages, reload, loading }: Props) {
     }
   };
 
-  // 数据加载完默认滚到底部
+  // 数据加载完默认滚到底部(若有高亮锚点则改为滚到锚点)
   useEffect(() => {
-    if (!loading && sections.length > 0) {
-      const id = setTimeout(scrollToBottom, 50);
-      return () => clearTimeout(id);
+    if (loading || sections.length === 0) return;
+    if (activeHighlight) return; // 高亮 effect 会接管滚动
+    const id = setTimeout(scrollToBottom, 50);
+    return () => clearTimeout(id);
+  }, [loading, sections.length, activeHighlight]);
+
+  // 场景 3:外部 highlightMessageId 触发 → 同步到 activeHighlight,2 秒后清掉
+  useEffect(() => {
+    if (highlightMessageId) {
+      setActiveHighlight(highlightMessageId);
+      const t = setTimeout(() => setActiveHighlight(undefined), 2000);
+      return () => clearTimeout(t);
+    } else {
+      setActiveHighlight(undefined);
     }
-  }, [loading, sections.length]);
+  }, [highlightMessageId]);
+
+  // activeHighlight 变化且数据已就绪 → scrollIntoView 该消息
+  useEffect(() => {
+    if (!activeHighlight || loading || sections.length === 0) return;
+    const id = setTimeout(() => {
+      const root = containerRef.current;
+      if (!root) return;
+      const el = root.querySelector<HTMLElement>(`[data-welink-msg-id="${CSS.escape(activeHighlight)}"]`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+    return () => clearTimeout(id);
+  }, [activeHighlight, loading, sections.length]);
 
   const handleReload = async () => {
     try {
@@ -378,7 +414,12 @@ export default function WelinkChatView({ messages, reload, loading }: Props) {
                         </Text>
                       </div>
                       {g.messages.map((m) => (
-                        <MessageBubble key={m.id} msg={m} nameMap={nameMap} />
+                        <MessageBubble
+                          key={m.id}
+                          msg={m}
+                          nameMap={nameMap}
+                          highlighted={!!activeHighlight && m.messageId === activeHighlight}
+                        />
                       ))}
                     </div>
                   </div>

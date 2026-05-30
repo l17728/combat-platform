@@ -11,7 +11,7 @@ import {
   ClockCircleOutlined, ThunderboltOutlined, MinusCircleOutlined, SyncOutlined,
   CloseOutlined, AppstoreOutlined, LockOutlined, UnlockOutlined, MessageOutlined,
 } from '@ant-design/icons';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL, NODE_TYPE_LABEL } from '../constants.js';
 import { nodeLabel } from '../utils/nodeLabel.js';
@@ -73,6 +73,15 @@ export default function AttackDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // 场景 3:从 Hermes welink citation 跳转过来时,query 含 ?tab=welink&welinkMsg=<id>
+  // tab 受控切到 welink,WelinkTab 进而把 highlightMessageId 透传给 WelinkChatView 做滚动+黄背景高亮
+  const queryWelinkMsg = searchParams.get('welinkMsg') || undefined;
+  const queryTab = searchParams.get('tab') || undefined;
+  const [activeTabKey, setActiveTabKey] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (queryWelinkMsg || queryTab === 'welink') setActiveTabKey('welink');
+  }, [queryWelinkMsg, queryTab]);
   const [node, setNode] = useState<GraphNode | null>(null);
   const [schema, setSchema] = useState<NodeSchema | null>(null);
   const [progress, setProgress] = useState<ProgressLog[]>([]);
@@ -551,7 +560,7 @@ export default function AttackDetail() {
     },
     {
       key: 'welink', label: <span><MessageOutlined /> Welink 消息</span>,
-      children: <WelinkTab ticketId={id!} />,
+      children: <WelinkTab ticketId={id!} highlightMessageId={queryWelinkMsg} />,
     },
     {
       key: 'progress', label: <span><SwapOutlined /> 进展同步</span>,
@@ -784,7 +793,17 @@ export default function AttackDetail() {
             <Tabs
               type="editable-card"
               hideAdd
-              activeKey={undefined}
+              activeKey={activeTabKey}
+              onChange={(k) => {
+                setActiveTabKey(k);
+                // 用户主动切走 welink tab → 清掉 welinkMsg query,避免再次激活高亮
+                if (k !== 'welink' && (queryWelinkMsg || queryTab === 'welink')) {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete('welinkMsg');
+                  next.delete('tab');
+                  setSearchParams(next, { replace: true });
+                }
+              }}
               style={{ padding: '0 16px' }}
               items={allTabItems}
               onEdit={(targetKey, action) => {

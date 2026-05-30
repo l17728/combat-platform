@@ -21,6 +21,9 @@ const { Dragger } = Upload;
 
 interface Props {
   ticketId: string;
+  /** 场景 3:从 Hermes welink citation 跳转过来时携带的目标消息 id;
+   *  非空时强制 viewMode='chat' 并把 id 透传给 WelinkChatView 做滚动+高亮。 */
+  highlightMessageId?: string;
 }
 
 interface Stats { total: number; selected: number; deleted: number }
@@ -65,7 +68,7 @@ function parseUploadFile(file: File): Promise<any[]> {
   });
 }
 
-export default function WelinkTab({ ticketId }: Props) {
+export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
   const [messages, setMessages] = useState<WelinkMessage[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, selected: 0, deleted: 0 });
   const [loading, setLoading] = useState(true);
@@ -116,6 +119,11 @@ export default function WelinkTab({ ticketId }: Props) {
       window.localStorage.setItem('combat-welink-view', viewMode);
     }
   }, [viewMode]);
+
+  // 场景 3:有外部 highlightMessageId 时强制聊天视图,方便高亮锚点
+  useEffect(() => {
+    if (highlightMessageId) setViewMode('chat');
+  }, [highlightMessageId]);
 
   const authorOptions = useMemo(() => {
     const set = new Set<string>();
@@ -447,6 +455,7 @@ export default function WelinkTab({ ticketId }: Props) {
           messages={messages}
           reload={() => fetchMessages(true)}
           loading={loading}
+          highlightMessageId={highlightMessageId}
         />
       )}
 
