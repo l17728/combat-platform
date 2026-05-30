@@ -11,8 +11,8 @@ const DEFAULT_CONFIG: EscalationConfig = {
   ],
 };
 
-function readEscalationConfig(repo: Repository): EscalationConfig {
-  const raw = repo.getSetting("escalation");
+async function readEscalationConfig(repo: Repository): Promise<EscalationConfig> {
+  const raw = await repo.getSetting("escalation");
   if (!raw) return DEFAULT_CONFIG;
   try {
     return JSON.parse(raw) as EscalationConfig;
@@ -50,13 +50,13 @@ export interface ResponsibilityDiagram {
  * 2. Person assignments: ASSIGNED_TO / ESCALATED_TO edges → person handles ticket
  * 3. Conflict relationships: CONFLICTS_WITH edges shown as dashed lines
  */
-export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiagram {
+export async function buildResponsibilityDiagram(repo: Repository): Promise<ResponsibilityDiagram> {
   const lines: string[] = ["flowchart TD"];
   const nodeIds = new Set<string>();
   let edgeCount = 0;
 
   // ── 1. Escalation config rules ──────────────────────────────────────────────
-  const cfg = readEscalationConfig(repo);
+  const cfg = await readEscalationConfig(repo);
   for (const rule of cfg.rules) {
     const levelId = safeId(rule.事件级别);
     const roleId = safeId(rule.上升角色);
@@ -70,13 +70,13 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
   // ── 2. Person assignments: ASSIGNED_TO + ESCALATED_TO edges ─────────────────
   //    Group by person to keep the diagram readable (aggregate, not enumerate all)
   const assignedEdges = [
-    ...repo.queryEdges({ edgeType: "ASSIGNED_TO" }),
-    ...repo.queryEdges({ edgeType: "ESCALATED_TO" }),
+    ...(await repo.queryEdges({ edgeType: "ASSIGNED_TO" })),
+    ...(await repo.queryEdges({ edgeType: "ESCALATED_TO" })),
   ];
 
   // Preload all persons and attackTickets to avoid N+1 getNode calls
   const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
-  for (const n of [...repo.queryNodes("person"), ...repo.queryNodes("attackTicket")]) {
+  for (const n of [...(await repo.queryNodes("person")), ...(await repo.queryNodes("attackTicket"))]) {
     nodeMap.set(n.id, n);
   }
 
@@ -123,7 +123,7 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
   }
 
   // ── 3. CONFLICTS_WITH edges (dashed lines) ───────────────────────────────────
-  const conflictEdges = repo.queryEdges({ edgeType: "CONFLICTS_WITH" });
+  const conflictEdges = await repo.queryEdges({ edgeType: "CONFLICTS_WITH" });
   for (const edge of conflictEdges) {
     const srcTicket = nodeMap.get(edge.sourceId);
     const tgtTicket = nodeMap.get(edge.targetId);
@@ -158,8 +158,8 @@ export function buildResponsibilityDiagram(repo: Repository): ResponsibilityDiag
 export function makeResponsibilityRouter(repo: Repository): Router {
   const r = Router();
 
-  r.get("/responsibility/diagram", (_req, res) => {
-    const result = buildResponsibilityDiagram(repo);
+  r.get("/responsibility/diagram", async (_req, res) => {
+    const result = await buildResponsibilityDiagram(repo);
     res.json(result);
   });
 

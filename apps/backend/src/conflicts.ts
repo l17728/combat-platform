@@ -4,13 +4,13 @@ import type { Repository, ConflictRow, ScanConflictsResult, ConflictEdgeType } f
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
 /** Group attackTickets by trimmed non-empty property value. */
-function groupTicketsBy(
+async function groupTicketsBy(
   repo: Repository,
   field: string,
   predicate: (props: Record<string, unknown>) => boolean = () => true,
-): Map<string, { id: string }[]> {
+): Promise<Map<string, { id: string }[]>> {
   const out = new Map<string, { id: string }[]>();
-  for (const n of repo.queryNodes("attackTicket")) {
+  for (const n of await repo.queryNodes("attackTicket")) {
     if (!predicate(n.properties)) continue;
     const raw = n.properties[field];
     const key = typeof raw === "string" ? raw.trim() : raw == null ? "" : String(raw).trim();
@@ -22,11 +22,11 @@ function groupTicketsBy(
 }
 
 /** Two-way derived edge: A→B and B→A both written so RelatedPage on either end sees the peer. */
-function writeBidirectional(
+async function writeBidirectional(
   repo: Repository, edgeType: ConflictEdgeType, aId: string, bId: string, reason: string, actor: string,
-) {
-  repo.createEdge(edgeType, aId, bId, { reason }, actor);
-  repo.createEdge(edgeType, bId, aId, { reason }, actor);
+): Promise<void> {
+  await repo.createEdge(edgeType, aId, bId, { reason }, actor);
+  await repo.createEdge(edgeType, bId, aId, { reason }, actor);
 }
 
 /**
@@ -36,14 +36,14 @@ function writeBidirectional(
  * Old derived edges of these two types are wiped first (全量重建 / 幂等).
  * Return counts are UNDIRECTED PAIR counts (3 tickets same person → C(3,2)=3, not 6 directed edges).
  */
-export function syncConflicts(repo: Repository): ScanConflictsResult {
+export async function syncConflicts(repo: Repository): Promise<ScanConflictsResult> {
   const actor = "system";
-  repo.deleteEdges({ edgeType: "CONFLICTS_WITH" }, actor);
-  repo.deleteEdges({ edgeType: "OVERLAPS_WITH" }, actor);
+  await repo.deleteEdges({ edgeType: "CONFLICTS_WITH" }, actor);
+  await repo.deleteEdges({ edgeType: "OVERLAPS_WITH" }, actor);
 
   let conflicts = 0;
   // Rule 1: same 当前处理人, active tickets only
-  const byOwner = groupTicketsBy(
+  const byOwner = await groupTicketsBy(
     repo, "当前处理人",
     p => ACTIVE_STATUSES.has(String(p["状态"] ?? "")),
   );
@@ -52,7 +52,7 @@ export function syncConflicts(repo: Repository): ScanConflictsResult {
     const reason = `同负责人多并发：${owner}`;
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
-        writeBidirectional(repo, "CONFLICTS_WITH", items[i].id, items[j].id, reason, actor);
+        await writeBidirectional(repo, "CONFLICTS_WITH", items[i].id, items[j].id, reason, actor);
         conflicts++;
       }
     }
@@ -60,13 +60,13 @@ export function syncConflicts(repo: Repository): ScanConflictsResult {
 
   let overlaps = 0;
   // Rule 2: same 问题单号 (any status — overlap is about ticket dup, not currently-active)
-  const byPB = groupTicketsBy(repo, "问题单号");
+  const byPB = await groupTicketsBy(repo, "问题单号");
   for (const [pb, items] of byPB) {
     if (items.length < 2) continue;
     const reason = `同问题单：${pb}`;
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
-        writeBidirectional(repo, "OVERLAPS_WITH", items[i].id, items[j].id, reason, actor);
+        await writeBidirectional(repo, "OVERLAPS_WITH", items[i].id, items[j].id, reason, actor);
         overlaps++;
       }
     }
@@ -76,14 +76,14 @@ export function syncConflicts(repo: Repository): ScanConflictsResult {
 }
 
 /** Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id. */
-export function listConflictRows(repo: Repository): ConflictRow[] {
+export async function listConflictRows(repo: Repository): Promise<ConflictRow[]> {
   // Preload all attackTicket nodes to avoid N+1 getNode calls
   const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
-  for (const n of repo.queryNodes("attackTicket")) nodeMap.set(n.id, n);
+  for (const n of await repo.queryNodes("attackTicket")) nodeMap.set(n.id, n);
 
   const out: ConflictRow[] = [];
   for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {
-    for (const e of repo.queryEdges({ edgeType })) {
+    for (const e of await repo.queryEdges({ edgeType })) {
       if (e.sourceId >= e.targetId) continue; // undirected dedup
       const source = nodeMap.get(e.sourceId);
       const target = nodeMap.get(e.targetId);
@@ -96,11 +96,11 @@ export function listConflictRows(repo: Repository): ConflictRow[] {
 
 export function makeConflictsRouter(repo: Repository): Router {
   const r = Router();
-  r.post("/conflicts/scan", (_req, res) => {
-    res.json(syncConflicts(repo));
+  r.post("/conflicts/scan", async (_req, res) => {
+    res.json(await syncConflicts(repo));
   });
-  r.get("/conflicts", (_req, res) => {
-    res.json(listConflictRows(repo));
+  r.get("/conflicts", async (_req, res) => {
+    res.json(await listConflictRows(repo));
   });
   return r;
 }

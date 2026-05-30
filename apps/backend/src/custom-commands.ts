@@ -16,21 +16,21 @@ export function extractParams(template: string): string[] {
   return out;
 }
 
-function load(repo: Repository): CustomCommand[] {
-  const raw = repo.getSetting(KEY);
+async function load(repo: Repository): Promise<CustomCommand[]> {
+  const raw = await repo.getSetting(KEY);
   if (!raw) return [];
   try { return JSON.parse(raw) as CustomCommand[]; } catch { return []; }
 }
-function save(repo: Repository, list: CustomCommand[], actor: string) {
-  repo.setSetting(KEY, JSON.stringify(list), actor);
+async function save(repo: Repository, list: CustomCommand[], actor: string): Promise<void> {
+  await repo.setSetting(KEY, JSON.stringify(list), actor);
 }
 
 export function makeCustomCommandsRouter(repo: Repository): Router {
   const r = Router();
 
-  r.get("/commands", (_req, res) => res.json(load(repo)));
+  r.get("/commands", async (_req, res) => res.json(await load(repo)));
 
-  r.post("/commands", (req, res) => {
+  r.post("/commands", async (req, res) => {
     const name = String(req.body?.name ?? "").trim();
     const template = String(req.body?.template ?? "").trim();
     const description = req.body?.description != null ? String(req.body.description) : undefined;
@@ -41,23 +41,23 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
       return res.status(400).json({ error: `template 首 token 非已知命令：${first}` });
     const cmd: CustomCommand = { id: randomUUID(), name, description, template,
       params: extractParams(template), createdAt: new Date().toISOString() };
-    const list = load(repo); list.push(cmd); save(repo, list, "api");
-    repo.logAudit({ action: "CUSTOM_COMMAND_CREATE", entityType: "setting", entityId: cmd.id, changes: { name, template }, actor: "api" });
+    const list = await load(repo); list.push(cmd); await save(repo, list, "api");
+    await repo.logAudit({ action: "CUSTOM_COMMAND_CREATE", entityType: "setting", entityId: cmd.id, changes: { name, template }, actor: "api" });
     res.status(201).json(cmd);
   });
 
-  r.delete("/commands/:id", (req, res) => {
-    const list = load(repo);
+  r.delete("/commands/:id", async (req, res) => {
+    const list = await load(repo);
     const idx = list.findIndex(c => c.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: "命令不存在" });
     const [removed] = list.splice(idx, 1);
-    save(repo, list, "api");
-    repo.logAudit({ action: "CUSTOM_COMMAND_DELETE", entityType: "setting", entityId: removed.id, changes: { name: removed.name }, actor: "api" });
+    await save(repo, list, "api");
+    await repo.logAudit({ action: "CUSTOM_COMMAND_DELETE", entityType: "setting", entityId: removed.id, changes: { name: removed.name }, actor: "api" });
     res.json({ ok: true });
   });
 
-  r.post("/commands/:id/run", (req, res) => {
-    const cmd = load(repo).find(c => c.id === req.params.id);
+  r.post("/commands/:id/run", async (req, res) => {
+    const cmd = (await load(repo)).find(c => c.id === req.params.id);
     if (!cmd) return res.status(404).json({ error: "命令不存在" });
     const args = (req.body?.args ?? {}) as Record<string, unknown>;
     const missing = cmd.params.filter(p => args[p] === undefined || args[p] === null || String(args[p]) === "");
@@ -74,7 +74,7 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     let request;
     try { request = def.build(positional, opts); }
     catch (e) { log.warn("command.run.build_fail", { id: cmd.id, error: (e as Error).message }); return res.status(400).json({ error: (e as Error).message }); }
-    repo.logAudit({ action: "CUSTOM_COMMAND_RUN", entityType: "setting", entityId: cmd.id, changes: { resolved }, actor: "api" });
+    await repo.logAudit({ action: "CUSTOM_COMMAND_RUN", entityType: "setting", entityId: cmd.id, changes: { resolved }, actor: "api" });
     res.json({ resolved, request });
   });
 

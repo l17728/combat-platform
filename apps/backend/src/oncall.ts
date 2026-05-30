@@ -8,10 +8,10 @@ import { localToday } from "./date-util.js";
  * Asia/Shanghai calendar date (起/止 are entered as local dates). Date-derived,
  * no state written. Optionally filtered by domain. Grouped by domain.
  */
-export function currentOncall(repo: Repository, domain?: string): OncallCurrentRow[] {
+export async function currentOncall(repo: Repository, domain?: string): Promise<OncallCurrentRow[]> {
   const day = localToday();
   const byDomain = new Map<string, Set<string>>();
-  for (const n of repo.queryNodes("oncall")) {
+  for (const n of await repo.queryNodes("oncall")) {
     const d = String(n.properties["domain"] ?? "").trim();
     if (!d || (domain && d !== domain)) continue;
     const from = String(n.properties["起"] ?? "").trim();
@@ -28,10 +28,10 @@ export function currentOncall(repo: Repository, domain?: string): OncallCurrentR
 
 export function makeOncallRouter(repo: Repository): Router {
   const r = Router();
-  r.get("/oncall/current", (req, res) => {
+  r.get("/oncall/current", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const domain = req.query.domain != null ? String(first(req.query.domain)) : undefined;
-    res.json(currentOncall(repo, domain || undefined));
+    res.json(await currentOncall(repo, domain || undefined));
   });
   return r;
 }

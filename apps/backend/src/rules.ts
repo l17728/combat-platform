@@ -10,25 +10,25 @@ export interface ReminderDraft {
   subject: string; body: string;
 }
 
-function currentHandler(repo: Repository, ticketId: string): { id: string; name: string } | undefined {
-  const e = repo.queryEdges({ sourceId: ticketId, edgeType: "REF" })
+async function currentHandler(repo: Repository, ticketId: string): Promise<{ id: string; name: string } | undefined> {
+  const e = (await repo.queryEdges({ sourceId: ticketId, edgeType: "REF" }))
     .find(e => String(e.properties["field"] ?? "") === "当前处理人");
   if (!e) return undefined;
-  const p = repo.getNode(e.targetId);
+  const p = await repo.getNode(e.targetId);
   if (!p) return undefined;
   return { id: p.id, name: String(p.properties["姓名"] ?? p.properties["name"] ?? p.id) };
 }
 
-export function scanReminders(repo: Repository, _registry: SchemaRegistry, nowMs: number = Date.now()): ReminderDraft[] {
+export async function scanReminders(repo: Repository, _registry: SchemaRegistry, nowMs: number = Date.now()): Promise<ReminderDraft[]> {
   const drafts: ReminderDraft[] = [];
-  for (const t of repo.queryNodes("attackTicket")) {
+  for (const t of await repo.queryNodes("attackTicket")) {
     const status = String(t.properties["状态"] ?? "").trim();
     if (!OPEN.has(status)) continue;
-    const handler = currentHandler(repo, t.id);
+    const handler = await currentHandler(repo, t.id);
     if (!handler) continue;
     const title = String(t.properties["标题"] ?? t.id);
 
-    const progresses = repo.listProgress(t.id);
+    const progresses = await repo.listProgress(t.id);
     const lastAt = progresses.length
       ? progresses[progresses.length - 1].updatedAt
       : t.updatedAt;

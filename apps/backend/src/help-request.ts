@@ -88,7 +88,7 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
       const id = randomUUID();
       const feedbackToken = randomUUID();
 
-      const ticket = repo.getNode(ticketId);
+      const ticket = await repo.getNode(ticketId);
       const ticketTitle = ticket
         ? String(ticket.properties["标题"] ?? ticketId.slice(0, 8))
         : ticketId.slice(0, 8);
@@ -120,7 +120,7 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
       let emailSent = false;
       let emailNote = "";
       try {
-        const raw = repo.getSetting("smtp");
+        const raw = await repo.getSetting("smtp");
         if (raw) {
           const cfg = JSON.parse(raw) as SmtpConfig;
           if (cfg.host) {
@@ -167,12 +167,12 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
     res.json(rows.map(toHelpRequest));
   });
 
-  r.get("/help/feedback/:token", (req, res) => {
+  r.get("/help/feedback/:token", async (req, res) => {
     const row = db
       .prepare("SELECT * FROM help_requests WHERE feedback_token=?")
       .get(req.params.token) as any;
     if (!row) return res.status(404).json({ error: "未找到该求助记录" });
-    const ticket = repo.getNode(row.ticket_id);
+    const ticket = await repo.getNode(row.ticket_id);
     res.json({
       ticketTitle: ticket
         ? String(ticket.properties["标题"] ?? row.ticket_id.slice(0, 8))
@@ -184,7 +184,7 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
     });
   });
 
-  r.post("/help/feedback/:token", (req, res) => {
+  r.post("/help/feedback/:token", async (req, res) => {
     const row = db
       .prepare("SELECT * FROM help_requests WHERE feedback_token=?")
       .get(req.params.token) as any;
@@ -202,7 +202,7 @@ export function makeHelpRequestRouter(db: DB, repo: Repository, mailSender: Mail
 
     if (row.ticket_id) {
       try {
-        repo.appendProgress(
+        await repo.appendProgress(
           row.ticket_id,
           `【求助回复】${row.target_name ?? row.target_email} 回复了「${row.question.slice(0, 40)}...」：${feedback}`,
           "处理中",

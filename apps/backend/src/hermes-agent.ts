@@ -71,12 +71,12 @@ export function parseAgentOutput(text: string): { answer: string; citedIds: stri
  * a2 + 防幻觉:逐个回查节点,只有真实存在的 ID 才回填成 citation。
  * agent 编造的 ID 在此被静默丢弃,保证引用永远指向真实记录。
  */
-export function buildCitations(repo: Repository, citedIds: string[]): HermesCitation[] {
+export async function buildCitations(repo: Repository, citedIds: string[]): Promise<HermesCitation[]> {
   const seen = new Set<string>();
   const out: HermesCitation[] = [];
   for (const id of citedIds) {
     if (seen.has(id)) continue;
-    const n = repo.getNode(id);
+    const n = await repo.getNode(id);
     if (!n) continue;
     seen.add(id);
     out.push({ nodeId: n.id, nodeType: n.nodeType, summary: summarize(n), link: linkFor(n) });
@@ -95,6 +95,6 @@ export async function answerWithAgent(
   const prompt = buildHermesPrompt(registry, question, context);
   const text = await runner.run(prompt);
   const { answer, citedIds } = parseAgentOutput(text);
-  const citations = buildCitations(repo, citedIds);
+  const citations = await buildCitations(repo, citedIds);
   return { question, intent: "agent", answer: answer || "未找到相关记录。", citations };
 }
