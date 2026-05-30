@@ -9,47 +9,45 @@ import { tickScheduledJobs } from "./jobs.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
-import { SqliteAdapter } from "./db-adapter.js";
+import { SqliteAdapter, PostgresAdapter, type DbAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
 
-// Driver selection (Phase 1):
+// Driver selection (Phase 2c):
 //   - DB_URL takes precedence (sqlite://... or postgres://...)
 //   - COMBAT_DB_PATH stays as a SQLite-only override for backwards compat
 //   - Default: cwd/combat.sqlite
 //
-// Phase 1 only fully supports SQLite end-to-end. A Postgres DB_URL provisions
-// the schema and opens a pool, but Repository remains SQLite-only — see
-// docs/POSTGRES_SUPPORT.md.
+// Both paths use the same dialect-neutral SqliteRepository via DbAdapter.
 const explicitDbUrl = process.env.DB_URL?.trim();
 const dbUrl = explicitDbUrl || `sqlite://${process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite")}`;
 const parsed = parseDbUrl(dbUrl);
 
-if (parsed.kind === "postgres") {
-  log.warn("server.postgres_phase1", {
-    message: "Postgres DB_URL detected — schema will be provisioned but Repository is still SQLite-only in Phase 1.",
-  });
+// SQLite path tracks a real file; Postgres path keeps an empty string so the
+// backup router knows there's no local SQLite file to back up.
+const DB_PATH = parsed.kind === "sqlite" ? parsed.sqlitePath! : "";
+
+// Top-level await is supported in NodeNext ESM — bootstrap async to wire the
+// correct adapter before createApp runs.
+let adapter: DbAdapter;
+if (parsed.kind === "sqlite") {
+  applyRestorePending(DB_PATH);
+  const db = openDb(DB_PATH);
+  adapter = new SqliteAdapter(db);
+  log.info("server.driver", { kind: "sqlite", path: DB_PATH });
+} else {
+  // Postgres: enable phase2 marker so openDbFromUrl skips the stub warning.
+  process.env.COMBAT_POSTGRES_PHASE2 = "1";
+  const handle = await openDbFromUrl(dbUrl);
+  if (handle.kind !== "postgres") {
+    throw new Error("unexpected: parseDbUrl said postgres but openDbFromUrl returned sqlite");
+  }
+  adapter = new PostgresAdapter(handle.pool);
+  log.info("server.driver", { kind: "postgres" });
 }
 
-// We still need a SQLite handle for Repository in Phase 1. If DB_URL is
-// postgres, we fall back to a sibling sqlite file (deterministic name) so the
-// existing synchronous code path keeps working.
-const DB_PATH = parsed.kind === "sqlite"
-  ? parsed.sqlitePath!
-  : (process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite"));
-applyRestorePending(DB_PATH);
-const db = openDb(DB_PATH);
-const adapter = new SqliteAdapter(db);
 const repo = new SqliteRepository(adapter);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
 const app = createApp({ repo, registry, adapter, dbPath: DB_PATH });
-
-// Fire-and-forget Postgres handle so the factory + schema DDL is exercised
-// when DB_URL points there. The handle is not yet wired into Repository.
-if (parsed.kind === "postgres") {
-  openDbFromUrl(dbUrl).catch((err) => {
-    log.error("server.postgres_init_failed", { error: (err as Error).message });
-  });
-}
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
