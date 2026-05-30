@@ -3,17 +3,21 @@ import { Input, Button, Space, message, Divider, Card, Tooltip } from 'antd';
 import { DeleteOutlined, RobotOutlined, SendOutlined, SearchOutlined, EditOutlined, UpOutlined, DragOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
+// P0-5 修复:移除 rehype-raw,杜绝存储型 XSS。原方案允许 markdown 内任意 HTML
+// 渲染,任何登录用户可在 ticket_tabs.content 写 <script>/<img onerror=...>,
+// 受害者打开攻关单详情页即被盗 localStorage('combat-token')。
+// 不引入 rehype-sanitize 是因为 ReactMarkdown 默认就只渲染白名单 markdown 节点,
+// 原始 HTML 标签会被当字面量字符串显示,等价于安全白名单。
 import { api, type TicketTab } from '../api.js';
 import { useDraggable } from '../hooks/useDraggable.js';
 
 const { TextArea } = Input;
 
-function highlightMd(text: string, keyword: string): string {
-  if (!keyword) return text;
-  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return text.replace(new RegExp(`(${escaped})`, 'gi'),
-    '<mark style="background:#ffe58f;padding:0 2px;border-radius:2px">$1</mark>');
+// P0-5 修复:同步移除 highlightMd 的 <mark> 注入。
+// 之前依赖 rehypeRaw 把生成的 <mark> 解析为 HTML;现在 rehypeRaw 已去掉,任何 HTML
+// 都会被当字面量。改为返回纯文本,搜索高亮通过 CSS-only 方案(后续若需要重做)。
+function highlightMd(text: string, _keyword: string): string {
+  return text;
 }
 
 interface ContentBlock {
@@ -154,7 +158,8 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
                       />
                     </div>
                     <div className="markdown-body" style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, background: '#fafafa' }}>
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>{previewMd}</ReactMarkdown>
+                      {/* P0-5: 不传 rehypeRaw,原始 HTML 标签作字面量渲染,防 XSS */}
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewMd}</ReactMarkdown>
                     </div>
                   </>
                 )}
