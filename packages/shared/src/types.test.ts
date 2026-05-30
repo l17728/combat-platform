@@ -105,12 +105,12 @@ describe("relation-proposal contracts", () => {
     const p2: RelationProposal = { ...p, status: "已通过", decidedBy: "运营", decidedAt: "t" };
     expect(p2.decidedBy).toBe("运营");
   });
-  it("RelationProposer.propose returns proposal drafts (no id/status)", () => {
+  it("RelationProposer.propose returns proposal drafts (no id/status)", async () => {
     const proposer: RelationProposer = {
-      propose: () => [{ sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
+      propose: async () => [{ sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
         confidence: 0.9, proposerSource: "heuristic-v1", rationale: "r" }],
     };
-    const out = proposer.propose({} as Repository, {} as SchemaRegistry);
+    const out = await proposer.propose({} as Repository, {} as SchemaRegistry);
     expect(out[0].relationType).toBe("SAME_AS");
   });
 });
