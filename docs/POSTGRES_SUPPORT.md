@@ -86,11 +86,32 @@ export COMBAT_POSTGRES_PHASE2=1
 - `apps/backend/src/server.ts` (启动入口)
 - `apps/backend/src/auth.ts` + 所有 `make*Router(db)` 工厂 (这些直接吃 sqlite DB,需要换成 async query helper)
 
-### Phase 3 — Postgres 集成测试 + CI
+### Phase 3 — Postgres 集成测试 + CI + 数据迁移工具
 
 - 引入 testcontainers 或 docker compose 跑临时 PG
 - 测试套件并行跑 SQLite + Postgres 双驱动
 - 部署脚本支持 PG 凭证
+- **新增:CLI 工具 `npm run cli -- db:migrate-sqlite-to-postgres --target <pg-url>`**
+  - 读 SQLite 现有数据 → 串行批量 INSERT 到 Postgres
+  - 全表事务 + 进度打印 + 失败回滚
+  - dry-run 模式预检表/列对齐
+  - 完成后写一个 \`.migrated\` 标记文件,供 UI 检测
+
+### Phase 3.5 — 一键迁移 UI (系统管理菜单)
+
+用户需求:**SQLite 一直用着,某天想切 Postgres,从 UI 一键完成,不动 CLI**。
+
+- 系统管理菜单新增「**数据库迁移**」子项 (仅 admin 可见,类似 用户管理/操作追踪)
+- 页面 \`/db-migration\` 三段:
+  1. **现状卡**:当前 \`DB_URL\` / 数据量统计(每张表行数) / 上次迁移记录
+  2. **目标连接表单**:Postgres host/port/database/user/password (或直接粘贴完整 URL);点「测试连接」先验证
+  3. **执行迁移**:
+     - 倒计时停服窗口 (默认 30s,可调,期间禁止业务写入)
+     - 进度条按表显示 (nodes 3271/5040 ...)
+     - 失败实时报错,**可中断回滚**(回到 SQLite,不改 \`DB_URL\`)
+     - 完成后自动:① 更新 \`DB_URL\` env (写持久化的 \`.env\`/systemd drop-in)② 重启 backend ③ 健康检查 ④ 标记 \`.migrated\` ⑤ 提示用户「迁移完成,SQLite 备份在 ./data/combat.db.pre-pg-<timestamp>」
+- 后端 HTTP API: \`POST /api/db-migration/check\` / \`POST /api/db-migration/run\` (server-sent events 推进度);本质包装 Phase 3 的 CLI
+- **前置条件**:Phase 2 + Phase 3 全绿 (Postgres 真能服务业务),否则迁移完是空壳
 
 ### Phase 4 — properties 列升级 JSONB + 索引优化
 
