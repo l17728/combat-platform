@@ -765,6 +765,18 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态（feature/postgres-support 分支 · 2026-05-30 最后验证）
+
+**后端 SQLite 路径 353/353 全绿**（60 文件，含 Phase 1 新增 6 个 parseDbUrl 单测）;前端 e2e 全量套件运行中。
+
+分支已 push 至 origin/feature/postgres-support。新增交付：
+- Phase 1 基建（drizzle-orm + pg + schema 双方言 + DB_URL 解析工厂）
+- Phase 3 CLI 迁移工具（scripts/migrate/sqlite-to-postgres.mjs，事务/进度/标记）
+- Phase 3.5 一键迁移 UI（系统管理 → 数据库迁移，前端 + 后端 3 个 API + AdminGuard 守卫）
+- Phase 2（Repository async 化）作为专项 sprint 单独排期，db-adapter.ts 已备料
+
+详见 `docs/POSTGRES_SUPPORT.md` 路线图。
+
 ### 当前测试状态（2026-05-30 最后验证）
 
 **前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **347/347**（59 文件）。
