@@ -9,6 +9,7 @@ import HELP from '../help-content.js';
 const { Title } = Typography;
 
 const OUTLINE: { group: string; keys: string[] }[] = [
+  { group: '版本发布', keys: ['releaseNotes'] },
   { group: '总览', keys: ['dashboard'] },
   { group: '攻关管理', keys: ['attackList', 'attackDetail', 'dailyReport'] },
   { group: '人员与荣誉', keys: ['peopleList', 'contributions', 'honor', 'personHonor', 'mergePage'] },
