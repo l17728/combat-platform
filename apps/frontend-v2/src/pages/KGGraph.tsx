@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Typography, Select, Input, Button, Space, message, Spin, Empty, Tag } from 'antd';
-import { ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { Typography, Select, Input, Button, Space, message, Spin, Empty, Tag, Drawer, Descriptions, Tooltip } from 'antd';
+import { ReloadOutlined, SearchOutlined, AimOutlined, FullscreenOutlined, ApartmentOutlined, FilterOutlined } from '@ant-design/icons';
 import { Graph } from '@antv/g6';
 import { api } from '../api.js';
-import type { GraphSnapshot } from '@combat/shared';
+import type { GraphSnapshot, GraphNode } from '@combat/shared';
 import { NODE_TYPE_LABEL } from '../constants.js';
+import { nodeLabel, detailPath } from '../utils/nodeLabel.js';
 import HermesChat from '../components/HermesChat.js';
 
 const { Title, Text } = Typography;
@@ -67,13 +68,20 @@ export default function KGGraph() {
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [count, setCount] = useState<{ nodes: number; edges: number }>({ nodes: 0, edges: 0 });
-  const [presentTypes, setPresentTypes] = useState<string[]>([]); // 当前图中实际存在的类型(图例据此)
+  const [presentTypes, setPresentTypes] = useState<string[]>([]);     // 当前图中实际存在的节点类型
+  const [presentEdgeTypes, setPresentEdgeTypes] = useState<string[]>([]); // 当前图中实际存在的边类型
+  const [edgeTypeFilter, setEdgeTypeFilter] = useState<string[]>([]); // 已隐藏的边类型(空=全显)
+  const [layoutType, setLayoutType] = useState<'d3-force' | 'dagre' | 'radial'>('d3-force');
+  const [detailNode, setDetailNode] = useState<GraphNode | null>(null);
+  const [detailNodeType, setDetailNodeType] = useState<string>('');
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  // 统计 + 图例同步:从图当前节点数据计算,保证图例与实际节点严格一致
   const refreshStats = (graph: Graph) => {
     const nodes = graph.getNodeData() as any[];
-    setCount({ nodes: nodes.length, edges: graph.getEdgeData().length });
+    const edges = graph.getEdgeData() as any[];
+    setCount({ nodes: nodes.length, edges: edges.length });
     setPresentTypes([...new Set(nodes.map((n) => n?.data?.nodeType).filter(Boolean))] as string[]);
+    setPresentEdgeTypes([...new Set(edges.map((e) => e?.data?.edgeType).filter(Boolean))] as string[]);
   };
 
   const fetchAndSet = useCallback(async (graph: Graph) => {
@@ -155,6 +163,52 @@ export default function KGGraph() {
     else expandNode(graph, nodeId, nodeType);
   }, [expandNode, collapseNode]);
 
+  // 单击节点 → 右侧抽屉显示完整字段;展开/折叠由抽屉内按钮触发
+  const openDetail = useCallback(async (nodeId: string, nodeType: string) => {
+    setDetailNodeType(nodeType);
+    setDetailLoading(true);
+    setDetailNode(null);
+    try { setDetailNode(await api.getNode(nodeId)); }
+    catch (e: any) { message.error(e.message); }
+    finally { setDetailLoading(false); }
+  }, []);
+
+  // 边类型筛选:隐藏 hidden 集合里的边
+  const applyEdgeFilter = useCallback((graph: Graph, hidden: string[]) => {
+    if (graph.destroyed) return;
+    try {
+      const edges = graph.getEdgeData() as any[];
+      const hideSet = new Set(hidden);
+      for (const e of edges) {
+        const t = e?.data?.edgeType;
+        graph.setElementVisibility(e.id, hideSet.has(t) ? 'hidden' : 'visible');
+      }
+    } catch (err) { /* ignore */ }
+  }, []);
+
+  // 切换布局
+  const switchLayout = useCallback(async (graph: Graph, type: 'd3-force' | 'dagre' | 'radial') => {
+    if (graph.destroyed) return;
+    const config: any = type === 'dagre' ? { type: 'dagre', rankdir: 'TB', nodesep: 30, ranksep: 60 }
+      : type === 'radial' ? { type: 'radial', unitRadius: 80, linkDistance: 100 }
+      : { type: 'd3-force', collide: { radius: 40 }, link: { distance: 120 } };
+    try { graph.setLayout(config); await graph.render(); graph.fitView(); }
+    catch (e: any) { message.error(e.message); }
+  }, []);
+
+  // 搜索定位:在当前图中找标签包含关键词的节点 → 居中聚焦;找不到则回退整图刷新
+  const locateInGraph = useCallback(async (graph: Graph) => {
+    if (graph.destroyed) return;
+    const kw = q.trim().toLowerCase();
+    if (!kw) { fetchAndSet(graph); return; }
+    const nodes = graph.getNodeData() as any[];
+    const hit = nodes.find((n) => String(n?.data?.label ?? '').toLowerCase().includes(kw));
+    if (hit) {
+      try { await graph.focusElement(hit.id); message.success(`定位到「${hit.data.label}」`); }
+      catch { fetchAndSet(graph); }
+    } else { fetchAndSet(graph); }
+  }, [q, fetchAndSet]);
+
   useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
     const graph = new Graph({
@@ -185,7 +239,8 @@ export default function KGGraph() {
           labelFill: '#999',
         },
       },
-      behaviors: ['zoom-canvas', 'drag-canvas', 'drag-element'],
+      behaviors: ['zoom-canvas', 'drag-canvas', 'drag-element', 'hover-activate'],
+      plugins: [{ type: 'minimap', size: [140, 90], key: 'kg-minimap' }],
     });
     graphRef.current = graph;
     // 单击延迟执行(展开/折叠),双击则取消单击并导航,避免双击同时触发图变更 + 卸载销毁的竞态
@@ -198,7 +253,7 @@ export default function KGGraph() {
         if (graph.destroyed) return;
         const nd = graph.getNodeData(id) as any;
         const nodeType = nd?.data?.nodeType;
-        if (nodeType) toggleNode(graph, id, nodeType);
+        if (nodeType) openDetail(id, nodeType);
       }, 260);
     });
     graph.on('node:dblclick', (e: any) => {
@@ -245,18 +300,50 @@ export default function KGGraph() {
             allowClear
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            onPressEnter={reload}
+            onPressEnter={() => graphRef.current && locateInGraph(graphRef.current)}
           />
+          <Tooltip title="在当前图中定位关键词命中的节点(找不到则按筛选重载)">
+            <Button icon={<AimOutlined />} onClick={() => graphRef.current && locateInGraph(graphRef.current)}>定位</Button>
+          </Tooltip>
           <Button type="primary" icon={<ReloadOutlined />} onClick={reload} loading={loading}>刷新</Button>
         </Space>
       </div>
 
-      <div style={{ marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
         <Space size={4} wrap>
-          <Text type="secondary">单击节点展开/折叠关联(下钻/上钻)·双击跳转详情·滚轮缩放·拖拽平移 · 当前 {count.nodes} 节点 / {count.edges} 关系</Text>
+          <Text type="secondary">单击查看节点详情(展开/折叠在右抽屉)·双击跳详情·悬停高亮邻居 · 当前 {count.nodes} 节点 / {count.edges} 关系</Text>
           {presentTypes.map((t) => (
             <Tag key={t} color={TYPE_COLORS[t] ?? '#8c8c8c'}>{NODE_TYPE_LABEL[t] ?? t}</Tag>
           ))}
+        </Space>
+        <Space size={4} wrap>
+          {presentEdgeTypes.length > 0 && (
+            <Select
+              mode="multiple"
+              allowClear
+              suffixIcon={<FilterOutlined />}
+              style={{ minWidth: 180 }}
+              placeholder="隐藏边类型"
+              value={edgeTypeFilter}
+              onChange={(v) => { setEdgeTypeFilter(v); if (graphRef.current) applyEdgeFilter(graphRef.current, v); }}
+              options={presentEdgeTypes.map((t) => ({ value: t, label: EDGE_LABELS[t] ?? t }))}
+              maxTagCount="responsive"
+            />
+          )}
+          <Select
+            value={layoutType}
+            onChange={(v) => { setLayoutType(v); if (graphRef.current) switchLayout(graphRef.current, v); }}
+            style={{ width: 130 }}
+            suffixIcon={<ApartmentOutlined />}
+            options={[
+              { value: 'd3-force', label: '力导向' },
+              { value: 'dagre', label: '层次' },
+              { value: 'radial', label: '辐射' },
+            ]}
+          />
+          <Tooltip title="适应画布">
+            <Button icon={<FullscreenOutlined />} onClick={() => { try { graphRef.current?.fitView(); } catch { /* ignore */ } }} />
+          </Tooltip>
         </Space>
       </div>
 
@@ -270,6 +357,32 @@ export default function KGGraph() {
           )}
         </div>
       </Spin>
+
+      <Drawer
+        title={detailNode ? <Space><Text strong>{nodeLabel(detailNode)}</Text><Tag color={TYPE_COLORS[detailNodeType] ?? 'default'}>{NODE_TYPE_LABEL[detailNodeType] ?? detailNodeType}</Tag></Space> : '节点详情'}
+        open={!!detailNode || detailLoading}
+        onClose={() => { setDetailNode(null); setDetailNodeType(''); }}
+        width={480}
+        extra={detailNode && (
+          <Space>
+            {expandedRef.current.has(detailNode.id) ? (
+              <Button size="small" onClick={() => { if (!graphRef.current || !detailNode) return; collapseNode(graphRef.current, detailNode.id); setDetailNode(null); }}>折叠关联</Button>
+            ) : (
+              <Button size="small" type="primary" onClick={() => { if (!graphRef.current || !detailNode) return; expandNode(graphRef.current, detailNode.id, detailNodeType); setDetailNode(null); }}>展开 1 跳</Button>
+            )}
+            <Button size="small" onClick={() => detailNode && navigate(detailPath({ nodeType: detailNodeType, id: detailNode.id }))}>跳详情页</Button>
+          </Space>
+        )}
+      >
+        {detailLoading && <Spin />}
+        {detailNode && (
+          <Descriptions bordered size="small" column={1}>
+            {Object.entries(detailNode.properties).filter(([, v]) => v != null && v !== '').map(([k, v]) => (
+              <Descriptions.Item key={k} label={k}>{String(v)}</Descriptions.Item>
+            ))}
+          </Descriptions>
+        )}
+      </Drawer>
 
       <HermesChat title="知识图谱 AI 问答" placeholder="基于知识图谱提问,如:某攻关单谁负责 / 最近变动 / 某人的贡献" />
     </div>
