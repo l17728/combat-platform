@@ -44,6 +44,18 @@ export const lookup = tool({
   },
 });
 
+// 按节点 id 一步直取详情(node 全字段 + 进展 + 关联)。当上下文已提供 id 时,这是最快路径——
+// 不要再用 lookup 做关键词检索(关键词常命中不到目标),直接调本工具。
+export const getContext = tool({
+  description:
+    "按节点 id 一步直取完整上下文(node 全字段、近期进展、关联关系)。当用户问题指代的实体 id" +
+    "已在'当前上下文'里给出时,**优先用此工具**而非 lookup 关键词检索——单次调用即拿到所有信息。",
+  args: { id: tool.schema.string().describe("节点 id(通常来自当前上下文)") },
+  async execute(args) {
+    return JSON.stringify(await getJson(`/query/context/${encodeURIComponent(args.id)}`));
+  },
+});
+
 export const recommendHelpers = tool({
   description: "对某个攻关单 id 推荐合适的帮手(基于贡献记录、共享问题单等),返回候选人员与推荐理由。",
   args: { ticketId: tool.schema.string().describe("攻关单节点 id(来自 lookup 结果)") },
