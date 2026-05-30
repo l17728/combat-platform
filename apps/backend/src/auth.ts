@@ -5,7 +5,44 @@ import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
+const DEFAULT_JWT_SECRET = "combat-platform-secret-2026";
+
+/**
+ * 启动期强制校验 JWT_SECRET:
+ *   - production 环境必须显式设置 process.env.JWT_SECRET,否则进程退出(防止默认弱密钥被
+ *     公开签发 admin token,P0-2)。
+ *   - 非 production 环境若使用默认串,打印 warn 提示但允许启动以方便开发/测试。
+ * 注意:本函数在模块顶层加载时同步执行,部署 systemd Unit 必须通过 EnvironmentFile 注入。
+ */
+function resolveJwtSecret(): string {
+  const fromEnv = process.env.JWT_SECRET;
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd) {
+    if (!fromEnv) {
+      // eslint-disable-next-line no-console
+      console.error("[FATAL] JWT_SECRET 未设置,生产环境必须通过环境变量注入随机 32+ 字节密钥");
+      process.exit(1);
+    }
+    if (fromEnv === DEFAULT_JWT_SECRET) {
+      // eslint-disable-next-line no-console
+      console.error("[FATAL] JWT_SECRET 不能使用代码默认值,请在 systemd EnvironmentFile 中设置随机密钥");
+      process.exit(1);
+    }
+    return fromEnv;
+  }
+  if (!fromEnv) {
+    // eslint-disable-next-line no-console
+    console.warn("[WARN] JWT_SECRET 未设置,正在使用默认开发密钥;部署前必须在生产环境通过环境变量注入");
+    return DEFAULT_JWT_SECRET;
+  }
+  if (fromEnv === DEFAULT_JWT_SECRET) {
+    // eslint-disable-next-line no-console
+    console.warn("[WARN] JWT_SECRET 等于代码默认值,部署前必须替换为随机密钥");
+  }
+  return fromEnv;
+}
+
+const JWT_SECRET = resolveJwtSecret();
 const JWT_EXPIRES_IN = "7d";
 
 export interface AuthUser {
