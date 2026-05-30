@@ -1,4 +1,5 @@
 import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode } from "@combat/shared";
+import type { DB } from "./db.js";
 
 /**
  * Hermes 的"agent"实现层。Hermes 是"用 agent 做只读问答"这一稳定概念,
@@ -47,6 +48,10 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string, co
     "   可用 hermes_ticketTabs(ticketId) 读该攻关单的自定义笔记标签 MD 文档。",
     "5. 回答正文之后另起一行输出你据以作答的真实节点 ID,格式:",
     "   CITATIONS: <id1>, <id2>   (没有可引用记录时输出 CITATIONS: 空)",
+    "6. 若答案是从 hermes_welinkSearch / hermes_welinkTimeline 的群消息里得到的(场景 3),",
+    "   除 CITATIONS 行之外再追加一行 JSON 数组,标记每条群消息引用,格式:",
+    "   WELINK_CITATIONS: [{\"messageId\":\"<welink 原 id>\",\"brief\":\"前 30 字摘要\"}]",
+    "   答案正文里也要用 [YYYY-MM-DD HH:MM] 格式标注每条引用消息发生时间。",
     ...(context ? ["", `当前上下文:${context}`] : []),
     "",
     `问题:${question}`,
@@ -54,17 +59,41 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string, co
 }
 
 const CITE_RE = /CITATIONS\s*[:：]\s*(.*)$/im;
+const WELINK_CITE_RE = /WELINK_CITATIONS\s*[:：]\s*(\[[\s\S]*?\])/i;
 
-/** 从 agent 文本里拆出答案正文与其申明的引用 ID(a2)。 */
-export function parseAgentOutput(text: string): { answer: string; citedIds: string[] } {
-  const m = text.match(CITE_RE);
-  if (!m || m.index === undefined) return { answer: text.trim(), citedIds: [] };
-  const answer = text.slice(0, m.index).trim();
+export interface WelinkCiteHint { messageId: string; brief?: string }
+
+/** 从 agent 文本里拆出答案正文 / 节点 ID 引用 / Welink 消息引用提示(场景 3)。 */
+export function parseAgentOutput(text: string): {
+  answer: string;
+  citedIds: string[];
+  welinkHints: WelinkCiteHint[];
+} {
+  // 1) 先抽 WELINK_CITATIONS(它在 CITATIONS 之后,先切掉避免污染答案)
+  let body = text;
+  const welinkHints: WelinkCiteHint[] = [];
+  const wm = body.match(WELINK_CITE_RE);
+  if (wm && wm.index !== undefined) {
+    try {
+      const arr = JSON.parse(wm[1]);
+      if (Array.isArray(arr)) {
+        for (const it of arr) {
+          const mid = String(it?.messageId ?? "").trim();
+          if (mid) welinkHints.push({ messageId: mid, brief: it?.brief ? String(it.brief) : undefined });
+        }
+      }
+    } catch { /* 解析失败,welinkHints 保持空 */ }
+    body = body.slice(0, wm.index) + body.slice(wm.index + wm[0].length);
+  }
+  // 2) 再抽 CITATIONS
+  const m = body.match(CITE_RE);
+  if (!m || m.index === undefined) return { answer: body.trim(), citedIds: [], welinkHints };
+  const answer = body.slice(0, m.index).trim();
   const raw = m[1].trim();
   const citedIds = (raw === "" || raw === "空" || raw === "无")
     ? []
     : raw.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean);
-  return { answer, citedIds };
+  return { answer, citedIds, welinkHints };
 }
 
 /**
@@ -84,6 +113,56 @@ export function buildCitations(repo: Repository, citedIds: string[]): HermesCita
   return out;
 }
 
+/**
+ * 把 agent 给的 welink messageId 回查 DB,只有真实存在的消息才能成为 citation。
+ * 防止 agent 编 messageId — 前端跳转的锚点必须可达。
+ * - db: welink 消息存储 DB(可选;无 db 则直接丢弃所有 welink 引用)
+ * - ticketIdHint: 从 context 解析出的当前攻关单 id(用于优先用 ticket 维度查;无则全库查)
+ */
+export function buildWelinkCitations(
+  db: DB | undefined,
+  hints: WelinkCiteHint[],
+  ticketIdHint?: string,
+): HermesCitation[] {
+  if (!db || hints.length === 0) return [];
+  const seen = new Set<string>();
+  const out: HermesCitation[] = [];
+  const stmtByTicket = db.prepare(
+    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE ticket_id = ? AND message_id = ? AND deleted_at IS NULL LIMIT 1",
+  );
+  const stmtAny = db.prepare(
+    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE message_id = ? AND deleted_at IS NULL LIMIT 1",
+  );
+  for (const h of hints) {
+    const key = `${ticketIdHint || "*"}:${h.messageId}`;
+    if (seen.has(key)) continue;
+    let row: any = null;
+    if (ticketIdHint) row = stmtByTicket.get(ticketIdHint, h.messageId);
+    if (!row) row = stmtAny.get(h.messageId);
+    if (!row) continue;
+    seen.add(key);
+    const brief = h.brief ? h.brief.slice(0, 60) : String(row.content || "").slice(0, 60);
+    out.push({
+      nodeId: `welink:${row.id}`,
+      nodeType: "welinkMessage",
+      summary: `${row.author} · ${String(row.sent_at).slice(0, 16).replace("T", " ")}${brief ? " · " + brief : ""}`,
+      link: `/attack/${row.ticket_id}?tab=welink&welinkMsg=${encodeURIComponent(row.message_id)}`,
+      kind: "welink",
+      messageId: String(row.message_id),
+      ticketId: String(row.ticket_id),
+    });
+  }
+  return out;
+}
+
+const TICKET_ID_HINT_RE = /(?:ticketId|攻关单\s*id|ticket\s*id)\s*[=:：]\s*([a-zA-Z0-9-]+)/i;
+
+function extractTicketIdHint(context?: string): string | undefined {
+  if (!context) return undefined;
+  const m = context.match(TICKET_ID_HINT_RE);
+  return m ? m[1] : undefined;
+}
+
 /** 编排一次 agent 问答,产出与规则引擎同契约的 HermesAnswer。 */
 export async function answerWithAgent(
   repo: Repository,
@@ -91,10 +170,18 @@ export async function answerWithAgent(
   question: string,
   runner: AgentRunner,
   context?: string,
+  db?: DB,
 ): Promise<HermesAnswer> {
   const prompt = buildHermesPrompt(registry, question, context);
   const text = await runner.run(prompt);
-  const { answer, citedIds } = parseAgentOutput(text);
-  const citations = buildCitations(repo, citedIds);
-  return { question, intent: "agent", answer: answer || "未找到相关记录。", citations };
+  const { answer, citedIds, welinkHints } = parseAgentOutput(text);
+  const nodeCitations = buildCitations(repo, citedIds);
+  const ticketIdHint = extractTicketIdHint(context);
+  const welinkCitations = buildWelinkCitations(db, welinkHints, ticketIdHint);
+  return {
+    question,
+    intent: "agent",
+    answer: answer || "未找到相关记录。",
+    citations: [...nodeCitations, ...welinkCitations],
+  };
 }

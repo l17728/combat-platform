@@ -114,6 +114,98 @@ export interface Reminder {
   createdAt: string;
 }
 
+export interface WelinkAttachment {
+  type?: string;
+  url?: string;
+  name?: string;
+}
+
+export interface WelinkUploadMessage {
+  messageId: string;
+  sentAt: string;
+  author: string;
+  authorId?: string;
+  content: string;
+  attachments?: WelinkAttachment[];
+  raw?: unknown;
+}
+
+export interface WelinkImage {
+  filename?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  size?: number;
+  md5?: string;
+}
+
+export interface WelinkCardContext {
+  preMsg?: { content?: string; nameZH?: string; sender?: string };
+  replyMsg?: { content?: string };
+}
+
+export interface WelinkContentJson {
+  cardType?: number;
+  cardContext?: WelinkCardContext;
+  [k: string]: unknown;
+}
+
+export interface WelinkMessage {
+  id: string;
+  ticketId: string;
+  messageId: string;
+  sentAt: string;
+  author: string;
+  authorId: string | null;
+  content: string;
+  contentType: string;
+  contentJson: WelinkContentJson | null;
+  images: WelinkImage[];
+  attachments: WelinkAttachment[];
+  raw: string | null;
+  selected: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
+export type WelinkExtractionKind = 'entity' | 'event' | 'decision' | 'dispute' | 'gap';
+
+export interface WelinkExtraction {
+  id: string;
+  ticketId: string;
+  kind: WelinkExtractionKind;
+  label: string;
+  payload: any;
+  sourceMsgIds: string[];
+  createdAt: string;
+  createdBy: string | null;
+  reviewed: boolean;
+}
+
+export interface WelinkAnalyzeResult {
+  ok: boolean;
+  queued: number;
+  extracted: number;
+  source: 'agent' | 'heuristic' | 'agent+heuristic' | 'noop';
+  extractions: WelinkExtraction[];
+  message?: string;
+}
+
+export interface WelinkGapSender {
+  name: string;
+  senderId: string;
+  appearedCount: number;
+  suggestion: string;
+}
+
+export interface WelinkGapAnalysis {
+  ticketId: string;
+  welinkActiveSenders: string[];
+  welinkActiveNames: string[];
+  ticketMembers: { 姓名: string; 角色: string }[];
+  gap: WelinkGapSender[];
+}
+
 export interface QueryContext {
   node: GraphNode;
   related: {
@@ -788,6 +880,125 @@ export class Api {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ order }),
+    });
+  }
+
+  uploadWelinkMessages(
+    ticketId: string,
+    messages: WelinkUploadMessage[],
+  ): Promise<{ inserted: number; updated: number; total: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+  }
+
+  listWelinkMessages(
+    ticketId: string,
+    filter: {
+      author?: string;
+      since?: string;
+      until?: string;
+      keyword?: string;
+      includeDeleted?: boolean;
+      offset?: number;
+      limit?: number;
+    } = {},
+  ): Promise<{ messages: WelinkMessage[]; stats: { total: number; selected: number; deleted: number } }> {
+    const p = new URLSearchParams();
+    if (filter.author) p.set('author', filter.author);
+    if (filter.since) p.set('since', filter.since);
+    if (filter.until) p.set('until', filter.until);
+    if (filter.keyword) p.set('keyword', filter.keyword);
+    if (filter.includeDeleted) p.set('includeDeleted', 'true');
+    if (filter.offset !== undefined) p.set('offset', String(filter.offset));
+    if (filter.limit !== undefined) p.set('limit', String(filter.limit));
+    const qs = p.toString();
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages${qs ? '?' + qs : ''}`);
+  }
+
+  deleteAllWelinkMessages(ticketId: string): Promise<{ deleted: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages`, { method: 'DELETE' });
+  }
+
+  deleteWelinkMessage(ticketId: string, messageIdOrId: string): Promise<{ deleted: number }> {
+    return this.req(
+      `/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/${encodeURIComponent(messageIdOrId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  batchDeleteWelinkMessages(ticketId: string, ids: string[]): Promise<{ deleted: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/batch-delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  updateWelinkSelection(
+    ticketId: string,
+    ids: string[],
+    selected: boolean,
+  ): Promise<{ updated: number; selected: boolean }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/selection`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids, selected }),
+    });
+  }
+
+  analyzeWelinkMessages(ticketId: string): Promise<WelinkAnalyzeResult> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/analyze`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  }
+
+  listWelinkExtractions(
+    ticketId: string,
+    opts?: { kind?: string; reviewed?: boolean },
+  ): Promise<{ items: WelinkExtraction[] }> {
+    const p = new URLSearchParams();
+    if (opts?.kind) p.set('kind', opts.kind);
+    if (opts?.reviewed != null) p.set('reviewed', String(opts.reviewed));
+    const qs = p.toString();
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions${qs ? '?' + qs : ''}`);
+  }
+
+  updateWelinkExtraction(
+    ticketId: string,
+    extId: string,
+    patch: { reviewed?: boolean; label?: string; payload?: unknown },
+  ): Promise<WelinkExtraction> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions/${encodeURIComponent(extId)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  deleteWelinkExtraction(ticketId: string, extId: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions/${encodeURIComponent(extId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  welinkGapAnalysis(ticketId: string): Promise<WelinkGapAnalysis> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink/gap-analysis`);
+  }
+
+  welinkAddMembers(
+    ticketId: string,
+    names: string[],
+    role?: '组长' | '组员',
+  ): Promise<{ ok: boolean; added: number; members: { 姓名: string; 角色: string }[] }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink/add-members`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ names, role }),
     });
   }
 }

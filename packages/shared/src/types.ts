@@ -149,7 +149,18 @@ export const ROLE_LABELS: Record<Role, string> = { normal: "普通", leader: "Le
 export interface EscalationRule { 事件级别: string; slaHours: number; 上升角色: string; }
 export interface EscalationConfig { rules: EscalationRule[]; }
 export interface EscalationScanResult { overdue: number; escalated: number; }
-export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
+export interface HermesCitation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;
+  link: string;
+  /** 'node'(默认)|'welink'(指向某攻关单 welink 群消息) */
+  kind?: 'node' | 'welink';
+  /** kind='welink' 时为 welink message id(供前端跳转/高亮锚点) */
+  messageId?: string;
+  /** kind='welink' 时为所属攻关单 id */
+  ticketId?: string;
+}
 // §57: dynamic UI widget spec — each Hermes answer may include a widget
 export type UiWidgetType = "TABLE" | "STATS" | "MERMAID" | "TIMELINE" | "CARD_GRID";
 export interface UiTableRow { [key: string]: string | number | null }

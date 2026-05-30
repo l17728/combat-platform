@@ -9,7 +9,15 @@ import { useDraggable } from '../hooks/useDraggable.js';
 
 const { Text } = Typography;
 
-interface Citation { nodeId: string; nodeType: string; summary: string; link: string }
+interface Citation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;
+  link: string;
+  kind?: 'node' | 'welink';
+  messageId?: string;
+  ticketId?: string;
+}
 interface Msg { role: 'user' | 'assistant'; text: string; citations?: Citation[] }
 
 /**
@@ -20,7 +28,20 @@ export default function HermesChat({
   title = 'AI 问答',
   placeholder = '基于知识库提问,如:PB-xxx 谁负责 / 最近的攻关单 / 某人贡献了什么',
   bottom = 88,
-}: { title?: string; placeholder?: string; bottom?: number }) {
+  context,
+  greeting,
+  testId,
+}: {
+  title?: string;
+  placeholder?: string;
+  bottom?: number;
+  /** 透传给 /hermes/ask 的上下文(如"当前攻关单 id=xxx") */
+  context?: string;
+  /** 浮窗打开时由 AI 先发一条欢迎/提示语,可作场景 4 的 gap-analysis 入口 */
+  greeting?: string;
+  /** Playwright 选择器 */
+  testId?: string;
+}) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -32,14 +53,14 @@ export default function HermesChat({
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [msgs, loading]);
 
-  const ask = async () => {
-    const question = q.trim();
+  const ask = async (raw?: string) => {
+    const question = (raw ?? q).trim();
     if (!question || loading) return;
     setMsgs((m) => [...m, { role: 'user', text: question }]);
     setQ('');
     setLoading(true);
     try {
-      const res = await api.hermesAsk(question);
+      const res = await api.hermesAsk(question, context);
       setMsgs((m) => [...m, { role: 'assistant', text: res.answer || '未找到相关记录。', citations: res.citations }]);
     } catch (e: any) {
       setMsgs((m) => [...m, { role: 'assistant', text: `出错了:${e.message}` }]);
@@ -47,6 +68,14 @@ export default function HermesChat({
       setLoading(false);
     }
   };
+
+  // 打开浮窗后,若提供了 greeting 且尚无消息,主动追加一条 assistant 欢迎语
+  useEffect(() => {
+    if (open && greeting && msgs.length === 0) {
+      setMsgs([{ role: 'assistant', text: greeting }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, greeting]);
 
   const initial = {
     x: typeof window !== 'undefined' ? Math.max(0, window.innerWidth - 464) : 100,
@@ -62,6 +91,7 @@ export default function HermesChat({
         tooltip={title}
         onClick={() => setOpen(true)}
         style={{ right: 24, bottom }}
+        data-testid={testId}
       />
       {open && (
         <div
@@ -117,11 +147,22 @@ export default function HermesChat({
                       <div style={{ marginTop: 6 }}>
                         <Text type="secondary" style={{ fontSize: 11 }}>来源:</Text>{' '}
                         <Space size={[4, 4]} wrap>
-                          {m.citations.map((c) => (
-                            <Tag key={c.nodeId} color="blue" style={{ cursor: 'pointer', margin: 0 }} onClick={() => { setOpen(false); navigate(c.link); }}>
-                              {c.summary}
-                            </Tag>
-                          ))}
+                          {m.citations.map((c) => {
+                            const isWelink = c.kind === 'welink';
+                            return (
+                              <Tooltip key={c.nodeId} title={isWelink ? '点击跳转到该群消息(将自动滚动并高亮)' : '点击跳转到该节点详情'}>
+                                <Tag
+                                  color={isWelink ? 'geekblue' : 'blue'}
+                                  style={{ cursor: 'pointer', margin: 0 }}
+                                  data-testid={isWelink ? 'hermes-welink-citation' : 'hermes-node-citation'}
+                                  data-welink-msg-id={c.messageId}
+                                  onClick={() => { setOpen(false); navigate(c.link); }}
+                                >
+                                  {isWelink ? '群消息 · ' : ''}{c.summary}
+                                </Tag>
+                              </Tooltip>
+                            );
+                          })}
                         </Space>
                       </div>
                     )}
@@ -143,10 +184,10 @@ export default function HermesChat({
           onChange={(e) => setQ(e.target.value)}
           placeholder={placeholder}
           autoSize={{ minRows: 2, maxRows: 4 }}
-          onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); ask(); } }}
+          onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); void ask(); } }}
           disabled={loading}
         />
-        <Button type="primary" icon={<SendOutlined />} block style={{ marginTop: 8 }} loading={loading} onClick={ask}>
+        <Button type="primary" icon={<SendOutlined />} block style={{ marginTop: 8 }} loading={loading} onClick={() => void ask()}>
           提问
         </Button>
           </div>

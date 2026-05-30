@@ -39,6 +39,7 @@ import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
+import { makeWelinkRouter } from "./welink.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
@@ -85,7 +86,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
       })
     : undefined;
   hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
-  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner));
+  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));
@@ -107,6 +108,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeBackupRouter(deps.db, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(deps.db));
     app.use("/api", makeDocumentRouter(deps.db));
+    app.use("/api", makeWelinkRouter(deps.db, deps.repo, hermesRunner));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });
