@@ -159,6 +159,18 @@ WantedBy=multi-user.target`;
   writeFileSync(tmpSvc, serviceContent);
   await uploadFile(c, tmpSvc, "/tmp/combat-v2.service");
 
+  // 安装 logrotate 规则:backend.log 每日轮转 + 50MB 上限 + 保留 7 份(< 350MB),防止
+  // append-only 写入长期撑爆磁盘。copytruncate 让 systemd append 句柄不中断。
+  const logrotateConf = join(here, "logrotate-combat-v2");
+  if (existsSync(logrotateConf)) {
+    await uploadFile(c, logrotateConf, "/tmp/logrotate-combat-v2");
+    await run(c,
+      "cp /tmp/logrotate-combat-v2 /etc/logrotate.d/combat-v2 && " +
+      "chmod 644 /etc/logrotate.d/combat-v2 && " +
+      "logrotate -d /etc/logrotate.d/combat-v2 2>&1 | tail -5"
+    , "logrotate");
+  }
+
   await run(c,
     `mkdir -p ${DEPLOY_PATH}/data && ` +
     "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
