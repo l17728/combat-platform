@@ -46,6 +46,14 @@ const TABLES_ORDER = [
   "ticket_tabs",
 ];
 
+// Phase 4: PG 端这些列是 JSONB,SQLite 里是 TEXT JSON 字符串。
+// 迁移时把 string 用 JSON.parse 转成 JS object,pg 驱动会用 jsonb 协议写入。
+const JSONB_COLUMNS = {
+  nodes: new Set(["properties"]),
+  edges: new Set(["properties"]),
+  audit_log: new Set(["changes"]),
+};
+
 function log(msg) {
   console.log(`[migrate] ${msg}`);
 }
@@ -149,6 +157,10 @@ async function main() {
       const cols = Object.keys(sample);
       const colsQuoted = cols.map(c => `"${c}"`).join(", ");
 
+      // Phase 4: 把 PG 端 JSONB 列名识别出来,迁移时 JSON.parse 一次,
+      // 让 pg 驱动用 jsonb 协议序列化(SQLite 那边是 TEXT JSON 字符串)。
+      const jsonbCols = JSONB_COLUMNS[table] ?? new Set();
+
       let offset = 0;
       while (offset < total) {
         const rows = sqlite.prepare(`SELECT * FROM ${table} LIMIT ? OFFSET ?`).all(batchSize, offset);
@@ -158,7 +170,18 @@ async function main() {
           const base = i * cols.length;
           return `(${cols.map((_, j) => `$${base + j + 1}`).join(", ")})`;
         }).join(", ");
-        const params = rows.flatMap(r => cols.map(c => r[c]));
+        const params = rows.flatMap(r => cols.map(c => {
+          const v = r[c];
+          if (jsonbCols.has(c)) {
+            if (v === null || v === undefined) return null;
+            if (typeof v !== "string") return v;
+            try { return JSON.parse(v); } catch {
+              // 历史脏数据回退:整个字符串包成 { _raw: ... } 保留
+              return { _raw: v };
+            }
+          }
+          return v;
+        }));
         await client.query(
           `INSERT INTO "${table}" (${colsQuoted}) VALUES ${placeholderRows} ON CONFLICT DO NOTHING`,
           params,
