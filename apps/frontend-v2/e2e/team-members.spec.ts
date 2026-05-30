@@ -21,7 +21,9 @@ test.describe('攻关单 - 成员管理与默认信息广场 tab', () => {
     await expect(page.locator('.ant-tabs-tab').filter({ hasText: '信息广场' })).toBeVisible({ timeout: 10000 });
   });
 
-  test('新建攻关时 攻关成员 是多选,可选多人;创建后成员管理 tab 列表正确', async ({ page }) => {
+  test('新建攻关时 攻关成员 是多选,可选多人;创建后成员管理 tab 列表正确', async ({ page }, testInfo) => {
+    // 全量跑套时人员表累积大量条目,Select 下拉渲染慢导致 selectOption 轮询超时;翻倍 timeout 吸收
+    testInfo.setTimeout(60_000);
     await page.goto('/attack');
     await page.getByRole('button', { name: '新建攻关' }).click();
     await waitForDrawer(page);
