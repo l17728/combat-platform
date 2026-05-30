@@ -130,6 +130,26 @@ export interface WelinkUploadMessage {
   raw?: unknown;
 }
 
+export interface WelinkImage {
+  filename?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  size?: number;
+  md5?: string;
+}
+
+export interface WelinkCardContext {
+  preMsg?: { content?: string; nameZH?: string; sender?: string };
+  replyMsg?: { content?: string };
+}
+
+export interface WelinkContentJson {
+  cardType?: number;
+  cardContext?: WelinkCardContext;
+  [k: string]: unknown;
+}
+
 export interface WelinkMessage {
   id: string;
   ticketId: string;
@@ -138,6 +158,9 @@ export interface WelinkMessage {
   author: string;
   authorId: string | null;
   content: string;
+  contentType: string;
+  contentJson: WelinkContentJson | null;
+  images: WelinkImage[];
   attachments: WelinkAttachment[];
   raw: string | null;
   selected: boolean;
