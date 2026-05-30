@@ -182,3 +182,29 @@
 **结语**: 这是一个 **底子非常厚** 的产品，被严肃打磨过，工程 craftmanship 在线，但 **产品视觉认知层** 还差一口气。把 AI 助手全站化 + Dashboard 改"以我为中心" + 引入键盘流，这三件做完，产品立刻进入 8.5/10 区间，可以面向客户 demo。再加 Kanban 多视图 + SLA 时钟，9/10 不是梦。
 
 — 评审人 @ 2026-05-30
+
+---
+
+## 已实施 (2026-05-31 @ `feature/roadmap-ux`)
+
+短期 7 条 quick wins 中 **5 项已落地**(还差面包屑自动派生 + 产品 Tour):
+
+| # | 任务 | Commit | 落点 |
+|---|------|--------|------|
+| 1 | **AI 助手全站浮窗** | `835a9d1` | `AppLayout.tsx` 末尾挂 `<HermesChat title="AI 问答" bottom={156} />`;删除 `KGGraph.tsx:387` 单独挂载,共享同一浮窗(后端 `/hermes/ask` 同一能力) |
+| 2 | **Dashboard 改"以我为中心"** | `b8b2ef4` | `Dashboard.tsx` 在 4 个 Statistic 之后加 3 张 size=small 卡片:**分配给我**(handler==me & 进行中) / **我的关注**(localStorage favorites) / **SLA 风险**(进行中且创建>3 天) |
+| 3 | **批量操作 v1 — AttackList rowSelection** | `7e2b12b` | `AttackList.tsx` Table 加 `rowSelection`;蓝色工具条暴露「批量删除(仅创建人,非本人静默跳过)」「批量加关注 ★」「取消选择」;深链 `?new=1` 触发新建抽屉(供 CommandPalette 调用) |
+| 4 | **键盘快捷键 v1 — Cmd+K 命令面板** | `6b927b9` | 新增 `components/CommandPalette.tsx`,Modal + 全局 `keydown` 监听 `Ctrl/Cmd+K`;12 条导航命令 + 「新建攻关单」操作 + 「搜索 "xxx"」兜底;↑↓ Enter Esc 键盘流;挂在 `AppLayout` |
+| 5 | **菜单瘦身** | `46fea44` | `AppLayout.tsx` 一级菜单从 10→6:作战态势/攻关管理/人员与荣誉/求助中心/工具/系统管理。文档中心/全局搜索/知识图谱/问题反馈/帮助中心收纳到新二级组「工具」(`ToolOutlined`);系统管理图标改 `SettingOutlined` 避免撞色 |
+
+未完成的 2 项 (留作下一轮):
+- 短期 #6 面包屑改路由树自动派生 (`PageBreadcrumb.tsx` ROUTE_MAP → 派生)
+- 短期 #7 Dashboard 产品 Tour (react-joyride,需引入新依赖)
+
+文档同步: `AGENTS.md` 加 UX 改进小节;`apps/frontend-v2/src/help-content.ts` 的 `dashboard` 加「以我为中心三卡」段落,`attackList` 加「批量操作」+「全局快捷键 Cmd+K」段落。
+
+落地小记:
+- HermesChat `bottom=156` 与 FloatingFeedback `bottom=24` 纵向 132px 间距,避免与截图反馈/拖拽碰撞。
+- AttackList 批量删除选了循环 deleteNode (后端无批量 API),非本人创建的静默跳过 — 既不阻断也不悄悄越权,提示中给出明细。
+- CommandPalette 不引入新依赖,基于 antd Modal+Input+List 实现;搜索匹配走简单字符顺序模糊+ keywords 命中,中文/拼音首字母都能找到。
+- 菜单瘦身后 `getSelectedKey`/`getOpenKeysForPath` 同步加 `tools` 分组识别,确保从 5 个收纳子页进入时父组自动展开。
