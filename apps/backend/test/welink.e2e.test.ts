@@ -184,6 +184,88 @@ describe("welink messages e2e", () => {
     expect((await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: ["x"] })).status).toBe(400);
   });
 
+  it("parses raw Welink format: msgId/sender/serverSendTime + TEXT_MSG/CARD_MSG/PICTURE_MSG", async () => {
+    const { app } = makeTestApp();
+    const tid = await createTicket(app);
+    const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
+      messages: [
+        {
+          msgId: "88984567318609400",
+          contentType: "TEXT_MSG",
+          sender: "l00865342",
+          serverSendTime: 1779691346372,
+          content: "陈挺,本周末之前能刷新完不",
+        },
+        {
+          msgId: "88997913706762960",
+          contentType: "CARD_MSG",
+          sender: "p30007122",
+          serverSendTime: 1779958274135,
+          content: {
+            cardType: 65,
+            cardContext: {
+              preMsg: { messageID: "abc", nameZH: "陈挺", sender: "c00493147", type: 0, content: "@蒲星武 黄色底纹的,先上" },
+              replyMsg: { type: 0, content: "@所有人 已刷新,https://example.com/" },
+            },
+          },
+        },
+        {
+          msgId: "89006566466688050",
+          contentType: "PICTURE_MSG",
+          sender: "c00493147",
+          serverSendTime: 1780131329333,
+          content: "[图片]",
+          images: [{ filename: "x.png", url: "https://cdn/x.png", width: 1745, height: 615, size: 190839, md5: "abc" }],
+        },
+      ],
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.inserted).toBe(3);
+
+    const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
+    expect(list.status).toBe(200);
+    const msgs = list.body.messages;
+    expect(msgs.length).toBe(3);
+
+    const text = msgs.find((m: any) => m.messageId === "88984567318609400");
+    expect(text.contentType).toBe("TEXT_MSG");
+    expect(text.content).toBe("陈挺,本周末之前能刷新完不");
+    expect(text.author).toBe("l00865342");
+    // epoch ms → ISO
+    expect(text.sentAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(text.contentJson).toBeNull();
+    expect(text.images).toEqual([]);
+
+    const card = msgs.find((m: any) => m.messageId === "88997913706762960");
+    expect(card.contentType).toBe("CARD_MSG");
+    expect(card.content).toBe("@所有人 已刷新,https://example.com/");
+    expect(card.contentJson).toBeTruthy();
+    expect(card.contentJson.cardContext.preMsg.content).toBe("@蒲星武 黄色底纹的,先上");
+
+    const pic = msgs.find((m: any) => m.messageId === "89006566466688050");
+    expect(pic.contentType).toBe("PICTURE_MSG");
+    expect(pic.content).toBe("[图片]");
+    expect(pic.images.length).toBe(1);
+    expect(pic.images[0].url).toBe("https://cdn/x.png");
+  });
+
+  it("normalizes epoch seconds + string timestamps to ISO", async () => {
+    const { app } = makeTestApp();
+    const tid = await createTicket(app);
+    const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
+      messages: [
+        { msgId: "ts-ms", sender: "u1", serverSendTime: 1779691346372, content: "ms" },
+        { msgId: "ts-sec", sender: "u2", serverSendTime: 1779691346, content: "sec" },
+        { msgId: "ts-iso", sender: "u3", sentAt: "2026-05-29T10:00:00Z", content: "iso" },
+      ],
+    });
+    expect(r.body.inserted).toBe(3);
+    const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
+    for (const m of list.body.messages) {
+      expect(m.sentAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    }
+  });
+
   it("skips messages missing required fields silently (does not fail whole batch)", async () => {
     const { app } = makeTestApp();
     const tid = await createTicket(app);

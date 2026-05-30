@@ -3,6 +3,15 @@ import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
 import type { DB } from "./db.js";
 
+export interface WelinkImage {
+  filename?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  size?: number;
+  md5?: string;
+}
+
 export interface WelinkMessage {
   id: string;
   ticketId: string;
@@ -11,6 +20,9 @@ export interface WelinkMessage {
   author: string;
   authorId: string | null;
   content: string;
+  contentType: string;
+  contentJson: unknown | null;
+  images: WelinkImage[];
   attachments: unknown[];
   raw: string | null;
   selected: boolean;
@@ -18,9 +30,16 @@ export interface WelinkMessage {
   createdAt: string;
 }
 
+function safeParse(s: any): any {
+  if (!s) return null;
+  if (typeof s !== "string") return s;
+  try { return JSON.parse(s); } catch { return null; }
+}
+
 function rowToMessage(r: any): WelinkMessage {
   let attachments: unknown[] = [];
   try { attachments = JSON.parse(r.attachments || "[]"); } catch { attachments = []; }
+  const images = safeParse(r.images_json) ?? [];
   return {
     id: r.id,
     ticketId: r.ticket_id,
@@ -29,6 +48,9 @@ function rowToMessage(r: any): WelinkMessage {
     author: r.author,
     authorId: r.author_id ?? null,
     content: r.content,
+    contentType: r.content_type ?? "TEXT_MSG",
+    contentJson: safeParse(r.content_json),
+    images: Array.isArray(images) ? images : [],
     attachments,
     raw: r.raw ?? null,
     selected: !!r.selected,
@@ -56,6 +78,87 @@ export function ensureWelinkMessagesTable(db: DB): void {
     CREATE UNIQUE INDEX IF NOT EXISTS uk_welink_msg ON welink_messages(ticket_id, message_id);
     CREATE INDEX IF NOT EXISTS idx_welink_msg_ticket ON welink_messages(ticket_id, sent_at);
   `);
+  // 增量列(已有表兼容)
+  const cols = db.prepare("PRAGMA table_info(welink_messages)").all() as Array<{ name: string }>;
+  const has = (n: string) => cols.some((c) => c.name === n);
+  if (!has("content_type")) {
+    db.exec(`ALTER TABLE welink_messages ADD COLUMN content_type TEXT NOT NULL DEFAULT 'TEXT_MSG'`);
+  }
+  if (!has("content_json")) {
+    db.exec(`ALTER TABLE welink_messages ADD COLUMN content_json TEXT`);
+  }
+  if (!has("images_json")) {
+    db.exec(`ALTER TABLE welink_messages ADD COLUMN images_json TEXT`);
+  }
+}
+
+// 把 epoch ms / 秒 / ISO 字符串统一转成 ISO 字符串
+function normalizeSentAt(raw: unknown): string {
+  if (raw == null) return "";
+  if (typeof raw === "number" && isFinite(raw)) {
+    // > 1e12 视为毫秒;> 1e9 视为秒
+    const ms = raw > 1e12 ? raw : raw > 1e9 ? raw * 1000 : raw;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? String(raw) : d.toISOString();
+  }
+  const s = String(raw).trim();
+  if (!s) return "";
+  // 全数字 → 当作 epoch ms / 秒
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    const ms = n > 1e12 ? n : n > 1e9 ? n * 1000 : n;
+    const d = new Date(ms);
+    return isNaN(d.getTime()) ? s : d.toISOString();
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? s : d.toISOString();
+}
+
+// 按 content_type 解析消息内容,返回 { content, contentJson, imagesJson }
+export function parseMessageContent(m: any): {
+  contentType: string;
+  content: string;
+  contentJson: string | null;
+  imagesJson: string | null;
+} {
+  const contentType = String(m.contentType ?? "TEXT_MSG");
+  if (contentType === "CARD_MSG") {
+    const card = m.content && typeof m.content === "object" ? m.content : null;
+    const replyContent = card?.cardContext?.replyMsg?.content;
+    const preContent = card?.cardContext?.preMsg?.content;
+    const content = String(replyContent ?? preContent ?? "");
+    return {
+      contentType,
+      content,
+      contentJson: card ? JSON.stringify(card) : null,
+      imagesJson: null,
+    };
+  }
+  if (contentType === "PICTURE_MSG") {
+    const content = m.content == null ? "[图片]" : String(m.content);
+    const images = Array.isArray(m.images) ? m.images : [];
+    return {
+      contentType,
+      content: content || "[图片]",
+      contentJson: null,
+      imagesJson: JSON.stringify(images),
+    };
+  }
+  // TEXT_MSG 和未知类型:content 是字符串则直接用,否则 stringify
+  if (m.content && typeof m.content === "object") {
+    return {
+      contentType,
+      content: "",
+      contentJson: JSON.stringify(m.content),
+      imagesJson: null,
+    };
+  }
+  return {
+    contentType,
+    content: m.content == null ? "" : String(m.content),
+    contentJson: null,
+    imagesJson: null,
+  };
 }
 
 export function makeWelinkRouter(db: DB): Router {
@@ -74,32 +177,43 @@ export function makeWelinkRouter(db: DB): Router {
     let updated = 0;
     const findStmt = db.prepare("SELECT id FROM welink_messages WHERE ticket_id = ? AND message_id = ?");
     const insertStmt = db.prepare(
-      `INSERT INTO welink_messages (id, ticket_id, message_id, sent_at, author, author_id, content, attachments, raw, selected, deleted_at, created_at)
-       VALUES (@id, @ticket_id, @message_id, @sent_at, @author, @author_id, @content, @attachments, @raw, @selected, NULL, @created_at)`,
+      `INSERT INTO welink_messages (id, ticket_id, message_id, sent_at, author, author_id, content, content_type, content_json, images_json, attachments, raw, selected, deleted_at, created_at)
+       VALUES (@id, @ticket_id, @message_id, @sent_at, @author, @author_id, @content, @content_type, @content_json, @images_json, @attachments, @raw, @selected, NULL, @created_at)`,
     );
     const updateStmt = db.prepare(
       `UPDATE welink_messages
-       SET sent_at = @sent_at, author = @author, author_id = @author_id, content = @content, attachments = @attachments, raw = @raw, deleted_at = NULL
+       SET sent_at = @sent_at, author = @author, author_id = @author_id, content = @content,
+           content_type = @content_type, content_json = @content_json, images_json = @images_json,
+           attachments = @attachments, raw = @raw, deleted_at = NULL
        WHERE id = @id`,
     );
 
     const tx = db.transaction((messages: any[]) => {
       for (const m of messages) {
-        const messageId = String(m.messageId ?? "").trim();
-        const sentAt = String(m.sentAt ?? "").trim();
-        const author = String(m.author ?? "").trim();
-        const content = m.content === undefined || m.content === null ? "" : String(m.content);
+        // 宽容兼容:messageId / id / msgId
+        const messageId = String(m.messageId ?? m.id ?? m.msgId ?? "").trim();
+        // sentAt / time / timestamp / serverSendTime — epoch ms 自动转 ISO
+        const sentAtRaw = m.sentAt ?? m.time ?? m.timestamp ?? m.serverSendTime ?? m.sendTime;
+        const sentAt = normalizeSentAt(sentAtRaw);
+        // author / sender / from / userName
+        const author = String(m.author ?? m.sender ?? m.from ?? m.userName ?? "").trim();
         if (!messageId || !sentAt || !author) continue;
+
+        const parsed = parseMessageContent(m);
+
         const existing = findStmt.get(ticketId, messageId) as { id: string } | undefined;
         const payload = {
           ticket_id: ticketId,
           message_id: messageId,
           sent_at: sentAt,
           author,
-          author_id: m.authorId ? String(m.authorId) : null,
-          content,
+          author_id: m.authorId ?? m.senderId ?? m.fromId ? String(m.authorId ?? m.senderId ?? m.fromId) : null,
+          content: parsed.content,
+          content_type: parsed.contentType,
+          content_json: parsed.contentJson,
+          images_json: parsed.imagesJson,
           attachments: JSON.stringify(Array.isArray(m.attachments) ? m.attachments : []),
-          raw: m.raw ? (typeof m.raw === "string" ? m.raw : JSON.stringify(m.raw)) : null,
+          raw: m.raw ? (typeof m.raw === "string" ? m.raw : JSON.stringify(m.raw)) : JSON.stringify(m),
           selected: 1,
           created_at: now,
         };
