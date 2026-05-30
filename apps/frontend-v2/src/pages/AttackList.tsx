@@ -67,8 +67,8 @@ export default function AttackList() {
   });
   const { getValues } = useSettings();
 
-  const STATUS_OPTIONS = getValues('状态');
-  const LEVEL_OPTIONS = getValues('事件级别');
+  const STATUS_OPTIONS = getValues('状态', ['待响应', '处理中', '进行中', '已解决', '已关闭']);
+  const LEVEL_OPTIONS = getValues('事件级别', ['P1', 'P2', 'P3', 'P4', 'P4A', 'P4B']);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

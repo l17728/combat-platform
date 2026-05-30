@@ -7,21 +7,23 @@
 
 | 项 | 数量 |
 |---|---|
-| 已迁(用 `getValues`) | 13 处 |
-| 待迁(本轮目标) | 8 处 |
+| 已迁(用 `getValues`) | 21 处(13 旧 + 8 本轮) |
+| 待迁 | 0 处 |
 | 已排除(不算硬编码) | 6 处 |
+
+**本轮覆盖文件**:`BugReport.tsx`、`FloatingFeedback.tsx`、`ProposalsPage.tsx`、`RemindersPage.tsx`、`AttackDetail.tsx`(团队角色 + 4 处补 fallback)、`AttackList.tsx`、`Contributions.tsx`、`HelpCenter.tsx`、`InfoSquare.tsx`。所有调用统一用 `getValues(key, fallback)` 二参形式;`scripts/settings-seed.mjs` 同步加入新 key (`Bug 状态`/`Bug 严重程度`/`提案状态`/`提醒状态`/`团队角色`)。
 
 ## 待迁清单(本轮处理)
 
 | 文件:行 | 控件 | 当前硬编码 | settings key | 默认值 | 状态 |
 |---|---|---|---|---|---|
-| `components/FloatingFeedback.tsx:10` | `Select` 严重程度 | `['严重','较高','一般','建议']` | `Bug 严重程度` | `['严重','较高','一般','建议']` | 待迁 |
-| `pages/BugReport.tsx:268` | `Select` 状态筛选 | `['待处理','处理中','已解决','已关闭']` | `Bug 状态` | `['待处理','处理中','已解决','已关闭']` | 待迁 |
-| `pages/BugReport.tsx:311` | `Select` 严重程度(提交) | `['严重','较高','一般','建议']` | `Bug 严重程度` | 同上 | 待迁 |
-| `pages/BugReport.tsx:484` | `Select` 严重程度(编辑) | `['严重','较高','一般','建议']` | `Bug 严重程度` | 同上 | 待迁 |
-| `pages/ProposalsPage.tsx:232` | `Select` 状态筛选 | `['待审批','已通过','已拒绝']` | `提案状态` | `['待审批','已通过','已拒绝']` | 待迁 |
-| `pages/RemindersPage.tsx:184` | `Select` 状态筛选 | `['待发送','已发送','已忽略']` | `提醒状态` | `['待发送','已发送','已忽略']` | 待迁 |
-| `pages/AttackDetail.tsx:43,1011` | `Select` 团队角色 | `['组长','组员']` | `团队角色` | `['组长','组员']` | 待迁 |
+| `components/FloatingFeedback.tsx:10` | `Select` 严重程度 | `['严重','较高','一般','建议']` | `Bug 严重程度` | `['严重','较高','一般','建议']` | 已迁 |
+| `pages/BugReport.tsx:268` | `Select` 状态筛选 | `['待处理','处理中','已解决','已关闭']` | `Bug 状态` | `['待处理','处理中','已解决','已关闭']` | 已迁 |
+| `pages/BugReport.tsx:311` | `Select` 严重程度(提交) | `['严重','较高','一般','建议']` | `Bug 严重程度` | 同上 | 已迁 |
+| `pages/BugReport.tsx:484` | `Select` 严重程度(编辑) | `['严重','较高','一般','建议']` | `Bug 严重程度` | 同上 | 已迁 |
+| `pages/ProposalsPage.tsx:232` | `Select` 状态筛选 | `['待审批','已通过','已拒绝']` | `提案状态` | `['待审批','已通过','已拒绝']` | 已迁 |
+| `pages/RemindersPage.tsx:184` | `Select` 状态筛选 | `['待发送','已发送','已忽略']` | `提醒状态` | `['待发送','已发送','已忽略']` | 已迁 |
+| `pages/AttackDetail.tsx:43,1011` | `Select` 团队角色 | `['组长','组员']` | `团队角色` | `['组长','组员']` | 已迁 |
 | `pages/InfoSquare.tsx:128-133` | `Select` 信息分类/重要程度 fallback | 内联 `['通知','公告',...]` | `信息分类`/`重要程度` | 已用 getValues,只需把 inline fallback 折进 `getValues(key, fallback)` 二参 | 待整理 |
 
 ## 已迁(只列查证位置,本轮不改)

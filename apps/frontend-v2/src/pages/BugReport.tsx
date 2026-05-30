@@ -10,12 +10,16 @@ import { BUG_SEVERITY_COLOR, BUG_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DAT
 import { getCapturedLogs, clearCapturedLogs } from '../utils/console-capture.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import { useSettings } from '../hooks/useSettings.js';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
 export default function BugReport() {
+  const { getValues } = useSettings();
+  const BUG_STATUSES = getValues('Bug 状态', ['待处理', '处理中', '已解决', '已关闭']);
+  const BUG_SEVERITIES = getValues('Bug 严重程度', ['严重', '较高', '一般', '建议']);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>('待处理');
@@ -265,12 +269,7 @@ export default function BugReport() {
             style={{ width: 120 }}
             value={statusFilter}
             onChange={(v) => setStatusFilter(v)}
-            options={[
-              { value: '待处理', label: '待处理' },
-              { value: '处理中', label: '处理中' },
-              { value: '已解决', label: '已解决' },
-              { value: '已关闭', label: '已关闭' },
-            ]}
+            options={BUG_STATUSES.map((v) => ({ value: v, label: v }))}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setDrawerOpen(true)}>
             提交问题
@@ -308,12 +307,7 @@ export default function BugReport() {
             <Input placeholder="简要描述发现的问题" />
           </Form.Item>
           <Form.Item name="severity" label="严重程度" initialValue="一般">
-            <Select options={[
-              { value: '严重', label: '严重' },
-              { value: '较高', label: '较高' },
-              { value: '一般', label: '一般' },
-              { value: '建议', label: '建议' },
-            ]} />
+            <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="description" label="问题描述">
             <TextArea rows={4} placeholder="详细描述问题现象、复现步骤、预期行为等" />
@@ -481,12 +475,7 @@ export default function BugReport() {
             <Input placeholder="简要描述发现的问题" />
           </Form.Item>
           <Form.Item name="severity" label="严重程度">
-            <Select options={[
-              { value: '严重', label: '严重' },
-              { value: '较高', label: '较高' },
-              { value: '一般', label: '一般' },
-              { value: '建议', label: '建议' },
-            ]} />
+            <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
           </Form.Item>
           <Form.Item name="description" label="问题描述">
             <TextArea rows={4} placeholder="详细描述问题现象、复现步骤、预期行为等" />

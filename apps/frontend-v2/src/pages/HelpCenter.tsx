@@ -32,8 +32,8 @@ const { Title, Text } = Typography;
 
 export default function HelpCenter() {
   const { getValues } = useSettings();
-  const CATEGORY_OPTIONS = getValues('求助分类');
-  const HELP_STATUS_OPTIONS = getValues('求助中心状态');
+  const CATEGORY_OPTIONS = getValues('求助分类', ['环境', '领域专家', '团队协作', '资源']);
+  const HELP_STATUS_OPTIONS = getValues('求助中心状态', ['待回复', '已回复']);
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();

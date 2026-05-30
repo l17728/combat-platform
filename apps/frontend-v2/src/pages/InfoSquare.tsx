@@ -48,8 +48,8 @@ function toCardData(node: GraphNode): CardData {
 export default function InfoSquare() {
   const { getValues } = useSettings();
   const { user, isAdmin } = useAuth();
-  const categories = getValues('信息分类');
-  const importanceLevels = getValues('重要程度');
+  const categories = getValues('信息分类', ['通知', '公告', '经验', '预警', '其他']);
+  const importanceLevels = getValues('重要程度', ['重要', '一般', '普通']);
 
   const [cards, setCards] = useState<CardData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,13 +124,8 @@ export default function InfoSquare() {
     }
   };
 
-  const categoryOptions = categories.length > 0
-    ? categories.map(v => ({ value: v, label: v }))
-    : ['通知', '公告', '经验', '预警', '其他'].map(v => ({ value: v, label: v }));
-
-  const importanceOptions = importanceLevels.length > 0
-    ? importanceLevels.map(v => ({ value: v, label: v }))
-    : ['重要', '一般', '普通'].map(v => ({ value: v, label: v }));
+  const categoryOptions = categories.map(v => ({ value: v, label: v }));
+  const importanceOptions = importanceLevels.map(v => ({ value: v, label: v }));
 
   return (
     <div>

@@ -19,8 +19,8 @@ const { Title } = Typography;
 export default function Contributions() {
   const navigate = useNavigate();
   const { getValues } = useSettings();
-  const CONTRIB_TYPES = getValues('贡献类型');
-  const CONTRIB_LEVELS = getValues('贡献等级');
+  const CONTRIB_TYPES = getValues('贡献类型', ['实施', '发现', '协调', '指导', '支持']);
+  const CONTRIB_LEVELS = getValues('贡献等级', ['核心', '关键', '普通']);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [teamNodes, setTeamNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);

@@ -3,14 +3,15 @@ import { FloatButton, Drawer, Form, Input, Select, Button, message, Image } from
 import { CameraOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { useSettings } from '../hooks/useSettings.js';
 import { getCapturedLogs } from '../utils/console-capture.js';
 
 const { TextArea } = Input;
 
-const SEVERITY_OPTIONS = ['严重', '较高', '一般', '建议'].map((v) => ({ value: v, label: v }));
-
 export default function FloatingFeedback() {
   const { user } = useAuth();
+  const { getValues } = useSettings();
+  const SEVERITY_OPTIONS = getValues('Bug 严重程度', ['严重', '较高', '一般', '建议']).map((v) => ({ value: v, label: v }));
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);

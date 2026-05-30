@@ -19,6 +19,7 @@ import type { Reminder } from '../api.js';
 import { REMINDER_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import { useSettings } from '../hooks/useSettings.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -26,6 +27,8 @@ dayjs.extend(relativeTime);
 const { Title, Text, Paragraph } = Typography;
 
 export default function RemindersPage() {
+  const { getValues } = useSettings();
+  const REMINDER_STATUSES = getValues('提醒状态', ['待发送', '已发送', '已忽略']);
   const [data, setData] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>('待发送');
@@ -181,11 +184,7 @@ export default function RemindersPage() {
             style={{ width: 120 }}
             value={statusFilter}
             onChange={(v) => setStatusFilter(v)}
-            options={[
-              { value: '待发送', label: '待发送' },
-              { value: '已发送', label: '已发送' },
-              { value: '已忽略', label: '已忽略' },
-            ]}
+            options={REMINDER_STATUSES.map((v) => ({ value: v, label: v }))}
           />
           <Button icon={<ScanOutlined />} loading={scanning} onClick={handleScan}>
             扫描提醒

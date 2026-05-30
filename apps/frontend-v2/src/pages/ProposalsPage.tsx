@@ -20,6 +20,7 @@ import { PROPOSAL_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from
 import { nodeLabel } from '../utils/nodeLabel.js';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import { useSettings } from '../hooks/useSettings.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 dayjs.extend(relativeTime);
@@ -27,6 +28,8 @@ dayjs.extend(relativeTime);
 const { Title, Text } = Typography;
 
 export default function ProposalsPage() {
+  const { getValues } = useSettings();
+  const PROPOSAL_STATUSES = getValues('提案状态', ['待审批', '已通过', '已拒绝']);
   const [data, setData] = useState<RelationProposal[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | undefined>('待审批');
@@ -229,11 +232,7 @@ export default function ProposalsPage() {
             style={{ width: 120 }}
             value={statusFilter}
             onChange={(v) => setStatusFilter(v)}
-            options={[
-              { value: '待审批', label: '待审批' },
-              { value: '已通过', label: '已通过' },
-              { value: '已拒绝', label: '已拒绝' },
-            ]}
+            options={PROPOSAL_STATUSES.map((v) => ({ value: v, label: v }))}
           />
           <Button icon={<ScanOutlined />} loading={scanning} onClick={handleScan}>
             扫描候选
