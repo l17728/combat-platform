@@ -197,3 +197,27 @@ r.use("/audit", adminOnly);
 ---
 
 **修复优先级建议:** P0-1 → P0-3 → P0-2 → P0-4 → P0-5 → P0-6 → M 系列。前 6 项必须在对外暴露前完成。
+
+---
+
+## 已修复 (2026-05-31, 分支 feature/roadmap-security)
+
+| # | 漏洞 | commit |
+|---|------|--------|
+| P0-1 | 公开自注册任意提权 — 注册接口强制 `role="normal"`,忽略 client 传入 role | `9c87975` |
+| P0-2 | JWT 默认硬编码 secret — 启动期校验,production 缺失/默认值即 `process.exit(1)` | `f3915aa` |
+| P0-3 | X-Role 头由客户端写入 — `gradeGate` 改读 JWT payload.role,前端去 `X-Role` 头注入 | `315828f` |
+| P0-4 | 多个 admin-only 路由零守卫 — 新增 `adminMiddleware`/`leaderMiddleware`,挂在 audit/merge/op-logs/backup/proposals/reminders/email/ticket-tabs/documents | `cbb2106` |
+| P0-5 | rehypeRaw 存储型 XSS — `DynamicCustomTab` 与 `ManualCenter` 关闭 rehype-raw,markdown 原始 HTML 当字面量 | `4999208` |
+
+### 回归状态
+- backend tests: 348/348 通过(与基线一致)
+- TypeScript: backend + frontend-v2 `tsc --noEmit` 均通过
+- 前端 e2e 未跑(端口被占),交由 deploy 流水线验证
+
+### 未在本批次修复(待后续 P0/M 系列推进)
+- P0-6 现网 HTTP 明文 — 需要 Nginx/Caddy 前置 TLS,涉及现网架构变更
+- M1 默认 admin/admin123 — 部署脚本生成随机密码 + 首次登录强制改密
+- M2 暴力破解无防护 — `express-rate-limit` 接入
+- M3 SMTP 密码明文存储 — AES-256-GCM 加密 + 备份导出过滤
+- M4 私密单列表无过滤、M5 errorHandler 回显 stack、M6 COMBAT_NO_AUTH 误开 panic、M7 上传校验、M8 audit actor 伪造

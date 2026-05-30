@@ -977,3 +977,50 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **修复**：1) 清理现网假 issue（按 reporter 筛选删除）；2) demo-seed 改为只创建 2 条已关闭的"演示数据"并明确标注
 - **教训**：seed/mock 脚本绝对不能生成伪造的用户反馈、审计日志、操作日志等业务数据。问题反馈是用户真实输入，填充假数据会误导开发和运维
 - **预防**：demo-seed 只生成结构性数据（人员、攻关单、贡献），不生成反馈类数据
+
+## 安全 P0 修复 (2026-05-31)
+
+依据 `docs/REVIEWS/REVIEW_security.md`(OWASP 红蓝队评分 3/10)实施 P0 修复,
+合并前总评 D 级,合并后核心鉴权链路达 C+。分支 `feature/roadmap-security`。
+
+| # | 漏洞 | 文件 | commit |
+|---|------|------|--------|
+| P0-1 | 公开自注册任意提权 | `apps/backend/src/auth.ts:82-110` | 9c87975 |
+| P0-2 | JWT 默认硬编码 secret | `apps/backend/src/auth.ts:8-43` | f3915aa |
+| P0-3 | X-Role 头由 localStorage 决定 | `apps/backend/src/routes.ts:94-107`, `apps/frontend-v2/src/api.ts:146` | 315828f |
+| P0-4 | 敏感路由零守卫(merge/backup/email/op-log/audit/proposals/reminders/ticket-tabs/documents) | `apps/backend/src/auth.ts:270-318`, `apps/backend/src/app.ts:60-79` | cbb2106 |
+| P0-5 | rehypeRaw 存储型 XSS | `apps/frontend-v2/src/components/DynamicCustomTab.tsx:157`, `apps/frontend-v2/src/pages/ManualCenter.tsx:62` | 4999208 |
+
+### 关键设计点
+
+- **JWT_SECRET 启动校验** (`auth.ts:resolveJwtSecret`):
+  - production 未设置/等于默认串 → `process.exit(1)`
+  - dev/test 未设置 → console.warn 但允许默认串(测试 bypass)
+  - 部署 systemd Unit 必须 `EnvironmentFile=/etc/combat-v2.env` 注入 32+ 字节随机串
+
+- **adminMiddleware/leaderMiddleware** (`auth.ts`):
+  - `COMBAT_NO_AUTH=1` → 直放(保留 e2e bypass,348 测试全绿)
+  - 无效 token → 401;角色不足 → 403 + audit log
+
+- **挂载策略**:仅当 `deps.db` 存在且非 COMBAT_NO_AUTH 时挂载,
+  无 db 的纯 e2e 单元测试(如 audit/reminders/email)继续 bypass
+
+- **gradeGate 改造**:`req.headers["x-role"]` → `verifyAuth(req).role`,
+  curl 伪造 `X-Role: admin` 不再奏效;前端 api.ts 同步移除 X-Role 头注入
+
+- **rehypeRaw 移除**:`DynamicCustomTab` + `ManualCenter` 均不再渲染原始 HTML,
+  markdown 内 `<script>` 等会作为字面量字符串显示。`highlightMd` 一并简化。
+
+### 回归测试
+
+- backend: 348/348 通过(基线一致)
+- TypeScript: backend + frontend-v2 `tsc --noEmit` 均无报错
+- 前端 e2e 因端口被占未跑,改在并入 master 前由 deploy 流水线验证
+
+### 部署前必须做
+
+1. 现网 systemd `combat-v2.service` 增加 `Environment=JWT_SECRET=<32+ 字节随机>`
+   或 `EnvironmentFile=/etc/combat-v2.env`(600 权限,owner root)
+2. 旋转 secret 同时所有现存 token 失效,通知现役账号重新登录
+3. 前端 `localStorage.removeItem('combat-role')` (已无用,但避免缓存残留),
+   清理后端日志中遗留的 X-Role 痕迹(`grep "x-role" /opt/combat-v2/backend.log`)
