@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Tooltip, theme } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { useEffect, useMemo, useState } from 'react';
+import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Tooltip, theme, Button } from 'antd';
+import { ReloadOutlined, CloseOutlined } from '@ant-design/icons';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT_FULL } from '../constants.js';
 import { nodeLabel } from '../utils/nodeLabel.js';
@@ -18,11 +19,15 @@ export default function AuditLog() {
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>();
   const [entityNames, setEntityNames] = useState<Record<string, string>>({}); // id → 实体名称缓存
   const { token } = theme.useToken();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  // 从 URL ?entityId= 自动过滤(供攻关单详情「合规追溯」卡跳转使用)
+  const entityIdFilter = useMemo(() => searchParams.get('entityId') || undefined, [searchParams]);
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      setLogs(await api.listAudit({ action: actionFilter, entityType: entityTypeFilter, limit: 200 }));
+      setLogs(await api.listAudit({ action: actionFilter, entityType: entityTypeFilter, entityId: entityIdFilter, limit: 200 }));
     } catch (e: any) {
       message.error(e.message);
     } finally {
@@ -30,7 +35,13 @@ export default function AuditLog() {
     }
   };
 
-  useEffect(() => { fetchLogs(); }, [actionFilter, entityTypeFilter]);
+  useEffect(() => { fetchLogs(); }, [actionFilter, entityTypeFilter, entityIdFilter]);
+
+  const clearEntityFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('entityId');
+    setSearchParams(next, { replace: true });
+  };
 
   // 按当前日志里 node 类型条目批量反查节点名,缓存复用;已删除显示「(已删除)」
   useEffect(() => {
@@ -152,6 +163,11 @@ export default function AuditLog() {
           onChange={setEntityTypeFilter}
           options={Object.entries(ENTITY_TYPE_LABEL).map(([v, label]) => ({ value: v, label }))}
         />
+        {entityIdFilter && (
+          <Tag color="blue" closable closeIcon={<CloseOutlined />} onClose={clearEntityFilter}>
+            已过滤实体: {entityNames[entityIdFilter] ? entityNames[entityIdFilter] : '(加载中)'}
+          </Tag>
+        )}
       </Space>
 
       {loading ? (

@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { Input, Button, Space, message, Divider, Card } from 'antd';
-import { DeleteOutlined, RobotOutlined, SendOutlined, SearchOutlined, EditOutlined, UpOutlined } from '@ant-design/icons';
+import { Input, Button, Space, message, Divider, Card, Tooltip } from 'antd';
+import { DeleteOutlined, RobotOutlined, SendOutlined, SearchOutlined, EditOutlined, UpOutlined, DragOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { api, type TicketTab } from '../api.js';
+import { useDraggable } from '../hooks/useDraggable.js';
 
 const { TextArea } = Input;
 
@@ -181,28 +182,56 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
         })}
       </div>
 
-      {chatOpen && (
-        <div style={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          width: 360,
-          background: '#fff',
-          borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-          zIndex: 1000,
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 12px',
-            background: '#fafafa',
-            borderBottom: '1px solid #f0f0f0',
-          }}>
-            <Space><RobotOutlined style={{ color: '#1890ff' }} /> AI助手</Space>
-            <Button type="text" size="small" icon={<UpOutlined />} onClick={() => setChatOpen(false)}>收起</Button>
+      {chatOpen && <AIChatPanel question={question} setQuestion={setQuestion} chatLoading={chatLoading} handleAsk={handleAsk} onClose={() => setChatOpen(false)} />}
+    </div>
+  );
+}
+
+// AI 助手浮窗:支持鼠标拖拽(顶部条作 handle),边界限制在视口内
+function AIChatPanel({
+  question, setQuestion, chatLoading, handleAsk, onClose,
+}: {
+  question: string;
+  setQuestion: (v: string) => void;
+  chatLoading: boolean;
+  handleAsk: () => void;
+  onClose: () => void;
+}) {
+  const initial = {
+    x: typeof window !== 'undefined' ? Math.max(0, window.innerWidth - 384) : 100,
+    y: typeof window !== 'undefined' ? Math.max(0, window.innerHeight - 280) : 100,
+  };
+  const { pos, onMouseDown } = useDraggable(initial);
+  return (
+    <div style={{
+      position: 'fixed',
+      left: pos.x,
+      top: pos.y,
+      width: 360,
+      background: '#fff',
+      borderRadius: 8,
+      boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+      zIndex: 1000,
+      overflow: 'hidden',
+    }}>
+          <div
+            onMouseDown={onMouseDown}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 12px',
+              background: '#fafafa',
+              borderBottom: '1px solid #f0f0f0',
+              cursor: 'move',
+              userSelect: 'none',
+            }}
+          >
+            <Space>
+              <Tooltip title="按住拖拽移动"><DragOutlined style={{ color: '#999' }} /></Tooltip>
+              <RobotOutlined style={{ color: '#1890ff' }} /> AI助手
+            </Space>
+            <Button type="text" size="small" icon={<UpOutlined />} onClick={onClose}>收起</Button>
           </div>
           <div style={{ padding: 12 }}>
             <TextArea
@@ -217,8 +246,6 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
               提问
             </Button>
           </div>
-        </div>
-      )}
     </div>
   );
 }

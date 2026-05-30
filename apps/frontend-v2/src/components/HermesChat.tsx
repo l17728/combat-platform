@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FloatButton, Drawer, Input, Button, Spin, Empty, Tag, Typography, Space } from 'antd';
-import { RobotOutlined, SendOutlined, UserOutlined } from '@ant-design/icons';
+import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip } from 'antd';
+import { RobotOutlined, SendOutlined, UserOutlined, CloseOutlined, DragOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { api } from '../api.js';
+import { useDraggable } from '../hooks/useDraggable.js';
 
 const { Text } = Typography;
 
@@ -47,6 +48,12 @@ export default function HermesChat({
     }
   };
 
+  const initial = {
+    x: typeof window !== 'undefined' ? Math.max(0, window.innerWidth - 464) : 100,
+    y: typeof window !== 'undefined' ? Math.max(80, window.innerHeight - 560) : 100,
+  };
+  const { pos, onMouseDown } = useDraggable(initial);
+
   return (
     <>
       <FloatButton
@@ -56,13 +63,38 @@ export default function HermesChat({
         onClick={() => setOpen(true)}
         style={{ right: 24, bottom }}
       />
-      <Drawer
-        title={<Space><RobotOutlined style={{ color: '#1677ff' }} />{title}</Space>}
-        open={open}
-        onClose={() => setOpen(false)}
-        width={440}
-        styles={{ body: { display: 'flex', flexDirection: 'column', padding: 12 } }}
-      >
+      {open && (
+        <div
+          style={{
+            position: 'fixed',
+            left: pos.x,
+            top: pos.y,
+            width: 440,
+            maxHeight: '80vh',
+            background: '#fff',
+            borderRadius: 8,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+            zIndex: 1100,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            onMouseDown={onMouseDown}
+            style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '10px 16px', background: '#fafafa', borderBottom: '1px solid #f0f0f0',
+              cursor: 'move', userSelect: 'none',
+            }}
+          >
+            <Space>
+              <Tooltip title="按住拖拽移动"><DragOutlined style={{ color: '#999' }} /></Tooltip>
+              <RobotOutlined style={{ color: '#1677ff' }} /><Text strong>{title}</Text>
+            </Space>
+            <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+          </div>
+          <div style={{ padding: 12, display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div ref={listRef} style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
           {msgs.length === 0 && !loading && (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="向 AI 提问,基于知识库作答并给出可点击的来源" />
@@ -117,7 +149,9 @@ export default function HermesChat({
         <Button type="primary" icon={<SendOutlined />} block style={{ marginTop: 8 }} loading={loading} onClick={ask}>
           提问
         </Button>
-      </Drawer>
+          </div>
+        </div>
+      )}
     </>
   );
 }

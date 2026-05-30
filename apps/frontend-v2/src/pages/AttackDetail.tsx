@@ -16,6 +16,8 @@ import { api, type TicketTab } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL, NODE_TYPE_LABEL } from '../constants.js';
 import { nodeLabel } from '../utils/nodeLabel.js';
 import { parseMembers, syncMemberFields, buildMembersFromForm, type TeamMember, type TeamRole } from '../utils/teamMembers.js';
+import { filterKeyAudits, type CategorizedAudit } from '../utils/auditFilter.js';
+import { useAuth } from '../hooks/useAuth.js';
 import StatusTag from '../components/StatusTag.js';
 import AddTabModal from '../components/AddTabModal.js';
 import DynamicLinkTab from '../components/DynamicLinkTab.js';
@@ -35,7 +37,7 @@ dayjs.locale('zh-cn');
 const { Title, Text, Paragraph } = Typography;
 const STATUS_STEPS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
 // 攻关成员/成员列表 由专用多选 + 成员管理 tab 维护,不在 extraEditFields 通用渲染中出现
-const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关成员', '成员列表', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
+const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关成员', '成员列表', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '创建人']);
 const SUMMARY_FIELD_IDS = new Set(['标题', '问题单号', '事件单号', '事件级别', '影响及现存风险', '客户名称', '故障发生时间', '当前处理人', '攻关组长']);
 const TEAM_FIELDS = new Set(['攻关组长', '攻关成员']);
 const ROLE_OPTIONS: TeamRole[] = ['组长', '组员'];
@@ -111,16 +113,30 @@ export default function AttackDetail() {
 
   const [dynamicTabs, setDynamicTabs] = useState<TicketTab[]>([]);
   const [addTabOpen, setAddTabOpen] = useState(false);
-  const [visibleCards, setVisibleCards] = useState<string[]>(['helpers', 'team']);
+  // 面板默认收起,腾空间给主内容;用户主动勾选才显示卡;不持久化(每次进来都默认收起)
+  const [visibleCards, setVisibleCards] = useState<string[]>([]);
+
+  // 基础信息字段隐藏:按用户名持久化到 localStorage;若未保存则全部显示
+  const auth = useAuth();
+  const basicFieldsKey = `attack-detail-hidden-basic-fields:${auth.user?.username || 'guest'}`;
+  const [hiddenBasicFields, setHiddenBasicFields] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(basicFieldsKey) || '[]'); }
+    catch { return []; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(basicFieldsKey, JSON.stringify(hiddenBasicFields)); } catch {}
+  }, [hiddenBasicFields, basicFieldsKey]);
 
   // 成员管理 drawer 状态:editingIdx 为 null 时是新增,数字时是修改对应下标的成员
   const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
   const [editingMemberIdx, setEditingMemberIdx] = useState<number | null>(null);
   const [memberForm] = Form.useForm<{ 姓名: string; 角色: TeamRole }>();
 
+  const { isAdmin, isLeader } = auth;
+  // 合规追溯 卡仅对 leader/admin 开放;normal 角色看不到
   const SIDEBAR_CARD_OPTIONS = [
     { key: 'helpers', label: '找帮手推荐' },
-    { key: 'team', label: '攻关成员' },
+    ...(isLeader ? [{ key: 'audit', label: '合规追溯' }] : []),
   ];
 
   const STATUS_OPTIONS = getValues('状态').length > 0 ? getValues('状态') : STATUS_STEPS;
@@ -367,6 +383,37 @@ export default function AttackDetail() {
     await updateMembers(members.filter((_, i) => i !== idx));
   };
 
+  // 进展 Timeline 合并:原始 progress + 过滤后的关键审计事件(状态流转/升级/合并/成员变更),按时间倒序
+  const keyAudits = filterKeyAudits(auditLogs);
+  type TLEntry = { ts: string; color: string; node: React.ReactNode };
+  const progressTL: TLEntry[] = progress.map(p => ({
+    ts: p.updatedAt,
+    color: STATUS_COLOR[p.statusSnapshot] ?? 'gray',
+    node: (
+      <div>
+        <div><Text strong>{dayjs(p.updatedAt).format('MM/DD HH:mm')}</Text> <StatusTag status={p.statusSnapshot} /></div>
+        <Paragraph style={{ margin: '4px 0 0' }}>{p.content}</Paragraph>
+      </div>
+    ),
+  }));
+  const auditTL: TLEntry[] = keyAudits.map((c, i) => ({
+    ts: c.entry.performedAt,
+    color: c.color,
+    node: (
+      <div key={`a-${i}`}>
+        <div>
+          <Text strong>{dayjs(c.entry.performedAt).format('MM/DD HH:mm')}</Text>
+          <Tag color={c.color} style={{ marginLeft: 6 }}>{c.kind}</Tag>
+          {c.entry.performedBy && <Text type="secondary" style={{ marginLeft: 4 }}>· {c.entry.performedBy}</Text>}
+        </div>
+        <Paragraph style={{ margin: '4px 0 0' }}>{c.summary}</Paragraph>
+      </div>
+    ),
+  }));
+  const timelineItems = [...progressTL, ...auditTL]
+    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+    .map((e, idx) => ({ color: e.color, children: <div key={idx}>{e.node}</div> }));
+
   const memberColumns = [
     { title: '姓名', dataIndex: '姓名', key: '姓名', render: (v: string) => <Space><Avatar size="small" icon={<UserOutlined />} /><Text strong>{v}</Text></Space> },
     { title: '角色', dataIndex: '角色', key: '角色', width: 120, render: (v: TeamRole) => <Tag color={v === '组长' ? 'gold' : 'blue'}>{v}</Tag> },
@@ -388,8 +435,36 @@ export default function AttackDetail() {
       key: 'basic', label: <span><InfoCircleOutlined /> 基础信息</span>,
       children: (
         <div style={{ padding: '16px 0' }}>
+          <Space style={{ marginBottom: 12 }}>
+            <Popover
+              trigger="click"
+              placement="bottomLeft"
+              content={
+                <div style={{ minWidth: 220, maxHeight: 320, overflow: 'auto' }}>
+                  <Checkbox.Group
+                    value={basicFields.map(f => f.name).filter(n => !hiddenBasicFields.includes(n))}
+                    onChange={(vals) => {
+                      const visible = vals as string[];
+                      setHiddenBasicFields(basicFields.map(f => f.name).filter(n => !visible.includes(n)));
+                    }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                  >
+                    {basicFields.map(f => <Checkbox key={f.name} value={f.name}>{f.label}</Checkbox>)}
+                  </Checkbox.Group>
+                  {hiddenBasicFields.length > 0 && (
+                    <Button type="link" size="small" onClick={() => setHiddenBasicFields([])} style={{ paddingLeft: 0, marginTop: 8 }}>
+                      全部恢复
+                    </Button>
+                  )}
+                </div>
+              }
+            >
+              <Button icon={<AppstoreOutlined />} size="small">字段管理{hiddenBasicFields.length > 0 ? `(已隐藏 ${hiddenBasicFields.length})` : ''}</Button>
+            </Popover>
+            <Text type="secondary" style={{ fontSize: 12 }}>勾选要显示的字段;偏好按用户保存,下次进来仍生效。</Text>
+          </Space>
           <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
-            {basicFields.map(f => (
+            {basicFields.filter(f => !hiddenBasicFields.includes(f.name)).map(f => (
               <Descriptions.Item key={f.name} label={f.label}>
                 {String(props[f.name] ?? '--')}
               </Descriptions.Item>
@@ -418,12 +493,14 @@ export default function AttackDetail() {
       key: 'progress', label: <span><SwapOutlined /> 进展同步</span>,
       children: (
         <div style={{ padding: '16px 0' }}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setProgressOpen(true)} style={{ marginBottom: 16 }}>追加进展</Button>
-          {progress.length === 0 ? <Empty description="暂无进展记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-            <Timeline items={progress.map(p => ({
-              color: STATUS_COLOR[p.statusSnapshot] ?? 'gray',
-              children: <div><div><Text strong>{dayjs(p.updatedAt).format('MM/DD HH:mm')}</Text> <StatusTag status={p.statusSnapshot} /></div><Paragraph style={{ margin: '4px 0 0' }}>{p.content}</Paragraph></div>,
-            }))} />
+          <Space style={{ marginBottom: 16 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setProgressOpen(true)}>追加进展</Button>
+            {isLeader && (
+              <Button icon={<HistoryOutlined />} onClick={() => navigate(`/audit?entityId=${id}`)}>查看完整历史</Button>
+            )}
+          </Space>
+          {timelineItems.length === 0 ? <Empty description="暂无进展记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
+            <Timeline items={timelineItems} />
           )}
         </div>
       ),
@@ -435,34 +512,6 @@ export default function AttackDetail() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingDr(null); drForm.resetFields(); setDrModalOpen(true); }} style={{ marginBottom: 16 }}>创建</Button>
           <Table size="small" loading={drLoading} dataSource={dailyReports} columns={drColumns} rowKey="id"
             pagination={{ pageSize: 10 }} locale={{ emptyText: <Empty description="暂无日报条目" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} />
-        </div>
-      ),
-    },
-    {
-      key: 'audit', label: <span><HistoryOutlined /> 历史记录</span>,
-      children: (
-        <div style={{ padding: '16px 0' }}>
-          {auditLogs.length === 0 ? <Empty description="暂无审计记录" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : (
-            <List size="small" dataSource={auditLogs} renderItem={a => (
-              <List.Item>
-                <Space size={8}>
-                  <Text type="secondary">{dayjs(a.performedAt).format(DATE_FORMAT_SHORT)}</Text>
-                  <Tag color={ACTION_COLOR[a.action]}>{ACTION_LABEL[a.action] || a.action}</Tag>
-                  <Text>{a.performedBy}</Text>
-                  <Text type="secondary">{ENTITY_TYPE_LABEL[a.entityType] || a.entityType}</Text>
-                  {(() => {
-                    const ch = a.changes as Record<string, unknown> | undefined;
-                    if (!ch || typeof ch !== 'object' || Object.keys(ch).length === 0) return null;
-                    return (
-                      <Tooltip title={Object.entries(ch).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join('\n')}>
-                        <Tag>{Object.keys(ch).length}项变更</Tag>
-                      </Tooltip>
-                    );
-                  })()}
-                </Space>
-              </List.Item>
-            )} />
-          )}
         </div>
       ),
     },
@@ -608,7 +657,16 @@ export default function AttackDetail() {
             editForm.setFieldsValue({ ...(props as any), 攻关成员: onlyMembers });
             setEditOpen(true);
           }}>编辑信息</Button>
-          <Popconfirm title="确认删除此攻关单？" onConfirm={handleDelete}><Button danger icon={<DeleteOutlined />}>删除</Button></Popconfirm>
+          {(() => {
+            // 删除按钮仅创建人本人可见;管理员/Leader 看不到;无创建人(老数据)也不显示
+            const creator = String(props['创建人'] ?? '').trim();
+            const canDelete = !!creator && !!auth.user?.username && creator === auth.user.username;
+            return canDelete ? (
+              <Popconfirm title="确认删除此攻关单？" onConfirm={handleDelete}>
+                <Button danger icon={<DeleteOutlined />}>删除</Button>
+              </Popconfirm>
+            ) : null;
+          })()}
         </Space>
       </div>
 
@@ -704,20 +762,39 @@ export default function AttackDetail() {
               )} />
             </Card>
           )}
-          {visibleCards.includes('team') && (
+          {visibleCards.includes('audit') && isLeader && (
             <Card
-              title="攻关成员"
+              title="合规追溯"
               size="small"
+              style={{ marginBottom: 16 }}
               extra={
                 <Space size={4}>
-                  <TeamOutlined />
-                  <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setVisibleCards(prev => prev.filter(k => k !== 'team'))} />
+                  <HistoryOutlined />
+                  <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setVisibleCards(prev => prev.filter(k => k !== 'audit'))} />
                 </Space>
               }
             >
-              <Descriptions column={1} size="small">
-                {teamFields.map(f => <Descriptions.Item key={f.name} label={f.label}>{String(props[f.name] ?? '-')}</Descriptions.Item>)}
-              </Descriptions>
+              {isAdmin && keyAudits.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>最近关键事件</Text>
+                  <List
+                    size="small"
+                    dataSource={keyAudits.slice(0, 3)}
+                    renderItem={(c) => (
+                      <List.Item style={{ padding: '4px 0' }}>
+                        <Space size={6}>
+                          <Tag color={c.color} style={{ margin: 0 }}>{c.kind}</Tag>
+                          <Text style={{ fontSize: 12 }}>{c.summary}</Text>
+                          <Text type="secondary" style={{ fontSize: 11 }}>{dayjs(c.entry.performedAt).format('MM/DD HH:mm')}</Text>
+                        </Space>
+                      </List.Item>
+                    )}
+                  />
+                </div>
+              )}
+              <Button type="link" icon={<HistoryOutlined />} onClick={() => navigate(`/audit?entityId=${id}`)} style={{ paddingLeft: 0 }}>
+                查看完整历史 →
+              </Button>
             </Card>
           )}
         </Col>}

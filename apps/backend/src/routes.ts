@@ -87,6 +87,12 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const { nodeType } = req.params;
     const gate = gradeGate(req, nodeType);
     if (gate) return res.status(403).json({ error: gate });
+    // 攻关单注入「创建人」=当前登录用户;COMBAT_NO_AUTH 模式下退回 'admin',
+    // 与 /auth/me 返回的默认管理员一致,便于 e2e 走删除路径。
+    if (nodeType === "attackTicket" && !req.body?.["创建人"]) {
+      const creator = (req as any).user?.username || "admin";
+      req.body = { ...req.body, "创建人": creator };
+    }
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
     const node = repo.createNode(nodeType, req.body, "api");
@@ -124,7 +130,17 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   });
 
   r.delete("/nodes/:id", (req, res) => {
-    if (!repo.getNode(req.params.id)) return res.status(404).json({ error: "not found" });
+    const cur = repo.getNode(req.params.id);
+    if (!cur) return res.status(404).json({ error: "not found" });
+    // 攻关单删除:仅创建人本人可删;管理员也不行。无创建人的老数据 (升级前) 视为孤儿,谁都不能从 UI 删,
+    // 必要时管理员走 CLI/直连 DB 清理。COMBAT_NO_AUTH 模式下 req.user 缺失,放行以保留 e2e/CLI 行为。
+    if (cur.nodeType === "attackTicket" && process.env.COMBAT_NO_AUTH !== "1") {
+      const creator = String(cur.properties?.["创建人"] ?? "").trim();
+      const username = (req as any).user?.username;
+      if (!creator || !username || creator !== username) {
+        return res.status(403).json({ error: "仅创建人可删除该攻关单" });
+      }
+    }
     repo.deleteNode(req.params.id, "api");
     log.info("node.delete", { id: req.params.id });
     res.json({ ok: true });

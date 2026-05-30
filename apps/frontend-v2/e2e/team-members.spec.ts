@@ -71,7 +71,7 @@ test.describe('攻关单 - 成员管理与默认信息广场 tab', () => {
     await selectOption(page, addDrawer.locator('.ant-form-item').filter({ hasText: '姓名' }).locator('.ant-select').first(), '周组长');
     await selectOption(page, addDrawer.locator('.ant-form-item').filter({ hasText: '角色' }).locator('.ant-select').first(), '组长');
     await addDrawer.locator('.ant-drawer-extra button').click();
-    await expect(page.getByText('成员已更新')).toBeVisible();
+    await expect(page.getByText('成员已更新').last()).toBeVisible();
 
     // 表格里应有这一行
     await expect(page.locator('.ant-tabs-tabpane-active').locator('tbody').getByText('周组长')).toBeVisible();
@@ -82,7 +82,7 @@ test.describe('攻关单 - 成员管理与默认信息广场 tab', () => {
     const editDrawer = page.locator('.ant-drawer').last();
     await selectOption(page, editDrawer.locator('.ant-form-item').filter({ hasText: '角色' }).locator('.ant-select').first(), '组员');
     await editDrawer.locator('.ant-drawer-extra button').click();
-    await expect(page.getByText('成员已更新')).toBeVisible();
+    await expect(page.getByText('成员已更新').last()).toBeVisible();
     await expect(page.locator('.ant-tabs-tabpane-active').locator('tbody').locator('tr').filter({ hasText: '周组长' }).locator('.ant-tag').filter({ hasText: '组员' })).toBeVisible();
 
     // API 验证回写:此时无组长,攻关组长应为空
@@ -94,7 +94,7 @@ test.describe('攻关单 - 成员管理与默认信息广场 tab', () => {
     // 删除该成员
     await page.locator('.ant-tabs-tabpane-active').locator('tbody').locator('tr').filter({ hasText: '周组长' }).getByText(/删\s?除/).click();
     await page.getByRole('button', { name: /确\s?定/ }).click();
-    await expect(page.getByText('成员已更新')).toBeVisible();
+    await expect(page.getByText('成员已更新').last()).toBeVisible();
     await expect(page.locator('.ant-tabs-tabpane-active').locator('tbody').getByText('周组长')).not.toBeVisible();
   });
 });

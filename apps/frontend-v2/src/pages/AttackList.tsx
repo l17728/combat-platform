@@ -21,9 +21,9 @@ import 'dayjs/locale/zh-cn';
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 // 攻关成员/成员列表 由专用多选框 + 成员管理 tab 维护,不能让通用 extraFields 渲染成单行 Input
-const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '攻关成员', '成员列表']);
+const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '攻关成员', '成员列表', '创建人']);
 const DEFAULT_INFO_SQUARE_CONTENT = '# 信息广场\n\n在这里记录本攻关单的关键信息、决策记录、外部沟通要点等。\n';
 
 const STORAGE_KEY = 'attack-list-visible-columns';
@@ -280,15 +280,21 @@ export default function AttackList() {
 
     const opsCol = {
       key: '操作', title: '操作', width: 80, fixed: 'right' as const,
-      render: (_: unknown, r: GraphNode) => (
-        <Popconfirm title={`确认删除「${r.properties['标题'] ?? r.id.slice(0, 8)}」？`} onConfirm={() => handleDelete(r.id)}>
-          <a style={{ color: '#ff4d4f' }}>删除</a>
-        </Popconfirm>
-      ),
+      render: (_: unknown, r: GraphNode) => {
+        // 仅创建人本人能看到删除按钮(管理员也不行);老数据无创建人则隐藏
+        const creator = String(r.properties['创建人'] ?? '').trim();
+        const canDelete = !!creator && !!user?.username && creator === user.username;
+        if (!canDelete) return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
+        return (
+          <Popconfirm title={`确认删除「${r.properties['标题'] ?? '(未命名)'}」？`} onConfirm={() => handleDelete(r.id)}>
+            <a style={{ color: '#ff4d4f' }}>删除</a>
+          </Popconfirm>
+        );
+      },
     };
 
     return [favCol, idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
-  }, [visibleColumns, schema, navigate, handleDelete, favorites, toggleFavorite]);
+  }, [visibleColumns, schema, navigate, handleDelete, favorites, toggleFavorite, user]);
 
   const { columns: flexCols, FlexWrapper } = useFlexTable('attackTicket', columns);
 

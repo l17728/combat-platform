@@ -252,6 +252,12 @@
       "name": "成员列表",
       "type": "string",
       "label": "成员列表"
+    },
+    {
+      "id": "创建人",
+      "name": "创建人",
+      "type": "string",
+      "label": "创建人"
     }
   ]
 }
