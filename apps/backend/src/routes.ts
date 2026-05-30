@@ -12,14 +12,51 @@ import { scanAndCreateReminders } from "./reminders.js";
  * 节点保存后异步触发后台扫描任务（fire-and-forget）。
  * 仅对 attackTicket 变更调用，不阻塞 API 响应，失败只写日志。
  * scanAndCreateReminders 同时需要 registry，一并触发。
+ *
+ * conflicts 走 30s 防抖:全量重建 O(N + k²) 且每条边写 audit_log,连续 10 次保存
+ * = 10 次全量重建 = 数万次 INSERT。debounce 把窗口内多次保存合并成 1 次扫描,
+ * audit 写放大降低 10-100×。escalation/reminders 仍走 setImmediate(开销小)。
  */
+const CONFLICTS_DEBOUNCE_MS = 30_000;
+let conflictsDebounceTimer: NodeJS.Timeout | null = null;
+let conflictsDebounceRepo: Repository | null = null;
+
+function scheduleConflictsSync(repo: Repository): void {
+  conflictsDebounceRepo = repo;
+  if (conflictsDebounceTimer) clearTimeout(conflictsDebounceTimer);
+  conflictsDebounceTimer = setTimeout(() => {
+    conflictsDebounceTimer = null;
+    const r = conflictsDebounceRepo;
+    conflictsDebounceRepo = null;
+    if (!r) return;
+    try {
+      syncConflicts(r);
+      log.info("post_save.conflicts.debounced_run");
+    } catch (e) {
+      log.warn("post_save.conflicts.fail", { error: (e as Error).message });
+    }
+  }, CONFLICTS_DEBOUNCE_MS);
+  conflictsDebounceTimer.unref?.();
+}
+
+/** Test helper: flush pending debounced conflict scan immediately. Not used in prod. */
+export function __flushConflictsDebounceForTest(): void {
+  if (conflictsDebounceTimer) {
+    clearTimeout(conflictsDebounceTimer);
+    conflictsDebounceTimer = null;
+    const r = conflictsDebounceRepo;
+    conflictsDebounceRepo = null;
+    if (r) { try { syncConflicts(r); } catch { /* swallow */ } }
+  }
+}
+
 function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
   // Skip in test environment to avoid interfering with tests that explicitly
   // call scan endpoints (scans are idempotent — auto-trigger would consume the
   // first run, making the explicit test call return 0).
   if (process.env.NODE_ENV === "test") return;
+  scheduleConflictsSync(repo);
   setImmediate(() => {
-    try { syncConflicts(repo); } catch (e) { log.warn("post_save.conflicts.fail", { error: (e as Error).message }); }
     try { scanEscalation(repo); } catch (e) { log.warn("post_save.escalation.fail", { error: (e as Error).message }); }
     try { scanAndCreateReminders(repo, registry); } catch (e) { log.warn("post_save.reminders.fail", { error: (e as Error).message }); }
   });
