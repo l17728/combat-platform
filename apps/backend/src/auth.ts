@@ -80,8 +80,8 @@ export function makeAuthRouter(db: DB): Router {
   }));
 
   r.post("/auth/register", asyncHandler(async (req, res) => {
-    const { username, password, displayName, role } = req.body as {
-      username?: string; password?: string; displayName?: string; role?: string;
+    const { username, password, displayName } = req.body as {
+      username?: string; password?: string; displayName?: string;
     };
     if (!username || !password) {
       return res.status(400).json({ error: "请输入用户名和密码" });
@@ -99,7 +99,9 @@ export function makeAuthRouter(db: DB): Router {
     const hash = bcrypt.hashSync(password, 10);
     const now = new Date().toISOString();
     const id = randomUUID();
-    const userRole = ["admin", "leader"].includes(role ?? "") ? role! : "normal";
+    // 安全:公开自注册强制 role=normal,忽略客户端传入的 role 字段。
+    // 提升权限(leader/admin)必须由已登录的 admin 通过 POST /api/users 创建。
+    const userRole = "normal";
     db.prepare(
       "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
     ).run(id, username, hash, userRole, displayName ?? username, now, now);
