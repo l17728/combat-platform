@@ -7,7 +7,7 @@
  *   POST /api/db-migration/run            一键迁移(简化版,内部 spawn CLI 工具)
  *
  * 实现策略:
- *   - status: 读 process.env.DB_URL + 用 SQLite 端跑 SELECT count(*) 拿每表行数;
+ *   - status: 读 process.env.DB_URL + 用 adapter 跑 SELECT count(*) 拿每表行数;
  *             检查 <sqlitePath>.migrated-to-postgres 文件存在性
  *   - test-connection: 用 pg.Pool 临时连接 + SELECT 1
  *   - run: spawn 子进程跑 scripts/migrate/sqlite-to-postgres.mjs,阻塞返回结果
@@ -20,9 +20,9 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Pool as PgPool } from "pg";
-import type Database from "better-sqlite3";
 import { log, asyncHandler } from "./logger.js";
 import { parseDbUrl } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
 
 const TABLES = [
   "users", "app_settings", "nodes", "edges", "progress_log", "audit_log",
@@ -40,7 +40,7 @@ function adminOnly(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-export function makeDbMigrationRouter(sqliteDb: Database.Database, sqlitePath: string): Router {
+export function makeDbMigrationRouter(adapter: DbAdapter, sqlitePath: string): Router {
   const r = Router();
 
   r.use(adminOnly);
@@ -52,8 +52,8 @@ export function makeDbMigrationRouter(sqliteDb: Database.Database, sqlitePath: s
     const tables: { name: string; rows: number }[] = [];
     for (const t of TABLES) {
       try {
-        const row = sqliteDb.prepare(`SELECT COUNT(*) as c FROM ${t}`).get() as { c: number };
-        tables.push({ name: t, rows: row.c });
+        const row = await adapter.queryOne<{ c: number }>(`SELECT COUNT(*) as c FROM ${t}`);
+        tables.push({ name: t, rows: row?.c ?? 0 });
       } catch {
         tables.push({ name: t, rows: 0 });
       }
