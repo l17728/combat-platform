@@ -3,6 +3,7 @@ import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Toolti
 import { ReloadOutlined } from '@ant-design/icons';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT_FULL } from '../constants.js';
+import { nodeLabel } from '../utils/nodeLabel.js';
 import type { AuditLogEntry } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
@@ -15,6 +16,7 @@ export default function AuditLog() {
   const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState<string | undefined>();
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>();
+  const [entityNames, setEntityNames] = useState<Record<string, string>>({}); // id → 实体名称缓存
   const { token } = theme.useToken();
 
   const fetchLogs = async () => {
@@ -29,6 +31,25 @@ export default function AuditLog() {
   };
 
   useEffect(() => { fetchLogs(); }, [actionFilter, entityTypeFilter]);
+
+  // 按当前日志里 node 类型条目批量反查节点名,缓存复用;已删除显示「(已删除)」
+  useEffect(() => {
+    const need = new Set<string>();
+    for (const l of logs) {
+      if (l.entityType === 'node' && l.entityId && !(l.entityId in entityNames)) need.add(l.entityId);
+    }
+    if (need.size === 0) return;
+    let cancelled = false;
+    (async () => {
+      const updates: Record<string, string> = {};
+      await Promise.all([...need].map(async (id) => {
+        try { const n = await api.getNode(id); updates[id] = nodeLabel(n); }
+        catch { updates[id] = '(已删除)'; }
+      }));
+      if (!cancelled) setEntityNames((prev) => ({ ...prev, ...updates }));
+    })();
+    return () => { cancelled = true; };
+  }, [logs]);
 
   const renderChanges = (v: unknown) => {
     if (!v || typeof v !== 'object') return '-';
@@ -79,10 +100,20 @@ export default function AuditLog() {
       render: (v: string) => ENTITY_TYPE_LABEL[v] || v,
     },
     {
-      title: '实体ID',
+      title: '实体',
       dataIndex: 'entityId',
-      width: 90,
-      render: (v: string) => <Tooltip title={v}><Tag>{v.slice(0, 8)}</Tag></Tooltip>,
+      width: 200,
+      ellipsis: true,
+      render: (id: string, row: AuditLogEntry) => {
+        // 仅显示语义化名称;不再向用户暴露内部 UUID(技术追溯可通过浏览器开发工具或 changes 列查阅)
+        if (row.entityType === 'node') {
+          const nm = entityNames[id];
+          return nm
+            ? <Tooltip title={nm}><span>{nm}</span></Tooltip>
+            : <Tag>(加载中)</Tag>;
+        }
+        return <Tag>{ENTITY_TYPE_LABEL[row.entityType] ?? row.entityType}</Tag>;
+      },
     },
     {
       title: '变更详情',
