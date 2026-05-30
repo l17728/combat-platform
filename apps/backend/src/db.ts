@@ -109,6 +109,19 @@ export function openDb(path: string): DB {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS uk_welink_msg ON welink_messages(ticket_id, message_id);
     CREATE INDEX IF NOT EXISTS idx_welink_msg_ticket ON welink_messages(ticket_id, sent_at);
+    CREATE TABLE IF NOT EXISTS welink_extractions (
+      id             TEXT PRIMARY KEY,
+      ticket_id      TEXT NOT NULL,
+      kind           TEXT NOT NULL,
+      label          TEXT NOT NULL,
+      payload        TEXT NOT NULL,
+      source_msg_ids TEXT,
+      created_at     TEXT NOT NULL,
+      created_by     TEXT,
+      reviewed       INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_welink_ext_ticket ON welink_extractions(ticket_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_welink_ext_kind ON welink_extractions(ticket_id, kind);
   `);
   return db;
 }

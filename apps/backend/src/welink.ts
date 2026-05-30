@@ -2,6 +2,11 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
 import type { DB } from "./db.js";
+import type { Repository } from "@combat/shared";
+import type { AgentRunner } from "./hermes-agent.js";
+import {
+  runWelinkExtraction, listExtractions, getExtraction, updateExtraction, deleteExtraction,
+} from "./welink-extraction.js";
 
 export interface WelinkImage {
   filename?: string;
@@ -161,7 +166,7 @@ export function parseMessageContent(m: any): {
   };
 }
 
-export function makeWelinkRouter(db: DB): Router {
+export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner): Router {
   ensureWelinkMessagesTable(db);
   const r = Router();
 
@@ -334,18 +339,49 @@ export function makeWelinkRouter(db: DB): Router {
     res.json({ updated: n, selected });
   }));
 
-  // AI 分析占位
+  // AI 抽取:同步阻塞,落 welink_extractions
   r.post("/tickets/:id/welink-messages/analyze", asyncHandler(async (req, res) => {
     const ticketId = req.params.id;
-    const row = db.prepare(
-      "SELECT COUNT(*) AS c FROM welink_messages WHERE ticket_id = ? AND deleted_at IS NULL AND selected = 1",
-    ).get(ticketId) as { c: number };
-    log.info("welink.analyze_stub", { ticketId, queued: row.c });
-    res.json({
-      ok: true,
-      queued: row.c,
-      message: "AI 抽取功能下一阶段开放",
-    });
+    if (!repo) {
+      const row = db.prepare(
+        "SELECT COUNT(*) AS c FROM welink_messages WHERE ticket_id = ? AND deleted_at IS NULL AND selected = 1",
+      ).get(ticketId) as { c: number };
+      log.warn("welink.analyze_norepo", { ticketId, queued: row.c });
+      return res.json({ ok: true, queued: row.c, extracted: 0, source: "noop", extractions: [], message: "未注入 repo,跳过抽取" });
+    }
+    const result = await runWelinkExtraction(db, repo, ticketId, runner);
+    res.json({ ok: true, ...result });
+  }));
+
+  // 抽取结果 CRUD
+  r.get("/tickets/:id/welink-extractions", asyncHandler(async (req, res) => {
+    const ticketId = req.params.id;
+    const { kind, reviewed } = req.query as Record<string, string | undefined>;
+    const rev = reviewed == null ? null : reviewed === "true" ? true : reviewed === "false" ? false : null;
+    const items = listExtractions(db, ticketId, { kind: kind || undefined, reviewed: rev });
+    res.json({ items });
+  }));
+
+  r.patch("/tickets/:id/welink-extractions/:extId", asyncHandler(async (req, res) => {
+    const { extId } = req.params;
+    const body = req.body as { reviewed?: boolean; label?: string; payload?: any };
+    const updated = updateExtraction(db, extId, body || {});
+    if (!updated) return res.status(404).json({ error: "extraction 不存在" });
+    res.json(updated);
+  }));
+
+  r.delete("/tickets/:id/welink-extractions/:extId", asyncHandler(async (req, res) => {
+    const { extId } = req.params;
+    const ok = deleteExtraction(db, extId);
+    if (!ok) return res.status(404).json({ error: "extraction 不存在" });
+    res.json({ ok: true });
+  }));
+
+  // 单条详情(便于前端跳转 / agent 工具回查)
+  r.get("/tickets/:id/welink-extractions/:extId", asyncHandler(async (req, res) => {
+    const item = getExtraction(db, req.params.extId);
+    if (!item) return res.status(404).json({ error: "extraction 不存在" });
+    res.json(item);
   }));
 
   return r;

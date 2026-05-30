@@ -108,7 +108,7 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeBackupRouter(deps.db, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(deps.db));
     app.use("/api", makeDocumentRouter(deps.db));
-    app.use("/api", makeWelinkRouter(deps.db));
+    app.use("/api", makeWelinkRouter(deps.db, deps.repo, hermesRunner));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });

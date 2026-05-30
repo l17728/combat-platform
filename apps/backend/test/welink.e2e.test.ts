@@ -152,14 +152,14 @@ describe("welink messages e2e", () => {
     expect(after2.body.stats.selected).toBe(2);
   });
 
-  it("analyze endpoint is a stub returning queued count = currently selected & not-deleted", async () => {
+  it("analyze endpoint runs heuristic extraction when no agent runner (queued = selected, returns extractions)", async () => {
     const { app } = makeTestApp();
     const tid = await createTicket(app);
     await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
-        { messageId: "z1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-        { messageId: "z2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
-        { messageId: "z3", sentAt: "2026-05-29T10:02:00Z", author: "C", content: "3" },
+        { messageId: "z1", sentAt: "2026-05-29T10:00:00Z", author: "陈某", content: "OOM 排查开始" },
+        { messageId: "z2", sentAt: "2026-05-29T10:01:00Z", author: "李某", content: "我看下日志" },
+        { messageId: "z3", sentAt: "2026-05-29T10:02:00Z", author: "王某", content: "复现一下" },
       ],
     });
     const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
@@ -172,7 +172,12 @@ describe("welink messages e2e", () => {
     expect(an.status).toBe(200);
     expect(an.body.ok).toBe(true);
     expect(an.body.queued).toBe(2);
-    expect(an.body.message).toMatch(/下一阶段/);
+    expect(an.body.source).toBe("heuristic");
+    expect(an.body.extracted).toBeGreaterThan(0);
+    expect(Array.isArray(an.body.extractions)).toBe(true);
+    const kinds = new Set(an.body.extractions.map((e: any) => e.kind));
+    expect(kinds.has("entity")).toBe(true);
+    expect(kinds.has("gap")).toBe(true); // 攻关单成员为空,所有发言人都是 gap
   });
 
   it("rejects invalid payloads", async () => {
