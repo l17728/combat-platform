@@ -8,6 +8,7 @@ import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
 import { useSettings } from '../hooks/useSettings.js';
+import { useAuth } from '../hooks/useAuth.js';
 import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { GraphNode, NodeSchema } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
@@ -24,7 +25,8 @@ const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名
 
 const STORAGE_KEY = 'attack-list-visible-columns';
 const DEFAULT_VISIBLE = ['标题', '状态', '当前处理人', '事件级别', '问题单号', '客户名称'];
-const FAV_KEY = 'combat-attack-favorites';
+// 关注列表按用户隔离:同浏览器换账号互不串扰
+const favKey = (username?: string) => `combat-attack-favorites:${username || 'guest'}`;
 
 export default function AttackList() {
   const navigate = useNavigate();
@@ -37,10 +39,15 @@ export default function AttackList() {
   const [searchText, setSearchText] = useState(() => searchParams.get('q') || '');
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>(() =>
     searchParams.get('tab') === 'favorites' ? 'favorites' : 'all');
-  const [favorites, setFavorites] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch { return new Set(); }
-  });
-  useEffect(() => { try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch { /* ignore */ } }, [favorites]);
+  const { user } = useAuth();
+  const currentKey = useMemo(() => favKey(user?.username), [user]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  // 用户切换时从对应 key 重新加载关注列表(避免串账号)
+  useEffect(() => {
+    try { setFavorites(new Set(JSON.parse(localStorage.getItem(currentKey) || '[]'))); }
+    catch { setFavorites(new Set()); }
+  }, [currentKey]);
+  useEffect(() => { try { localStorage.setItem(currentKey, JSON.stringify([...favorites])); } catch { /* ignore */ } }, [favorites, currentKey]);
   const toggleFavorite = useCallback((id: string) => {
     setFavorites((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }, []);
@@ -335,7 +342,11 @@ export default function AttackList() {
             scroll={{ x: true }}
             pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
             size="middle"
-            onRow={(r) => ({ onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); }, style: { cursor: 'pointer' } })}
+            onRow={(r) => ({
+              onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); },
+              // 已关注的行整行底色淡黄 + 左侧金色细条,在「全部」里一眼可辨;不删除、仅标记。
+              style: { cursor: 'pointer', ...(favorites.has(r.id) ? { background: '#fffbe6', boxShadow: 'inset 3px 0 0 #fadb14' } : {}) },
+            })}
           />
         </FlexWrapper>
       )}
