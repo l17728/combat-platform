@@ -6,15 +6,29 @@ import {
 import {
   InboxOutlined, DeleteOutlined, ReloadOutlined, RobotOutlined,
   CheckSquareOutlined, ClearOutlined, UnorderedListOutlined, MessageOutlined,
-  BulbOutlined,
+  BulbOutlined, DownloadOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
+import { useNavigate } from 'react-router-dom';
 import dayjs, { type Dayjs } from 'dayjs';
-import { api, type WelinkMessage } from '../api.js';
+import { api, type WelinkMessage, type DocItem } from '../api.js';
 import WelinkChatView from './WelinkChatView.js';
 import WelinkExtractionsDrawer from './WelinkExtractionsDrawer.js';
 import HermesChat from '../components/HermesChat.js';
+
+const DOWNLOAD_PROMPT_DISMISS_KEY = 'combat-welink-download-prompt-dismissed';
+
+/** 在文档中心找 Welink 下载工具:title 含 Welink + (下载|工具),取第一个 */
+function pickWelinkDownloadDoc(docs: DocItem[]): DocItem | null {
+  const re = /welink/i;
+  const kw = /(下载|工具)/;
+  for (const d of docs) {
+    const name = d.name || '';
+    if (re.test(name) && kw.test(name)) return d;
+  }
+  return null;
+}
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -69,6 +83,7 @@ function parseUploadFile(file: File): Promise<any[]> {
 }
 
 export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<WelinkMessage[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, selected: 0, deleted: 0 });
   const [loading, setLoading] = useState(true);
@@ -77,6 +92,12 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
   const [extractionsOpen, setExtractionsOpen] = useState(false);
   const [extractionCount, setExtractionCount] = useState(0);
   const [analyzing, setAnalyzing] = useState(false);
+  const [downloadDoc, setDownloadDoc] = useState<DocItem | null>(null);
+  const [downloadDocLoaded, setDownloadDocLoaded] = useState(false);
+  const [promptDismissed, setPromptDismissed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(DOWNLOAD_PROMPT_DISMISS_KEY) === '1';
+  });
   const [viewMode, setViewMode] = useState<'list' | 'chat'>(() => {
     if (typeof window === 'undefined') return 'list';
     const v = window.localStorage.getItem('combat-welink-view');
@@ -113,6 +134,30 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
     }
   }, [ticketId]);
   useEffect(() => { void fetchExtractionCount(); }, [fetchExtractionCount]);
+
+  // 拉文档中心,找下载工具
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const docs = await api.listDocuments();
+        if (cancelled) return;
+        setDownloadDoc(pickWelinkDownloadDoc(docs));
+      } catch {
+        // 不打扰:加载失败也展示"未上传"提示,让用户去文档中心
+      } finally {
+        if (!cancelled) setDownloadDocLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleDismissPrompt = useCallback(() => {
+    setPromptDismissed(true);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DOWNLOAD_PROMPT_DISMISS_KEY, '1');
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -295,8 +340,63 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
     },
   ];
 
+  const downloadHref = downloadDoc ? `/api/documents/${downloadDoc.id}/download` : '';
+
   return (
     <div style={{ padding: '16px 0' }}>
+      {!promptDismissed && downloadDocLoaded && (
+        downloadDoc ? (
+          <Alert
+            data-testid="welink-download-prompt"
+            type="info"
+            showIcon
+            closable
+            onClose={handleDismissPrompt}
+            style={{ marginBottom: 12 }}
+            message={<span>📥 第一步:同步群消息 — 还没下载工具?</span>}
+            description={
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <a
+                  href={downloadHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="welink-download-link"
+                >
+                  <DownloadOutlined /> 下载 Welink 消息下载工具
+                </a>
+                <div style={{ color: '#666', marginTop: 4 }}>
+                  在你的 Windows 本机运行工具登录 Welink → 选择群 → 导出 JSON → 回到这里拖拽上传
+                </div>
+              </div>
+            }
+          />
+        ) : (
+          <Alert
+            data-testid="welink-download-prompt-missing"
+            type="warning"
+            showIcon
+            icon={<WarningOutlined />}
+            closable
+            onClose={handleDismissPrompt}
+            style={{ marginBottom: 12 }}
+            message="管理员还未上传 Welink 消息下载工具"
+            description={
+              <Space>
+                <span>请联系管理员上传,或前往文档中心查看是否已发布</span>
+                <Button
+                  size="small"
+                  type="primary"
+                  data-testid="welink-jump-to-documents"
+                  onClick={() => navigate('/documents')}
+                >
+                  跳到文档中心
+                </Button>
+              </Space>
+            }
+          />
+        )
+      )}
+
       <Alert
         message="Welink 群消息"
         description="上传由 Welink 下载工具导出的群消息 JSON;支持按时段/发言人/关键词筛选;选中的子集会进入下一阶段 AI 抽取分析。"
