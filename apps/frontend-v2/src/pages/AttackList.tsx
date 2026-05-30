@@ -13,6 +13,7 @@ import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 import type { GraphNode, NodeSchema } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
+import { buildMembersFromForm, syncMemberFields } from '../utils/teamMembers.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -21,7 +22,9 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title } = Typography;
-const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
+// 攻关成员/成员列表 由专用多选框 + 成员管理 tab 维护,不能让通用 extraFields 渲染成单行 Input
+const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '攻关成员', '成员列表']);
+const DEFAULT_INFO_SQUARE_CONTENT = '# 信息广场\n\n在这里记录本攻关单的关键信息、决策记录、外部沟通要点等。\n';
 
 const STORAGE_KEY = 'attack-list-visible-columns';
 const DEFAULT_VISIBLE = ['标题', '状态', '当前处理人', '事件级别', '问题单号', '客户名称'];
@@ -147,7 +150,22 @@ export default function AttackList() {
   const handleCreate = async (values: Record<string, unknown>) => {
     setSubmitting(true);
     try {
-      const node = await api.createNode('attackTicket', values);
+      // 表单里 攻关组长(单选) + 攻关成员(多选姓名数组)各自录入一次,
+      // 此处自动合并出 成员列表 (含角色) + 派生回 攻关组长/攻关成员 字符串,用户不必重复。
+      const memberNames = Array.isArray(values['攻关成员']) ? (values['攻关成员'] as string[]) : [];
+      const leader = typeof values['攻关组长'] === 'string' ? (values['攻关组长'] as string) : '';
+      const members = buildMembersFromForm(leader, memberNames);
+      const synced = syncMemberFields(members);
+      const payload = { ...values, ...synced };
+      const node = await api.createNode('attackTicket', payload);
+      // 创建后自动挂一个「信息广场」自定义 tab,作为该攻关单的固定写作区域;失败不阻断创建。
+      try {
+        await api.createTicketTab(node.id, {
+          tabType: 'custom',
+          title: '信息广场',
+          content: DEFAULT_INFO_SQUARE_CONTENT,
+        });
+      } catch { /* ignore — 用户可手动添加 */ }
       message.success('创建成功');
       setDrawerOpen(false);
       form.resetFields();
@@ -374,6 +392,10 @@ export default function AttackList() {
           </Form.Item>
           <Form.Item name="攻关组长" label="攻关组长">
             <Select showSearch allowClear placeholder="从全员名单搜索" options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
+          </Form.Item>
+          <Form.Item name="攻关成员" label="攻关成员" tooltip="多选,组员角色;组长在上面单选,不必在此重复选择">
+            <Select mode="multiple" showSearch allowClear placeholder="从全员名单多选组员" options={personOptions}
               filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
           </Form.Item>
           <Form.Item name="攻关申请人" label="攻关申请人">

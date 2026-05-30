@@ -246,6 +246,12 @@
       "name": "攻关成员",
       "type": "string",
       "label": "攻关成员"
+    },
+    {
+      "id": "成员列表",
+      "name": "成员列表",
+      "type": "string",
+      "label": "成员列表"
     }
   ]
 }

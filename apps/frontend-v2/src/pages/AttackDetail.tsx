@@ -15,6 +15,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR, SUPPORT_STATUS_COLOR, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT, DATE_FORMAT_SHORT, TAB_TYPE_LABEL, NODE_TYPE_LABEL } from '../constants.js';
 import { nodeLabel } from '../utils/nodeLabel.js';
+import { parseMembers, syncMemberFields, buildMembersFromForm, type TeamMember, type TeamRole } from '../utils/teamMembers.js';
 import StatusTag from '../components/StatusTag.js';
 import AddTabModal from '../components/AddTabModal.js';
 import DynamicLinkTab from '../components/DynamicLinkTab.js';
@@ -33,9 +34,11 @@ dayjs.locale('zh-cn');
 
 const { Title, Text, Paragraph } = Typography;
 const STATUS_STEPS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
-const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
+// 攻关成员/成员列表 由专用多选 + 成员管理 tab 维护,不在 extraEditFields 通用渲染中出现
+const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关成员', '成员列表', '攻关申请人', '影响及现存风险', '资源ID', '租户ID']);
 const SUMMARY_FIELD_IDS = new Set(['标题', '问题单号', '事件单号', '事件级别', '影响及现存风险', '客户名称', '故障发生时间', '当前处理人', '攻关组长']);
 const TEAM_FIELDS = new Set(['攻关组长', '攻关成员']);
+const ROLE_OPTIONS: TeamRole[] = ['组长', '组员'];
 
 const STATUS_STEP_ICON: Record<string, React.ReactNode> = {
   '待响应': <ClockCircleOutlined />,
@@ -109,6 +112,11 @@ export default function AttackDetail() {
   const [dynamicTabs, setDynamicTabs] = useState<TicketTab[]>([]);
   const [addTabOpen, setAddTabOpen] = useState(false);
   const [visibleCards, setVisibleCards] = useState<string[]>(['helpers', 'team']);
+
+  // 成员管理 drawer 状态:editingIdx 为 null 时是新增,数字时是修改对应下标的成员
+  const [memberDrawerOpen, setMemberDrawerOpen] = useState(false);
+  const [editingMemberIdx, setEditingMemberIdx] = useState<number | null>(null);
+  const [memberForm] = Form.useForm<{ 姓名: string; 角色: TeamRole }>();
 
   const SIDEBAR_CARD_OPTIONS = [
     { key: 'helpers', label: '找帮手推荐' },
@@ -192,8 +200,26 @@ export default function AttackDetail() {
   const handleEdit = async (values: Record<string, unknown>) => {
     if (!id) return;
     setEditSubmitting(true);
-    try { await api.updateNode(id, values); message.success('更新成功'); setEditOpen(false); fetchData(true); }
+    try {
+      // 编辑表单里 攻关组长(单) + 攻关成员(多)分别录入,统一派生 成员列表 + 同步字符串字段
+      const memberNames = Array.isArray(values['攻关成员']) ? (values['攻关成员'] as string[]) : [];
+      const leader = typeof values['攻关组长'] === 'string' ? (values['攻关组长'] as string) : '';
+      const members = buildMembersFromForm(leader, memberNames);
+      const synced = syncMemberFields(members);
+      await api.updateNode(id, { ...values, ...synced });
+      message.success('更新成功'); setEditOpen(false); fetchData(true);
+    }
     catch (e: any) { message.error(e.message); } finally { setEditSubmitting(false); }
+  };
+
+  // 成员管理 tab CRUD:整存整取,保证三字段同步
+  const updateMembers = async (next: TeamMember[]) => {
+    if (!id) return;
+    try {
+      await api.updateNode(id, syncMemberFields(next));
+      message.success('成员已更新');
+      fetchData(true);
+    } catch (e: any) { message.error(e.message); }
   };
 
   const handleTransition = async (values: { toStatus: string; note?: string }) => {
@@ -309,6 +335,54 @@ export default function AttackDetail() {
     setDynamicTabs(prev => prev.map(t => t.id === updated.id ? updated : t));
   };
 
+  const members = parseMembers(props);
+
+  const openAddMember = () => {
+    setEditingMemberIdx(null);
+    memberForm.resetFields();
+    memberForm.setFieldsValue({ 角色: '组员' });
+    setMemberDrawerOpen(true);
+  };
+  const openEditMember = (idx: number) => {
+    setEditingMemberIdx(idx);
+    memberForm.setFieldsValue({ 姓名: members[idx].姓名, 角色: members[idx].角色 });
+    setMemberDrawerOpen(true);
+  };
+  const submitMember = async (values: { 姓名: string; 角色: TeamRole }) => {
+    const cleaned = { 姓名: String(values.姓名 ?? '').trim(), 角色: values.角色 || '组员' };
+    if (!cleaned.姓名) { message.warning('请选择成员姓名'); return; }
+    let next: TeamMember[];
+    if (editingMemberIdx == null) {
+      if (members.some(m => m.姓名 === cleaned.姓名)) { message.warning(`「${cleaned.姓名}」已在成员列表中`); return; }
+      next = [...members, cleaned];
+    } else {
+      next = members.map((m, i) => i === editingMemberIdx ? cleaned : m);
+      const dupIdx = next.findIndex((m, i) => i !== editingMemberIdx && m.姓名 === cleaned.姓名);
+      if (dupIdx >= 0) { message.warning(`「${cleaned.姓名}」已在成员列表中`); return; }
+    }
+    await updateMembers(next);
+    setMemberDrawerOpen(false);
+  };
+  const deleteMember = async (idx: number) => {
+    await updateMembers(members.filter((_, i) => i !== idx));
+  };
+
+  const memberColumns = [
+    { title: '姓名', dataIndex: '姓名', key: '姓名', render: (v: string) => <Space><Avatar size="small" icon={<UserOutlined />} /><Text strong>{v}</Text></Space> },
+    { title: '角色', dataIndex: '角色', key: '角色', width: 120, render: (v: TeamRole) => <Tag color={v === '组长' ? 'gold' : 'blue'}>{v}</Tag> },
+    {
+      title: '操作', key: 'op', width: 140,
+      render: (_: unknown, _r: TeamMember, idx: number) => (
+        <Space size={4}>
+          <Button type="link" size="small" onClick={() => openEditMember(idx)}>修改角色</Button>
+          <Popconfirm title={`确认移除「${members[idx].姓名}」？`} onConfirm={() => deleteMember(idx)}>
+            <Button type="link" size="small" danger>删除</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
   const fixedTabItems = [
     {
       key: 'basic', label: <span><InfoCircleOutlined /> 基础信息</span>,
@@ -321,6 +395,22 @@ export default function AttackDetail() {
               </Descriptions.Item>
             ))}
           </Descriptions>
+        </div>
+      ),
+    },
+    {
+      key: 'members', label: <span><TeamOutlined /> 成员管理</span>,
+      children: (
+        <div style={{ padding: '16px 0' }}>
+          <Space style={{ marginBottom: 12 }}>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAddMember}>添加成员</Button>
+            <Text type="secondary">共 {members.length} 人 · 组长 {members.filter(m => m.角色 === '组长').length} · 组员 {members.filter(m => m.角色 === '组员').length}</Text>
+          </Space>
+          {members.length === 0 ? (
+            <Empty description="暂无成员,点击「添加成员」开始组建团队" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          ) : (
+            <Table size="small" rowKey={(r) => r.姓名} dataSource={members} columns={memberColumns} pagination={false} />
+          )}
         </div>
       ),
     },
@@ -512,7 +602,12 @@ export default function AttackDetail() {
           </Popover>
           <Link to={`/related/attackTicket/${id}`}><Button icon={<LinkOutlined />}>关联全景</Button></Link>
           <Button icon={<SwapOutlined />} onClick={() => setTransitionOpen(true)}>状态流转</Button>
-          <Button icon={<EditOutlined />} onClick={() => { editForm.setFieldsValue(props as any); setEditOpen(true); }}>编辑信息</Button>
+          <Button icon={<EditOutlined />} onClick={() => {
+            // 编辑抽屉里 攻关成员 是多选,需要把 成员列表 派生出组员姓名数组回填
+            const onlyMembers = parseMembers(props).filter(m => m.角色 === '组员').map(m => m.姓名);
+            editForm.setFieldsValue({ ...(props as any), 攻关成员: onlyMembers });
+            setEditOpen(true);
+          }}>编辑信息</Button>
           <Popconfirm title="确认删除此攻关单？" onConfirm={handleDelete}><Button danger icon={<DeleteOutlined />}>删除</Button></Popconfirm>
         </Space>
       </div>
@@ -641,6 +736,9 @@ export default function AttackDetail() {
           <Divider orientation="left" orientationMargin={0}>人员信息</Divider>
           <Form.Item name="当前处理人" label="当前处理人"><Select showSearch allowClear placeholder="搜索人员" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} /></Form.Item>
           <Form.Item name="攻关组长" label="攻关组长"><Select showSearch allowClear placeholder="搜索人员" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} /></Form.Item>
+          <Form.Item name="攻关成员" label="攻关成员" tooltip="多选组员;组长在上方选,不要重复">
+            <Select mode="multiple" showSearch allowClear placeholder="从全员名单多选组员" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} />
+          </Form.Item>
           <Form.Item name="攻关申请人" label="攻关申请人"><Select showSearch allowClear placeholder="搜索人员" options={personOptions} filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())} /></Form.Item>
           <Divider orientation="left" orientationMargin={0}>详细信息</Divider>
           <Form.Item name="影响及现存风险" label="影响及现存风险"><Input.TextArea rows={3} /></Form.Item>
@@ -688,6 +786,32 @@ export default function AttackDetail() {
           </Form.Item>
           <Form.Item name="note" label="备注"><Input.TextArea rows={3} placeholder="状态变更原因..." /></Form.Item>
           <Button type="primary" htmlType="submit" loading={transSubmitting} block>确认流转</Button>
+        </Form>
+      </Drawer>
+
+      <Drawer
+        title={editingMemberIdx == null ? '添加成员' : '修改成员角色'}
+        width={400}
+        open={memberDrawerOpen}
+        onClose={() => setMemberDrawerOpen(false)}
+        destroyOnClose
+        maskClosable={false}
+        extra={<Button type="primary" onClick={() => memberForm.submit()}>{editingMemberIdx == null ? '添加' : '保存'}</Button>}
+      >
+        <Form form={memberForm} layout="vertical" onFinish={submitMember} initialValues={{ 角色: '组员' }}>
+          <Form.Item name="姓名" label="姓名" rules={[{ required: true, message: '请选择成员' }]}>
+            <Select
+              showSearch
+              allowClear
+              placeholder="从全员名单搜索"
+              disabled={editingMemberIdx != null}
+              options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+          <Form.Item name="角色" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+            <Select options={ROLE_OPTIONS.map(r => ({ value: r, label: r }))} />
+          </Form.Item>
         </Form>
       </Drawer>
 
