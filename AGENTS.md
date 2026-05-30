@@ -784,9 +784,28 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-30 最后验证）
+### 当前测试状态（2026-05-31 最后验证）
 
-**前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **347/347**（59 文件）。
+**前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **349/349**（60 文件，新增 health.e2e.test.ts 2 用例）。
+
+### 性能 quick wins（2026-05-31 实施，分支 `feature/roadmap-performance`）
+
+依 `docs/REVIEWS/REVIEW_performance.md` (4.0/10) 落地 5 项 P0,代码改动小、不引入新依赖:
+
+| # | 项 | commit | 收益(预估) |
+|---|----|--------|-----------|
+| 1 | `useSettings` 真缓存(module-level singleton + 5min TTL + 并发去重) | `a4b40a5` | 13 callsite 重复 fetch → 1 次/5min,首屏少 12 个请求 |
+| 2 | `GET /api/health` 端点(无需鉴权,返回 `{status,uptime,version,db:{kind,connected}}`) | `e01c715` | systemd/反代/监控可探活,识别"进程在但 DB 断连" |
+| 3 | `conflicts.syncConflicts` 30s debounce(连续保存合并成 1 次扫描) | `f7f6b56` | 10 次连续创建攻关单 audit 写放大 10-100× → 1× |
+| 4 | `backend.log` logrotate(daily/50MB/keep 7,copytruncate 不打断 systemd append) | `3fe00f3` | 防 append-only 撑爆磁盘,日志上限 ≤ 350MB |
+| 5 | Dashboard 5 次扫表 → 1 次内存聚合(`listConflictRows(repo, preloadedTickets)` 复用 + top-5 增量维护) | `1257a86` | 2 次 attackTicket 全表扫 + 2N 次 JSON.parse → 1 次 + N 次,10k 节点级 ~50% IO 削减 |
+
+实施纪律:
+- 每项独立 commit + 立刻 push。
+- 改动前 baseline 347 tests pass;改动后 349 tests pass(+2 新增 health e2e),无回归。
+- typecheck 双端均通过。
+- 不动 SQLite Repository 同步 API(那是 Phase 2 大重构,本批不碰)。
+- 不引入新 npm 依赖(logrotate 用宿主机系统工具)。
 
 本会话新增/重构：审核管理移入系统管理（仅 admin 可访问 + AdminGuard）、攻关单成员多选 + 成员管理固定 tab（双向同步 攻关组长/攻关成员/成员列表）、自动「信息广场」自定义 tab、详情布局重构（面板默认收起、进展同步 Timeline 合并 progress + 过滤后审计：状态流转 green/升级 orange/合并 gold/成员变更 blue，删历史记录 tab，新增「合规追溯」侧边卡 leader+admin 可见）、AuditLog 支持 `?entityId=` 过滤、基础信息字段隐藏/恢复（按用户名 localStorage 持久化）、AI 助手浮窗可拖拽（DynamicCustomTab + HermesChat 都改造）、攻关单删除权限收紧（创建人本人，admin/leader 也不可见）。
 
