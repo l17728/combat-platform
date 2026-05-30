@@ -6,7 +6,7 @@ describe("ticket-tabs router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
 
   beforeEach(async () => {
-    ({ app } = makeTestApp());
+    ({ app } = await makeTestApp());
   });
 
   it("GET /tickets/:id/tabs returns empty array", async () => {

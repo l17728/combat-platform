@@ -12,7 +12,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
@@ -25,7 +25,7 @@ function xlsxBuf(rows: Record<string, unknown>[]): Buffer {
 
 describe("incremental import (upsert) e2e", () => {
   it("first import creates; same identityKey re-import updates (no duplicates); 攻关单号 idem", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const buf = xlsxBuf([
       { 标题: "T1", 攻关单号: "HK-1", 状态: "进行中" },
       { 标题: "T2", 攻关单号: "HK-2", 状态: "进行中" },
@@ -47,7 +47,7 @@ describe("incremental import (upsert) e2e", () => {
   });
 
   it("mixed: some rows new, some matching → created+updated counted separately", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/import").attach("file",
       xlsxBuf([{ 标题: "A", 攻关单号: "MX-1", 状态: "进行中" }]), "x.xlsx");
     const r = await request(app).post("/api/import").attach("file",
@@ -56,7 +56,7 @@ describe("incremental import (upsert) e2e", () => {
   });
 
   it("?type=releasePackage upserts by 版本号; ?type=weightFile by 名称 (config-driven, new nodeTypes)", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const buf = xlsxBuf([{ 版本号: "v9", 产品: "A" }, { 版本号: "v10", 产品: "B" }]);
     const r1 = await request(app).post("/api/import?type=releasePackage").attach("file", buf, "r.xlsx");
     expect(r1.body).toMatchObject({ created: 2, updated: 0 });
@@ -70,14 +70,14 @@ describe("incremental import (upsert) e2e", () => {
   });
 
   it("unknown ?type= → 400", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).post("/api/import?type=__none__").attach("file",
       xlsxBuf([{ x: 1 }]), "x.xlsx");
     expect(r.status).toBe(400);
   });
 
   it("validateNode-failing rows are skipped (no count, no node)", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const buf = xlsxBuf([
       { 标题: "ok", 攻关单号: "VL-1", 状态: "进行中" }, // valid
       { 攻关单号: "VL-2" }, // missing required 标题 AND 状态 → skipped
@@ -88,7 +88,7 @@ describe("incremental import (upsert) e2e", () => {
   });
 
   it("UPDATE re-fires syncRefEdges (changing 当前处理人 re-creates REF) + syncAnchorEdges (问题单号 changing reassigns anchor)", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     await request(app).post("/api/import").attach("file",
       xlsxBuf([{ 标题: "T", 攻关单号: "RA-1", 状态: "进行中", 当前处理人: "甲", 问题单号: "PB-A" }]), "x.xlsx");
     const t = (await repo.queryNodes("attackTicket", { 攻关单号: "RA-1" }))[0];
@@ -106,7 +106,7 @@ describe("incremental import (upsert) e2e", () => {
   });
 
   it("attackTicket ASSIGNED_TO 攻关申请人 edge is idempotent across re-imports (exactly 1 per node)", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const row = { 标题: "AT", 攻关单号: "AS-1", 状态: "进行中", 攻关申请人: "申请甲", 攻关申请人工号: "E001" };
     await request(app).post("/api/import").attach("file", xlsxBuf([row]), "x.xlsx");
     await request(app).post("/api/import").attach("file", xlsxBuf([row]), "x.xlsx");

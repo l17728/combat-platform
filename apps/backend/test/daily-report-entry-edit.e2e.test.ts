@@ -4,7 +4,7 @@ import { makeTestApp } from "./helpers.js";
 
 describe("daily-report-entry edit (草稿可改/已发布锁定)", () => {
   it("edits a draft entry, then locks it after publish", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "日报编辑测试", 状态: "处理中" });
     const tid = t.body.id;
 

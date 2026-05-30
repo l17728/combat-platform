@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-depth-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§32 depth-N traversal e2e", () => {
   it("depth=1 / default → response byte-identical with prior 1-hop (no 'expanded' key)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "深度根", 状态: "进行中", 当前处理人: "甲",
     })).body;
@@ -32,7 +32,7 @@ describe("§32 depth-N traversal e2e", () => {
   });
 
   it("depth=2 reaches cross-anchor peers (透明锚点不在 expanded)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const PB = "DEEP-PB-" + Date.now();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "A单", 状态: "进行中", 当前处理人: "甲", 问题单号: PB,
@@ -52,7 +52,7 @@ describe("§32 depth-N traversal e2e", () => {
   });
 
   it("cycle protection: each business node visited at most once", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     // build: T1 当前处理人=人X; T2 当前处理人=人X (so anchor-less but shared via REF→same person)
     // depth=3 should not re-visit T1 (the root) or duplicate 人X.
     const T1 = (await request(app).post("/api/nodes/attackTicket").send({
@@ -71,7 +71,7 @@ describe("§32 depth-N traversal e2e", () => {
   });
 
   it("depth=99 clamps to 5; depth=0 / NaN → defaults to 1 (no 'expanded')", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "clamp", 状态: "进行中" })).body;
     expect((await request(app).get(`/api/related/attackTicket/${t.id}?depth=0`)).body.expanded).toBeUndefined();
     expect((await request(app).get(`/api/related/attackTicket/${t.id}?depth=abc`)).body.expanded).toBeUndefined();
@@ -82,7 +82,7 @@ describe("§32 depth-N traversal e2e", () => {
   });
 
   it("includeCandidates + depth coexist (additive)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "组合", 状态: "进行中" })).body;
     const r = await request(app).get(`/api/related/attackTicket/${t.id}?depth=2&includeCandidates=1`);
     expect(r.status).toBe(200);

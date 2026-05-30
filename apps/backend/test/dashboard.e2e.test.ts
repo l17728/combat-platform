@@ -9,7 +9,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-dash-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -36,7 +36,7 @@ function makeApp() {
 
 describe("dashboard e2e", () => {
   it("aggregates tickets/contributions/proposals correctly + deterministic top contributors", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "B", 状态: "进行中", 问题单号: "PB-1" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "C", 状态: "已解决" });
@@ -65,7 +65,7 @@ describe("dashboard e2e", () => {
   });
 
   it("read-only: audit_log row count unchanged across calls; deterministic", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "X", 状态: "进行中" });
     const n0 = (db.prepare("SELECT COUNT(*) c FROM audit_log").get() as any).c;
     const a = await request(app).get("/api/dashboard");
@@ -76,7 +76,7 @@ describe("dashboard e2e", () => {
   });
 
   it("empty system → zeroed summary", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).get("/api/dashboard");
     expect(r.body).toMatchObject({
       tickets: { total: 0, byStatus: {}, open: 0, resolved: 0 },

@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-audit-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§39 audit log read API e2e", () => {
   it("creating a node leaves a CREATE entry; entityId filter narrows", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "审计单", 状态: "进行中",
     })).body;
@@ -34,7 +34,7 @@ describe("§39 audit log read API e2e", () => {
   });
 
   it("update yields UPDATE entry; action filter narrows", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "原标题", 状态: "进行中",
     })).body;
@@ -50,7 +50,7 @@ describe("§39 audit log read API e2e", () => {
   });
 
   it("limit clamp [1,500]; default 100; NaN→default; sorted DESC by performedAt", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     // create 5 entries quickly
     for (let i = 0; i < 5; i++)
       await request(app).post("/api/nodes/attackTicket").send({ 标题: `单${i}`, 状态: "进行中" });

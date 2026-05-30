@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-kg-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§34 KG full rebuild e2e", () => {
   it("rebuild restores REF/ANCHORED_TO edges to incremental-sync counts after drift", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     // seed via API → triggers incremental syncRef + syncAnchor
     const PB = "REB-" + Date.now();
     await request(app).post("/api/nodes/attackTicket").send({
@@ -47,7 +47,7 @@ describe("§34 KG full rebuild e2e", () => {
   });
 
   it("rebuild is idempotent — second rebuild yields identical counts", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "幂等单A", 状态: "进行中", 当前处理人: "甲", 问题单号: "PB-X",
     });
@@ -63,7 +63,7 @@ describe("§34 KG full rebuild e2e", () => {
   });
 
   it("rebuild re-creates conflict/overlap edges", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "C1", 状态: "进行中", 当前处理人: "丙",
     });
@@ -79,7 +79,7 @@ describe("§34 KG full rebuild e2e", () => {
   });
 
   it("rebuild result shape matches RebuildKGResult contract", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).post("/api/kg/rebuild").send({});
     expect(r.status).toBe(200);
     expect(r.body).toHaveProperty("refEdges");

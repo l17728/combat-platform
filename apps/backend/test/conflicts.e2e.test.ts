@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-conflicts-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§33 conflicts/overlaps e2e", () => {
   it("Rule 1 — 同人多活跃单 → CONFLICTS_WITH (reason 含人员名)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "单A", 状态: "进行中", 当前处理人: "甲哥",
     })).body;
@@ -38,7 +38,7 @@ describe("§33 conflicts/overlaps e2e", () => {
   });
 
   it("Rule 2 — 同问题单号 → OVERLAPS_WITH (reason 含单号)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const PB = "PB-XYZ-" + Date.now();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "A", 状态: "进行中", 当前处理人: "甲", 问题单号: PB,
@@ -56,7 +56,7 @@ describe("§33 conflicts/overlaps e2e", () => {
   });
 
   it("把一单 状态 改为 已解决 再 scan → 该单不再出现于 CONFLICTS_WITH 边", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "ResolvedA", 状态: "进行中", 当前处理人: "丙",
     })).body;
@@ -76,7 +76,7 @@ describe("§33 conflicts/overlaps e2e", () => {
   });
 
   it("GET /api/related/... 在冲突端点节点上含 conflicts，无关孤立节点不含", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "PeerA", 状态: "进行中", 当前处理人: "丁",
     })).body;

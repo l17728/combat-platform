@@ -10,7 +10,7 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import type { MailSender } from "../src/mailer.js";
 
-function makeApp(mailSender?: MailSender) {
+async function makeApp(mailSender?: MailSender) {
   process.env.COMBAT_NO_AUTH = "1";
   const dir = mkdtempSync(join(tmpdir(), "combat-help-"));
   const cfgDir = join(dir, "schemas");
@@ -37,7 +37,7 @@ async function makeTicket(app: any) {
 
 describe("help-request e2e", () => {
   it("feedback link points at the frontend form route, not the JSON API", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
       ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助分析",
@@ -48,7 +48,7 @@ describe("help-request e2e", () => {
   });
 
   it("reports emailSent=false with a note when SMTP is not configured", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
       ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助",
@@ -61,7 +61,7 @@ describe("help-request e2e", () => {
   it("reports emailSent=true and emails the frontend link when SMTP is configured", async () => {
     const sent: { msg: { to: string[]; subject: string; body: string } }[] = [];
     const fakeMail: MailSender = { async send(_cfg, msg) { sent.push({ msg }); return { messageId: "test" }; } };
-    const { app, repo } = makeApp(fakeMail);
+    const { app, repo } = await makeApp(fakeMail);
     await repo.setSetting("smtp", JSON.stringify({ host: "smtp.test", port: 587, secure: false, username: "u", password: "p", fromEmail: "a@b.com" }), "test");
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
@@ -75,7 +75,7 @@ describe("help-request e2e", () => {
   });
 
   it("feedback form GET returns question info; POST appends reply and sets status 已回复", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const created = await request(app).post("/api/help-requests").send({
       ticketId, requesterName: "罗军", targetName: "专家A", targetEmail: "expert@x.com", category: "领域专家", question: "我是谁",

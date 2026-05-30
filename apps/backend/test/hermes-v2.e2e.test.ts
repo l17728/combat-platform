@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-hermes-v2-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§37 Hermes 意图扩展 v2", () => {
   it("contribution-by-person: 列出该人的贡献 Top5", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     // 贡献类型 enum is {发现, 设计, 实施, 协调, 公关}
     await request(app).post("/api/nodes/contribution").send({
       贡献人: "张三", 贡献等级: "核心", 贡献类型: "发现", 贡献描述: "解决断网根因",
@@ -36,7 +36,7 @@ describe("§37 Hermes 意图扩展 v2", () => {
   });
 
   it("recent-changes 今天：含变动 ticket + 进展计数", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "今日动单", 状态: "进行中",
     })).body;
@@ -51,7 +51,7 @@ describe("§37 Hermes 意图扩展 v2", () => {
   });
 
   it("find-helpers: 推荐基于共享问题单号的帮手", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const PB = "PB-FH-001";
     // 历史共享问题单号的另一单（带 owner→自动建 person）
     await request(app).post("/api/nodes/attackTicket").send({
@@ -69,7 +69,7 @@ describe("§37 Hermes 意图扩展 v2", () => {
   });
 
   it("find-helpers 无定位：友好提示", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).post("/api/hermes/ask").send({ question: "找谁帮忙？" });
     expect(r.body.intent).toBe("find-helpers");
     expect(r.body.answer).toContain("未定位到");

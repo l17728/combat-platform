@@ -11,7 +11,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-graph-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
@@ -19,7 +19,7 @@ function makeApp() {
 
 describe("§38 KG 图形快照 e2e", () => {
   it("孤立 root → 仅自身节点 + 空 edges", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "孤", 状态: "进行中" })).body;
     const r = await request(app).get(`/api/graph/snapshot/attackTicket/${t.id}?depth=2`);
     expect(r.status).toBe(200);
@@ -29,7 +29,7 @@ describe("§38 KG 图形快照 e2e", () => {
   });
 
   it("depth=2 BFS 含 REF + ANCHORED_TO + 跨锚点对端", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const PB = "PB-GR-" + Date.now();
     const A = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "图根", 状态: "进行中", 当前处理人: "甲", 问题单号: PB,
@@ -53,7 +53,7 @@ describe("§38 KG 图形快照 e2e", () => {
   });
 
   it("depth clamp [1,3]: depth=99 同 depth=3；depth=0 / NaN → depth=1", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "clamp", 状态: "进行中" })).body;
     const r99 = (await request(app).get(`/api/graph/snapshot/attackTicket/${t.id}?depth=99`)).body;
     const r3 = (await request(app).get(`/api/graph/snapshot/attackTicket/${t.id}?depth=3`)).body;

@@ -9,7 +9,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-anchor-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -28,7 +28,7 @@ function makeApp() {
 
 describe("cross-granularity anchor e2e", () => {
   it("anchor field → shared anchor node + ANCHORED_TO edge with anchorKind", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 问题单号: "PB-1" });
     expect(c.status).toBe(201);
     const anchors = await repo.queryNodes("问题单号");
@@ -40,7 +40,7 @@ describe("cross-granularity anchor e2e", () => {
   });
 
   it("differently-named anchor fields, same value → ONE shared anchor; no direct coarse-coarse edge; coAnchored derived & symmetric", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const at = await request(app).post("/api/nodes/attackTicket").send({ 标题: "AT", 问题单号: "PB-9" });
     const co = await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 关联问题单: "PB-9" });
     expect(await repo.queryNodes("问题单号")).toHaveLength(1);
@@ -55,7 +55,7 @@ describe("cross-granularity anchor e2e", () => {
   });
 
   it("no anchor data → coAnchored []; ANCHORED_TO foldable into related outgoing", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const at = await request(app).post("/api/nodes/attackTicket").send({ 标题: "noAnchor" });
     const rel = await request(app).get(`/api/related/attackTicket/${at.body.id}`);
     expect(rel.body.coAnchored).toEqual([]);
@@ -65,7 +65,7 @@ describe("cross-granularity anchor e2e", () => {
   });
 
   it("PATCH setAnchor persists + reload; non-string → 400 + config unchanged; update re-syncs idempotently", async () => {
-    const { app, cfg } = makeApp();
+    const { app, cfg } = await makeApp();
     const p = await request(app).patch("/api/schema/attackTicket").send({ op: "setAnchor", id: "标题", anchor: "问题单号" });
     expect(p.status).toBe(200);
     expect(p.body.fields.find((f: any) => f.id === "标题").anchor).toBe("问题单号");

@@ -6,7 +6,7 @@ describe("op-log router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
 
   beforeEach(async () => {
-    ({ app } = makeTestApp());
+    ({ app } = await makeTestApp());
   });
 
   it("GET /op-logs/settings returns default enabled=true", async () => {

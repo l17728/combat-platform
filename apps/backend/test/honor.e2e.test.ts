@@ -9,7 +9,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-honor-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -30,7 +30,7 @@ function makeApp() {
 
 describe("honor e2e", () => {
   it("creating a contribution with 关联攻关单 builds a CONTRIBUTED_TO edge to the ticket", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连攻关", 攻关单号: "GK-1" });
     const c = await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 关联攻关单: "GK-1", 贡献类型: "实施", 贡献等级: "核心" });
     expect(c.status).toBe(201);
@@ -39,7 +39,7 @@ describe("honor e2e", () => {
     expect(edges[0].targetId).toBe(t.body.id);
   });
   it("leaderboard is level-weighted, sorted desc, with per-level/type counts and period filter", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 贡献类型: "实施", 贡献等级: "核心", 周期: "2026-Q2" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "张三", 贡献类型: "设计", 贡献等级: "普通", 周期: "2026-Q2" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "李四", 贡献类型: "协调", 贡献等级: "关键", 周期: "2026-Q1" });
@@ -52,7 +52,7 @@ describe("honor e2e", () => {
     expect(q2.body[0]).toMatchObject({ 贡献人: "张三", score: 9 });
   });
   it("person profile lists the person's contributions with linked attackTicketId", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 攻关单号: "GK-9" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "王五", 关联攻关单: "GK-9", 贡献类型: "发现", 贡献等级: "关键" });
     const p = await request(app).get("/api/honor/person/王五");
@@ -61,7 +61,7 @@ describe("honor e2e", () => {
     expect(p.body.contributions[0].attackTicketId).toBe(t.body.id);
   });
   it("contribution with no 关联攻关单 returns 201 and creates no edge", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const c = await request(app).post("/api/nodes/contribution").send({ 贡献人: "赵六", 贡献类型: "设计" });
     expect(c.status).toBe(201);
     expect(await repo.queryEdges({ sourceId: c.body.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(0);

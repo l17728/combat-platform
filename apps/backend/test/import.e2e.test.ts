@@ -12,7 +12,7 @@ function xlsxBuffer(rows: Record<string, string>[]): Buffer {
 
 describe("import e2e", () => {
   it("BE-8 imports tickets and resolves same Person once", async () => {
-    const { app, repo } = makeTestApp();
+    const { app, repo } = await makeTestApp();
     const buf = xlsxBuffer([
       { 标题: "断连A", 状态: "进行中", 攻关申请人: "洪瑞哲", 攻关申请人工号: "WX1497394" },
       { 标题: "断连B", 状态: "进行中", 攻关申请人: "洪瑞哲", 攻关申请人工号: "WX1497394" },

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 
 // Use the real config (has 攻关单号 identity field) so update-detection is exercisable.
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeTestApp() {
+async function makeTestApp() {
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-dry-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
@@ -26,7 +26,7 @@ function xlsxBuffer(rows: Record<string, string>[]): Buffer {
 
 describe("§42 import dry-run + skipped visibility e2e", () => {
   it("dryRun=1 plans create/skip without writing to db", async () => {
-    const { app, repo } = makeTestApp();
+    const { app, repo } = await makeTestApp();
     const buf = xlsxBuffer([
       { 标题: "有效新单", 状态: "进行中" },
       { 状态: "进行中" }, // 缺必填 标题 → skip
@@ -42,7 +42,7 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
   });
 
   it("dryRun detects update on identity hit", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     // seed one with identity 攻关单号
     await request(app).post("/api/import").attach("file",
       xlsxBuffer([{ 攻关单号: "GK-1", 标题: "原单", 状态: "进行中" }]), "s.xlsx");
@@ -53,7 +53,7 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
   });
 
   it("commit returns skipped + skippedRows; created rows are persisted", async () => {
-    const { app, repo } = makeTestApp();
+    const { app, repo } = await makeTestApp();
     const buf = xlsxBuffer([
       { 标题: "提交有效单", 状态: "进行中" },
       { 状态: "进行中" }, // skip

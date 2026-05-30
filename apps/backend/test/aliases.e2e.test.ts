@@ -10,7 +10,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-alias-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -32,7 +32,7 @@ function xlsxBuf(rows: Record<string, string>[]): Buffer {
 
 describe("alias e2e", () => {
   it("import: a divergent column name matched via alias lands in the canonical field", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const buf = xlsxBuf([{ 标题: "断连", 研发责任人: "张三" }]);
     const r = await request(app).post("/api/import").attach("file", buf, "s.xlsx");
     expect(r.status).toBe(200);
@@ -41,7 +41,7 @@ describe("alias e2e", () => {
     expect(t.properties["当前处理人"]).toBe("张三");
   });
   it("setAliases persists to config json + reload; then import uses the new alias", async () => {
-    const { app, repo, cfg } = makeApp();
+    const { app, repo, cfg } = await makeApp();
     const p = await request(app).patch("/api/schema/attackTicket")
       .send({ op: "setAliases", id: "当前处理人", aliases: ["处理人", "PIC"] });
     expect(p.status).toBe(200);
@@ -54,7 +54,7 @@ describe("alias e2e", () => {
     expect(t!.properties["当前处理人"]).toBe("李四");
   });
   it("setAliases on unknown field id -> 400 and config unchanged", async () => {
-    const { app, cfg } = makeApp();
+    const { app, cfg } = await makeApp();
     const before = readFileSync(join(cfg, "attackTicket.json"), "utf8");
     const r = await request(app).patch("/api/schema/attackTicket")
       .send({ op: "setAliases", id: "不存在", aliases: ["x"] });
@@ -62,7 +62,7 @@ describe("alias e2e", () => {
     expect(readFileSync(join(cfg, "attackTicket.json"), "utf8")).toBe(before);
   });
   it("setAliases with empty array clears aliases; missing aliases -> 400 + config unchanged", async () => {
-    const { app, cfg } = makeApp();
+    const { app, cfg } = await makeApp();
     const clr = await request(app).patch("/api/schema/attackTicket")
       .send({ op: "setAliases", id: "当前处理人", aliases: [] });
     expect(clr.status).toBe(200);

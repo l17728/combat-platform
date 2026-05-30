@@ -9,7 +9,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-rec-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -37,7 +37,7 @@ function makeApp() {
 
 describe("find-helper recommendation e2e", () => {
   it("ranks shared-anchor handler + core contributor, excludes self, fallback last; reasons cite 问题单", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const T = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "主攻关单", 问题单号: "PB-1", 当前处理人: "甲" })).body;
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "同域攻关单", 问题单号: "PB-1", 当前处理人: "乙" });
     await request(app).post("/api/nodes/contribution").send({ 贡献人: "丙", 关联问题单: "PB-1", 贡献等级: "核心", 贡献描述: "定位根因" });
@@ -68,7 +68,7 @@ describe("find-helper recommendation e2e", () => {
   });
 
   it("404 unknown id; 400 non-attackTicket; read-only (audit_log unchanged)", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const c = (await request(app).post("/api/nodes/contribution").send({ 贡献人: "戊" })).body;
     expect((await request(app).get("/api/recommend/helpers/nope")).status).toBe(404);
     expect((await request(app).get(`/api/recommend/helpers/${c.id}`)).status).toBe(400);
@@ -81,7 +81,7 @@ describe("find-helper recommendation e2e", () => {
   });
 
   it("limit caps result count", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const T = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "限量单", 问题单号: "PB-L" })).body;
     for (const p of ["A","B","C","D"])
       await request(app).post("/api/nodes/attackTicket").send({ 标题: "同域"+p, 问题单号: "PB-L", 当前处理人: p });

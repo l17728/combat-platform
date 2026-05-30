@@ -9,7 +9,7 @@ import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-prop-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -27,7 +27,7 @@ function makeApp() {
 
 describe("relation proposals e2e", () => {
   it("scan proposes SAME_AS for near (non-exact) persons; exact not proposed; idempotent", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "张伟" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "张玮" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T3", 当前处理人: "李雷" });
@@ -43,7 +43,7 @@ describe("relation proposals e2e", () => {
   });
 
   it("decide 通过 merges persons authoritatively: edge migration + 原引用可达 + audit; re-decide → 409", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "王芳" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T3", 当前处理人: "王萍" });
     await request(app).post("/api/proposals/scan").send({});
@@ -68,7 +68,7 @@ describe("relation proposals e2e", () => {
   });
 
   it("decide 拒绝 → 已拒绝 + subsequent scan suppresses that triple", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "陈晨" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "陈辰" });
     await request(app).post("/api/proposals/scan").send({});
@@ -81,7 +81,7 @@ describe("relation proposals e2e", () => {
   });
 
   it("/api/related?includeCandidates=1 adds candidates; authoritative lists never contain them; no-param == 3b", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "刘洋" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "刘阳" });
     await request(app).post("/api/proposals/scan").send({});
@@ -98,13 +98,13 @@ describe("relation proposals e2e", () => {
   });
 
   it("HeuristicRelationProposer is deterministic (same input → same output)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "赵敏" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "赵明" });
     const a = await request(app).post("/api/proposals/scan").send({});
     expect(a.body.created).toBe(1);
     const list1 = (await request(app).get("/api/proposals")).body.map((x: any) => x.rationale).sort();
-    const { app: app2 } = makeApp();
+    const { app: app2 } = await makeApp();
     await request(app2).post("/api/nodes/attackTicket").send({ 标题: "T1", 当前处理人: "赵敏" });
     await request(app2).post("/api/nodes/attackTicket").send({ 标题: "T2", 当前处理人: "赵明" });
     await request(app2).post("/api/proposals/scan").send({});

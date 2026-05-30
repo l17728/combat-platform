@@ -15,14 +15,14 @@ import { fileURLToPath } from "node:url";
 // require a cwd-shim that breaks the existing registry.test.ts relative path).
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 
-function makeApp() {
+async function makeApp() {
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-arc-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
 describe("archive (release/weight) e2e — config-driven, zero backend code", () => {
   it("releasePackage CRUD + required guard + ref→person + anchor→问题单号", async () => {
-    const { app, repo } = makeApp();
+    const { app, repo } = await makeApp();
     const bad = await request(app).post("/api/nodes/releasePackage").send({ 产品: "X" });
     expect(bad.status).toBe(400);
     const c = await request(app).post("/api/nodes/releasePackage").send({
@@ -45,7 +45,7 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
   });
 
   it("weightFile happy path + same generic CRUD reuse", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const bad = await request(app).post("/api/nodes/weightFile").send({});
     expect(bad.status).toBe(400);
     const c = await request(app).post("/api/nodes/weightFile").send({
@@ -56,7 +56,7 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
   });
 
   it("cross-view cross-nodeType coAnchored — attackTicket + releasePackage + weightFile via shared 问题单号", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const PB = "ARC-X-" + Date.now();
     const at = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "归档关联攻关", 状态: "进行中", 问题单号: PB })).body;
     const rp = (await request(app).post("/api/nodes/releasePackage").send({ 版本号: "归档v9", 关联问题单: PB })).body;
@@ -72,7 +72,7 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
   });
 
   it("/api/query/search finds new nodeTypes by property substring", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const tag = "ARC检索X-" + Date.now();
     await request(app).post("/api/nodes/releasePackage").send({ 版本号: tag, 产品: "搜得到" });
     await request(app).post("/api/nodes/weightFile").send({ 名称: "W-" + tag, 模型: "搜得到W" });

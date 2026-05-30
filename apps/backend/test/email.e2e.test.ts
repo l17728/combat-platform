@@ -13,7 +13,7 @@ import type { MailSender } from "../src/mailer.js";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-email-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   const registry = new FileSchemaRegistry(CFG);
@@ -28,7 +28,7 @@ const SMTP = { host: "smtp.x.com", port: 465, secure: true, username: "u", passw
 
 describe("§45 email e2e", () => {
   it("config PUT→GET masks password (passwordSet) and empty password preserves old", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const put = await request(app).put("/api/email/config").send(SMTP);
     expect(put.status).toBe(200);
     expect(put.body.passwordSet).toBe(true);
@@ -52,14 +52,14 @@ describe("§45 email e2e", () => {
   });
 
   it("empty config GET returns empty shell with sane defaults", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const get = await request(app).get("/api/email/config");
     expect(get.status).toBe(200);
     expect(get.body).toEqual({ host: "", port: 465, secure: true, username: "", fromEmail: "", passwordSet: false });
   });
 
   it("send resolves to[] + group expansion + person email, dedups, fake sender receives", async () => {
-    const { app, sent } = makeApp();
+    const { app, sent } = await makeApp();
     await request(app).put("/api/email/config").send(SMTP);
     // emailGroup via generic nodes API (config-driven, §45.6 #5)
     const g = await request(app).post("/api/nodes/emailGroup").send({ 组名: "G", 成员邮箱: "a@x.com, b@x.com" });
@@ -81,7 +81,7 @@ describe("§45 email e2e", () => {
   });
 
   it("person resolved by employeeId too, invalid emails filtered out", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).put("/api/email/config").send(SMTP);
     await request(app).post("/api/nodes/person").send({ 姓名: "李四", 工号: "E2", 邮箱: "li@x.com" });
     const send = await request(app).post("/api/email/send").send({
@@ -92,19 +92,19 @@ describe("§45 email e2e", () => {
   });
 
   it("no SMTP configured → /send 400", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const send = await request(app).post("/api/email/send").send({ to: ["a@x.com"], subject: "S", body: "B" });
     expect(send.status).toBe(400);
   });
 
   it("no SMTP configured → /test 400", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = await request(app).post("/api/email/test").send({ to: "a@x.com" });
     expect(t.status).toBe(400);
   });
 
   it("configured but no valid recipients → /send 400", async () => {
-    const { app, sent } = makeApp();
+    const { app, sent } = await makeApp();
     await request(app).put("/api/email/config").send(SMTP);
     const send = await request(app).post("/api/email/send").send({ to: ["nope", " "], subject: "S", body: "B" });
     expect(send.status).toBe(400);
