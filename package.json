@@ -5,6 +5,7 @@
   "scripts": {
     "test:shared": "npm run test --workspace=@combat/shared",
     "test:backend": "npm run test --workspace=@combat/backend",
+    "test:backend:pg": "node scripts/test-backend-pg.mjs",
     "test:frontend:e2e": "npm run test:e2e --workspace=@combat/frontend",
     "test:frontend-v2:e2e": "npx playwright test --config=apps/frontend-v2/playwright.config.ts",
     "reset:schemas": "git checkout -- config/schemas/",
