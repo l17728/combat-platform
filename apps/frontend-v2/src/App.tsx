@@ -48,6 +48,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminGuard({ children }: { children: React.ReactNode }) {
+  const { isAdmin, loading } = useAuth();
+  if (loading) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function LoginRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <Spin style={{ display: 'block', margin: '40vh auto' }} />;
@@ -96,8 +103,8 @@ function AppInner() {
         <Route path="/config" element={<ConfigCenter />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/kg" element={<KGGraph />} />
-        <Route path="/proposals" element={<ProposalsPage />} />
-        <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/proposals" element={<AdminGuard><ProposalsPage /></AdminGuard>} />
+        <Route path="/reminders" element={<AdminGuard><RemindersPage /></AdminGuard>} />
         <Route path="/bug-report" element={<BugReport />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/op-log" element={<OperationLog />} />

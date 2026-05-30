@@ -57,7 +57,7 @@ function getSelectedKey(path: string): string {
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
-  if (path === '/proposals' || path === '/reminders') return ['review'];
+  if (path === '/proposals' || path === '/reminders') return ['system', 'review'];
   if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup'].includes(path)) return ['system'];
   return [];
 }
@@ -128,16 +128,6 @@ export function AppLayout() {
       label: '文档中心',
     },
     {
-      key: 'review',
-      icon: <AuditOutlined />,
-      label: '审核管理',
-      onTitleClick: () => navigate('/proposals'),
-      children: [
-        { key: '/proposals', label: '关系审批', icon: <ApartmentOutlined /> },
-        { key: '/reminders', label: '跟催提醒', icon: <BellOutlined /> },
-      ],
-    },
-    {
       key: '/search',
       icon: <SearchOutlined />,
       label: '全局搜索',
@@ -169,6 +159,15 @@ export function AppLayout() {
         { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
         { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
         { key: '/backup', label: '备份恢复', icon: <DatabaseOutlined /> },
+        ...(isAdmin ? [{
+          key: 'review',
+          icon: <AuditOutlined />,
+          label: '审核管理',
+          children: [
+            { key: '/proposals', label: '关系审批', icon: <ApartmentOutlined /> },
+            { key: '/reminders', label: '跟催提醒', icon: <BellOutlined /> },
+          ],
+        }] : []),
         ...(isAdmin ? [{ key: '/op-log', label: '操作追踪', icon: <EyeOutlined /> }] : []),
         ...(isAdmin ? [{ key: '/users', label: '用户管理', icon: <UserOutlined /> }] : []),
       ],
