@@ -306,6 +306,49 @@ function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | n
   return payload;
 }
 
+/**
+ * P0-4 修复:管理员守卫中间件。挂在敏感路由(merge/backup/email/op-log/audit/
+ * proposals/reminders 等)前,确保只有 admin JWT 才能调用。
+ * - COMBAT_NO_AUTH=1 → 直放(e2e 测试 bypass)
+ * - 缺失/无效 token → 401
+ * - role !== 'admin' → 403
+ */
+export function adminMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const payload = verifyAuth(req);
+  if (!payload) {
+    res.status(401).json({ error: "未登录或 token 已过期" });
+    return;
+  }
+  if (payload.role !== "admin") {
+    log.warn("auth.admin_denied", { username: payload.username, role: payload.role, path: req.path });
+    res.status(403).json({ error: "仅管理员可访问" });
+    return;
+  }
+  (req as any).user = payload;
+  next();
+}
+
+/**
+ * P0-4 修复:Leader+ 守卫中间件(admin 或 leader 角色)。挂在不应让 normal 调用
+ * 但 leader 又确有合法需求的路由上(如 ticket-tabs/documents 编辑)。
+ */
+export function leaderMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const payload = verifyAuth(req);
+  if (!payload) {
+    res.status(401).json({ error: "未登录或 token 已过期" });
+    return;
+  }
+  if (payload.role !== "admin" && payload.role !== "leader") {
+    log.warn("auth.leader_denied", { username: payload.username, role: payload.role, path: req.path });
+    res.status(403).json({ error: "仅 Leader 或管理员可访问" });
+    return;
+  }
+  (req as any).user = payload;
+  next();
+}
+
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const path = req.path;
