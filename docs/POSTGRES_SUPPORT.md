@@ -1,7 +1,16 @@
 # Postgres 支持路线图
 
-> 状态: **Phase 1 已完成** — 仅搭基建,SQLite 仍是默认且全部测试通过。
-> Postgres 真正能跑起来要等 Phase 2 的 Repository async 化。
+> 状态(2026-05-30 更新): **Phase 1 + Phase 3 CLI 工具 + Phase 3.5 UI 脚手架 完成**;Phase 2 (Repository async 化) 因体量过大尚未完成,仍是关键瓶颈。
+>
+> | 阶段 | 状态 |
+> |------|------|
+> | Phase 1 — 驱动工厂 + Drizzle schema + DB_URL 解析 | ✅ 完成 |
+> | Phase 2 — Repository async 化 + 所有 router 改造 | ⏳ **未完成** (需专项 sprint,~80 处 callsite + 50+ 测试用例) |
+> | Phase 3 — CLI 迁移工具 `scripts/migrate/sqlite-to-postgres.mjs` | ✅ 完成 |
+> | Phase 3.5 — 一键迁移 UI (系统管理菜单) | ✅ 前端 + 后端 API 脚手架完成,**实际可用需 Phase 2 落地** |
+> | Phase 4 — JSONB 优化 + GIN 索引 | ⏳ 待 Phase 2 后启动 |
+>
+> SQLite 路径回归测试 353/353 全绿。
 
 ## 当前能力 (Phase 1)
 
@@ -123,4 +132,33 @@ export COMBAT_POSTGRES_PHASE2=1
 
 - `apps/backend/src/db.ts` — 工厂 + DDL
 - `apps/backend/src/schema.ts` — Drizzle schema-as-code
+- `apps/backend/src/db-adapter.ts` — DbAdapter 异步接口(Phase 2 备料,SQLite 同步包装 + Postgres 真异步)
+- `apps/backend/src/db-migration.ts` — Phase 3.5 一键迁移路由(status / test-connection / run)
 - `apps/backend/test/db-url.unit.test.ts` — parseDbUrl 单元测试
+- `scripts/migrate/sqlite-to-postgres.mjs` — Phase 3 CLI 迁移工具(批量 INSERT + 事务 + 进度 + 标记文件)
+- `apps/frontend-v2/src/pages/DbMigration.tsx` — 一键迁移 UI(系统管理 → 数据库迁移,仅 admin)
+
+## CLI 工具用法
+
+```bash
+# 试运行,只统计行数不写入
+node scripts/migrate/sqlite-to-postgres.mjs \
+  --sqlite ./data/combat.sqlite \
+  --postgres postgresql://combat:secret@localhost:5432/combat \
+  --dry-run
+
+# 正式迁移(目标 PG 端必须已通过 DB_URL=postgres://... 启动过一次 backend 让它建表)
+node scripts/migrate/sqlite-to-postgres.mjs \
+  --sqlite ./data/combat.sqlite \
+  --postgres postgresql://combat:secret@localhost:5432/combat
+
+# 想清空目标表再写(危险):加 --truncate
+```
+
+完成后会写 `<sqlitePath>.migrated-to-postgres` 标记文件,UI status 页会显示「上次迁移于 ...」。
+
+## UI 用法
+
+登录 admin → **系统管理 → 数据库迁移** → 看当前驱动 / 总行数 → 填 PG 连接串 → 测试连接 → 试运行 → 正式迁移。
+
+UI 后端调用 `scripts/migrate/sqlite-to-postgres.mjs` 子进程,事务级别一致;前端用普通 POST 阻塞返回(后续可改 SSE 推进度)。

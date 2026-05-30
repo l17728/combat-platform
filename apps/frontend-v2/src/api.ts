@@ -790,6 +790,40 @@ export class Api {
       body: JSON.stringify({ order }),
     });
   }
+
+  // 数据库迁移 (Phase 3.5 / task #68)
+  dbMigrationStatus(): Promise<{
+    kind: 'sqlite' | 'postgres';
+    url: string;
+    tables: { name: string; rows: number }[];
+    lastMigratedAt?: string | null;
+  }> {
+    return this.req('/api/db-migration/status');
+  }
+
+  dbMigrationTestConnection(pgUrl: string): Promise<{ ok: boolean }> {
+    return this.req('/api/db-migration/test-connection', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pgUrl }),
+    });
+  }
+
+  async dbMigrationRun(opts: {
+    pgUrl: string;
+    truncate?: boolean;
+    dryRun?: boolean;
+    onProgress?: (percent: number) => void;
+  }): Promise<{ ok: boolean; stats: Record<string, { source: number; copied: number }>; error?: string }> {
+    // 单次 POST 调用,后端阻塞返回结果(实现简单);若需要实时进度,后端改 SSE,前端这里换 EventSource。
+    const r = await this.req<{ ok: boolean; stats: any; error?: string }>('/api/db-migration/run', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pgUrl: opts.pgUrl, truncate: !!opts.truncate, dryRun: !!opts.dryRun }),
+    });
+    opts.onProgress?.(100);
+    return r;
+  }
 }
 
 export interface DocItem {

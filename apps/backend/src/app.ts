@@ -39,6 +39,7 @@ import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
+import { makeDbMigrationRouter } from "./db-migration.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
@@ -107,6 +108,9 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeBackupRouter(deps.db, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(deps.db));
     app.use("/api", makeDocumentRouter(deps.db));
+    if (deps.dbPath) {
+      app.use("/api", makeDbMigrationRouter(deps.db, deps.dbPath));
+    }
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });

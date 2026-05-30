@@ -4,6 +4,29 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v1.1.0-pg — 2026-05-30 (Postgres 支持脚手架 + 一键迁移 UI)
+
+\`feature/postgres-support\` 分支的增量。**SQLite 仍是默认,行为零变化**;新增 Postgres 双驱动基础设施 + 一键迁移工具。
+
+### 🆕 数据库迁移 UI(系统管理)
+- 新菜单项 **系统管理 → 数据库迁移**(仅管理员可见)
+- 三段式 UI:① 当前驱动 + 各表行数 ② Postgres 连接表单 + 测试 ③ 试运行/正式迁移
+- 后端调 \`scripts/migrate/sqlite-to-postgres.mjs\` 子进程,事务级一致
+
+### 🆕 CLI 迁移工具
+\`scripts/migrate/sqlite-to-postgres.mjs\`,支持 \`--dry-run\` / \`--truncate\` / \`--batch N\`;按表批量 INSERT、事务级提交、写迁移标记文件。
+
+### 🆕 后端 DB_URL 配置(默认仍 SQLite)
+- 新环境变量 \`DB_URL\`:支持 \`sqlite://./path\` / \`postgres://...\` / \`postgresql://...\` / 裸路径
+- 启动期自动识别协议,建表;Postgres 路径会打印 \`server.postgres_phase1\` 警告(因为业务层 Repository 仍未 async 化)
+
+### ⚠ 当前限制
+- 一键迁移 UI 是脚手架,**真正切换到 Postgres 需要 Phase 2 (Repository 全面 async 化) 落地**
+- Phase 2 体量大(~80 处 callsite),作为专项 sprint 单独排期
+- 详见 \`docs/POSTGRES_SUPPORT.md\` 路线图
+
+---
+
 ## v1.0.0 — 2026-05-30 (首版完整功能盘点)
 
 作为第一版 release notes,本版**完整盘点**当前系统所有可用功能(包括本期新增 + 此前已上线的所有特性)。后续版本只追加增量。

@@ -25,6 +25,7 @@ import ProposalsPage from './pages/ProposalsPage.js';
 import RemindersPage from './pages/RemindersPage.js';
 import BugReport from './pages/BugReport.js';
 import UserManagement from './pages/UserManagement.js';
+import DbMigration from './pages/DbMigration.js';
 import OperationLog from './pages/OperationLog.js';
 import BackupRestore from './pages/BackupRestore.js';
 import DocumentCenter from './pages/DocumentCenter.js';
@@ -109,6 +110,7 @@ function AppInner() {
         <Route path="/users" element={<UserManagement />} />
         <Route path="/op-log" element={<OperationLog />} />
         <Route path="/backup" element={<BackupRestore />} />
+        <Route path="/db-migration" element={<AdminGuard><DbMigration /></AdminGuard>} />
         <Route path="/documents" element={<DocumentCenter />} />
         <Route path="/manual" element={<ManualCenter />} />
         <Route path="*" element={<NotFound />} />
