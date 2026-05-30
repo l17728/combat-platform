@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import type { DB } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
@@ -45,20 +45,26 @@ function toUser(r: any): AuthUser {
   };
 }
 
-function ensureDefaultAdmin(db: DB): void {
-  const count = db.prepare("SELECT COUNT(*) as c FROM users").get() as { c: number };
-  if (count.c === 0) {
+async function ensureDefaultAdmin(adapter: DbAdapter): Promise<void> {
+  // Cross-dialect: uses adapter (SQLite + Postgres). Fire-and-forget at boot.
+  const row = await adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM users");
+  const count = Number(row?.c ?? 0);
+  if (count === 0) {
     const hash = bcrypt.hashSync("admin123", 10);
     const now = new Date().toISOString();
-    db.prepare(
-      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(randomUUID(), "admin", hash, "admin", "系统管理员", now, now);
+    await adapter.run(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [randomUUID(), "admin", hash, "admin", "系统管理员", now, now],
+    );
     log.info("auth.default_admin_created");
   }
 }
 
-export function makeAuthRouter(db: DB): Router {
-  ensureDefaultAdmin(db);
+export function makeAuthRouter(adapter: DbAdapter): Router {
+  // Fire-and-forget — async seed, failures logged but don't block.
+  ensureDefaultAdmin(adapter).catch((err) =>
+    log.warn("auth.ensure_default_admin_failed", { error: (err as Error).message }),
+  );
   const r = Router();
 
   r.post("/auth/login", asyncHandler(async (req, res) => {
@@ -66,7 +72,7 @@ export function makeAuthRouter(db: DB): Router {
     if (!username || !password) {
       return res.status(400).json({ error: "请输入用户名和密码" });
     }
-    const row = db.prepare("SELECT * FROM users WHERE username = ?").get(username) as any;
+    const row = await adapter.queryOne<any>("SELECT * FROM users WHERE username = ?", [username]);
     if (!row) {
       return res.status(401).json({ error: "用户名或密码错误" });
     }
@@ -92,7 +98,7 @@ export function makeAuthRouter(db: DB): Router {
     if (password.length < 6) {
       return res.status(400).json({ error: "密码至少 6 个字符" });
     }
-    const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+    const existing = await adapter.queryOne<{ id: string }>("SELECT id FROM users WHERE username = ?", [username]);
     if (existing) {
       return res.status(409).json({ error: "用户名已存在" });
     }
@@ -100,13 +106,14 @@ export function makeAuthRouter(db: DB): Router {
     const now = new Date().toISOString();
     const id = randomUUID();
     const userRole = ["admin", "leader"].includes(role ?? "") ? role! : "normal";
-    db.prepare(
-      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, username, hash, userRole, displayName ?? username, now, now);
+    await adapter.run(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [id, username, hash, userRole, displayName ?? username, now, now],
+    );
     log.info("auth.register", { username, role: userRole });
     const payload: JwtPayload = { userId: id, username, role: userRole };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    const user = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
     res.status(201).json({ token, user: toUser(user) });
   }));
 
@@ -114,12 +121,12 @@ export function makeAuthRouter(db: DB): Router {
     const payload = verifyAuth(req);
     if (!payload) {
       if (process.env.COMBAT_NO_AUTH === "1") {
-        const admin = db.prepare("SELECT * FROM users WHERE username = ?").get("admin") as any;
+        const admin = await adapter.queryOne<any>("SELECT * FROM users WHERE username = ?", ["admin"]);
         if (admin) return res.json({ user: toUser(admin) });
       }
       return res.status(401).json({ error: "未登录或 token 已过期" });
     }
-    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as any;
+    const row = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [payload.userId]);
     if (!row) {
       return res.status(401).json({ error: "用户不存在" });
     }
@@ -138,13 +145,15 @@ export function makeAuthRouter(db: DB): Router {
     if (newPassword.length < 6) {
       return res.status(400).json({ error: "新密码至少 6 个字符" });
     }
-    const row = db.prepare("SELECT * FROM users WHERE id = ?").get(payload.userId) as any;
+    const row = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [payload.userId]);
     if (!row || !bcrypt.compareSync(oldPassword, row.password_hash)) {
       return res.status(401).json({ error: "旧密码错误" });
     }
     const hash = bcrypt.hashSync(newPassword, 10);
-    db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
-      .run(hash, new Date().toISOString(), payload.userId);
+    await adapter.run(
+      "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
+      [hash, new Date().toISOString(), payload.userId],
+    );
     log.info("auth.password_changed", { username: payload.username });
     res.json({ ok: true });
   }));
@@ -152,13 +161,15 @@ export function makeAuthRouter(db: DB): Router {
   return r;
 }
 
-export function makeUserAdminRouter(db: DB): Router {
+export function makeUserAdminRouter(adapter: DbAdapter): Router {
   const r = Router();
 
   r.get("/users", asyncHandler(async (req, res) => {
     const payload = requireAdmin(req);
     if (!payload) return res.status(403).json({ error: "仅管理员可管理用户" });
-    const rows = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users ORDER BY created_at").all() as any[];
+    const rows = await adapter.query<any>(
+      "SELECT id, username, role, display_name, created_at, updated_at FROM users ORDER BY created_at",
+    );
     res.json(rows.map(toUser));
   }));
 
@@ -174,7 +185,7 @@ export function makeUserAdminRouter(db: DB): Router {
     if (password.length < 6) {
       return res.status(400).json({ error: "密码至少 6 个字符" });
     }
-    const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+    const existing = await adapter.queryOne<{ id: string }>("SELECT id FROM users WHERE username = ?", [username]);
     if (existing) {
       return res.status(409).json({ error: "用户名已存在" });
     }
@@ -182,11 +193,15 @@ export function makeUserAdminRouter(db: DB): Router {
     const now = new Date().toISOString();
     const id = randomUUID();
     const userRole = ["admin", "leader", "normal"].includes(role ?? "") ? role! : "normal";
-    db.prepare(
-      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, username, hash, userRole, displayName ?? username, now, now);
+    await adapter.run(
+      "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [id, username, hash, userRole, displayName ?? username, now, now],
+    );
     log.info("auth.user_created", { by: payload.username, created: username, role: userRole });
-    const row = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?").get(id) as any;
+    const row = await adapter.queryOne<any>(
+      "SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?",
+      [id],
+    );
     res.status(201).json(toUser(row));
   }));
 
@@ -195,7 +210,7 @@ export function makeUserAdminRouter(db: DB): Router {
     if (!payload) return res.status(403).json({ error: "仅管理员可编辑用户" });
     const { id } = req.params;
     const { role, displayName, password } = req.body as { role?: string; displayName?: string; password?: string };
-    const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    const existing = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
     if (!existing) {
       return res.status(404).json({ error: "用户不存在" });
     }
@@ -222,9 +237,12 @@ export function makeUserAdminRouter(db: DB): Router {
     updates.push("updated_at = ?");
     params.push(new Date().toISOString());
     params.push(id);
-    db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+    await adapter.run(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
     log.info("auth.user_updated", { by: payload.username, target: id, fields: Object.keys(req.body) });
-    const row = db.prepare("SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?").get(id) as any;
+    const row = await adapter.queryOne<any>(
+      "SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE id = ?",
+      [id],
+    );
     res.json(toUser(row));
   }));
 
@@ -235,11 +253,11 @@ export function makeUserAdminRouter(db: DB): Router {
     if (payload.userId === id) {
       return res.status(400).json({ error: "不能删除自己" });
     }
-    const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+    const existing = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
     if (!existing) {
       return res.status(404).json({ error: "用户不存在" });
     }
-    db.prepare("DELETE FROM users WHERE id = ?").run(id);
+    await adapter.run("DELETE FROM users WHERE id = ?", [id]);
     log.info("auth.user_deleted", { by: payload.username, deleted: existing.username });
     res.json({ ok: true });
   }));

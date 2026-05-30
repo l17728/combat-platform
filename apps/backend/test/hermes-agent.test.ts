@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,14 +31,14 @@ function makeRepoRegistry() {
     ],
   }));
   const db = openDb(join(dir, "t.sqlite"));
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(cfgDir);
   return { repo, registry };
 }
 
 describe("hermes-agent 确定性核心", () => {
   describe("buildHermesPrompt", () => {
-    it("含问题、数据字典(类型/字段/枚举)与 a2 引用指令", () => {
+    it("含问题、数据字典(类型/字段/枚举)与 a2 引用指令", async () => {
       const { registry } = makeRepoRegistry();
       const p = buildHermesPrompt(registry, "PB-1 谁负责");
       expect(p).toContain("PB-1 谁负责");
@@ -49,18 +50,18 @@ describe("hermes-agent 确定性核心", () => {
   });
 
   describe("parseAgentOutput", () => {
-    it("拆分答案正文与引用 ID(逗号/空格/中文逗号分隔)", () => {
+    it("拆分答案正文与引用 ID(逗号/空格/中文逗号分隔)", async () => {
       const text = "张前线负责，状态处理中。\nCITATIONS: a1, b2，c3";
       const r = parseAgentOutput(text);
       expect(r.answer).toBe("张前线负责，状态处理中。");
       expect(r.citedIds).toEqual(["a1", "b2", "c3"]);
     });
-    it("CITATIONS 为空 → 引用为空数组", () => {
+    it("CITATIONS 为空 → 引用为空数组", async () => {
       const r = parseAgentOutput("没有找到相关记录。\nCITATIONS: 空");
       expect(r.citedIds).toEqual([]);
       expect(r.answer).toBe("没有找到相关记录。");
     });
-    it("无 CITATIONS 行 → 全文为答案,引用空", () => {
+    it("无 CITATIONS 行 → 全文为答案,引用空", async () => {
       const r = parseAgentOutput("只是一段普通回答。");
       expect(r.answer).toBe("只是一段普通回答。");
       expect(r.citedIds).toEqual([]);
@@ -68,10 +69,10 @@ describe("hermes-agent 确定性核心", () => {
   });
 
   describe("buildCitations(a2 + 防幻觉)", () => {
-    it("仅保留真实存在的节点;丢弃编造 ID;去重", () => {
+    it("仅保留真实存在的节点;丢弃编造 ID;去重", async () => {
       const { repo } = makeRepoRegistry();
-      const t = repo.createNode("attackTicket", { 标题: "MaaS 503 故障", 状态: "处理中" }, "test");
-      const cites = buildCitations(repo, [t.id, "fake-id-不存在", t.id]);
+      const t = await repo.createNode("attackTicket", { 标题: "MaaS 503 故障", 状态: "处理中" }, "test");
+      const cites = await buildCitations(repo, [t.id, "fake-id-不存在", t.id]);
       expect(cites).toHaveLength(1);
       expect(cites[0]).toMatchObject({
         nodeId: t.id,
@@ -80,16 +81,16 @@ describe("hermes-agent 确定性核心", () => {
         link: `/attack/${t.id}`,
       });
     });
-    it("空输入 → 空引用", () => {
+    it("空输入 → 空引用", async () => {
       const { repo } = makeRepoRegistry();
-      expect(buildCitations(repo, [])).toEqual([]);
+      expect(await buildCitations(repo, [])).toEqual([]);
     });
   });
 
   describe("answerWithAgent(编排)", () => {
     it("跑 agent → HermesAnswer intent=agent,引用经校验回填", async () => {
       const { repo, registry } = makeRepoRegistry();
-      const t = repo.createNode("attackTicket", { 标题: "断网攻关", 状态: "待响应", 当前处理人: "张前线" }, "test");
+      const t = await repo.createNode("attackTicket", { 标题: "断网攻关", 状态: "待响应", 当前处理人: "张前线" }, "test");
       const fake: AgentRunner = {
         run: async () => `《断网攻关》当前由张前线负责，状态待响应。\nCITATIONS: ${t.id}, 编造ID`,
       };

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { Repository, DailyReport, DailyReportSection, DailyReportPublishResult } from "@combat/shared";
+import type { Repository, DailyReport, DailyReportSection, DailyReportPublishResult, ProgressLog } from "@combat/shared";
 import { localDateOf, localToday } from "./date-util.js";
 import { log } from "./logger.js";
 
@@ -8,22 +8,22 @@ const todayUTC = () => localToday();
 
 /** §51.1: tickets with progress on `date` (Asia/Shanghai calendar day) get
  *  日报发布数量 +1, audited. Returns counts. */
-function publishDailyReport(repo: Repository, date: string, actor: string): DailyReportPublishResult {
+async function publishDailyReport(repo: Repository, date: string, actor: string): Promise<DailyReportPublishResult> {
   let ticketsTouched = 0;
-  const allProgress = repo.listAllProgress();
-  const progressByOwner = new Map<string, typeof allProgress>();
+  const allProgress = await repo.listAllProgress();
+  const progressByOwner = new Map<string, ProgressLog[]>();
   for (const p of allProgress) {
     let arr = progressByOwner.get(p.ownerId);
     if (!arr) { arr = []; progressByOwner.set(p.ownerId, arr); }
     arr.push(p);
   }
-  for (const t of repo.queryNodes("attackTicket")) {
+  for (const t of await repo.queryNodes("attackTicket")) {
     const hasProgress = (progressByOwner.get(t.id) ?? []).some(p => localDateOf(p.updatedAt) === date);
     if (!hasProgress) continue;
     ticketsTouched++;
     const cur = Number(t.properties["日报发布数量"] ?? 0) || 0;
-    repo.updateNode(t.id, { 日报发布数量: cur + 1 }, actor);
-    repo.logAudit({ action: "DAILY_REPORT_PUBLISH", entityType: "node", entityId: t.id,
+    await repo.updateNode(t.id, { 日报发布数量: cur + 1 }, actor);
+    await repo.logAudit({ action: "DAILY_REPORT_PUBLISH", entityType: "node", entityId: t.id,
       changes: { date, 日报发布数量: cur + 1 }, actor });
   }
   log.info("daily_report.publish", { date, ticketsTouched, published: ticketsTouched });
@@ -33,19 +33,19 @@ function publishDailyReport(repo: Repository, date: string, actor: string): Dail
 export function makeDailyReportRouter(repo: Repository): Router {
   const r = Router();
 
-  r.post("/daily-report/publish", (req, res) => {
+  r.post("/daily-report/publish", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const raw = String(first(req.query.date) ?? "");
     const date = ISO_DATE.test(raw) ? raw : todayUTC();
-    res.json(publishDailyReport(repo, date, "api"));
+    res.json(await publishDailyReport(repo, date, "api"));
   });
-  r.get("/daily-report", (req, res) => {
+  r.get("/daily-report", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const raw = String(first(req.query.date) ?? "");
     const date = ISO_DATE.test(raw) ? raw : todayUTC();
-    const tickets = repo.queryNodes("attackTicket");
-    const allProgress = repo.listAllProgress();
-    const progressByOwner = new Map<string, typeof allProgress>();
+    const tickets = await repo.queryNodes("attackTicket");
+    const allProgress = await repo.listAllProgress();
+    const progressByOwner = new Map<string, ProgressLog[]>();
     for (const p of allProgress) {
       let arr = progressByOwner.get(p.ownerId);
       if (!arr) { arr = []; progressByOwner.set(p.ownerId, arr); }

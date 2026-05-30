@@ -3,6 +3,7 @@ import request from "supertest";
 import * as XLSX from "xlsx";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { rebuildKG } from "../src/kg-rebuild.js";
@@ -13,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-fix-")), "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-fix-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, registry: new FileSchemaRegistry(CFG) };
 }
 function xlsx(rows: Record<string, unknown>[]): Buffer {
@@ -30,7 +31,7 @@ describe("增量36 正确性修复", () => {
       .attach("file", xlsx([{ 问题说明: "断连A", 风险等级: "" }]), "x.xlsx");
     expect(r.status).toBe(200);
     expect(r.body.created).toBe(1);
-    expect(repo.queryNodes("incidentTracking")).toHaveLength(1);
+    expect(await repo.queryNodes("incidentTracking")).toHaveLength(1);
   });
 
   it("M3: 导入无工号人员按姓名查重，不产生重复 person", async () => {
@@ -38,7 +39,7 @@ describe("增量36 正确性修复", () => {
     const buf = xlsx([{ 标题: "A单", 状态: "进行中", 攻关申请人: "张三" }]);
     await request(app).post("/api/import").attach("file", buf, "x.xlsx");
     await request(app).post("/api/import").attach("file", xlsx([{ 标题: "B单", 状态: "进行中", 攻关申请人: "张三" }]), "x.xlsx");
-    expect(repo.queryNodes("person").filter(p => p.properties["姓名"] === "张三")).toHaveLength(1);
+    expect((await repo.queryNodes("person")).filter(p => p.properties["姓名"] === "张三")).toHaveLength(1);
   });
 
   it("H1: proposals:decide 接受 通过/已通过 两种动词", async () => {
@@ -65,7 +66,7 @@ describe("增量36 正确性修复", () => {
     await request(app).post("/api/merge/person").send({ fromId: a.id, toId: b.id });
     expect((await request(app).get(`/api/nodes/${a.id}`)).status).toBe(404);
     // b 收到迁移来的 REF 入边，且不重复
-    const inRefs = repo.queryEdges({ targetId: b.id, edgeType: "REF" });
+    const inRefs = await repo.queryEdges({ targetId: b.id, edgeType: "REF" });
     const keys = inRefs.map(e => `${e.sourceId}|${e.properties["field"]}`);
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -75,17 +76,17 @@ describe("增量36 正确性修复", () => {
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "保留单", 状态: "进行中" })).body;
     const e = (await request(app).post("/api/nodes/experience").send({ 经验: "保留经验" })).body;
     await request(app).post("/api/relations/manual").send({ sourceId: t.id, targetId: e.id, reason: "相关" });
-    rebuildKG(repo, registry);
-    expect(repo.queryEdges({ sourceId: t.id, edgeType: "RELATES_TO" })).toHaveLength(1);
+    await rebuildKG(repo, registry);
+    expect(await repo.queryEdges({ sourceId: t.id, edgeType: "RELATES_TO" })).toHaveLength(1);
   });
 
   it("M1: kg:rebuild 回收孤儿锚点节点", async () => {
     const { app, repo, registry } = make();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "锚点单", 状态: "进行中", 问题单号: "PB-ORPHAN" })).body;
-    expect(repo.queryNodes("问题单号").length).toBe(1);
+    expect((await repo.queryNodes("问题单号")).length).toBe(1);
     // 删掉攻关单 → 锚点入边没了 → rebuild 应回收孤儿锚点
     await request(app).delete(`/api/nodes/${t.id}`);
-    rebuildKG(repo, registry);
-    expect(repo.queryNodes("问题单号").length).toBe(0);
+    await rebuildKG(repo, registry);
+    expect((await repo.queryNodes("问题单号")).length).toBe(0);
   });
 });

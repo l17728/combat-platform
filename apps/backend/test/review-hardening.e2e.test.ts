@@ -3,6 +3,7 @@ import request from "supertest";
 import * as XLSX from "xlsx";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { localToday } from "../src/date-util.js";
@@ -13,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-hard-")), "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-hard-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 function xlsxBuf(rows: Record<string, unknown>[]): Buffer {
@@ -85,7 +86,7 @@ describe("增量40 review 加固（缺陷修复 + 边界）", () => {
       await request(app).post(`/api/nodes/${t.id}/progress`).send({ content: "进展", statusSnapshot: "进行中" });
       await request(app).post(`/api/daily-report/publish`);
       await request(app).post(`/api/daily-report/publish`);
-      expect(repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id }).length).toBe(2);
+      expect((await repo.listAuditLog({ action: "DAILY_REPORT_PUBLISH", entityId: t.id })).length).toBe(2);
     });
   });
 
@@ -128,6 +129,6 @@ describe("用户场景（end-to-end 视角）", () => {
       .attach("file", xlsxBuf([{ 标题: "正常单", 状态: "进行中" }]), "good.xlsx");
     expect(ok.status).toBe(200);
     expect(ok.body.created).toBe(1);
-    expect(repo.queryNodes("attackTicket").length).toBe(1);
+    expect((await repo.queryNodes("attackTicket")).length).toBe(1);
   });
 });

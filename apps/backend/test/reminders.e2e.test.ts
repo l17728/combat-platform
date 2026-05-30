@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -10,17 +11,18 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-rem-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db: (repo as any).db };
+  const db = openDb(join(dir, "t.sqlite"));
+  const repo = new SqliteRepository(new SqliteAdapter(db));
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db };
 }
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
 const daysAhead = (n: number) => new Date(Date.now() + n * 86400000).toISOString();
 
 describe("reminder engine e2e", () => {
   it("scan: 问题单跟催 fires for tickets with no progress in >= 3 days", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "停滞单", 状态: "进行中", 当前处理人: "甲" })).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     const s = await request(app).post("/api/reminders/scan").send({});
@@ -34,7 +36,7 @@ describe("reminder engine e2e", () => {
   });
 
   it("scan: FE Deadline 提醒 fires for deadlines within 3 days", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "临期单", 状态: "进行中", 当前处理人: "乙",
       客户要求解决时间: daysAhead(2),
@@ -47,7 +49,7 @@ describe("reminder engine e2e", () => {
   });
 
   it("scan is idempotent — same (kind,ticketId,recipient) within 7 days not duplicated", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "重复单", 状态: "进行中", 当前处理人: "丙" })).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(5), t.id);
     const s1 = await request(app).post("/api/reminders/scan").send({});
@@ -58,7 +60,7 @@ describe("reminder engine e2e", () => {
   });
 
   it("send (stub channel) → 已发送 + audit; non-待发送 → 409; unknown id → 404", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "发送单", 状态: "进行中", 当前处理人: "丁" })).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});
@@ -77,7 +79,7 @@ describe("reminder engine e2e", () => {
   });
 
   it("ignore → 已忽略; non-待发送 → 409", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "忽略单", 状态: "进行中", 当前处理人: "戊" })).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});
@@ -90,7 +92,7 @@ describe("reminder engine e2e", () => {
   });
 
   it("tickets without 当前处理人 are skipped by both rules (no recipient → no reminder)", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "无处理人单", 状态: "进行中", 客户要求解决时间: daysAhead(1) })).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});

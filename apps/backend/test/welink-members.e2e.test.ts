@@ -24,7 +24,7 @@ async function createPerson(app: any, name: string, empNo?: string) {
 
 describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-role)", () => {
   it("GET welink/search 关键词搜索消息", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await uploadMessages(app, tid, [
       { messageId: "s1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "OOM 现象明显" },
@@ -40,7 +40,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("GET welink/timeline 返回按时间升序的精简消息", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await uploadMessages(app, tid, [
       { messageId: "t2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "二" },
@@ -54,7 +54,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("GET welink/gap-analysis 区分已登记 vs 未登记发言人;通过 person 工号反查到姓名", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     await createPerson(app, "陈某", "c00493147");
     await createPerson(app, "李某", "l00865342");
     const tid = await createTicket(app, {
@@ -78,7 +78,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("POST welink/add-members 批量加成员,默认组员;syncMemberFields 同步三方", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app, {
       成员列表: JSON.stringify([{ 姓名: "陈某", 角色: "组长" }]),
       攻关组长: "陈某",
@@ -96,7 +96,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("POST welink/add-members role=组长 加新组长", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const r = await request(app).post(`/api/tickets/${tid}/welink/add-members`).send({ names: ["李某"], role: "组长" });
     expect(r.status).toBe(200);
@@ -104,7 +104,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("POST welink/set-member-role 改单人角色", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app, {
       成员列表: JSON.stringify([{ 姓名: "陈某", 角色: "组员" }]),
     });
@@ -116,7 +116,7 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   });
 
   it("invalid payloads → 400/404", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     expect((await request(app).post(`/api/tickets/${tid}/welink/add-members`).send({ names: [] })).status).toBe(400);
     expect((await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "x" })).status).toBe(400);

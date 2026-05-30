@@ -14,14 +14,14 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
 
 export class HeuristicRelationProposer implements RelationProposer {
   constructor(private threshold = 1, private source = "heuristic-v1") {}
-  propose(repo: Repository, registry: SchemaRegistry): ProposalDraft[] {
+  async propose(repo: Repository, registry: SchemaRegistry): Promise<ProposalDraft[]> {
     const cfg = registry.getConfig();
     const refTypes = new Set<string>();
     for (const ns of cfg.nodeTypes)
       for (const f of ns.fields) if (f.type === "ref" && f.refType) refTypes.add(f.refType);
     const out: ProposalDraft[] = [];
     for (const rt of [...refTypes].sort()) {
-      const nodes = repo.queryNodes(rt)
+      const nodes = (await repo.queryNodes(rt))
         .map(n => ({ id: n.id, key: norm(String(n.properties["姓名"] ?? n.properties["name"] ?? n.id)),
           emp: norm(String(n.properties["工号"] ?? n.properties["employeeId"] ?? "")) }))
         .sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : (a.id < b.id ? -1 : 1));

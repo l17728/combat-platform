@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import express from "express";
-import { openDb } from "./db.js";
+import { openDb, openDbFromUrl, parseDbUrl } from "./db.js";
 import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { createApp } from "./app.js";
@@ -9,17 +9,45 @@ import { tickScheduledJobs } from "./jobs.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
+import { SqliteAdapter, PostgresAdapter, type DbAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
 
-// Persisted DB location. Defaults to cwd/combat.sqlite (local/test). In production
-// COMBAT_DB_PATH points outside the deploy dirs that `rm -rf` clears on each deploy,
-// so prod data survives deploys.
-const DB_PATH = process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite");
-applyRestorePending(DB_PATH);
-const db = openDb(DB_PATH);
-const repo = new SqliteRepository(db);
+// Driver selection (Phase 2c):
+//   - DB_URL takes precedence (sqlite://... or postgres://...)
+//   - COMBAT_DB_PATH stays as a SQLite-only override for backwards compat
+//   - Default: cwd/combat.sqlite
+//
+// Both paths use the same dialect-neutral SqliteRepository via DbAdapter.
+const explicitDbUrl = process.env.DB_URL?.trim();
+const dbUrl = explicitDbUrl || `sqlite://${process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite")}`;
+const parsed = parseDbUrl(dbUrl);
+
+// SQLite path tracks a real file; Postgres path keeps an empty string so the
+// backup router knows there's no local SQLite file to back up.
+const DB_PATH = parsed.kind === "sqlite" ? parsed.sqlitePath! : "";
+
+// Top-level await is supported in NodeNext ESM — bootstrap async to wire the
+// correct adapter before createApp runs.
+let adapter: DbAdapter;
+if (parsed.kind === "sqlite") {
+  applyRestorePending(DB_PATH);
+  const db = openDb(DB_PATH);
+  adapter = new SqliteAdapter(db);
+  log.info("server.driver", { kind: "sqlite", path: DB_PATH });
+} else {
+  // Postgres: enable phase2 marker so openDbFromUrl skips the stub warning.
+  process.env.COMBAT_POSTGRES_PHASE2 = "1";
+  const handle = await openDbFromUrl(dbUrl);
+  if (handle.kind !== "postgres") {
+    throw new Error("unexpected: parseDbUrl said postgres but openDbFromUrl returned sqlite");
+  }
+  adapter = new PostgresAdapter(handle.pool);
+  log.info("server.driver", { kind: "postgres" });
+}
+
+const repo = new SqliteRepository(adapter);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
-const app = createApp({ repo, registry, db, dbPath: DB_PATH });
+const app = createApp({ repo, registry, adapter, dbPath: DB_PATH });
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
@@ -37,17 +65,17 @@ app.listen(PORT, () => {
 
   const AUTO_SCAN_INTERVAL = 5 * 60 * 1000;
   setInterval(() => {
-    try { scanEscalation(repo); } catch (e) { log.warn("auto_scan.escalation.fail", { error: (e as Error).message }); }
-    try { scanAndCreateReminders(repo, registry); } catch (e) { log.warn("auto_scan.reminders.fail", { error: (e as Error).message }); }
+    scanEscalation(repo).catch((e) => log.warn("auto_scan.escalation.fail", { error: (e as Error).message }));
+    scanAndCreateReminders(repo, registry).catch((e) => log.warn("auto_scan.reminders.fail", { error: (e as Error).message }));
   }, AUTO_SCAN_INTERVAL).unref();
   log.info("server.auto_scan.started", { intervalMs: AUTO_SCAN_INTERVAL });
 
   setInterval(() => {
-    try { runScheduledBackup(db, DB_PATH); } catch (e) { log.warn("auto_backup.fail", { error: (e as Error).message }); }
+    runScheduledBackup(adapter, DB_PATH).catch((e) => log.warn("auto_backup.fail", { error: (e as Error).message }));
   }, 3600_000).unref();
   log.info("server.backup_scheduler.started");
 });
 
 setInterval(() => {
-  try { tickScheduledJobs(repo, registry); } catch (e) { console.error("[jobs.tick]", e); }
+  tickScheduledJobs(repo, registry).catch((e) => console.error("[jobs.tick]", e));
 }, 3600_000).unref();

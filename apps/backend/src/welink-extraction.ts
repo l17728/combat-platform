@@ -70,8 +70,8 @@ function fetchSelectedMessages(db: DB, ticketId: string): WelinkMessageLite[] {
   }));
 }
 
-function fetchTicketMembers(repo: Repository, ticketId: string): { 姓名: string; 角色: string }[] {
-  const n = repo.getNode(ticketId);
+async function fetchTicketMembers(repo: Repository, ticketId: string): Promise<{ 姓名: string; 角色: string }[]> {
+  const n = await repo.getNode(ticketId);
   if (!n) return [];
   return parseMembers(n.properties as Record<string, unknown>);
 }
@@ -279,9 +279,9 @@ export async function runWelinkExtraction(
   if (msgs.length === 0) {
     return { queued: 0, extracted: 0, source: "heuristic", extractions: [] };
   }
-  const ticket = repo.getNode(ticketId);
+  const ticket = await repo.getNode(ticketId);
   const title = String((ticket?.properties?.["标题"] as string) ?? ticketId);
-  const members = fetchTicketMembers(repo, ticketId);
+  const members = await fetchTicketMembers(repo, ticketId);
 
   let source: RunExtractionResult["source"] = "heuristic";
   let normalized: NormalizedExtraction[] = [];

@@ -50,7 +50,7 @@ function getSelectedKey(path: string): string {
   if (path === '/search') return '/search';
   if (path === '/kg') return '/kg';
   if (path === '/bug-report') return '/bug-report';
-  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return path;
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge', '/db-migration'].includes(path)) return path;
   return '/';
 }
 
@@ -58,7 +58,7 @@ function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
   if (path === '/people' || path === '/contributions' || path.startsWith('/honor')) return ['people'];
   if (path === '/proposals' || path === '/reminders') return ['system', 'review'];
-  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return ['system'];
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge', '/db-migration'].includes(path)) return ['system'];
   return [];
 }
 
@@ -159,6 +159,7 @@ export function AppLayout() {
         { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
         { key: '/backup', label: '备份恢复', icon: <DatabaseOutlined /> },
         ...(isAdmin ? [{ key: '/merge', label: '人员合并', icon: <MergeOutlined /> }] : []),
+        ...(isAdmin ? [{ key: '/db-migration', label: '数据库迁移', icon: <DatabaseOutlined /> }] : []),
         ...(isAdmin ? [{
           key: 'review',
           icon: <AuditOutlined />,

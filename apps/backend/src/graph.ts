@@ -23,11 +23,11 @@ function labelOf(n: GraphNode): string {
  * `rootId`. Nodes dedup by id; edges dedup by source+target+edgeType.
  * Result is centered on rootId so the UI can lay out concentric rings.
  */
-export function buildSnapshot(repo: Repository, rootId: string, maxDepth: number): GraphSnapshot {
+export async function buildSnapshot(repo: Repository, rootId: string, maxDepth: number): Promise<GraphSnapshot> {
   const nodes = new Map<string, GraphSnapshotNode>();
   const edgeKey = (s: string, t: string, k: string) => `${s}->${t}:${k}`;
   const edges = new Map<string, GraphSnapshotEdge>();
-  const root = repo.getNode(rootId);
+  const root = await repo.getNode(rootId);
   if (!root) return { rootId, nodes: [], edges: [] };
   nodes.set(root.id, { id: root.id, nodeType: root.nodeType, label: labelOf(root) });
   if (maxDepth <= 0) return { rootId, nodes: [...nodes.values()], edges: [] };
@@ -38,10 +38,10 @@ export function buildSnapshot(repo: Repository, rootId: string, maxDepth: number
   while (queue.length) {
     const cur = queue.shift()!;
     if (cur.depth >= maxDepth) continue;
-    const out = repo.queryEdges({ sourceId: cur.id }).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
-    const inc = repo.queryEdges({ targetId: cur.id }).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
+    const out = (await repo.queryEdges({ sourceId: cur.id })).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
+    const inc = (await repo.queryEdges({ targetId: cur.id })).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
     for (const e of out) {
-      const peer = repo.getNode(e.targetId);
+      const peer = await repo.getNode(e.targetId);
       if (!peer) continue;
       const key = edgeKey(cur.id, peer.id, e.edgeType);
       if (!edges.has(key)) edges.set(key, { source: cur.id, target: peer.id, edgeType: e.edgeType });
@@ -49,7 +49,7 @@ export function buildSnapshot(repo: Repository, rootId: string, maxDepth: number
       if (!seen.has(peer.id)) { seen.add(peer.id); queue.push({ id: peer.id, depth: cur.depth + 1 }); }
     }
     for (const e of inc) {
-      const peer = repo.getNode(e.sourceId);
+      const peer = await repo.getNode(e.sourceId);
       if (!peer) continue;
       const key = edgeKey(peer.id, cur.id, e.edgeType);
       if (!edges.has(key)) edges.set(key, { source: peer.id, target: cur.id, edgeType: e.edgeType });
@@ -65,18 +65,18 @@ export function buildSnapshot(repo: Repository, rootId: string, maxDepth: number
  * 再取这些节点之间的所有边。用于「知识图谱」可视化页面的整体视图;
  * 单节点的上钻/下钻仍复用 buildSnapshot(/graph/snapshot/:type/:id)。
  */
-export function buildGraph(
+export async function buildGraph(
   repo: Repository,
   registry: SchemaRegistry,
   opts: { types?: string[]; q?: string; limit?: number },
-): GraphSnapshot {
+): Promise<GraphSnapshot> {
   const limit = Math.max(1, Math.min(opts.limit ?? 500, 2000));
   const types = opts.types?.length ? opts.types : registry.getConfig().nodeTypes.map(n => n.nodeType);
   const q = (opts.q ?? "").trim().toLowerCase();
   const nodes = new Map<string, GraphSnapshotNode>();
   for (const nt of types) {
     if (nodes.size >= limit) break;
-    for (const n of repo.queryNodes(nt)) {
+    for (const n of await repo.queryNodes(nt)) {
       if (nodes.size >= limit) break;
       if (q) {
         const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
@@ -88,7 +88,7 @@ export function buildGraph(
   const ids = new Set(nodes.keys());
   const edges = new Map<string, GraphSnapshotEdge>();
   for (const id of ids) {
-    for (const e of repo.queryEdges({ sourceId: id })) {
+    for (const e of await repo.queryEdges({ sourceId: id })) {
       if (!ids.has(e.targetId)) continue;
       const key = `${e.sourceId}->${e.targetId}:${e.edgeType}`;
       if (!edges.has(key)) edges.set(key, { source: e.sourceId, target: e.targetId, edgeType: e.edgeType });
@@ -99,20 +99,20 @@ export function buildGraph(
 
 export function makeGraphRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
-  r.get("/graph/snapshot/:nodeType/:id", (req, res) => {
-    const node = repo.getNode(req.params.id);
+  r.get("/graph/snapshot/:nodeType/:id", async (req, res) => {
+    const node = await repo.getNode(req.params.id);
     if (!node) return res.status(404).json({ error: "not found" });
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const rawDepth = Number(first(req.query.depth));
     const depth = Number.isFinite(rawDepth) && rawDepth >= 1 ? Math.min(3, Math.floor(rawDepth)) : 1;
-    res.json(buildSnapshot(repo, node.id, depth));
+    res.json(await buildSnapshot(repo, node.id, depth));
   });
-  r.get("/kg/graph", (req, res) => {
+  r.get("/kg/graph", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const types = req.query.types ? String(first(req.query.types)).split(",").map(s => s.trim()).filter(Boolean) : undefined;
     const q = req.query.q ? String(first(req.query.q)) : undefined;
     const limit = Number(first(req.query.limit)) || 500;
-    res.json(buildGraph(repo, registry, { types, q, limit }));
+    res.json(await buildGraph(repo, registry, { types, q, limit }));
   });
   return r;
 }

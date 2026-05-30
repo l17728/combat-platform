@@ -5,8 +5,8 @@ import { makeTestApp } from "./helpers.js";
 describe("ticket-tabs router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
 
-  beforeEach(() => {
-    ({ app } = makeTestApp());
+  beforeEach(async () => {
+    ({ app } = await makeTestApp());
   });
 
   it("GET /tickets/:id/tabs returns empty array", async () => {

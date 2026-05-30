@@ -5,8 +5,8 @@ import { makeTestApp } from "./helpers.js";
 describe("op-log router", () => {
   let app: ReturnType<typeof makeTestApp>["app"];
 
-  beforeEach(() => {
-    ({ app } = makeTestApp());
+  beforeEach(async () => {
+    ({ app } = await makeTestApp());
   });
 
   it("GET /op-logs/settings returns default enabled=true", async () => {

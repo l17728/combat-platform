@@ -3,10 +3,29 @@ import { readdir, unlink, stat, mkdir, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import multer from "multer";
 import Database from "better-sqlite3";
 import { log, asyncHandler } from "./logger.js";
-import type { DB } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
+
+async function makeBackup(adapter: DbAdapter, filePath: string): Promise<void> {
+  if (adapter.kind === "sqlite") {
+    await adapter.rawSqlite().backup(filePath);
+    return;
+  }
+  // Postgres path — shell out to pg_dump --format=custom.
+  const url = process.env.DB_URL;
+  if (!url) throw new Error("DB_URL is not set; cannot run pg_dump");
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn("pg_dump", ["--format=custom", `--file=${filePath}`, url], { stdio: "inherit" });
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`pg_dump exited ${code}`));
+    });
+  });
+}
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -15,18 +34,24 @@ const DEFAULT_SCHEDULE = { enabled: true, intervalHours: 168, keepCount: 4, last
 
 function backupsDir(dbPath: string) { return join(dirname(dbPath), "backups"); }
 
-export function getSchedule(db: DB) {
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(SCHEDULE_KEY) as { value: string } | undefined;
+export async function getSchedule(adapter: DbAdapter) {
+  const row = await adapter.queryOne<{ value: string }>(
+    "SELECT value FROM app_settings WHERE key = ?",
+    [SCHEDULE_KEY],
+  );
   if (!row) return { ...DEFAULT_SCHEDULE };
   try { return { ...DEFAULT_SCHEDULE, ...JSON.parse(row.value) }; }
   catch { return { ...DEFAULT_SCHEDULE }; }
 }
 
-function setSchedule(db: DB, patch: Record<string, unknown>) {
-  const cur = getSchedule(db);
+async function setSchedule(adapter: DbAdapter, patch: Record<string, unknown>) {
+  const cur = await getSchedule(adapter);
   const merged = { ...cur, ...patch };
-  db.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)")
-    .run(SCHEDULE_KEY, JSON.stringify(merged));
+  const payload = JSON.stringify(merged);
+  await adapter.run(
+    "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
+    [SCHEDULE_KEY, payload, payload],
+  );
   return merged;
 }
 
@@ -43,18 +68,18 @@ function parseTimestamp(fn: string): string | null {
   return `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]}`;
 }
 
-export function makeBackupRouter(db: DB, dbPath: string): Router {
+export function makeBackupRouter(adapter: DbAdapter, dbPath: string): Router {
   const r = Router();
 
   r.get("/backup/schedule", asyncHandler(async (_req, res) => {
-    res.json(getSchedule(db));
+    res.json(await getSchedule(adapter));
   }));
 
   r.put("/backup/schedule", asyncHandler(async (req, res) => {
     const { enabled, intervalHours, keepCount } = req.body as {
       enabled?: boolean; intervalHours?: number; keepCount?: number;
     };
-    const cfg = setSchedule(db, { enabled, intervalHours, keepCount });
+    const cfg = await setSchedule(adapter, { enabled, intervalHours, keepCount });
     log.info("backup.schedule_updated", cfg);
     res.json(cfg);
   }));
@@ -64,9 +89,9 @@ export function makeBackupRouter(db: DB, dbPath: string): Router {
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
     const fn = backupFilename();
     const fp = join(dir, fn);
-    await db.backup(fp);
+    await makeBackup(adapter, fp);
     const info = await stat(fp);
-    setSchedule(db, { lastBackupAt: new Date().toISOString() });
+    await setSchedule(adapter, { lastBackupAt: new Date().toISOString() });
     log.info("backup.created", { filename: fn, size: info.size });
     res.json({ filename: fn, size: info.size });
   }));
@@ -142,8 +167,8 @@ export async function cleanupOldBackups(dbPath: string, keepCount: number): Prom
   return toDelete.length;
 }
 
-export async function runScheduledBackup(db: DB, dbPath: string): Promise<void> {
-  const cfg = getSchedule(db);
+export async function runScheduledBackup(adapter: DbAdapter, dbPath: string): Promise<void> {
+  const cfg = await getSchedule(adapter);
   if (!cfg.enabled) return;
   const now = Date.now();
   const last = cfg.lastBackupAt ? new Date(cfg.lastBackupAt).getTime() : 0;
@@ -151,9 +176,9 @@ export async function runScheduledBackup(db: DB, dbPath: string): Promise<void> 
   const dir = backupsDir(dbPath);
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
   const fn = backupFilename();
-  await db.backup(join(dir, fn));
+  await makeBackup(adapter, join(dir, fn));
   const info = await stat(join(dir, fn));
-  setSchedule(db, { lastBackupAt: new Date().toISOString() });
+  await setSchedule(adapter, { lastBackupAt: new Date().toISOString() });
   log.info("backup.scheduled", { filename: fn, size: info.size });
   const deleted = await cleanupOldBackups(dbPath, cfg.keepCount || 4);
   if (deleted) log.info("backup.cleanup", { deleted });

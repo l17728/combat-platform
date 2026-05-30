@@ -4,6 +4,40 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.0.0 — 2026-05-30 (Welink + Postgres + UI 配置化大整合)
+
+本版是「welink 群消息集成」「postgres 双驱动」「UI 配置化」三大主线 + 5 位专家评审 + 技术博客的 release。
+
+### 🔗 Welink 群消息集成(6 场景完整闭环)
+- 详见下方 v1.2.0 段。**主干合入完整 21/21 e2e**。
+
+### 🐘 Postgres 支持(脚手架 + 一键迁移 UI)
+- 详见下方 v1.1.0-pg 段。**SQLite 仍是默认**;Phase 1-4 全部完成,Repository 已 async 化、JSONB+GIN 索引、SQLite/PG 测试各 430/430。
+
+### 🎛️ UI 配置化(2026-05-30 主干新增)
+- 5 个高优先级硬编码选项迁配置中心:
+  - \`bug.severity.options\` —— 问题反馈严重程度(严重/较高/一般/建议)
+  - \`bug.status.options\` —— 问题反馈状态
+  - \`feedback.category.options\` —— 求助反馈分类
+  - \`proposal.status.options\` / \`reminder.status.options\` —— 关系审批 / 跟催状态
+  - \`team.role.options\` —— 团队角色枚举
+- 新铁律写入 AGENTS.md:**所有 UI 文案/选项/枚举,不在源码硬编码,统一通过 \`useSettings.getValues/getOptions\` 读配置中心**
+- \`useSettings\` API 升级:\`getValues(key, fallback)\` / \`getOptions(key, fallback)\` 支持 fallback,保证配置缺失时 UI 不空白
+
+### 👥 人员合并移入系统管理
+- 「人员合并」菜单从「人员与荣誉」组移到「系统管理」组,**仅 admin 可见可访问**;后端 \`/api/merge/*\` 加管理员守卫
+
+### 📚 文档 & 评审产出
+- \`docs/REVIEWS/\`:5 位专家(架构 / 性能并发 HA / 安全 / Staff Engineer 代码质量 / 现网运维)独立评审报告
+- \`docs/BLOG_技术评审_作战平台.md\`:5 评审整合为深度技术博客
+- \`docs/POSTGRES_SUPPORT.md\` / \`docs/REQUIREMENTS_WELINK.md\`:落地参考文档
+
+### ✅ 测试覆盖
+- 后端 vitest **SQLite 430/430 + Postgres 430/430**
+- 前端 e2e **407/407**(含 welink 模块 21/21)
+
+---
+
 ## v1.2.0 — 2026-05-30 (Welink 群消息全套闭环)
 
 围绕「攻关单 ↔ Welink 群消息」打造完整工作流,场景 1/2/3/4 + 聊天视图 + 下载工具引导 闭环:
@@ -36,6 +70,29 @@ const HELP: Record<string, { title: string; content: string }> = {
 ### ✅ 测试覆盖
 - 后端 vitest **377/377**(welink 模块新增 30+ 测试覆盖 upload/list/select/analyze/extractions/citations)
 - 前端 e2e welink 模块 **21/21**(tab 5 / chat-view 5 / extraction 5 / citation 3 / download-prompt 3)
+
+---
+
+## v1.1.0-pg — 2026-05-30 (Postgres 支持脚手架 + 一键迁移 UI)
+
+\`feature/postgres-support\` 分支的增量。**SQLite 仍是默认,行为零变化**;新增 Postgres 双驱动基础设施 + 一键迁移工具。
+
+### 🆕 数据库迁移 UI(系统管理)
+- 新菜单项 **系统管理 → 数据库迁移**(仅管理员可见)
+- 三段式 UI:① 当前驱动 + 各表行数 ② Postgres 连接表单 + 测试 ③ 试运行/正式迁移
+- 后端调 \`scripts/migrate/sqlite-to-postgres.mjs\` 子进程,事务级一致
+
+### 🆕 CLI 迁移工具
+\`scripts/migrate/sqlite-to-postgres.mjs\`,支持 \`--dry-run\` / \`--truncate\` / \`--batch N\`;按表批量 INSERT、事务级提交、写迁移标记文件。
+
+### 🆕 后端 DB_URL 配置(默认仍 SQLite)
+- 新环境变量 \`DB_URL\`:支持 \`sqlite://./path\` / \`postgres://...\` / \`postgresql://...\` / 裸路径
+- 启动期自动识别协议,建表;Postgres 路径会打印 \`server.postgres_phase1\` 警告(因为业务层 Repository 仍未 async 化)
+
+### ⚠ 当前限制
+- 一键迁移 UI 是脚手架,**真正切换到 Postgres 需要 Phase 2 (Repository 全面 async 化) 落地**
+- Phase 2 体量大(~80 处 callsite),作为专项 sprint 单独排期
+- 详见 \`docs/POSTGRES_SUPPORT.md\` 路线图
 
 ---
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -10,10 +11,11 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-dr-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db: (repo as any).db };
+  const db = openDb(join(dir, "t.sqlite"));
+  const repo = new SqliteRepository(new SqliteAdapter(db));
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, db };
 }
 
 function insertProgressAt(db: any, ownerId: string, seqNo: number, content: string, status: string, at: string) {
@@ -23,7 +25,7 @@ function insertProgressAt(db: any, ownerId: string, seqNo: number, content: stri
 
 describe("daily-report e2e", () => {
   it("groups today's entries by ticket; latestStatus is the last entry of that day; summary correct", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     const A = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" })).body;
     const B = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "B", 状态: "已解决" })).body;
     const C = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "C", 状态: "进行中" })).body;
@@ -53,7 +55,7 @@ describe("daily-report e2e", () => {
   });
 
   it("empty day: sections=[]; summary still computes openByStatus over all tickets", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "E", 状态: "进行中" });
     const r = await request(app).get("/api/daily-report?date=2000-01-01");
     expect(r.body.sections).toEqual([]);
@@ -63,7 +65,7 @@ describe("daily-report e2e", () => {
   });
 
   it("read-only: audit_log unchanged; idempotent body across calls", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "RO", 状态: "进行中" });
     const n0 = (db.prepare("SELECT COUNT(*) c FROM audit_log").get() as any).c;
     const a = await request(app).get("/api/daily-report?date=2026-05-20");
@@ -74,7 +76,7 @@ describe("daily-report e2e", () => {
   });
 
   it("missing or invalid date → defaults to today (Asia/Shanghai); does NOT 400", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     // Server uses Asia/Shanghai (UTC+8) calendar date — match that here to avoid
     // false failure when UTC and CST are on different calendar days (16:00-24:00 UTC).
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai",

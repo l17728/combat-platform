@@ -6,10 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-export-"));
   const cfg = join(dir, "schemas"); mkdirSync(cfg);
   writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
@@ -20,13 +21,13 @@ function makeApp() {
       { name: "退休字段", type: "string", label: "退休字段", retired: true },
     ],
   }));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo };
 }
 
 describe("export e2e", () => {
   it("GET /api/export/:nodeType returns an xlsx attachment of all rows, label headers, id values, no retired", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "单A", 状态: "进行中" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "单B", 状态: "已解决" });
     const r = await request(app).get("/api/export/attackTicket").buffer().parse((res, cb) => {
@@ -45,13 +46,13 @@ describe("export e2e", () => {
     expect(rows.some(x => "退休字段" in x)).toBe(false);
   });
   it("unknown nodeType -> 404", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).get("/api/export/nope");
     expect(r.status).toBe(404);
     expect(r.body.error).toBeTruthy();
   });
   it("empty table -> 200 with a valid header-only xlsx", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).get("/api/export/attackTicket").buffer().parse((res, cb) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));

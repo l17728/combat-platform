@@ -1,7 +1,7 @@
 import { Router } from "express";
-import type { DB } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
 import { randomUUID } from "node:crypto";
-import { log } from "./logger.js";
+import { log, asyncHandler } from "./logger.js";
 
 export interface SupportNode {
   id: string; ticketId: string | null; templateId: string | null;
@@ -42,28 +42,36 @@ function toTemplate(r: any): SupportTemplate {
 }
 
 /** Recursively collect nodeIds that are descendants of parentId (including itself). */
-function collectDescendants(db: DB, nodeId: string): string[] {
+async function collectDescendants(adapter: DbAdapter, nodeId: string): Promise<string[]> {
   const ids: string[] = [nodeId];
-  const children = db.prepare(`SELECT id FROM support_node WHERE parent_id=?`).all(nodeId) as any[];
+  const children = await adapter.query<{ id: string }>(
+    `SELECT id FROM support_node WHERE parent_id=?`,
+    [nodeId],
+  );
   for (const child of children) {
-    ids.push(...collectDescendants(db, child.id));
+    const descendants = await collectDescendants(adapter, child.id);
+    ids.push(...descendants);
   }
   return ids;
 }
 
-export function makeSupportNodeRouter(db: DB): Router {
+const INSERT_NODE_SQL = `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, created_at, resolved_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+export function makeSupportNodeRouter(adapter: DbAdapter): Router {
   const r = Router();
 
   // GET /api/support-nodes/:ticketId
-  r.get("/support-nodes/:ticketId", (req, res) => {
-    const rows = db.prepare(
-      `SELECT * FROM support_node WHERE ticket_id=? ORDER BY created_at ASC`
-    ).all(req.params.ticketId) as any[];
+  r.get("/support-nodes/:ticketId", asyncHandler(async (req, res) => {
+    const rows = await adapter.query<any>(
+      `SELECT * FROM support_node WHERE ticket_id=? ORDER BY created_at ASC`,
+      [req.params.ticketId],
+    );
     res.json(rows.map(toNode));
-  });
+  }));
 
   // POST /api/support-nodes/:ticketId
-  r.post("/support-nodes/:ticketId", (req, res) => {
+  r.post("/support-nodes/:ticketId", asyncHandler(async (req, res) => {
     const { parentId, category, domain, personId, personName, status = "待确认", note = "" } = req.body ?? {};
     if (!category || !domain) {
       return res.status(400).json({ error: "category 和 domain 为必填项" });
@@ -82,74 +90,87 @@ export function makeSupportNodeRouter(db: DB): Router {
       createdAt: new Date().toISOString(),
       resolvedAt: null,
     };
-    db.prepare(
-      `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, created_at, resolved_at)
-       VALUES (@id, @ticket_id, @template_id, @parent_id, @category, @domain, @person_id, @person_name, @status, @note, @created_at, @resolved_at)`
-    ).run({
-      id: node.id,
-      ticket_id: node.ticketId,
-      template_id: node.templateId,
-      parent_id: node.parentId,
-      category: node.category,
-      domain: node.domain,
-      person_id: node.personId,
-      person_name: node.personName,
-      status: node.status,
-      note: node.note,
-      created_at: node.createdAt,
-      resolved_at: node.resolvedAt,
-    });
+    await adapter.run(INSERT_NODE_SQL, [
+      node.id,
+      node.ticketId,
+      node.templateId,
+      node.parentId,
+      node.category,
+      node.domain,
+      node.personId,
+      node.personName,
+      node.status,
+      node.note,
+      node.createdAt,
+      node.resolvedAt,
+    ]);
     log.info("support_node.create", { ticketId: req.params.ticketId, id: node.id });
     res.status(201).json(node);
-  });
+  }));
 
   // PUT /api/support-nodes/node/:nodeId
-  r.put("/support-nodes/node/:nodeId", (req, res) => {
-    const existing = db.prepare(`SELECT * FROM support_node WHERE id=?`).get(req.params.nodeId) as any;
+  r.put("/support-nodes/node/:nodeId", asyncHandler(async (req, res) => {
+    const existing = await adapter.queryOne<any>(
+      `SELECT * FROM support_node WHERE id=?`,
+      [req.params.nodeId],
+    );
     if (!existing) return res.status(404).json({ error: "not found" });
 
     const body = req.body ?? {};
-    const updates: Record<string, any> = {};
     const allowed = ["parentId", "category", "domain", "personId", "personName", "status", "note", "resolvedAt"];
     const dbMap: Record<string, string> = {
       parentId: "parent_id", category: "category", domain: "domain",
       personId: "person_id", personName: "person_name", status: "status",
       note: "note", resolvedAt: "resolved_at",
     };
+    const setClauses: string[] = [];
+    const params: any[] = [];
     for (const key of allowed) {
       if (key in body) {
-        updates[dbMap[key]] = body[key];
+        setClauses.push(`${dbMap[key]}=?`);
+        params.push(body[key]);
       }
     }
-    if (Object.keys(updates).length === 0) {
+    if (setClauses.length === 0) {
       return res.json(toNode(existing));
     }
-    const setClauses = Object.keys(updates).map(k => `${k}=@${k}`).join(", ");
-    db.prepare(`UPDATE support_node SET ${setClauses} WHERE id=@id`).run({ ...updates, id: req.params.nodeId });
-    const updated = db.prepare(`SELECT * FROM support_node WHERE id=?`).get(req.params.nodeId) as any;
+    params.push(req.params.nodeId);
+    await adapter.run(`UPDATE support_node SET ${setClauses.join(", ")} WHERE id=?`, params);
+    const updated = await adapter.queryOne<any>(
+      `SELECT * FROM support_node WHERE id=?`,
+      [req.params.nodeId],
+    );
     log.info("support_node.update", { id: req.params.nodeId });
     res.json(toNode(updated));
-  });
+  }));
 
   // DELETE /api/support-nodes/node/:nodeId
-  r.delete("/support-nodes/node/:nodeId", (req, res) => {
-    const existing = db.prepare(`SELECT * FROM support_node WHERE id=?`).get(req.params.nodeId) as any;
+  r.delete("/support-nodes/node/:nodeId", asyncHandler(async (req, res) => {
+    const existing = await adapter.queryOne<any>(
+      `SELECT * FROM support_node WHERE id=?`,
+      [req.params.nodeId],
+    );
     if (!existing) return res.status(404).json({ error: "not found" });
-    const ids = collectDescendants(db, req.params.nodeId);
+    const ids = await collectDescendants(adapter, req.params.nodeId);
     const placeholders = ids.map(() => "?").join(",");
-    const result = db.prepare(`DELETE FROM support_node WHERE id IN (${placeholders})`).run(...ids);
+    const result = await adapter.run(
+      `DELETE FROM support_node WHERE id IN (${placeholders})`,
+      ids,
+    );
     log.info("support_node.delete", { id: req.params.nodeId, deleted: result.changes });
     res.json({ deleted: result.changes });
-  });
+  }));
 
   // GET /api/support-templates
-  r.get("/support-templates", (_req, res) => {
-    const rows = db.prepare(`SELECT * FROM support_template ORDER BY usage_count DESC`).all() as any[];
+  r.get("/support-templates", asyncHandler(async (_req, res) => {
+    const rows = await adapter.query<any>(
+      `SELECT * FROM support_template ORDER BY usage_count DESC`,
+    );
     res.json(rows.map(toTemplate));
-  });
+  }));
 
   // POST /api/support-templates
-  r.post("/support-templates", (req, res) => {
+  r.post("/support-templates", asyncHandler(async (req, res) => {
     const { name, description = "", nodes = [] } = req.body ?? {};
     if (!name) return res.status(400).json({ error: "name 为必填项" });
 
@@ -160,9 +181,10 @@ export function makeSupportNodeRouter(db: DB): Router {
       usageCount: 0,
       createdAt: new Date().toISOString(),
     };
-    db.prepare(
-      `INSERT INTO support_template (id, name, description, usage_count, created_at) VALUES (@id, @name, @description, @usage_count, @created_at)`
-    ).run({ id: template.id, name: template.name, description: template.description, usage_count: 0, created_at: template.createdAt });
+    await adapter.run(
+      `INSERT INTO support_template (id, name, description, usage_count, created_at) VALUES (?, ?, ?, ?, ?)`,
+      [template.id, template.name, template.description, 0, template.createdAt],
+    );
 
     // Insert template nodes; parentIndex references the array index of the parent node
     const createdNodes: SupportNode[] = [];
@@ -174,29 +196,31 @@ export function makeSupportNodeRouter(db: DB): Router {
       idByIndex[i] = nodeId;
       const parentId = n.parentIndex !== undefined && idByIndex[n.parentIndex] ? idByIndex[n.parentIndex] : null;
       const now = new Date().toISOString();
-      db.prepare(
-        `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, created_at, resolved_at)
-         VALUES (@id, @ticket_id, @template_id, @parent_id, @category, @domain, @person_id, @person_name, @status, @note, @created_at, @resolved_at)`
-      ).run({
-        id: nodeId, ticket_id: null, template_id: template.id, parent_id: parentId,
-        category: n.category, domain: n.domain,
-        person_id: n.personId ?? null, person_name: n.personName ?? null,
-        status: n.status ?? "待确认", note: n.note ?? "", created_at: now, resolved_at: null,
-      });
-      createdNodes.push(toNode(db.prepare(`SELECT * FROM support_node WHERE id=?`).get(nodeId)));
+      await adapter.run(INSERT_NODE_SQL, [
+        nodeId, null, template.id, parentId,
+        n.category, n.domain,
+        n.personId ?? null, n.personName ?? null,
+        n.status ?? "待确认", n.note ?? "", now, null,
+      ]);
+      const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [nodeId]);
+      createdNodes.push(toNode(row));
     }
     log.info("support_template.create", { id: template.id, nodeCount: createdNodes.length });
     res.status(201).json({ template, nodes: createdNodes });
-  });
+  }));
 
   // POST /api/support-templates/:templateId/apply/:ticketId
-  r.post("/support-templates/:templateId/apply/:ticketId", (req, res) => {
-    const tmpl = db.prepare(`SELECT * FROM support_template WHERE id=?`).get(req.params.templateId) as any;
+  r.post("/support-templates/:templateId/apply/:ticketId", asyncHandler(async (req, res) => {
+    const tmpl = await adapter.queryOne<any>(
+      `SELECT * FROM support_template WHERE id=?`,
+      [req.params.templateId],
+    );
     if (!tmpl) return res.status(404).json({ error: "template not found" });
 
-    const templateNodes = db.prepare(
-      `SELECT * FROM support_node WHERE template_id=? AND ticket_id IS NULL ORDER BY created_at ASC`
-    ).all(req.params.templateId) as any[];
+    const templateNodes = await adapter.query<any>(
+      `SELECT * FROM support_node WHERE template_id=? AND ticket_id IS NULL ORDER BY created_at ASC`,
+      [req.params.templateId],
+    );
 
     const oldToNew: Map<string, string> = new Map();
     const cloned: SupportNode[] = [];
@@ -211,35 +235,43 @@ export function makeSupportNodeRouter(db: DB): Router {
     for (const n of templateNodes) {
       const newId = oldToNew.get(n.id)!;
       const newParentId = n.parent_id ? (oldToNew.get(n.parent_id) ?? null) : null;
-      db.prepare(
-        `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, created_at, resolved_at)
-         VALUES (@id, @ticket_id, @template_id, @parent_id, @category, @domain, @person_id, @person_name, @status, @note, @created_at, @resolved_at)`
-      ).run({
-        id: newId, ticket_id: req.params.ticketId, template_id: req.params.templateId,
-        parent_id: newParentId, category: n.category, domain: n.domain,
-        person_id: n.person_id ?? null, person_name: n.person_name ?? null,
-        status: n.status, note: n.note, created_at: now, resolved_at: null,
-      });
-      cloned.push(toNode(db.prepare(`SELECT * FROM support_node WHERE id=?`).get(newId)));
+      await adapter.run(INSERT_NODE_SQL, [
+        newId, req.params.ticketId, req.params.templateId,
+        newParentId, n.category, n.domain,
+        n.person_id ?? null, n.person_name ?? null,
+        n.status, n.note, now, null,
+      ]);
+      const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [newId]);
+      cloned.push(toNode(row));
     }
 
-    db.prepare(`UPDATE support_template SET usage_count = usage_count + 1 WHERE id=?`).run(req.params.templateId);
+    await adapter.run(
+      `UPDATE support_template SET usage_count = usage_count + 1 WHERE id=?`,
+      [req.params.templateId],
+    );
     log.info("support_template.apply", { templateId: req.params.templateId, ticketId: req.params.ticketId, applied: cloned.length });
     res.json({ applied: cloned.length, nodes: cloned });
-  });
+  }));
 
   // DELETE /api/support-templates/:templateId
-  r.delete("/support-templates/:templateId", (req, res) => {
-    const tmpl = db.prepare(`SELECT * FROM support_template WHERE id=?`).get(req.params.templateId) as any;
+  r.delete("/support-templates/:templateId", asyncHandler(async (req, res) => {
+    const tmpl = await adapter.queryOne<any>(
+      `SELECT * FROM support_template WHERE id=?`,
+      [req.params.templateId],
+    );
     if (!tmpl) return res.status(404).json({ error: "template not found" });
 
-    const nodeResult = db.prepare(
-      `DELETE FROM support_node WHERE template_id=? AND ticket_id IS NULL`
-    ).run(req.params.templateId);
-    db.prepare(`DELETE FROM support_template WHERE id=?`).run(req.params.templateId);
+    const nodeResult = await adapter.run(
+      `DELETE FROM support_node WHERE template_id=? AND ticket_id IS NULL`,
+      [req.params.templateId],
+    );
+    await adapter.run(
+      `DELETE FROM support_template WHERE id=?`,
+      [req.params.templateId],
+    );
     log.info("support_template.delete", { id: req.params.templateId, nodesDeleted: nodeResult.changes });
     res.json({ deleted: nodeResult.changes + 1 });
-  });
+  }));
 
   return r;
 }

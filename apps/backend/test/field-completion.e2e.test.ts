@@ -3,6 +3,7 @@ import request from "supertest";
 import * as XLSX from "xlsx";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { rebuildKG } from "../src/kg-rebuild.js";
@@ -13,7 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-fc-")), "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-fc-")), "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, registry: new FileSchemaRegistry(CFG) };
 }
 function xlsx(rows: Record<string, unknown>[]): Buffer {
@@ -34,14 +35,14 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     const r = await request(app).post("/api/import?type=attackTicket")
       .attach("file", xlsx([{ 标题: "导入单", 状态: "进行中", 故障局点: "华东二" }]), "x.xlsx");
     expect(r.status).toBe(200);
-    const imported = repo.queryNodes("attackTicket").find(n => n.properties["标题"] === "导入单")!;
+    const imported = (await repo.queryNodes("attackTicket")).find(n => n.properties["标题"] === "导入单")!;
     expect(imported.properties["局点"]).toBe("华东二");
   });
 
   it("53.1 issue400 邮件 + person 角色 落库", async () => {
     const { app, repo } = make();
     await request(app).post("/api/nodes/issue400").send({ 客户: "客A", 邮件: "a@x.com" });
-    expect(repo.queryNodes("issue400")[0].properties["邮件"]).toBe("a@x.com");
+    expect((await repo.queryNodes("issue400"))[0].properties["邮件"]).toBe("a@x.com");
     const p = (await request(app).post("/api/nodes/person").send({ 姓名: "组长甲", 角色: "攻关组长" })).body;
     expect((await request(app).get(`/api/nodes/${p.id}`)).body.properties["角色"]).toBe("攻关组长");
   });
@@ -51,12 +52,12 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     const t = (await request(app).post("/api/nodes/attackTicket")
       .send({ 标题: "ref单", 状态: "进行中", 攻关组长: "王组长", 攻关申请人: "李申请" })).body;
     // person 节点被自动创建
-    const leader = repo.queryNodes("person").find(n => n.properties["姓名"] === "王组长");
-    const applicant = repo.queryNodes("person").find(n => n.properties["姓名"] === "李申请");
+    const leader = (await repo.queryNodes("person")).find(n => n.properties["姓名"] === "王组长");
+    const applicant = (await repo.queryNodes("person")).find(n => n.properties["姓名"] === "李申请");
     expect(leader).toBeTruthy();
     expect(applicant).toBeTruthy();
     // REF 边存在（field=攻关组长 / 攻关申请人）
-    const refs = repo.queryEdges({ sourceId: t.id, edgeType: "REF" });
+    const refs = await repo.queryEdges({ sourceId: t.id, edgeType: "REF" });
     const fields = refs.map(e => String(e.properties["field"]));
     expect(fields).toContain("攻关组长");
     expect(fields).toContain("攻关申请人");
@@ -64,8 +65,8 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     const rel = await request(app).get(`/api/related/attackTicket/${t.id}`);
     expect(JSON.stringify(rel.body)).toContain(leader!.id);
     // rebuild 后 REF 边从存量字符串回灌仍在
-    rebuildKG(repo, registry);
-    const fields2 = repo.queryEdges({ sourceId: t.id, edgeType: "REF" }).map(e => String(e.properties["field"]));
+    await rebuildKG(repo, registry);
+    const fields2 = (await repo.queryEdges({ sourceId: t.id, edgeType: "REF" })).map(e => String(e.properties["field"]));
     expect(fields2).toContain("攻关组长");
     expect(fields2).toContain("攻关申请人");
   });

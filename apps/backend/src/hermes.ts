@@ -30,13 +30,13 @@ function cite(n: GraphNode): HermesCitation {
   return { nodeId: n.id, nodeType: n.nodeType, summary: summarize(n), link: linkFor(n) };
 }
 
-function findTicketsByPB(repo: Repository, pb: string): GraphNode[] {
-  return repo.queryNodes("attackTicket").filter(n => String(n.properties["问题单号"] ?? "").trim() === pb);
+async function findTicketsByPB(repo: Repository, pb: string): Promise<GraphNode[]> {
+  return (await repo.queryNodes("attackTicket")).filter(n => String(n.properties["问题单号"] ?? "").trim() === pb);
 }
-function fuzzyTicketsByTitle(repo: Repository, hint: string): GraphNode[] {
+async function fuzzyTicketsByTitle(repo: Repository, hint: string): Promise<GraphNode[]> {
   const needle = hint.trim().toLowerCase();
   if (!needle) return [];
-  return repo.queryNodes("attackTicket").filter(n => {
+  return (await repo.queryNodes("attackTicket")).filter(n => {
     const t = String(n.properties["标题"] ?? "").toLowerCase();
     return t.includes(needle);
   });
@@ -48,9 +48,9 @@ function fuzzyTicketsByTitle(repo: Repository, hint: string): GraphNode[] {
  * Chinese text + citation list. The intent classification order is
  * deliberate (most specific → fallback search).
  */
-export function answerQuestion(
+export async function answerQuestion(
   repo: Repository, registry: SchemaRegistry, raw: string,
-): HermesAnswer {
+): Promise<HermesAnswer> {
   const question = raw.trim();
   const lower = question.toLowerCase();
 
@@ -64,21 +64,21 @@ export function answerQuestion(
   //    inside a "找谁帮忙" question goes to helpers, not the plain ticket listing)
   if (/找谁帮忙|找帮手|谁能帮/.test(question)) {
     let ticket: GraphNode | undefined;
-    if (pb) ticket = findTicketsByPB(repo, pb)[0];
+    if (pb) ticket = (await findTicketsByPB(repo, pb))[0];
     if (!ticket) {
       const stripped = question
         .replace(/找谁帮忙|找帮手|谁能帮|帮忙找|帮我找/g, "")
         .replace(/[?？。，,!！]/g, "")
         .replace(pb, "")
         .trim();
-      ticket = fuzzyTicketsByTitle(repo, stripped)[0];
+      ticket = (await fuzzyTicketsByTitle(repo, stripped))[0];
     }
     if (!ticket) {
       return { question, intent: "find-helpers",
         answer: "未定位到具体攻关单。请补充问题单号（如 PB-123）或攻关单标题片段。",
         citations: [] };
     }
-    const helpers = recommendHelpers(repo, ticket.id, 5);
+    const helpers = await recommendHelpers(repo, ticket.id, 5);
     if (helpers.length === 0) {
       return { question, intent: "find-helpers",
         answer: `攻关单《${summarize(ticket)}》暂未找到合适帮手。可考虑补充共享问题单号或贡献记录后再问。`,
@@ -104,7 +104,7 @@ export function answerQuestion(
 
   // 2) ticket-by-pb: explicit 问题单号 reference (no 找帮手 keyword)
   if (pb) {
-    const tickets = findTicketsByPB(repo, pb).slice(0, 10);
+    const tickets = (await findTicketsByPB(repo, pb)).slice(0, 10);
     if (tickets.length > 0) {
       const lines = tickets.map(t => `· ${summarize(t)}（状态：${t.properties["状态"] ?? "未知"}，负责人：${t.properties["当前处理人"] ?? "未填"}）`);
       const ck = cacheKey("ticket-by-pb", question);
@@ -125,7 +125,7 @@ export function answerQuestion(
   if (/谁负责|谁在做|谁的|owner|负责人/i.test(lower)) {
     // strip the intent keywords + interrogatives, leaving a likely title fragment
     const stripped = question.replace(/[?？。，,!！谁负责在做的owner负责人是哪个]/gi, "").trim();
-    const candidates = fuzzyTicketsByTitle(repo, stripped).slice(0, 5);
+    const candidates = (await fuzzyTicketsByTitle(repo, stripped)).slice(0, 5);
     if (candidates.length > 0) {
       const lines = candidates.map(t => `· 《${summarize(t)}》当前处理人：${t.properties["当前处理人"] ?? "未填"}（状态：${t.properties["状态"] ?? "未知"}）`);
       const ck = cacheKey("owner", question);
@@ -145,10 +145,13 @@ export function answerQuestion(
   // 3) status / 进展 / 现在怎么样
   if (/状态|进展|怎么样|现在/.test(question)) {
     const stripped = question.replace(/[?？。，,!！状态进展怎么样现在的是]/g, "").trim();
-    const candidates = fuzzyTicketsByTitle(repo, stripped).slice(0, 3);
+    const candidates = (await fuzzyTicketsByTitle(repo, stripped)).slice(0, 3);
     if (candidates.length > 0) {
+      // Pre-fetch progress for all candidates to avoid awaits in sync map callbacks
+      const progressMap = new Map<string, Awaited<ReturnType<Repository["listProgress"]>>>();
+      for (const t of candidates) progressMap.set(t.id, await repo.listProgress(t.id));
       const blocks = candidates.map(t => {
-        const seq = repo.listProgress(t.id);
+        const seq = progressMap.get(t.id) ?? [];
         const latest = seq.length > 0 ? seq[seq.length - 1] : null;
         const tail = latest ? `最新进展（${latest.statusSnapshot}）：${latest.content}` : "暂无进展记录";
         return `· 《${summarize(t)}》状态：${t.properties["状态"] ?? "未知"}\n  ${tail}`;
@@ -159,7 +162,7 @@ export function answerQuestion(
         answer: blocks.join("\n"),
         citations: candidates.map(cite),
         uiSpec: { ...cardSpec("进展状态", candidates, n => {
-          const seq = repo.listProgress(n.id);
+          const seq = progressMap.get(n.id) ?? [];
           const latest = seq.length > 0 ? seq[seq.length - 1] : null;
           return {
             title: summarize(n),
@@ -177,7 +180,7 @@ export function answerQuestion(
     // Look for a name token — strip interrogatives + keywords, keep what's left as candidate name
     const stripped = question.replace(/[?？。，,!！贡献了什么做的最近近期]/g, "").trim();
     // Try exact match first, fall back to substring on 贡献人
-    const allC = repo.queryNodes("contribution");
+    const allC = await repo.queryNodes("contribution");
     let matched = allC.filter(c => String(c.properties["贡献人"] ?? "") === stripped);
     if (matched.length === 0 && stripped) {
       matched = allC.filter(c => String(c.properties["贡献人"] ?? "").includes(stripped));
@@ -208,7 +211,7 @@ export function answerQuestion(
   // 4) person-workload: 谁最忙 / 负载最重 / 活跃单最多
   if (/最忙|负载最重|活跃单最多|谁最重|工作量最多/.test(question)) {
     const byOwner = new Map<string, GraphNode[]>();
-    for (const t of repo.queryNodes("attackTicket")) {
+    for (const t of await repo.queryNodes("attackTicket")) {
       const owner = String(t.properties["当前处理人"] ?? "").trim();
       const status = String(t.properties["状态"] ?? "").trim();
       if (!owner || !ACTIVE_STATUSES.has(status)) continue;
@@ -247,13 +250,13 @@ export function answerQuestion(
     let progressTotal = 0;
     const touched = new Map<string, GraphNode>();
     // BUG-7: filter to recently-updated tickets first to avoid N+1 progress queries
-    const allTickets = repo.queryNodes("attackTicket");
+    const allTickets = await repo.queryNodes("attackTicket");
     const recentTickets = allTickets.filter(t => new Date(t.updatedAt) >= start);
     for (const t of recentTickets) {
       touched.set(t.id, t);
     }
     for (const t of recentTickets) {
-      for (const p of repo.listProgress(t.id)) {
+      for (const p of await repo.listProgress(t.id)) {
         if (new Date(p.updatedAt) >= start) progressTotal++;
       }
     }
@@ -284,7 +287,7 @@ export function answerQuestion(
   const hits: { node: GraphNode; score: number }[] = [];
   if (needle) {
     for (const nt of registry.getConfig().nodeTypes.map(n => n.nodeType)) {
-      for (const n of repo.queryNodes(nt)) {
+      for (const n of await repo.queryNodes(nt)) {
         const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
         let score = 0, i = hay.indexOf(needle);
         while (i !== -1) { score++; i = hay.indexOf(needle, i + needle.length); }
@@ -405,7 +408,7 @@ export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, run
         log.warn("hermes.ask.agent_fallback", { error: (e as Error).message });
       }
     }
-    const answer = answerQuestion(repo, registry, q);
+    const answer = await answerQuestion(repo, registry, q);
     // 规则引擎本身不查 welink_messages,这里统一补 welink 兜底
     if (db && ticketIdHint && WELINK_KEYWORDS.test(q)) {
       const extra = welinkFallbackCitations(db, q, ticketIdHint);

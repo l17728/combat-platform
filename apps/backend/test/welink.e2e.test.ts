@@ -10,7 +10,7 @@ async function createTicket(app: any) {
 
 describe("welink messages e2e", () => {
   it("uploads (insert) + re-uploads (update) + lists with default exclude deleted", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
 
     const r1 = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
@@ -45,7 +45,7 @@ describe("welink messages e2e", () => {
   });
 
   it("supports author / since / until / keyword filters", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -67,7 +67,7 @@ describe("welink messages e2e", () => {
   });
 
   it("soft-deletes single + batch + excludes from default list but visible with includeDeleted", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const up = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -107,7 +107,7 @@ describe("welink messages e2e", () => {
   });
 
   it("clears ALL physically for a ticket", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -124,7 +124,7 @@ describe("welink messages e2e", () => {
   });
 
   it("toggles selection in batch", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -153,7 +153,7 @@ describe("welink messages e2e", () => {
   });
 
   it("analyze endpoint runs heuristic extraction when no agent runner (queued = selected, returns extractions)", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -181,7 +181,7 @@ describe("welink messages e2e", () => {
   });
 
   it("rejects invalid payloads", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     expect((await request(app).post(`/api/tickets/${tid}/welink-messages`).send({})).status).toBe(400);
     expect((await request(app).post(`/api/tickets/${tid}/welink-messages/batch-delete`).send({})).status).toBe(400);
@@ -190,7 +190,7 @@ describe("welink messages e2e", () => {
   });
 
   it("parses raw Welink format: msgId/sender/serverSendTime + TEXT_MSG/CARD_MSG/PICTURE_MSG", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -255,7 +255,7 @@ describe("welink messages e2e", () => {
   });
 
   it("normalizes epoch seconds + string timestamps to ISO", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [
@@ -272,7 +272,7 @@ describe("welink messages e2e", () => {
   });
 
   it("skips messages missing required fields silently (does not fail whole batch)", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
       messages: [

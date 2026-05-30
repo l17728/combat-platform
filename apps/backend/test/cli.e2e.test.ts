@@ -5,6 +5,7 @@ import { writeFileSync, mkdtempSync as mkdtemp } from "node:fs";
 import { runCli, renderHelp, parseArgs, COMMANDS, type HttpFn, type HttpRequest } from "../src/cli-core.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -116,7 +117,7 @@ describe("§43 CLI core", () => {
     await expect(runCli(["bogus:cmd"], recorder().http)).rejects.toThrow(/未知命令.*可用命令/);
   });
 
-  it("parseArgs splits positional vs --opts (value and flag)", () => {
+  it("parseArgs splits positional vs --opts (value and flag)", async () => {
     const p = parseArgs(["a", "b", "--depth", "2", "--candidates"]);
     expect(p.positional).toEqual(["a", "b"]);
     expect(p.opts).toEqual({ depth: "2", candidates: true });
@@ -142,7 +143,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend import closed loop: import file then list reads it back (§44)", async () => {
-    const repo = new SqliteRepository(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite")));
+    const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite"))));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
     // write a real xlsx fixture
     const ws = XLSX.utils.json_to_sheet([{ 标题: "CLI导入单", 状态: "进行中" }]);
@@ -193,7 +194,7 @@ describe("§43 CLI core", () => {
     process.env.COMBAT_NO_AUTH = "1";
     const dbPath = join(mkdtempSync(join(tmpdir(), "combat-cli-dre-")), "t.sqlite");
     const db = openDb(dbPath);
-    const repo = new SqliteRepository(db);
+    const repo = new SqliteRepository(new SqliteAdapter(db));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG), db });
     const http: HttpFn = async ({ method, path, body }) => {
       const m = method.toLowerCase() as "get" | "post" | "put" | "delete";
@@ -215,7 +216,7 @@ describe("§43 CLI core", () => {
     expect(after.some(e => e.id === entry.id)).toBe(false);
   });
 
-  it("CLI registry covers every backend API route (no orphan APIs)", () => {
+  it("CLI registry covers every backend API route (no orphan APIs)", async () => {
     // Whitelist of (METHOD path) pairs that intentionally have no 1:1 CLI command.
     // Empty for now — the audit requires every backend HTTP endpoint to be reachable from the CLI.
     const skip = new Set<string>([]);
@@ -258,7 +259,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend closed loop: create then read back", async () => {
-    const repo = new SqliteRepository(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite")));
+    const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite"))));
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
     // adapt supertest to the HttpFn signature
     const http: HttpFn = async ({ method, path, body }) => {

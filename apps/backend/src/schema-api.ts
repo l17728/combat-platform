@@ -17,14 +17,14 @@ export interface SchemaSuggestion {
 
 const NODE_TYPE_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
-export function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository): void {
+export async function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository): Promise<void> {
   for (const ns of registry.getConfig().nodeTypes) {
     for (const f of ns.fields) {
       if (f.type === "enum" && f.enumValues && f.enumValues.length > 0) {
         const key = `config:${f.name}`;
-        const existing = repo.getSetting(key);
+        const existing = await repo.getSetting(key);
         if (!existing) {
-          repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${ns.label}.${f.label}` }), "schema-seed");
+          await repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${ns.label}.${f.label}` }), "schema-seed");
         }
       }
     }
@@ -38,9 +38,9 @@ export function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository
     "事件级别": { values: ["P1", "P2", "P3", "P4", "P4A", "P4B"], label: "事件级别" },
   };
   for (const [key, cfg] of Object.entries(uiDefaults)) {
-    const existing = repo.getSetting(`config:${key}`);
+    const existing = await repo.getSetting(`config:${key}`);
     if (!existing) {
-      repo.setSetting(`config:${key}`, JSON.stringify(cfg), "schema-seed");
+      await repo.setSetting(`config:${key}`, JSON.stringify(cfg), "schema-seed");
     }
   }
 }
@@ -172,9 +172,9 @@ export function makeSchemaApiRouter(
       for (const f of normalizedFields) {
         if (f.type === "enum" && f.enumValues && f.enumValues.length > 0) {
           const key = `config:${f.name}`;
-          const existing = repo.getSetting(key);
+          const existing = await repo.getSetting(key);
           if (!existing) {
-            repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${label}.${f.label}` }), "schema-seed");
+            await repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${label}.${f.label}` }), "schema-seed");
           }
           if (!f.optionsKey) {
             f.optionsKey = f.name;
@@ -205,7 +205,7 @@ export function makeSchemaApiRouter(
       }
 
       // Guard: check if any nodes of this type exist
-      const nodes = repo.queryNodes(nodeType);
+      const nodes = await repo.queryNodes(nodeType);
       if (nodes.length > 0) {
         log.warn("schema.delete.blocked", { nodeType, nodeCount: nodes.length });
         return res

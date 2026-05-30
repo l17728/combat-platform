@@ -11,8 +11,8 @@ const RESOLVED = new Set(["已解决", "已关闭"]);
 
 export function makeDashboardRouter(repo: Repository): Router {
   const r = Router();
-  r.get("/dashboard", (_req, res) => {
-    const tks = repo.queryNodes("attackTicket");
+  r.get("/dashboard", async (_req, res) => {
+    const tks = await repo.queryNodes("attackTicket");
     const byStatus: Record<string, number> = {};
     let open = 0, resolved = 0;
     for (const t of tks) {
@@ -25,7 +25,7 @@ export function makeDashboardRouter(repo: Repository): Router {
     // contributions.total = raw node count (schema marks 贡献人 required, so
     // validateNode keeps blank-贡献人 records out); topContributors aggregates
     // by non-empty 贡献人 — these are different measures by design.
-    const cs = repo.queryNodes("contribution");
+    const cs = await repo.queryNodes("contribution");
     const cc = new Map<string, number>();
     for (const c of cs) {
       const p = String(c.properties["贡献人"] ?? "").trim();
@@ -36,7 +36,7 @@ export function makeDashboardRouter(repo: Repository): Router {
       .sort((a, b) => b.count - a.count || (a.贡献人 < b.贡献人 ? -1 : a.贡献人 > b.贡献人 ? 1 : 0))
       .slice(0, 5);
     // §36: conflicts (count + top reasons) — reuse derived edge listing
-    const cflRows = listConflictRows(repo);
+    const cflRows = await listConflictRows(repo);
     const reasonSet = new Set<string>();
     for (const r of cflRows) reasonSet.add(r.reason);
     const conflicts = { count: cflRows.length, topReasons: [...reasonSet].slice(0, 5) };
@@ -46,7 +46,7 @@ export function makeDashboardRouter(repo: Repository): Router {
     const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     let progressEntries = 0;
     const touched = new Set<string>();
-    for (const p of repo.listAllProgress()) {
+    for (const p of await repo.listAllProgress()) {
       const at = new Date(p.updatedAt);
       if (at >= today && at < tomorrow) { progressEntries++; touched.add(p.ownerId); }
     }
@@ -66,7 +66,7 @@ export function makeDashboardRouter(repo: Repository): Router {
     const summary: DashboardSummary = {
       tickets: { total: tks.length, byStatus, open, resolved },
       contributions: { total: cs.length, topContributors },
-      proposalsPending: repo.listProposals({ status: "待审批" }).length,
+      proposalsPending: (await repo.listProposals({ status: "待审批" })).length,
       conflicts,
       today: todaySection,
       recentActivity,

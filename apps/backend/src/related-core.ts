@@ -1,22 +1,28 @@
 import type { Repository, RelatedItem, CoAnchoredItem, ExpandedItem } from "@combat/shared";
 
-export function buildRelated(repo: Repository, id: string): {
+export async function buildRelated(repo: Repository, id: string): Promise<{
   outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[];
-} {
+}> {
   const isRel = (t: string) => t === "REF" || t === "ANCHORED_TO";
-  const outgoing = repo.queryEdges({ sourceId: id }).filter(e => isRel(e.edgeType))
-    .map(e => ({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node: repo.getNode(e.targetId) }))
-    .filter((x): x is RelatedItem => !!x.node);
-  const incoming = repo.queryEdges({ targetId: id }).filter(e => isRel(e.edgeType))
-    .map(e => ({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node: repo.getNode(e.sourceId) }))
-    .filter((x): x is RelatedItem => !!x.node);
+  const outgoingEdges = (await repo.queryEdges({ sourceId: id })).filter(e => isRel(e.edgeType));
+  const outgoing: RelatedItem[] = [];
+  for (const e of outgoingEdges) {
+    const node = await repo.getNode(e.targetId);
+    if (node) outgoing.push({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node });
+  }
+  const incomingEdges = (await repo.queryEdges({ targetId: id })).filter(e => isRel(e.edgeType));
+  const incoming: RelatedItem[] = [];
+  for (const e of incomingEdges) {
+    const node = await repo.getNode(e.sourceId);
+    if (node) incoming.push({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node });
+  }
   const coAnchored: CoAnchoredItem[] = [];
-  for (const e of repo.queryEdges({ sourceId: id, edgeType: "ANCHORED_TO" })) {
-    const anchor = repo.getNode(e.targetId);
+  for (const e of await repo.queryEdges({ sourceId: id, edgeType: "ANCHORED_TO" })) {
+    const anchor = await repo.getNode(e.targetId);
     if (!anchor) continue;
-    for (const back of repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })) {
+    for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })) {
       if (back.sourceId === id) continue;
-      const peer = repo.getNode(back.sourceId);
+      const peer = await repo.getNode(back.sourceId);
       if (peer) coAnchored.push({ anchorKind: String(e.properties["anchorKind"] ?? ""),
         anchorKey: String(anchor.properties["key"] ?? ""), node: peer });
     }
@@ -28,7 +34,7 @@ export function buildRelated(repo: Repository, id: string): {
 // Anchor nodes are traversed transparently (visited to find the other side
 // but NOT emitted into expanded — only business nodes are user-facing).
 // Each node visited at the shortest path (BFS); root never appears.
-export function buildExpanded(repo: Repository, rootId: string, maxDepth: number): ExpandedItem[] {
+export async function buildExpanded(repo: Repository, rootId: string, maxDepth: number): Promise<ExpandedItem[]> {
   const out: ExpandedItem[] = [];
   if (maxDepth <= 0) return out;
   const visited = new Set<string>([rootId]);
@@ -40,10 +46,10 @@ export function buildExpanded(repo: Repository, rootId: string, maxDepth: number
     const cur = queue.shift()!;
     if (cur.depth >= maxDepth) continue;
     // outgoing REF + ANCHORED_TO → target node
-    for (const e of repo.queryEdges({ sourceId: cur.id })) {
+    for (const e of await repo.queryEdges({ sourceId: cur.id })) {
       if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
       if (visited.has(e.targetId)) continue;
-      const target = repo.getNode(e.targetId);
+      const target = await repo.getNode(e.targetId);
       if (!target) continue;
       visited.add(target.id);
       const nextDepth = cur.depth + 1;
@@ -56,10 +62,10 @@ export function buildExpanded(repo: Repository, rootId: string, maxDepth: number
       if (nextDepth < maxDepth) queue.push({ id: target.id, depth: nextDepth });
     }
     // incoming REF + ANCHORED_TO → source node
-    for (const e of repo.queryEdges({ targetId: cur.id })) {
+    for (const e of await repo.queryEdges({ targetId: cur.id })) {
       if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
       if (visited.has(e.sourceId)) continue;
-      const source = repo.getNode(e.sourceId);
+      const source = await repo.getNode(e.sourceId);
       if (!source) continue;
       visited.add(source.id);
       const nextDepth = cur.depth + 1;

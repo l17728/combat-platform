@@ -12,7 +12,7 @@ function summarize(p: Record<string, unknown>, _id: string): string {
 export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
 
-  r.get("/query/search", (req, res) => {
+  r.get("/query/search", async (req, res) => {
     const q = String(req.query.q ?? "").trim();
     if (!q) return res.status(400).json({ error: "q 必填" });
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
@@ -22,7 +22,7 @@ export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Rou
     const types = type ? [type] : registry.getConfig().nodeTypes.map(n => n.nodeType);
     const hits: (QueryHit & { _u: string })[] = [];
     for (const nt of types)
-      for (const n of repo.queryNodes(nt)) {
+      for (const n of await repo.queryNodes(nt)) {
         const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
         let score = 0, i = hay.indexOf(needle);
         while (i !== -1) { score++; i = hay.indexOf(needle, i + needle.length); }
@@ -33,10 +33,10 @@ export function makeQueryRouter(repo: Repository, registry: SchemaRegistry): Rou
     res.json(hits.slice(0, limit).map(({ _u, ...h }) => h));
   });
 
-  r.get("/query/context/:id", (req, res) => {
-    const node = repo.getNode(req.params.id);
+  r.get("/query/context/:id", async (req, res) => {
+    const node = await repo.getNode(req.params.id);
     if (!node) return res.status(404).json({ error: "not found" });
-    res.json({ node, related: buildRelated(repo, node.id), progress: repo.listProgress(node.id) });
+    res.json({ node, related: await buildRelated(repo, node.id), progress: await repo.listProgress(node.id) });
   });
 
   return r;

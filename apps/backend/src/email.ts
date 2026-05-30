@@ -11,8 +11,8 @@ const EMPTY_MASK: SmtpConfigMasked = {
   host: "", port: 465, secure: true, username: "", fromEmail: "", passwordSet: false,
 };
 
-function readConfig(repo: Repository): SmtpConfig | null {
-  const raw = repo.getSetting("smtp");
+async function readConfig(repo: Repository): Promise<SmtpConfig | null> {
+  const raw = await repo.getSetting("smtp");
   if (!raw) return null;
   try { return JSON.parse(raw) as SmtpConfig; } catch { return null; }
 }
@@ -36,13 +36,13 @@ function normalizeRecipients(raw: string[]): string[] {
   return out;
 }
 
-function resolveRecipients(repo: Repository, req: EmailSendRequest): string[] {
+async function resolveRecipients(repo: Repository, req: EmailSendRequest): Promise<string[]> {
   const raw: string[] = [];
   for (const t of req.to ?? []) raw.push(t);
   for (const name of req.groupNames ?? []) {
     const trimmed = String(name ?? "").trim();
     if (!trimmed) continue;
-    for (const g of repo.queryNodes("emailGroup", { 组名: trimmed })) {
+    for (const g of await repo.queryNodes("emailGroup", { 组名: trimmed })) {
       const members = String(g.properties["成员邮箱"] ?? "");
       for (const m of members.split(",")) raw.push(m);
     }
@@ -50,7 +50,7 @@ function resolveRecipients(repo: Repository, req: EmailSendRequest): string[] {
   for (const name of req.personNames ?? []) {
     const trimmed = String(name ?? "").trim();
     if (!trimmed) continue;
-    const persons = repo.queryNodes("person").filter(
+    const persons = (await repo.queryNodes("person")).filter(
       p => String(p.properties["姓名"] ?? p.properties["name"] ?? "") === trimmed || String(p.properties["工号"] ?? p.properties["employeeId"] ?? "") === trimmed,
     );
     for (const p of persons) raw.push(String(p.properties["邮箱"] ?? p.properties["email"] ?? ""));
@@ -61,14 +61,14 @@ function resolveRecipients(repo: Repository, req: EmailSendRequest): string[] {
 export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mailSender: MailSender): Router {
   const r = Router();
 
-  r.get("/email/config", (_req, res) => {
-    const cfg = readConfig(repo);
+  r.get("/email/config", async (_req, res) => {
+    const cfg = await readConfig(repo);
     res.json(cfg ? mask(cfg) : EMPTY_MASK);
   });
 
-  r.put("/email/config", (req, res) => {
+  r.put("/email/config", async (req, res) => {
     const body = (req.body ?? {}) as Partial<SmtpConfig>;
-    const old = readConfig(repo);
+    const old = await readConfig(repo);
     const password = body.password && String(body.password).length > 0
       ? String(body.password)
       : (old?.password ?? "");
@@ -81,12 +81,12 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
       fromEmail: String(body.fromEmail ?? ""),
       fromName: body.fromName !== undefined ? String(body.fromName) : undefined,
     };
-    repo.setSetting("smtp", JSON.stringify(cfg), "api");
+    await repo.setSetting("smtp", JSON.stringify(cfg), "api");
     res.json(mask(cfg));
   });
 
   r.post("/email/test", asyncHandler(async (req, res) => {
-    const cfg = readConfig(repo);
+    const cfg = await readConfig(repo);
     if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
     const to = String((req.body ?? {}).to ?? "").trim();
     if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "to 必须是有效邮箱" });
@@ -104,10 +104,10 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
   }));
 
   r.post("/email/send", asyncHandler(async (req, res) => {
-    const cfg = readConfig(repo);
+    const cfg = await readConfig(repo);
     if (!cfg) return res.status(400).json({ error: "未配置 SMTP" });
     const body = (req.body ?? {}) as EmailSendRequest;
-    const recipients = resolveRecipients(repo, body);
+    const recipients = await resolveRecipients(repo, body);
     if (recipients.length === 0) return res.status(400).json({ error: "无有效收件人" });
     try {
       const { messageId } = await mailSender.send(cfg, {

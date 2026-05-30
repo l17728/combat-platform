@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
-import type { DB } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
 
 export interface TicketTab {
   id: string;
@@ -16,8 +16,10 @@ export interface TicketTab {
   updatedAt: string;
 }
 
-export function ensureTicketTabsTable(db: DB): void {
-  db.exec(`
+export function ensureTicketTabsTable(adapter: DbAdapter): void {
+  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
+  if (adapter.kind !== "sqlite") return;
+  adapter.rawSqlite().exec(`
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
@@ -49,14 +51,15 @@ function rowToTab(r: any): TicketTab {
   };
 }
 
-export function makeTicketTabsRouter(db: DB): Router {
-  ensureTicketTabsTable(db);
+export function makeTicketTabsRouter(adapter: DbAdapter): Router {
+  ensureTicketTabsTable(adapter);
   const r = Router();
 
   r.get("/tickets/:id/tabs", asyncHandler(async (req, res) => {
-    const rows = db.prepare(
-      "SELECT * FROM ticket_tabs WHERE ticket_id = ? ORDER BY tab_order, created_at"
-    ).all(req.params.id) as any[];
+    const rows = await adapter.query<any>(
+      "SELECT * FROM ticket_tabs WHERE ticket_id = ? ORDER BY tab_order, created_at",
+      [req.params.id],
+    );
     res.json(rows.map(rowToTab));
   }));
 
@@ -71,24 +74,31 @@ export function makeTicketTabsRouter(db: DB): Router {
     if (!title?.trim()) {
       return res.status(400).json({ error: "title 不能为空" });
     }
-    const maxOrder = db.prepare(
-      "SELECT COALESCE(MAX(tab_order), -1) as m FROM ticket_tabs WHERE ticket_id = ?"
-    ).get(ticketId) as { m: number };
+    const maxOrder = await adapter.queryOne<{ m: number }>(
+      "SELECT COALESCE(MAX(tab_order), -1) as m FROM ticket_tabs WHERE ticket_id = ?",
+      [ticketId],
+    );
     const now = new Date().toISOString();
     const id = randomUUID();
     const actor = (req as any).user?.username || "api";
-    db.prepare(
-      "INSERT INTO ticket_tabs (id, ticket_id, tab_type, title, tab_order, config, content, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, ticketId, tabType, title.trim(), maxOrder.m + 1,
-      JSON.stringify(config ?? {}), content ?? "", actor, now, now);
-    const row = db.prepare("SELECT * FROM ticket_tabs WHERE id = ?").get(id) as any;
+    await adapter.run(
+      "INSERT INTO ticket_tabs (id, ticket_id, tab_type, title, tab_order, config, content, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        id, ticketId, tabType, title.trim(), (maxOrder?.m ?? -1) + 1,
+        JSON.stringify(config ?? {}), content ?? "", actor, now, now,
+      ],
+    );
+    const row = await adapter.queryOne<any>("SELECT * FROM ticket_tabs WHERE id = ?", [id]);
     log.info("ticket_tab.created", { ticketId, tabId: id, tabType, title });
     res.status(201).json(rowToTab(row));
   }));
 
   r.patch("/tickets/:id/tabs/:tabId", asyncHandler(async (req, res) => {
     const { id, tabId } = req.params;
-    const existing = db.prepare("SELECT * FROM ticket_tabs WHERE id = ? AND ticket_id = ?").get(tabId, id) as any;
+    const existing = await adapter.queryOne<any>(
+      "SELECT * FROM ticket_tabs WHERE id = ? AND ticket_id = ?",
+      [tabId, id],
+    );
     if (!existing) return res.status(404).json({ error: "标签不存在" });
     const { title, config, content } = req.body as {
       title?: string; config?: any; content?: string;
@@ -111,17 +121,20 @@ export function makeTicketTabsRouter(db: DB): Router {
     updates.push("updated_at = ?");
     params.push(new Date().toISOString());
     params.push(tabId);
-    db.prepare(`UPDATE ticket_tabs SET ${updates.join(", ")} WHERE id = ?`).run(...params);
-    const row = db.prepare("SELECT * FROM ticket_tabs WHERE id = ?").get(tabId) as any;
+    await adapter.run(`UPDATE ticket_tabs SET ${updates.join(", ")} WHERE id = ?`, params);
+    const row = await adapter.queryOne<any>("SELECT * FROM ticket_tabs WHERE id = ?", [tabId]);
     log.info("ticket_tab.updated", { ticketId: id, tabId, fields: updates.filter(u => !u.startsWith('updated_at')) });
     res.json(rowToTab(row));
   }));
 
   r.delete("/tickets/:id/tabs/:tabId", asyncHandler(async (req, res) => {
     const { id, tabId } = req.params;
-    const existing = db.prepare("SELECT * FROM ticket_tabs WHERE id = ? AND ticket_id = ?").get(tabId, id) as any;
+    const existing = await adapter.queryOne<any>(
+      "SELECT * FROM ticket_tabs WHERE id = ? AND ticket_id = ?",
+      [tabId, id],
+    );
     if (!existing) return res.status(404).json({ error: "标签不存在" });
-    db.prepare("DELETE FROM ticket_tabs WHERE id = ?").run(tabId);
+    await adapter.run("DELETE FROM ticket_tabs WHERE id = ?", [tabId]);
     log.info("ticket_tab.deleted", { ticketId: id, tabId, title: existing.title });
     res.json({ deleted: tabId });
   }));
@@ -130,9 +143,11 @@ export function makeTicketTabsRouter(db: DB): Router {
     const ticketId = req.params.id;
     const { order } = req.body as { order?: string[] };
     if (!Array.isArray(order)) return res.status(400).json({ error: "order 必须为数组" });
-    const stmt = db.prepare("UPDATE ticket_tabs SET tab_order = ? WHERE id = ? AND ticket_id = ?");
     for (let i = 0; i < order.length; i++) {
-      stmt.run(i, order[i], ticketId);
+      await adapter.run(
+        "UPDATE ticket_tabs SET tab_order = ? WHERE id = ? AND ticket_id = ?",
+        [i, order[i], ticketId],
+      );
     }
     log.info("ticket_tab.reordered", { ticketId, count: order.length });
     res.json({ ok: true });

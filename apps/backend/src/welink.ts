@@ -434,7 +434,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
   r.get("/tickets/:id/welink/gap-analysis", asyncHandler(async (req, res) => {
     const ticketId = req.params.id;
     if (!repo) return res.status(500).json({ error: "repo 未注入" });
-    const node = repo.getNode(ticketId);
+    const node = await repo.getNode(ticketId);
     if (!node) return res.status(404).json({ error: "攻关单不存在" });
 
     const rows = db.prepare(
@@ -447,7 +447,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
 
     // 反查工号 → 姓名(person 节点)
     const nameByEmpNo = new Map<string, string>();
-    for (const p of repo.queryNodes("person")) {
+    for (const p of await repo.queryNodes("person")) {
       const pp = p.properties as Record<string, unknown>;
       const name = String(pp["姓名"] ?? pp["name"] ?? "").trim();
       const empNo = String(pp["工号"] ?? pp["employeeId"] ?? pp["empNo"] ?? "").trim();
@@ -490,7 +490,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
   r.post("/tickets/:id/welink/add-members", asyncHandler(async (req, res) => {
     const ticketId = req.params.id;
     if (!repo) return res.status(500).json({ error: "repo 未注入" });
-    const node = repo.getNode(ticketId);
+    const node = await repo.getNode(ticketId);
     if (!node) return res.status(404).json({ error: "攻关单不存在" });
     const body = req.body as { names?: string[]; role?: TeamRole };
     const names = Array.isArray(body?.names) ? body.names.map((s) => String(s).trim()).filter(Boolean) : [];
@@ -508,7 +508,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
       added++;
     }
     if (added > 0) {
-      repo.updateNode(ticketId, syncMemberFields(next), "welink");
+      await repo.updateNode(ticketId, syncMemberFields(next), "welink");
       log.info("welink.members.add", { ticketId, added, role });
     }
     res.json({ ok: true, added, members: next });
@@ -518,7 +518,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
   r.post("/tickets/:id/welink/set-member-role", asyncHandler(async (req, res) => {
     const ticketId = req.params.id;
     if (!repo) return res.status(500).json({ error: "repo 未注入" });
-    const node = repo.getNode(ticketId);
+    const node = await repo.getNode(ticketId);
     if (!node) return res.status(404).json({ error: "攻关单不存在" });
     const { name, role } = req.body as { name?: string; role?: TeamRole };
     if (!name || (role !== "组长" && role !== "组员")) {
@@ -528,7 +528,7 @@ export function makeWelinkRouter(db: DB, repo?: Repository, runner?: AgentRunner
     const idx = current.findIndex((m) => m.姓名 === name);
     if (idx < 0) return res.status(404).json({ error: `「${name}」不在成员列表中` });
     const next = current.map((m, i) => (i === idx ? { ...m, 角色: role } : m));
-    repo.updateNode(ticketId, syncMemberFields(next), "welink");
+    await repo.updateNode(ticketId, syncMemberFields(next), "welink");
     log.info("welink.members.set_role", { ticketId, name, role });
     res.json({ ok: true, members: next });
   }));

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { mkdtempSync } from "node:fs";
@@ -10,15 +11,15 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-ccb-"));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
 describe("CCB reminder e2e (李嘉②)", () => {
   it("是否需CCB=是 + status open + handler → emits 'CCB 提醒'", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({
       标题: "CCB攻关单", 状态: "进行中", 当前处理人: "甲", 是否需CCB: "是",
     })).body;
@@ -31,7 +32,7 @@ describe("CCB reminder e2e (李嘉②)", () => {
   });
 
   it("是否需CCB=否 → NOT emitted", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "非CCB单", 状态: "进行中", 当前处理人: "乙", 是否需CCB: "否",
     });
@@ -41,7 +42,7 @@ describe("CCB reminder e2e (李嘉②)", () => {
   });
 
   it("是否需CCB unset → NOT emitted", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "未设CCB单", 状态: "进行中", 当前处理人: "丙",
     });
@@ -51,7 +52,7 @@ describe("CCB reminder e2e (李嘉②)", () => {
   });
 
   it("是否需CCB=是 but status 已解决 → NOT emitted", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "已闭CCB单", 状态: "已解决", 当前处理人: "丁", 是否需CCB: "是",
     });
@@ -61,7 +62,7 @@ describe("CCB reminder e2e (李嘉②)", () => {
   });
 
   it("是否需CCB=是 without handler → NOT emitted (rule needs recipient)", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "无人CCB单", 状态: "进行中", 是否需CCB: "是",
     });
@@ -71,7 +72,7 @@ describe("CCB reminder e2e (李嘉②)", () => {
   });
 
   it("scan is idempotent: re-scan within 7d does not duplicate the CCB reminder", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
       标题: "幂等CCB单", 状态: "进行中", 当前处理人: "戊", 是否需CCB: "是",
     });

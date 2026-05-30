@@ -6,7 +6,7 @@ import { makeTestApp } from "./helpers.js";
 
 describe("PATCH /api/schema e2e", () => {
   it("addField: new id writable/readable, no DDL", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const p = await request(app).patch("/api/schema/attackTicket")
       .send({ op: "addField", field: { name: "根因服务", type: "string", label: "根因服务" } });
     expect(p.status).toBe(200);
@@ -17,7 +17,7 @@ describe("PATCH /api/schema e2e", () => {
     expect((await request(app).get(`/api/nodes/${c.body.id}`)).body.properties["根因服务"]).toBe("ModelArts");
   });
   it("renameLabel: label changes, data still read by id", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "保留我", 状态: "进行中" });
     const p = await request(app).patch("/api/schema/attackTicket").send({ op: "renameLabel", id: "标题", label: "问题标题" });
     expect(p.status).toBe(200);
@@ -25,7 +25,7 @@ describe("PATCH /api/schema e2e", () => {
     expect((await request(app).get(`/api/nodes/${c.body.id}`)).body.properties["标题"]).toBe("保留我");
   });
   it("retire: data retained, not validated; unretire restores", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "t", 状态: "进行中" });
     expect((await request(app).patch("/api/schema/attackTicket").send({ op: "retire", id: "状态" })).status).toBe(200);
     expect((await request(app).post("/api/nodes/attackTicket").send({ 标题: "no-status" })).status).toBe(201);
@@ -34,7 +34,7 @@ describe("PATCH /api/schema e2e", () => {
     expect(u.body.fields.find((f: any) => f.id === "状态").retired).toBe(false);
   });
   it("invalid op rolls back: bad addField leaves schema usable", async () => {
-    const { app, cfgDir } = makeTestApp();
+    const { app, cfgDir } = await makeTestApp();
     const before = readFileSync(join(cfgDir, "attackTicket.json"), "utf8");
     const r = await request(app).patch("/api/schema/attackTicket").send({ op: "addField", field: { name: "", type: "string", label: "" } });
     expect(r.status).toBe(400);
@@ -42,7 +42,7 @@ describe("PATCH /api/schema e2e", () => {
     expect((await request(app).post("/api/nodes/attackTicket").send({ 标题: "still ok", 状态: "进行中" })).status).toBe(201);
   });
   it("addField rejects duplicate name (name is the property/form key)", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const before = (await request(app).get("/api/schema/attackTicket")).body.fields.length;
     const p = await request(app).patch("/api/schema/attackTicket").send({ op: "addField", field: { name: "标题", type: "string", label: "另一个标题" } });
     expect(p.status).toBe(400);
@@ -50,7 +50,7 @@ describe("PATCH /api/schema e2e", () => {
     expect(after).toBe(before);
   });
   it("editEnum changes allowed values and is enforced", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const p = await request(app).patch("/api/schema/attackTicket").send({ op: "editEnum", id: "状态", enumValues: ["进行中", "已归档"] });
     expect(p.status).toBe(200);
     expect(p.body.fields.find((f: any) => f.id === "状态").enumValues).toEqual(["进行中", "已归档"]);

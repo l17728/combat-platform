@@ -15,7 +15,7 @@ async function uploadMessages(app: any, ticketId: string, list: any[]) {
 
 describe("welink extraction e2e", () => {
   it("heuristic: 落 5 类中的 entity + event + gap;成员已登记时不会被列为 gap", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app, {
       成员列表: JSON.stringify([{ 姓名: "陈某", 角色: "组长" }]),
       攻关组长: "陈某",
@@ -41,7 +41,7 @@ describe("welink extraction e2e", () => {
   });
 
   it("GET list/PATCH reviewed/DELETE 一条 — full CRUD over welink_extractions", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await uploadMessages(app, tid, [
       { messageId: "n1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
@@ -69,7 +69,7 @@ describe("welink extraction e2e", () => {
   });
 
   it("analyze 无消息时返回 queued=0/extracted=0", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     const an = await request(app).post(`/api/tickets/${tid}/welink-messages/analyze`).send({});
     expect(an.status).toBe(200);
@@ -79,14 +79,14 @@ describe("welink extraction e2e", () => {
   });
 
   it("PATCH 不存在 404 / DELETE 不存在 404", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     expect((await request(app).patch(`/api/tickets/${tid}/welink-extractions/nope`).send({ reviewed: true })).status).toBe(404);
     expect((await request(app).delete(`/api/tickets/${tid}/welink-extractions/nope`)).status).toBe(404);
   });
 
   it("过滤 kind=gap 只返回 gap 类", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const tid = await createTicket(app);
     await uploadMessages(app, tid, [
       { messageId: "g1", sentAt: "2026-05-29T10:00:00Z", author: "新人A", content: "1" },
