@@ -34,7 +34,8 @@ export default function FloatingFeedback() {
         y: window.scrollY,
         ignoreElements: (el) => !!el.classList?.contains?.('feedback-float-ignore'),
       });
-      shot = canvas.toDataURL('image/png');
+      // JPEG 0.7 体积通常仅 PNG 的 1/3 ~ 1/5,避免后端 body 超限(20mb)被拒。
+      shot = canvas.toDataURL('image/jpeg', 0.7);
     } catch {
       // Capture can fail (e.g. tainted canvas from cross-origin images);
       // still open the form so the user can submit text-only feedback.

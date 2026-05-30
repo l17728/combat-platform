@@ -46,8 +46,10 @@ import type { DB } from "./db.js";
 export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB; dbPath?: string }) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
   const app = express();
-  app.use(express.json());
+  // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
+  // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
+  app.use(express.json({ limit: '20mb' }));
 
   if (deps.db) {
     app.use("/api", makeAuthRouter(deps.db));

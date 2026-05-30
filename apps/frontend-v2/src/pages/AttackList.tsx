@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Checkbox, Popover,
+  Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Checkbox, Popover, Tabs,
 } from 'antd';
-import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
@@ -24,6 +24,7 @@ const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名
 
 const STORAGE_KEY = 'attack-list-visible-columns';
 const DEFAULT_VISIBLE = ['标题', '状态', '当前处理人', '事件级别', '问题单号', '客户名称'];
+const FAV_KEY = 'combat-attack-favorites';
 
 export default function AttackList() {
   const navigate = useNavigate();
@@ -34,6 +35,15 @@ export default function AttackList() {
   const [filterField, setFilterField] = useState<string | undefined>(() => searchParams.get('field') || undefined);
   const [filterValues, setFilterValues] = useState<string[]>(() => searchParams.getAll('val'));
   const [searchText, setSearchText] = useState(() => searchParams.get('q') || '');
+  const [activeTab, setActiveTab] = useState<'all' | 'favorites'>(() =>
+    searchParams.get('tab') === 'favorites' ? 'favorites' : 'all');
+  const [favorites, setFavorites] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch { return new Set(); }
+  });
+  useEffect(() => { try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch { /* ignore */ } }, [favorites]);
+  const toggleFavorite = useCallback((id: string) => {
+    setFavorites((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  }, []);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
@@ -90,7 +100,7 @@ export default function AttackList() {
   }, [filterField, nodes]);
 
   const filteredNodes = useMemo(() => {
-    let result = nodes;
+    let result = activeTab === 'favorites' ? nodes.filter((n) => favorites.has(n.id)) : nodes;
     if (filterField && filterValues.length > 0) {
       result = result.filter(n => {
         const v = n.properties[filterField];
@@ -110,7 +120,7 @@ export default function AttackList() {
       });
     }
     return result;
-  }, [nodes, filterField, filterValues, searchText]);
+  }, [nodes, filterField, filterValues, searchText, activeTab, favorites]);
 
   // Keep filters in the URL so returning from a detail page (browser back)
   // restores the search/filter instead of dumping the user on the full list.
@@ -177,6 +187,18 @@ export default function AttackList() {
   };
 
   const columns = useMemo(() => {
+    const favCol = {
+      key: '__fav', title: '★', width: 44, align: 'center' as const, fixed: 'left' as const,
+      render: (_: unknown, r: GraphNode) => (
+        <span
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(r.id); }}
+          style={{ cursor: 'pointer', fontSize: 14 }}
+          title={favorites.has(r.id) ? '取消关注' : '关注'}
+        >
+          {favorites.has(r.id) ? <StarFilled style={{ color: '#fadb14' }} /> : <StarOutlined style={{ color: '#bfbfbf' }} />}
+        </span>
+      ),
+    };
     const idCol = {
       key: 'id', title: '编号', width: 90, fixed: 'left' as const,
       render: (_: unknown, r: GraphNode) => (
@@ -240,8 +262,8 @@ export default function AttackList() {
       ),
     };
 
-    return [idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
-  }, [visibleColumns, schema, navigate, handleDelete]);
+    return [favCol, idCol, ...dataCols, ...dynamicCols, updateCol, opsCol];
+  }, [visibleColumns, schema, navigate, handleDelete, favorites, toggleFavorite]);
 
   const { columns: flexCols, FlexWrapper } = useFlexTable('attackTicket', columns);
 
@@ -261,6 +283,16 @@ export default function AttackList() {
           <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>导出</Button>
         </Space>
       </div>
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k as 'all' | 'favorites')}
+        style={{ marginBottom: 8 }}
+        items={[
+          { key: 'all', label: '全部' },
+          { key: 'favorites', label: <span><StarFilled style={{ color: '#fadb14' }} /> 我的关注{favorites.size > 0 ? ` (${favorites.size})` : ''}</span> },
+        ]}
+      />
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Select placeholder="选择筛选字段" allowClear style={{ width: 160 }} value={filterField}
