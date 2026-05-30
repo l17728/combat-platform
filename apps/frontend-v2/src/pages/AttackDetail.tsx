@@ -9,7 +9,7 @@ import {
   DeleteOutlined, LinkOutlined, InfoCircleOutlined, HistoryOutlined,
   FileTextOutlined, NodeIndexOutlined, TeamOutlined, CheckCircleOutlined,
   ClockCircleOutlined, ThunderboltOutlined, MinusCircleOutlined, SyncOutlined,
-  CloseOutlined, AppstoreOutlined, LockOutlined, UnlockOutlined,
+  CloseOutlined, AppstoreOutlined, LockOutlined, UnlockOutlined, MessageOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
@@ -22,6 +22,7 @@ import StatusTag from '../components/StatusTag.js';
 import AddTabModal from '../components/AddTabModal.js';
 import DynamicLinkTab from '../components/DynamicLinkTab.js';
 import DynamicCustomTab from '../components/DynamicCustomTab.js';
+import WelinkTab from './WelinkTab.js';
 import { useSettings } from '../hooks/useSettings.js';
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema } from '@combat/shared';
 import type { DailyReportEntry, SupportNode, SupportTemplate, RelatedResult } from '../api.js';
@@ -547,6 +548,10 @@ export default function AttackDetail() {
           )}
         </div>
       ),
+    },
+    {
+      key: 'welink', label: <span><MessageOutlined /> Welink 消息</span>,
+      children: <WelinkTab ticketId={id!} />,
     },
     {
       key: 'progress', label: <span><SwapOutlined /> 进展同步</span>,
