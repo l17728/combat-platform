@@ -94,7 +94,7 @@ function AppInner() {
         <Route path="/honor/:name" element={<PersonHonor />} />
         <Route path="/help" element={<HelpCenter />} />
         <Route path="/daily-report" element={<DailyReportPage />} />
-        <Route path="/merge" element={<MergePage />} />
+        <Route path="/merge" element={<AdminGuard><MergePage /></AdminGuard>} />
         <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
         <Route path="/import" element={<ImportExport />} />
         <Route path="/email" element={<EmailSettings />} />

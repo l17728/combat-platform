@@ -40,7 +40,7 @@ const { Text } = Typography;
 
 function getSelectedKey(path: string): string {
   if (path.startsWith('/attack')) return '/attack';
-  if (path === '/people' || path.startsWith('/honor') || path === '/merge') return '/people';
+  if (path === '/people' || path.startsWith('/honor')) return '/people';
   if (path === '/contributions') return '/contributions';
   if (path === '/daily-report') return '/daily-report';
   if (path === '/help') return '/help';
@@ -50,15 +50,15 @@ function getSelectedKey(path: string): string {
   if (path === '/search') return '/search';
   if (path === '/kg') return '/kg';
   if (path === '/bug-report') return '/bug-report';
-  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup'].includes(path)) return path;
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return path;
   return '/';
 }
 
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith('/attack') || path.startsWith('/daily-report') || path.startsWith('/related')) return ['attack'];
-  if (path === '/people' || path === '/contributions' || path.startsWith('/honor') || path === '/merge') return ['people'];
+  if (path === '/people' || path === '/contributions' || path.startsWith('/honor')) return ['people'];
   if (path === '/proposals' || path === '/reminders') return ['system', 'review'];
-  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup'].includes(path)) return ['system'];
+  if (['/import', '/email', '/audit', '/schema', '/config', '/users', '/op-log', '/backup', '/merge'].includes(path)) return ['system'];
   return [];
 }
 
@@ -114,7 +114,6 @@ export function AppLayout() {
         { key: '/people', label: '全员名单' },
         { key: '/contributions', label: '贡献录入' },
         { key: '/honor', label: '荣誉殿堂', icon: <TrophyOutlined /> },
-        { key: '/merge', label: '人员合并', icon: <MergeOutlined /> },
       ],
     },
     {
@@ -159,6 +158,7 @@ export function AppLayout() {
         { key: '/email', label: '邮件设置', icon: <SettingOutlined /> },
         { key: '/audit', label: '审计日志', icon: <FileSearchOutlined /> },
         { key: '/backup', label: '备份恢复', icon: <DatabaseOutlined /> },
+        ...(isAdmin ? [{ key: '/merge', label: '人员合并', icon: <MergeOutlined /> }] : []),
         ...(isAdmin ? [{
           key: 'review',
           icon: <AuditOutlined />,

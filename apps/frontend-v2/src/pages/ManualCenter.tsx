@@ -12,11 +12,11 @@ const OUTLINE: { group: string; keys: string[] }[] = [
   { group: '版本发布', keys: ['releaseNotes'] },
   { group: '总览', keys: ['dashboard'] },
   { group: '攻关管理', keys: ['attackList', 'attackDetail', 'dailyReport'] },
-  { group: '人员与荣誉', keys: ['peopleList', 'contributions', 'honor', 'personHonor', 'mergePage'] },
+  { group: '人员与荣誉', keys: ['peopleList', 'contributions', 'honor', 'personHonor'] },
   { group: '协作与文档', keys: ['helpCenter', 'documentCenter'] },
   { group: '审核与提醒', keys: ['proposals', 'reminders'] },
   { group: '检索与关联', keys: ['search', 'relatedPage'] },
-  { group: '系统管理', keys: ['importExport', 'schemaWizard', 'configCenter', 'emailSettings', 'auditLog', 'backupRestore', 'userManagement', 'bugReport'] },
+  { group: '系统管理', keys: ['importExport', 'schemaWizard', 'configCenter', 'emailSettings', 'auditLog', 'backupRestore', 'mergePage', 'userManagement', 'bugReport'] },
 ];
 
 function stripSuffix(title: string): string {

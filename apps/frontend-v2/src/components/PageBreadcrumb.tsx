@@ -27,7 +27,7 @@ const PARENT_MAP: Record<string, string[]> = {
   '/people': ['人员与荣誉'],
   '/contributions': ['人员与荣誉'],
   '/honor': ['人员与荣誉'],
-  '/merge': ['人员与荣誉'],
+  '/merge': ['系统管理'],
   '/proposals': ['系统管理', '审核管理'],
   '/reminders': ['系统管理', '审核管理'],
   '/import': ['系统管理'],
