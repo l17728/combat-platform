@@ -143,8 +143,8 @@ export class Api {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const role = (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
-    headers['X-Role'] = role;
+    // P0-3 修复:不再注入 X-Role 头,后端从 JWT payload 取 role,
+    // 防止客户端伪造 role 越权(localStorage 可任意改写)。
     init = { ...init, headers };
     const start = Date.now();
     const r = await this.f(`${this.base}${path}`, init);
@@ -328,8 +328,7 @@ export class Api {
     const headers: Record<string, string> = {};
     const token = this.getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const role = (typeof localStorage !== 'undefined' && localStorage.getItem('combat-role')) || 'normal';
-    headers['X-Role'] = role;
+    // P0-3 修复:不再注入 X-Role 头(role 由 JWT 携带)。
     return this.f(`${this.base}${path}`, { headers });
   }
 

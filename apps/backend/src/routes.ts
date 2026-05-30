@@ -7,6 +7,7 @@ import { log } from "./logger.js";
 import { syncConflicts } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
+import { verifyAuth } from "./auth.js";
 
 /**
  * 节点保存后异步触发后台扫描任务（fire-and-forget）。
@@ -88,16 +89,21 @@ function canAccessPrivateAttackTicket(
   return false;
 }
 
-// §50: gate 贡献等级 标定 to privileged roles. Absent X-Role header = trusted
-// system access (CLI / import / tests) → allowed. Returns an error string to
-// send as 403, or null when allowed.
+// §50: gate 贡献等级 标定 to privileged roles. P0-3 修复:role 必须从 JWT payload 取,
+// 严禁信任客户端可控的 X-Role 头(localStorage 写入,curl 可任意伪造)。
+// - 缺失 Authorization (CLI / import / 测试 / COMBAT_NO_AUTH) → 信任
+// - JWT 有效 + role ∈ PRIVILEGED_ROLES → 信任
+// - 其他 → 403
 function gradeGate(req: { headers: Record<string, unknown>; body: unknown }, nodeType: string): string | null {
   if (nodeType !== "contribution") return null;
   const grade = String((req.body as Record<string, unknown>)?.["贡献等级"] ?? "").trim();
   if (!grade) return null;
-  const role = req.headers["x-role"];
-  if (role === undefined) return null; // trusted (no role asserted)
-  if (PRIVILEGED_ROLES.includes(String(role) as Role)) return null;
+  if (process.env.COMBAT_NO_AUTH === "1") return null;
+  const auth = (req.headers["authorization"] as string | undefined) ?? undefined;
+  if (!auth) return null; // trusted CLI / 后端内部调用
+  const payload = verifyAuth(req as { headers: Record<string, unknown> });
+  if (!payload) return "未登录或 token 已过期";
+  if (PRIVILEGED_ROLES.includes(payload.role as Role)) return null;
   return "仅 Leader 可标定贡献等级";
 }
 
