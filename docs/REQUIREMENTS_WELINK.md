@@ -207,9 +207,143 @@ welink_extractions
 ### 待做(下阶段)
 
 - **图片源加载策略**:目前直接 `<img src={url}>` 渲染原图;若 Welink CDN 需鉴权,可能要后端加 proxy
-- **AI 抽取 worker**:`analyze` 端点仍是占位,真实 LLM 调用未接
-- **gap_analysis 工具集**:对话式补齐成员/角色未实现
 - **滚动加载更多**:当前一次拉 2000 条上限,未做按时间分页加载
+- **场景 3 对话式问答(基于群消息)**:虽然 hermes_welinkSearch/Timeline 工具已就绪,
+  但 e2e 还没断言 agent 调用群消息工具回答(因为 e2e backend 不开 HERMES_AGENT)
+
+---
+
+## 场景 2 (AI 抽取) + 场景 4 (gap + 对话式补齐) 实施细节(2026-05-30 更新)
+
+> 状态:**已实施 v1**(`feature/welink-integration` 分支,commit 728f65c..09faa9a)
+
+### 后端落表
+
+新增 `welink_extractions` 表:
+```sql
+CREATE TABLE welink_extractions (
+  id             TEXT PRIMARY KEY,
+  ticket_id      TEXT NOT NULL,
+  kind           TEXT NOT NULL,    -- entity / event / decision / dispute / gap
+  label          TEXT NOT NULL,
+  payload        TEXT NOT NULL,    -- JSON
+  source_msg_ids TEXT,             -- 溯源消息 id,逗号分隔
+  created_at     TEXT NOT NULL,
+  created_by     TEXT,             -- 'hermes' / 'heuristic'
+  reviewed       INTEGER NOT NULL DEFAULT 0
+);
+```
+
+### analyze 端点工作流(`apps/backend/src/welink-extraction.ts`)
+
+`POST /api/tickets/:id/welink-messages/analyze` 不再占位:
+1. 取 `selected=1 AND deleted_at IS NULL` 的消息;0 条直接返回
+2. 序列化成精简文本(超 200 条按时间三分桶采样,防 prompt 爆炸)
+3. **优先 AgentRunner**(opencode hermes,模型 huawei_cloud/glm-5):
+   构造结构化抽取 prompt(指定输出 5 类 JSON 数组),正则 `\`\`\`json\`\`\`` 块抽 JSON
+4. **启发式回退**:agent 失败 / 不可解析 / 缺 entity-gap 类时,
+   规则回退保底产出(entity=按发言人统计、event=首末发言、gap=活跃发言 vs 已登记成员差集)
+5. 落 `welink_extractions` + 返回 `{ok, queued, extracted, source, extractions}`
+6. `source` ∈ `agent` | `agent+heuristic` | `heuristic`,便于排查
+
+MVP 同步阻塞;数据量 < 1000 是几秒级。异步 worker + SSE 进度推送留作下阶段。
+
+### 抽取结果 CRUD
+
+- `GET /api/tickets/:id/welink-extractions?kind=&reviewed=` — 查询
+- `GET /api/tickets/:id/welink-extractions/:extId` — 单条
+- `PATCH /api/tickets/:id/welink-extractions/:extId` — `{ reviewed?, label?, payload? }`
+- `DELETE /api/tickets/:id/welink-extractions/:extId`
+
+### Agent 端点(场景 4 闭环)
+
+`apps/backend/src/welink.ts` 加 5 个端点,既给 Hermes 工具用、也给前端直接调:
+
+- `GET /api/tickets/:id/welink/search?q=` — 全文搜该 ticket 的 welink 消息
+- `GET /api/tickets/:id/welink/timeline?limit=` — 时间升序的精简时间线
+- `GET /api/tickets/:id/welink/gap-analysis` — 活跃发言人 vs 已登记成员差集,
+  含工号→姓名反查(优先 person.工号 / 退回 sender 原值)
+- `POST /api/tickets/:id/welink/add-members` — `{names, role?}` 批量加,
+  默认组员;自动去重 + `syncMemberFields` 同步「成员列表/攻关组长/攻关成员」三方
+- `POST /api/tickets/:id/welink/set-member-role` — `{name, role}` 改单人角色
+
+`apps/backend/src/welink-members.ts` 镜像前端 `utils/teamMembers.ts` 的 parseMembers/syncMemberFields,
+保证两端「成员列表 JSON 真源 + 攻关组长/攻关成员 派生」规则一致。
+
+### Hermes 工具集扩展(`apps/backend/hermes-workspace/.opencode/tools/hermes.ts`)
+
+在原有 lookup/getContext/recommendHelpers/ticketTabs 基础上 +6:
+
+| 工具 | 类型 | 触发关键字 |
+|------|------|------|
+| `hermes_welinkSearch(ticketId, q)` | 只读 | "群里谁说过 X" |
+| `hermes_welinkTimeline(ticketId, limit?)` | 只读 | 时间脉络 / 首次谁认领 |
+| `hermes_gapAnalysis(ticketId)` | 只读 | **主动:用户提到群/成员/补齐时调** |
+| `hermes_welinkAddMembers(ticketId, names, role?)` | 写 | "把 X、Y 加进来" |
+| `hermes_welinkSetMemberRole(ticketId, name, role)` | 写 | "把张三设为组长" |
+| `hermes_createEmailGroup(groupName, emails, description?)` | 写 | "建一个 xxx 邮件群" |
+
+> 写工具的 `names`/`emails` 用逗号分隔字符串而非数组,规避 opencode plugin `schema.array` 兼容差异。
+
+`apps/backend/hermes-workspace/.opencode/agents/hermes.md` 从"只读问答"升级为
+"以只读为主 + 允许明确的成员维护写入",并加 **Welink 场景对话脚本**:
+
+1. 用户进入 Welink 场景(提到群/聊天/成员/活跃/补齐)→ 主动调 gapAnalysis
+2. 有 gap → 主动报告候选 + 问"要加进来吗?"
+3. 用户回"都加 / 加 X / 除 Z 外都加" → 解析为 welinkAddMembers 调用
+
+### 前端
+
+- `apps/frontend-v2/src/pages/WelinkExtractionsDrawer.tsx`(新)
+  - width=520 Drawer,Tabs 按 5 类分组(人物 / 时间线 / 决策 / 争议 / 缺口)
+  - 卡片化展示 label + JSON payload + 时间
+  - **「缺口 / 人物」类**直接「加入攻关成员」按钮 → 调 `welink/add-members`
+  - 「标已查阅」标灰 + 排在后面;「删除」Popconfirm 确认
+- `WelinkTab` 改造:
+  - 统计行加「AI 抽取 (N)」按钮 → 打开 Drawer
+  - 「让 AI 分析」按钮改为同步等待 → toast 反馈 queued/extracted/source → extracted>0 自动开 Drawer
+  - 聊天视图下也加「让 AI 分析」按钮(同 testid 不同后缀)
+- `HermesChat` 扩展:加 `context` / `greeting` / `testId` 三个 props
+  - `context` 透传给 `/api/hermes/ask`(让 agent 知道当前 ticketId)
+  - `greeting` 打开浮窗时由 assistant 先发一条引导(场景 4 入口)
+- `WelinkTab` 挂载 `HermesChat`:
+  ```ts
+  context: `当前攻关单 id=${ticketId};用户正在 Welink 群消息场景。若用户问及成员/补齐/活跃,主动调 hermes_gapAnalysis(ticketId)。`
+  greeting: 列出 3 例对话模板
+  ```
+
+### 测试
+
+- `apps/backend/test/welink-extraction.e2e.test.ts` 5 tests:5 类落表 + 全 CRUD + 空消息 + 404 + kind 过滤
+- `apps/backend/test/welink-members.e2e.test.ts` 7 tests:search/timeline/gap-analysis(工号反查)/add-members(默认组员/指定组长)/set-member-role/invalid payloads
+- 原 `welink.e2e.test.ts` 内 analyze 占位测试改为新逻辑断言(source=heuristic, kinds 含 entity+gap)
+- `apps/frontend-v2/e2e/welink-extraction.spec.ts` 5 tests:
+  - 「让 AI 分析」→ extractions 非空 + Drawer 自动开
+  - Drawer 分类 Tabs + 缺口 Tab 含未登记发言人
+  - 缺口里「加入攻关成员」→ ticket.成员列表 length+1
+  - AI 助手浮窗 → greeting 可见 → 提问得到回答(走规则引擎 fallback)
+  - 对话补齐链路:直调 add-members API(等价 agent 落点)→ ticket 成员管理 tab 见新人
+
+### 容错与降级路径
+
+| 场景 | 行为 |
+|------|------|
+| `HERMES_AGENT=0`(默认) | analyze 直接走启发式,extractions 仍非空 |
+| `HERMES_AGENT=1` 但 opencode 不可达 | catch 内回退启发式,日志 `welink.extract.agent_fail` |
+| agent 返回不可解析 JSON | 日志 `welink.extract.agent_unparseable`,走启发式 |
+| agent 只返回了 event/decision 没 entity/gap | 启发式补 entity + gap,source 标 `agent+heuristic` |
+| 0 条选中消息 | 早返回 `queued=0, extracted=0`,UI 提示先勾选 |
+
+### 已知卡点(给场景 3 的提醒)
+
+- **e2e 不能真跑 agent 工具调用**:e2e backend 默认关 agent,
+  场景 3 "AI 用 welinkSearch/Timeline 回答群消息相关问题"无法在 e2e 里端到端验证。
+  现在的 e2e 只验证了「AI 助手浮窗可打开 + greeting 显示 + 规则引擎 fallback 回答」。
+  场景 3 上线时必须人工跑通 HERMES_AGENT=1 + 真实 LLM,断言 agent 在群消息上下文里能调对工具。
+- **agent 工具调用稳定性未知**:opencode + glm-5 调结构化输出(JSON 抽取、解析否定指令"除 X 外")在本期未现网验证;
+  prompt 已要求 ```json fence,提供启发式回退兜底,但 agent 调用 add_members 时是否能正确解析"除张三外其他都加"未实际测试。
+- **写工具二次确认**:本期 add_members 由 agent 调时直接执行,没二次确认 — 待决策点 #6 仍是开放问题。
+  当前缓解:agent.md 写明"仅在用户明确表达想要加成员时调用";若误调,用户在「成员管理」tab 可一键删。
 
 ## 反向风险
 
