@@ -275,6 +275,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     "/auth/register",
     "/help/feedback/",
     "/bug-reports",
+    "/health",
   ];
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
