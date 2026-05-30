@@ -450,9 +450,28 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Layout:** collapsible sidebar (200→64px) + fixed top bar with user Dropdown (displayName + role + logout)
 - **Pages:** Dashboard, AttackList, AttackDetail, PeopleList, Contributions, Honor, PersonHonor, HelpCenter, HelpFeedback (public), ImportExport, EmailSettings, AuditLog, ConfigCenter, BugReport, DailyReport, LoginPage, MergePage, OperationLog, ProposalsPage, RelatedPage, RemindersPage, SchemaWizard, SearchPage, UserManagement
 - **API client:** `src/api.ts` — singleton `api` instance, auto-detects production API base URL
-- **Settings system:** `src/hooks/useSettings.ts` — loads config from `/api/settings` on every page mount (no singleton cache); dropdown options come exclusively from config center, no hardcoded fallbacks
+- **Settings system:** `src/hooks/useSettings.ts` — loads config from `/api/settings` on mount; exposes `getValues(key, fallback)` / `getOptions(key, fallback)`; **fallback 必填** — 配置中心被清空或网络失败时 UI 仍可用(硬底线,见下方"UI 配置化原则")
 - **DynamicField component:** `src/components/DynamicField.tsx` — renders Select when `optionsKey` has values in config center, degrades to Input when config entry is empty/missing
 - **Config-OptionsKey binding:** schema fields with `type: "enum"` have an `optionsKey` property pointing to a config center key; binding is managed in SchemaWizard; config center delete shows impact analysis before confirming
+
+### UI 配置化原则(强制)
+**所有"业务枚举"下拉/筛选/单选必须走配置中心,严禁源码硬编码** — Bug 严重程度、攻关单状态、贡献等级、团队角色这类业务可变枚举,统一从 `useSettings().getValues(key, fallback)` 读。
+
+```ts
+// ❌ 禁止
+const SEVERITY_OPTIONS = ['严重', '较高', '一般', '建议'].map(v => ({value: v, label: v}));
+
+// ✓ 必须
+const { getValues } = useSettings();
+const severities = getValues('Bug 严重程度', ['严重', '较高', '一般', '建议']);
+<Select options={severities.map(v => ({value: v, label: v}))} />
+```
+
+铁律:
+1. **fallback 必填**(string[]),且保留原硬编码默认值 — 离线 / 未 seed 也能渲染。
+2. 新增 settings key → `scripts/settings-seed.mjs` 同步加 `await put(...)`,部署时跑一次。
+3. 配置项一览见 `docs/UI_CONFIG_AUDIT.md` 和 `help-content.ts` 的 `configCenter` 条目。
+4. **排除项**(允许硬编码):角色码 admin/leader/normal、分页 `[10,20,50,100]`、`constants.ts` enum→颜色映射、文件类型、技术参数(KG 布局/Radio link-custom 等)、nodeType 代码。
 
 ## E2E Test Hard-Won Discoveries (Frontend-v2)
 
