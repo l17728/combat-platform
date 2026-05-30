@@ -68,7 +68,7 @@ test.describe('Welink 消息 Tab', () => {
     await expect(page.getByText(/共 0 条/).first()).toBeVisible();
   });
 
-  test('纳入/排除分析 + AI 分析占位返回提示', async ({ page }) => {
+  test('纳入/排除分析 + AI 分析触发抽取(0 条时提示)', async ({ page }) => {
     await page.request.post(`${API}/api/tickets/${ticketId}/welink-messages`, {
       data: SAMPLE_MESSAGES,
     });
@@ -84,13 +84,9 @@ test.describe('Welink 消息 Tab', () => {
     await page.getByRole('button', { name: /排除分析 \(3\)/ }).click();
     await expect(page.getByText(/纳入分析 0 条/)).toBeVisible();
 
-    // 让 AI 分析 → Modal 弹窗显示队列 0 条 + 占位文本
-    await page.getByRole('button', { name: /让 AI 分析/ }).click();
-    const modal = page.locator('.ant-modal').filter({ hasText: 'AI 分析' });
-    await expect(modal).toBeVisible();
-    await expect(modal.getByText(/下一阶段开放/)).toBeVisible();
-    await expect(modal.getByText('0')).toBeVisible();
-    await modal.getByRole('button', { name: /确\s?定|知道了|OK/i }).click();
+    // 让 AI 分析 → 由于 selected=0,toast 提示先勾选
+    await page.locator('[data-testid="welink-analyze-btn"]').click();
+    await expect(page.getByText(/没有已选中的消息可供分析/).first()).toBeVisible();
   });
 
   test('上传 JSON 文件(拖拽区) → 解析并入库', async ({ page }) => {

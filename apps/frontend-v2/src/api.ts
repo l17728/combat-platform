@@ -168,6 +168,44 @@ export interface WelinkMessage {
   createdAt: string;
 }
 
+export type WelinkExtractionKind = 'entity' | 'event' | 'decision' | 'dispute' | 'gap';
+
+export interface WelinkExtraction {
+  id: string;
+  ticketId: string;
+  kind: WelinkExtractionKind;
+  label: string;
+  payload: any;
+  sourceMsgIds: string[];
+  createdAt: string;
+  createdBy: string | null;
+  reviewed: boolean;
+}
+
+export interface WelinkAnalyzeResult {
+  ok: boolean;
+  queued: number;
+  extracted: number;
+  source: 'agent' | 'heuristic' | 'agent+heuristic' | 'noop';
+  extractions: WelinkExtraction[];
+  message?: string;
+}
+
+export interface WelinkGapSender {
+  name: string;
+  senderId: string;
+  appearedCount: number;
+  suggestion: string;
+}
+
+export interface WelinkGapAnalysis {
+  ticketId: string;
+  welinkActiveSenders: string[];
+  welinkActiveNames: string[];
+  ticketMembers: { 姓名: string; 角色: string }[];
+  gap: WelinkGapSender[];
+}
+
 export interface QueryContext {
   node: GraphNode;
   related: {
@@ -911,11 +949,56 @@ export class Api {
     });
   }
 
-  analyzeWelinkMessages(ticketId: string): Promise<{ ok: boolean; queued: number; message: string }> {
+  analyzeWelinkMessages(ticketId: string): Promise<WelinkAnalyzeResult> {
     return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/analyze`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
+    });
+  }
+
+  listWelinkExtractions(
+    ticketId: string,
+    opts?: { kind?: string; reviewed?: boolean },
+  ): Promise<{ items: WelinkExtraction[] }> {
+    const p = new URLSearchParams();
+    if (opts?.kind) p.set('kind', opts.kind);
+    if (opts?.reviewed != null) p.set('reviewed', String(opts.reviewed));
+    const qs = p.toString();
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions${qs ? '?' + qs : ''}`);
+  }
+
+  updateWelinkExtraction(
+    ticketId: string,
+    extId: string,
+    patch: { reviewed?: boolean; label?: string; payload?: unknown },
+  ): Promise<WelinkExtraction> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions/${encodeURIComponent(extId)}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  deleteWelinkExtraction(ticketId: string, extId: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-extractions/${encodeURIComponent(extId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  welinkGapAnalysis(ticketId: string): Promise<WelinkGapAnalysis> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink/gap-analysis`);
+  }
+
+  welinkAddMembers(
+    ticketId: string,
+    names: string[],
+    role?: '组长' | '组员',
+  ): Promise<{ ok: boolean; added: number; members: { 姓名: string; 角色: string }[] }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink/add-members`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ names, role }),
     });
   }
 }

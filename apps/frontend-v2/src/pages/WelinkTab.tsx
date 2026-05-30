@@ -1,17 +1,19 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Upload, Button, Space, Table, Input, Select, DatePicker, message, Popconfirm,
-  Tag, Typography, Empty, Alert, Tooltip, Modal, Segmented,
+  Tag, Typography, Empty, Alert, Tooltip, Segmented,
 } from 'antd';
 import {
   InboxOutlined, DeleteOutlined, ReloadOutlined, RobotOutlined,
   CheckSquareOutlined, ClearOutlined, UnorderedListOutlined, MessageOutlined,
+  BulbOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import dayjs, { type Dayjs } from 'dayjs';
 import { api, type WelinkMessage } from '../api.js';
 import WelinkChatView from './WelinkChatView.js';
+import WelinkExtractionsDrawer from './WelinkExtractionsDrawer.js';
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -68,6 +70,9 @@ export default function WelinkTab({ ticketId }: Props) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [extractionsOpen, setExtractionsOpen] = useState(false);
+  const [extractionCount, setExtractionCount] = useState(0);
+  const [analyzing, setAnalyzing] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'chat'>(() => {
     if (typeof window === 'undefined') return 'list';
     const v = window.localStorage.getItem('combat-welink-view');
@@ -94,6 +99,16 @@ export default function WelinkTab({ ticketId }: Props) {
   }, [ticketId]);
 
   useEffect(() => { void fetchMessages(); }, [fetchMessages]);
+
+  const fetchExtractionCount = useCallback(async () => {
+    try {
+      const r = await api.listWelinkExtractions(ticketId);
+      setExtractionCount(r.items.length);
+    } catch {
+      // 不打扰用户:统计失败保持 0
+    }
+  }, [ticketId]);
+  useEffect(() => { void fetchExtractionCount(); }, [fetchExtractionCount]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -210,21 +225,30 @@ export default function WelinkTab({ ticketId }: Props) {
   };
 
   const handleAnalyze = async () => {
+    setAnalyzing(true);
     try {
       const r = await api.analyzeWelinkMessages(ticketId);
-      Modal.info({
-        title: 'AI 分析',
-        content: (
-          <div>
-            <p>已排入分析队列的消息条数:<strong>{r.queued}</strong></p>
-            <p style={{ color: '#666' }}>{r.message}</p>
-          </div>
-        ),
-      });
+      if (r.queued === 0) {
+        message.warning('没有已选中的消息可供分析,请先勾选要分析的消息');
+      } else if (r.extracted === 0) {
+        message.info('未抽取出新信息');
+      } else {
+        message.success(`AI 抽取完成:从 ${r.queued} 条消息抽出 ${r.extracted} 项 (来源:${r.source})`);
+      }
+      await fetchExtractionCount();
+      // 抽完直接打开 Drawer 让用户查看
+      if (r.extracted > 0) setExtractionsOpen(true);
     } catch (e: any) {
       message.error(`触发 AI 分析失败: ${e.message || e}`);
+    } finally {
+      setAnalyzing(false);
     }
   };
+
+  const handleMembersChanged = useCallback(() => {
+    // 抽取项触发的"加成员"会改变 gap,这里轻量刷新 count + ticket 数据
+    void fetchExtractionCount();
+  }, [fetchExtractionCount]);
 
   const columns: ColumnsType<WelinkMessage> = [
     {
@@ -298,6 +322,26 @@ export default function WelinkTab({ ticketId }: Props) {
             { label: <span><MessageOutlined /> 聊天视图</span>, value: 'chat' },
           ]}
         />
+        <Button
+          icon={<BulbOutlined />}
+          size="small"
+          onClick={() => setExtractionsOpen(true)}
+          data-testid="welink-open-extractions"
+        >
+          AI 抽取 ({extractionCount})
+        </Button>
+        {viewMode === 'chat' && (
+          <Button
+            type="primary"
+            size="small"
+            icon={<RobotOutlined />}
+            onClick={handleAnalyze}
+            loading={analyzing}
+            data-testid="welink-analyze-btn-chat"
+          >
+            让 AI 分析(已选 {stats.selected} 条)
+          </Button>
+        )}
       </Space>
 
       {viewMode === 'list' ? (
@@ -358,7 +402,13 @@ export default function WelinkTab({ ticketId }: Props) {
 
           <div style={{ marginBottom: 12 }}>
             <Space wrap>
-              <Button type="primary" icon={<RobotOutlined />} onClick={handleAnalyze}>
+              <Button
+                type="primary"
+                icon={<RobotOutlined />}
+                onClick={handleAnalyze}
+                loading={analyzing}
+                data-testid="welink-analyze-btn"
+              >
                 让 AI 分析(已选 {stats.selected} 条)
               </Button>
               <Popconfirm
@@ -398,6 +448,13 @@ export default function WelinkTab({ ticketId }: Props) {
           loading={loading}
         />
       )}
+
+      <WelinkExtractionsDrawer
+        open={extractionsOpen}
+        ticketId={ticketId}
+        onClose={() => { setExtractionsOpen(false); void fetchExtractionCount(); }}
+        onMembersChanged={handleMembersChanged}
+      />
     </div>
   );
 }
