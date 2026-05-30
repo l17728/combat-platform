@@ -43,19 +43,30 @@ import { makeDbMigrationRouter } from "./db-migration.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
+import { SqliteAdapter, type DbAdapter } from "./db-adapter.js";
 
-export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB; dbPath?: string }) {
+export function createApp(deps: {
+  repo: Repository;
+  registry: SchemaRegistry;
+  mailSender?: MailSender;
+  /** Legacy: raw better-sqlite3 handle. When provided without `adapter`, wrapped in SqliteAdapter automatically. */
+  db?: DB;
+  /** Preferred: unified DB adapter (Phase 2b+). Takes precedence over `db`. */
+  adapter?: DbAdapter;
+  dbPath?: string;
+}) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
+  const adapter: DbAdapter | undefined = deps.adapter ?? (deps.db ? new SqliteAdapter(deps.db) : undefined);
   const app = express();
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
   // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
   app.use(express.json({ limit: '20mb' }));
 
-  if (deps.db) {
-    app.use("/api", makeAuthRouter(deps.db));
+  if (adapter) {
+    app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
-    app.use("/api", makeUserAdminRouter(deps.db));
+    app.use("/api", makeUserAdminRouter(adapter));
   }
 
   // Fire-and-forget — runs the seed in background; failures are logged but
@@ -100,18 +111,18 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
   app.use("/api", makeResponsibilityRouter(deps.repo));
   app.use("/api", makeUiCacheRouter(deps.repo));
-  if (deps.db) {
-    app.use("/api", makeDailyReportEntryRouter(deps.db));
-    app.use("/api", makeSupportNodeRouter(deps.db));
-    app.use("/api", makeHelpRequestRouter(deps.db, deps.repo, mailSender));
-    app.use("/api", makeSettingsRouter(deps.db));
-    app.use("/api", makeBugReportRouter(deps.db));
-    app.use("/api", makeOpLogRouter(deps.db));
-    app.use("/api", makeBackupRouter(deps.db, deps.dbPath || ""));
-    app.use("/api", makeTicketTabsRouter(deps.db));
-    app.use("/api", makeDocumentRouter(deps.db));
+  if (adapter) {
+    app.use("/api", makeDailyReportEntryRouter(adapter));
+    app.use("/api", makeSupportNodeRouter(adapter));
+    app.use("/api", makeHelpRequestRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeSettingsRouter(adapter));
+    app.use("/api", makeBugReportRouter(adapter));
+    app.use("/api", makeOpLogRouter(adapter));
+    app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
+    app.use("/api", makeTicketTabsRouter(adapter));
+    app.use("/api", makeDocumentRouter(adapter));
     if (deps.dbPath) {
-      app.use("/api", makeDbMigrationRouter(deps.db, deps.dbPath));
+      app.use("/api", makeDbMigrationRouter(adapter, deps.dbPath));
     }
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

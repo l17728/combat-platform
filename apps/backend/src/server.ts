@@ -9,6 +9,7 @@ import { tickScheduledJobs } from "./jobs.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
+import { SqliteAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
 
 // Driver selection (Phase 1):
@@ -37,9 +38,10 @@ const DB_PATH = parsed.kind === "sqlite"
   : (process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite"));
 applyRestorePending(DB_PATH);
 const db = openDb(DB_PATH);
+const adapter = new SqliteAdapter(db);
 const repo = new SqliteRepository(db);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
-const app = createApp({ repo, registry, db, dbPath: DB_PATH });
+const app = createApp({ repo, registry, adapter, dbPath: DB_PATH });
 
 // Fire-and-forget Postgres handle so the factory + schema DDL is exercised
 // when DB_URL points there. The handle is not yet wired into Repository.
@@ -71,7 +73,7 @@ app.listen(PORT, () => {
   log.info("server.auto_scan.started", { intervalMs: AUTO_SCAN_INTERVAL });
 
   setInterval(() => {
-    try { runScheduledBackup(db, DB_PATH); } catch (e) { log.warn("auto_backup.fail", { error: (e as Error).message }); }
+    runScheduledBackup(adapter, DB_PATH).catch((e) => log.warn("auto_backup.fail", { error: (e as Error).message }));
   }, 3600_000).unref();
   log.info("server.backup_scheduler.started");
 });

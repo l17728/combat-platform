@@ -5,6 +5,7 @@ import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 
 export function makeTestApp() {
   process.env.COMBAT_NO_AUTH = "1";
@@ -25,7 +26,8 @@ export function makeTestApp() {
   }));
   const dbPath = join(dir, "t.sqlite");
   const db = openDb(dbPath);
+  const adapter = new SqliteAdapter(db);
   const repo = new SqliteRepository(db);
   const registry = new FileSchemaRegistry(cfgDir);
-  return { app: createApp({ repo, registry, db, dbPath }), repo, registry, cfgDir };
+  return { app: createApp({ repo, registry, adapter, dbPath }), repo, registry, cfgDir };
 }
