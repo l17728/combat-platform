@@ -1,11 +1,143 @@
 import Database from "better-sqlite3";
+import { Pool as PgPool } from "pg";
+import { drizzle as drizzlePg, type NodePgDatabase } from "drizzle-orm/node-postgres";
+import { postgresSchema } from "./schema.js";
+import { log } from "./logger.js";
+
+// ---------------------------------------------------------------------------
+// Phase 1 driver factory
+// ---------------------------------------------------------------------------
+//
+// Goals:
+//  1. Keep SQLite the default + 100% test-green. Existing call sites use the
+//     synchronous `better-sqlite3` API directly (db.prepare, db.exec, ...);
+//     Phase 1 does NOT touch them.
+//  2. Recognise a new `DB_URL` env var with protocol-based dispatch:
+//        sqlite://./data/combat.db          -> better-sqlite3 (default)
+//        postgres://user:pwd@host:5432/db   -> pg.Pool + drizzle (Phase 1 stub)
+//        postgresql://...                   -> same as postgres://
+//  3. The Postgres path opens a pool and ensures the schema (CREATE TABLE IF
+//     NOT EXISTS) so an operator can verify connectivity. It does NOT plug
+//     into Repository — that is Phase 2 (async refactor).
+//
+// Anything that imports `DB` today keeps the better-sqlite3 type signature.
+// The new `DbHandle` type carries either a SQLite DB or a Postgres handle
+// alongside its kind, so future call sites can branch on `handle.kind`.
 
 export type DB = Database.Database;
 
+export type DbKind = "sqlite" | "postgres";
+
+export interface SqliteHandle {
+  kind: "sqlite";
+  db: DB;
+  dbPath: string;
+}
+
+export interface PostgresHandle {
+  kind: "postgres";
+  pool: PgPool;
+  drizzle: NodePgDatabase<typeof postgresSchema>;
+  connectionString: string;
+}
+
+export type DbHandle = SqliteHandle | PostgresHandle;
+
+export interface ParsedDbUrl {
+  kind: DbKind;
+  /** sqlite filesystem path (only for sqlite://) */
+  sqlitePath?: string;
+  /** original input, with non-sqlite urls passed straight to pg */
+  raw: string;
+}
+
+const DEFAULT_DB_URL = "sqlite://./combat.sqlite";
+
+/**
+ * Parse `DB_URL`-style strings.
+ *
+ * - `sqlite://<path>` → SQLite at <path>. `<path>` can be:
+ *     - absolute: `sqlite:///opt/combat/combat.sqlite` (Unix) → `/opt/combat/combat.sqlite`
+ *     - relative: `sqlite://./data/combat.db` → `./data/combat.db`
+ *     - bare filename: `sqlite://combat.sqlite` → `combat.sqlite`
+ * - `postgres://...` / `postgresql://...` → pass through to pg.
+ *
+ * Bare paths (no protocol) and falsy input fall back to the default SQLite URL.
+ */
+export function parseDbUrl(input: string | undefined): ParsedDbUrl {
+  const url = (input && input.trim()) || DEFAULT_DB_URL;
+
+  if (url.startsWith("postgres://") || url.startsWith("postgresql://")) {
+    return { kind: "postgres", raw: url };
+  }
+
+  if (url.startsWith("sqlite://")) {
+    // Strip the protocol. Anything after sqlite:// is treated as a filesystem
+    // path verbatim — we don't decode URL escapes because real-world paths use
+    // platform-native separators.
+    const path = url.slice("sqlite://".length) || "./combat.sqlite";
+    return { kind: "sqlite", sqlitePath: path, raw: url };
+  }
+
+  // Backwards-compat: treat a bare path like "/opt/combat/data.sqlite" as
+  // SQLite. This lets callers pass COMBAT_DB_PATH through unchanged in Phase 1.
+  return { kind: "sqlite", sqlitePath: url, raw: url };
+}
+
+/**
+ * Original SQLite-only entry point. **Keep this unchanged** — every test and
+ * existing call site uses it. Phase 2 will introduce an async equivalent.
+ */
 export function openDb(path: string): DB {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
-  db.exec(`
+  db.exec(SQLITE_SCHEMA_DDL);
+  return db;
+}
+
+/**
+ * New driver factory. Inspects DB_URL (or the argument) and returns a tagged
+ * handle. SQLite path is fully functional; Postgres path is a Phase 1 stub
+ * (schema created, pool opened, but Repository is still SQLite-only — see
+ * docs/POSTGRES_SUPPORT.md).
+ */
+export async function openDbFromUrl(input?: string): Promise<DbHandle> {
+  const parsed = parseDbUrl(input ?? process.env.DB_URL);
+
+  if (parsed.kind === "sqlite") {
+    const dbPath = parsed.sqlitePath!;
+    const db = openDb(dbPath);
+    return { kind: "sqlite", db, dbPath };
+  }
+
+  // postgres
+  if (!process.env.COMBAT_POSTGRES_PHASE2) {
+    log.warn("db.postgres.phase1_stub", {
+      message:
+        "DB_URL points at Postgres but COMBAT_POSTGRES_PHASE2 is not set. " +
+        "Phase 1 only provisions the schema; Repository remains SQLite-only.",
+    });
+  }
+
+  const pool = new PgPool({ connectionString: parsed.raw });
+  const drizzle = drizzlePg(pool, { schema: postgresSchema });
+  await ensurePostgresSchema(pool);
+  log.info("db.postgres.connected", { url: redact(parsed.raw) });
+  return { kind: "postgres", pool, drizzle, connectionString: parsed.raw };
+}
+
+/** Redact password in postgres URLs for log output. */
+function redact(url: string): string {
+  return url.replace(/(:)([^:@/]+)(@)/, "$1***$3");
+}
+
+// ---------------------------------------------------------------------------
+// DDL — kept inline so SQLite path stays a single fast db.exec() call. The
+// Postgres equivalent below is dialect-translated (TEXT, removal of WITHOUT
+// ROWID/PRAGMA, datetime() default etc.).
+// ---------------------------------------------------------------------------
+
+const SQLITE_SCHEMA_DDL = `
     CREATE TABLE IF NOT EXISTS nodes (
       id TEXT PRIMARY KEY, nodeType TEXT NOT NULL, properties TEXT NOT NULL,
       search_text TEXT, created_at TEXT, updated_at TEXT);
@@ -93,6 +225,103 @@ export function openDb(path: string): DB {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
-  `);
-  return db;
+  `;
+
+const POSTGRES_SCHEMA_DDL = `
+    CREATE TABLE IF NOT EXISTS nodes (
+      id TEXT PRIMARY KEY, "nodeType" TEXT NOT NULL, properties TEXT NOT NULL,
+      search_text TEXT, created_at TEXT, updated_at TEXT);
+    CREATE TABLE IF NOT EXISTS edges (
+      id TEXT PRIMARY KEY, "edgeType" TEXT NOT NULL, "sourceId" TEXT NOT NULL,
+      "targetId" TEXT NOT NULL, properties TEXT NOT NULL, created_at TEXT, updated_at TEXT);
+    CREATE TABLE IF NOT EXISTS progress_log (
+      id TEXT PRIMARY KEY, "ownerId" TEXT NOT NULL, "seqNo" INTEGER NOT NULL,
+      content TEXT NOT NULL, "statusSnapshot" TEXT, "updatedBy" TEXT, "updatedAt" TEXT);
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY, action TEXT NOT NULL, "entityType" TEXT, "entityId" TEXT,
+      changes TEXT, "performedBy" TEXT, "performedAt" TEXT);
+    CREATE TABLE IF NOT EXISTS proposals (
+      id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL,
+      relation_type TEXT NOT NULL, confidence DOUBLE PRECISION, proposer_source TEXT,
+      rationale TEXT, status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY, kind TEXT NOT NULL, ticket_id TEXT NOT NULL,
+      recipient_person_id TEXT, recipient_name TEXT,
+      subject TEXT, body TEXT,
+      status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
+    CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
+    CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes("nodeType");
+    CREATE INDEX IF NOT EXISTS idx_edges_source ON edges("sourceId");
+    CREATE INDEX IF NOT EXISTS idx_edges_target ON edges("targetId");
+    CREATE INDEX IF NOT EXISTS idx_edges_type ON edges("edgeType");
+    CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log("ownerId", "seqNo");
+    CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
+    CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+    CREATE TABLE IF NOT EXISTS daily_report_entry (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT '进展通报',
+      current_progress TEXT NOT NULL DEFAULT '',
+      next_steps TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT '草稿',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      published_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_dre_ticket ON daily_report_entry(ticket_id);
+    CREATE TABLE IF NOT EXISTS support_template (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      usage_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS support_node (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT,
+      template_id TEXT,
+      parent_id TEXT,
+      category TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      person_id TEXT,
+      person_name TEXT,
+      status TEXT NOT NULL DEFAULT '待确认',
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_support_node_ticket ON support_node(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_support_node_template ON support_node(template_id);
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'normal',
+      display_name TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS ticket_tabs (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
+      title TEXT NOT NULL,
+      tab_order INTEGER NOT NULL DEFAULT 0,
+      config TEXT NOT NULL DEFAULT '{}',
+      content TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+  `;
+
+async function ensurePostgresSchema(pool: PgPool): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(POSTGRES_SCHEMA_DDL);
+  } finally {
+    client.release();
+  }
 }

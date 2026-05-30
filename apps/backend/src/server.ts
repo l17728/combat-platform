@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import express from "express";
-import { openDb } from "./db.js";
+import { openDb, openDbFromUrl, parseDbUrl } from "./db.js";
 import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { createApp } from "./app.js";
@@ -11,15 +11,43 @@ import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
 import { log } from "./logger.js";
 
-// Persisted DB location. Defaults to cwd/combat.sqlite (local/test). In production
-// COMBAT_DB_PATH points outside the deploy dirs that `rm -rf` clears on each deploy,
-// so prod data survives deploys.
-const DB_PATH = process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite");
+// Driver selection (Phase 1):
+//   - DB_URL takes precedence (sqlite://... or postgres://...)
+//   - COMBAT_DB_PATH stays as a SQLite-only override for backwards compat
+//   - Default: cwd/combat.sqlite
+//
+// Phase 1 only fully supports SQLite end-to-end. A Postgres DB_URL provisions
+// the schema and opens a pool, but Repository remains SQLite-only — see
+// docs/POSTGRES_SUPPORT.md.
+const explicitDbUrl = process.env.DB_URL?.trim();
+const dbUrl = explicitDbUrl || `sqlite://${process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite")}`;
+const parsed = parseDbUrl(dbUrl);
+
+if (parsed.kind === "postgres") {
+  log.warn("server.postgres_phase1", {
+    message: "Postgres DB_URL detected — schema will be provisioned but Repository is still SQLite-only in Phase 1.",
+  });
+}
+
+// We still need a SQLite handle for Repository in Phase 1. If DB_URL is
+// postgres, we fall back to a sibling sqlite file (deterministic name) so the
+// existing synchronous code path keeps working.
+const DB_PATH = parsed.kind === "sqlite"
+  ? parsed.sqlitePath!
+  : (process.env.COMBAT_DB_PATH || join(process.cwd(), "combat.sqlite"));
 applyRestorePending(DB_PATH);
 const db = openDb(DB_PATH);
 const repo = new SqliteRepository(db);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
 const app = createApp({ repo, registry, db, dbPath: DB_PATH });
+
+// Fire-and-forget Postgres handle so the factory + schema DDL is exercised
+// when DB_URL points there. The handle is not yet wired into Repository.
+if (parsed.kind === "postgres") {
+  openDbFromUrl(dbUrl).catch((err) => {
+    log.error("server.postgres_init_failed", { error: (err as Error).message });
+  });
+}
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
