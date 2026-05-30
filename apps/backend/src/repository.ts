@@ -5,7 +5,7 @@ import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, Relatio
 export class SqliteRepository implements Repository {
   constructor(private db: DB) {}
 
-  logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): void {
+  async logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): Promise<void> {
     this.db.prepare(
       `INSERT INTO audit_log VALUES (@id,@action,@entityType,@entityId,@changes,@by,@at)`
     ).run({ id: randomUUID(), action: entry.action, entityType: entry.entityType,
@@ -13,7 +13,7 @@ export class SqliteRepository implements Repository {
       by: entry.actor, at: new Date().toISOString() });
   }
 
-  listAuditLog(filter: { action?: string; entityType?: string; entityId?: string; limit?: number }): AuditLogEntry[] {
+  async listAuditLog(filter: { action?: string; entityType?: string; entityId?: string; limit?: number }): Promise<AuditLogEntry[]> {
     const where: string[] = [];
     const params: Record<string, string> = {};
     if (filter.action) { where.push("action = @action"); params.action = filter.action; }
@@ -38,21 +38,26 @@ export class SqliteRepository implements Repository {
     });
   }
 
-  private audit(action: string, entityType: string, entityId: string, changes: unknown, actor: string) {
-    this.logAudit({ action, entityType, entityId, changes, actor });
+  private auditSync(action: string, entityType: string, entityId: string, changes: unknown, actor: string) {
+    // Internal sync helper — keeps transaction callbacks synchronous so
+    // better-sqlite3 `db.transaction(...)` continues to wrap properly.
+    this.db.prepare(
+      `INSERT INTO audit_log VALUES (@id,@action,@entityType,@entityId,@changes,@by,@at)`
+    ).run({ id: randomUUID(), action, entityType, entityId,
+      changes: JSON.stringify(changes), by: actor, at: new Date().toISOString() });
   }
 
-  getSetting(key: string): string | null {
+  async getSetting(key: string): Promise<string | null> {
     const row = this.db.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key) as { value: string } | undefined;
     return row ? row.value : null;
   }
-  setSetting(key: string, value: string, actor: string): void {
+  async setSetting(key: string, value: string, actor: string): Promise<void> {
     this.db.prepare(`INSERT INTO app_settings (key, value) VALUES (@k, @v)
       ON CONFLICT(key) DO UPDATE SET value = @v`).run({ k: key, v: value });
-    this.audit("SETTING", "setting", key, { key }, actor);
+    this.auditSync("SETTING", "setting", key, { key }, actor);
   }
 
-  createNode(nodeType: string, properties: Record<string, unknown>, actor: string): GraphNode {
+  async createNode(nodeType: string, properties: Record<string, unknown>, actor: string): Promise<GraphNode> {
     const now = new Date().toISOString();
     const node: GraphNode = { id: randomUUID(), nodeType, properties, createdAt: now, updatedAt: now };
     this.db.transaction(() => {
@@ -61,20 +66,20 @@ export class SqliteRepository implements Repository {
           search: Object.values(properties).map(v =>
             typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")
           ).join(" "), c: now, u: now });
-      this.audit("CREATE", "node", node.id, properties, actor);
+      this.auditSync("CREATE", "node", node.id, properties, actor);
     })();
     return node;
   }
 
-  getNode(id: string): GraphNode | null {
+  async getNode(id: string): Promise<GraphNode | null> {
     const r = this.db.prepare(`SELECT * FROM nodes WHERE id=?`).get(id) as any;
     if (!r) return null;
     return { id: r.id, nodeType: r.nodeType, properties: JSON.parse(r.properties),
       createdAt: r.created_at, updatedAt: r.updated_at };
   }
 
-  updateNode(id: string, patch: Record<string, unknown>, actor: string): GraphNode {
-    const cur = this.getNode(id);
+  async updateNode(id: string, patch: Record<string, unknown>, actor: string): Promise<GraphNode> {
+    const cur = await this.getNode(id);
     if (!cur) throw new Error(`node ${id} not found`);
     const properties = { ...cur.properties, ...patch };
     const now = new Date().toISOString();
@@ -83,12 +88,12 @@ export class SqliteRepository implements Repository {
         .run(JSON.stringify(properties), Object.values(properties).map(v =>
           typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")
         ).join(" "), now, id);
-      this.audit("UPDATE", "node", id, patch, actor);
+      this.auditSync("UPDATE", "node", id, patch, actor);
     })();
     return { ...cur, properties, updatedAt: now };
   }
 
-  queryNodes(nodeType: string, filter?: NodeFilter): GraphNode[] {
+  async queryNodes(nodeType: string, filter?: NodeFilter): Promise<GraphNode[]> {
     const rows = this.db.prepare(`SELECT * FROM nodes WHERE nodeType=? ORDER BY created_at DESC`).all(nodeType) as any[];
     let out = rows.map(r => ({ id: r.id, nodeType: r.nodeType,
       properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
@@ -96,18 +101,18 @@ export class SqliteRepository implements Repository {
     return out;
   }
 
-  createEdge(edgeType: string, sourceId: string, targetId: string, properties: Record<string, unknown>, actor: string): GraphEdge {
+  async createEdge(edgeType: string, sourceId: string, targetId: string, properties: Record<string, unknown>, actor: string): Promise<GraphEdge> {
     const now = new Date().toISOString();
     const e: GraphEdge = { id: randomUUID(), edgeType, sourceId, targetId, properties, createdAt: now, updatedAt: now };
     this.db.transaction(() => {
       this.db.prepare(`INSERT INTO edges VALUES (@id,@edgeType,@s,@t,@p,@c,@u)`)
         .run({ id: e.id, edgeType, s: sourceId, t: targetId, p: JSON.stringify(properties), c: now, u: now });
-      this.audit("CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
+      this.auditSync("CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
     })();
     return e;
   }
 
-  queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): GraphEdge[] {
+  async queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): Promise<GraphEdge[]> {
     // §31: push filters to SQL WHERE so idx_edges_source/idx_edges_target/idx_edges_type apply.
     const wh: string[] = [], params: unknown[] = [];
     if (opts.sourceId) { wh.push("sourceId=?"); params.push(opts.sourceId); }
@@ -119,28 +124,28 @@ export class SqliteRepository implements Repository {
       targetId: r.targetId, properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
   }
 
-  deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): void {
+  async deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): Promise<void> {
+    const victims = await this.queryEdges(opts);
     this.db.transaction(() => {
-      const victims = this.queryEdges(opts);
       for (const e of victims) {
         this.db.prepare(`DELETE FROM edges WHERE id=?`).run(e.id);
-        this.audit("DELETE", "edge", e.id, { edgeType: e.edgeType, sourceId: e.sourceId, targetId: e.targetId }, actor);
+        this.auditSync("DELETE", "edge", e.id, { edgeType: e.edgeType, sourceId: e.sourceId, targetId: e.targetId }, actor);
       }
     })();
   }
 
-  deleteEdgeById(id: string, actor: string): boolean {
+  async deleteEdgeById(id: string, actor: string): Promise<boolean> {
     const row = this.db.prepare(`SELECT id, edgeType, sourceId, targetId FROM edges WHERE id=?`).get(id) as
       { id: string; edgeType: string; sourceId: string; targetId: string } | undefined;
     if (!row) return false;
     this.db.transaction(() => {
       this.db.prepare(`DELETE FROM edges WHERE id=?`).run(id);
-      this.audit("DELETE", "edge", id, { edgeType: row.edgeType, sourceId: row.sourceId, targetId: row.targetId }, actor);
+      this.auditSync("DELETE", "edge", id, { edgeType: row.edgeType, sourceId: row.sourceId, targetId: row.targetId }, actor);
     })();
     return true;
   }
 
-  appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): ProgressLog {
+  async appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): Promise<ProgressLog> {
     let p!: ProgressLog;
     this.db.transaction(() => {
       const max = this.db.prepare(`SELECT MAX(seqNo) m FROM progress_log WHERE ownerId=?`).get(ownerId) as any;
@@ -148,24 +153,24 @@ export class SqliteRepository implements Repository {
         content, statusSnapshot, updatedBy: actor, updatedAt: new Date().toISOString() };
       this.db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`)
         .run({ id: p.id, ownerId, seqNo: p.seqNo, content, s: statusSnapshot, by: actor, at: p.updatedAt });
-      this.audit("PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
+      this.auditSync("PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
     })();
     return p;
   }
 
-  listProgress(ownerId: string): ProgressLog[] {
+  async listProgress(ownerId: string): Promise<ProgressLog[]> {
     const rows = this.db.prepare(`SELECT * FROM progress_log WHERE ownerId=? ORDER BY seqNo`).all(ownerId) as any[];
     return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
       content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
   }
 
-  listAllProgress(): ProgressLog[] {
+  async listAllProgress(): Promise<ProgressLog[]> {
     const rows = this.db.prepare(`SELECT * FROM progress_log ORDER BY ownerId, seqNo`).all() as any[];
     return rows.map(r => ({ id: r.id, ownerId: r.ownerId, seqNo: r.seqNo,
       content: r.content, statusSnapshot: r.statusSnapshot, updatedBy: r.updatedBy, updatedAt: r.updatedAt }));
   }
 
-  createProposal(p: Omit<RelationProposal,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): RelationProposal {
+  async createProposal(p: Omit<RelationProposal,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): Promise<RelationProposal> {
     const now = new Date().toISOString();
     const row: RelationProposal = { ...p, id: randomUUID(), status: "待审批", createdAt: now };
     this.db.transaction(() => {
@@ -173,7 +178,7 @@ export class SqliteRepository implements Repository {
         .run({ id: row.id, s: row.sourceNodeId, t: row.targetNodeId, rt: row.relationType,
           c: row.confidence, ps: row.proposerSource, r: row.rationale, st: row.status,
           db: null, da: null, ca: now });
-      this.audit("CREATE", "proposal", row.id, { relationType: row.relationType }, actor);
+      this.auditSync("CREATE", "proposal", row.id, { relationType: row.relationType }, actor);
     })();
     return row;
   }
@@ -183,40 +188,40 @@ export class SqliteRepository implements Repository {
       rationale: r.rationale, status: r.status, decidedBy: r.decided_by ?? undefined,
       decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
   }
-  listProposals(opts: { status?: RelationProposalStatus } = {}): RelationProposal[] {
+  async listProposals(opts: { status?: RelationProposalStatus } = {}): Promise<RelationProposal[]> {
     // §31: push status to SQL WHERE (idx_proposals_status).
     const rows = opts.status
       ? this.db.prepare(`SELECT * FROM proposals WHERE status=?`).all(opts.status) as any[]
       : this.db.prepare(`SELECT * FROM proposals`).all() as any[];
     return rows.map(r => this.mapProposal(r));
   }
-  getProposal(id: string): RelationProposal | undefined {
+  async getProposal(id: string): Promise<RelationProposal | undefined> {
     const r = this.db.prepare(`SELECT * FROM proposals WHERE id=?`).get(id) as any;
     return r ? this.mapProposal(r) : undefined;
   }
-  updateProposalStatus(id: string, status: RelationProposalStatus, decidedBy: string, actor: string): RelationProposal {
-    const cur = this.getProposal(id);
+  async updateProposalStatus(id: string, status: RelationProposalStatus, decidedBy: string, actor: string): Promise<RelationProposal> {
+    const cur = await this.getProposal(id);
     if (!cur) throw new Error(`proposal ${id} not found`);
     const at = new Date().toISOString();
     this.db.transaction(() => {
       this.db.prepare(`UPDATE proposals SET status=?, decided_by=?, decided_at=? WHERE id=?`)
         .run(status, decidedBy, at, id);
-      this.audit("UPDATE", "proposal", id, { status, decidedBy }, actor);
+      this.auditSync("UPDATE", "proposal", id, { status, decidedBy }, actor);
     })();
     return { ...cur, status, decidedBy, decidedAt: at };
   }
 
-  deleteNode(id: string, actor: string): void {
+  async deleteNode(id: string, actor: string): Promise<void> {
     this.db.transaction(() => {
       this.db.prepare(`DELETE FROM progress_log WHERE ownerId=?`).run(id);
       this.db.prepare(`DELETE FROM edges WHERE sourceId=? OR targetId=?`).run(id, id);
       this.db.prepare(`DELETE FROM ticket_tabs WHERE ticket_id=?`).run(id);
       const result = this.db.prepare(`DELETE FROM nodes WHERE id=?`).run(id);
-      if (result.changes > 0) this.audit("DELETE", "node", id, { id }, actor);
+      if (result.changes > 0) this.auditSync("DELETE", "node", id, { id }, actor);
     })();
   }
 
-  createReminder(p: Omit<Reminder,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): Reminder {
+  async createReminder(p: Omit<Reminder,"id"|"status"|"decidedBy"|"decidedAt"|"createdAt">, actor: string): Promise<Reminder> {
     const now = new Date().toISOString();
     const row: Reminder = { ...p, id: randomUUID(), status: "待发送", createdAt: now };
     this.db.transaction(() => {
@@ -224,7 +229,7 @@ export class SqliteRepository implements Repository {
         .run({ id: row.id, k: row.kind, t: row.ticketId,
           rpid: row.recipientPersonId ?? null, rn: row.recipientName,
           sub: row.subject, body: row.body, st: row.status, db: null, da: null, ca: now });
-      this.audit("CREATE", "reminder", row.id, { kind: row.kind, ticketId: row.ticketId }, actor);
+      this.auditSync("CREATE", "reminder", row.id, { kind: row.kind, ticketId: row.ticketId }, actor);
     })();
     return row;
   }
@@ -235,25 +240,25 @@ export class SqliteRepository implements Repository {
       status: r.status, decidedBy: r.decided_by ?? undefined,
       decidedAt: r.decided_at ?? undefined, createdAt: r.created_at };
   }
-  listReminders(opts: { status?: ReminderStatus } = {}): Reminder[] {
+  async listReminders(opts: { status?: ReminderStatus } = {}): Promise<Reminder[]> {
     // §31: push status to SQL WHERE (idx_notifications_status); keep ORDER BY.
     const rows = opts.status
       ? this.db.prepare(`SELECT * FROM notifications WHERE status=? ORDER BY created_at DESC`).all(opts.status) as any[]
       : this.db.prepare(`SELECT * FROM notifications ORDER BY created_at DESC`).all() as any[];
     return rows.map(r => this.mapReminder(r));
   }
-  getReminder(id: string): Reminder | undefined {
+  async getReminder(id: string): Promise<Reminder | undefined> {
     const r = this.db.prepare(`SELECT * FROM notifications WHERE id=?`).get(id) as any;
     return r ? this.mapReminder(r) : undefined;
   }
-  updateReminderStatus(id: string, status: ReminderStatus, decidedBy: string, actor: string): Reminder {
-    const cur = this.getReminder(id);
+  async updateReminderStatus(id: string, status: ReminderStatus, decidedBy: string, actor: string): Promise<Reminder> {
+    const cur = await this.getReminder(id);
     if (!cur) throw new Error(`reminder ${id} not found`);
     const at = new Date().toISOString();
     this.db.transaction(() => {
       this.db.prepare(`UPDATE notifications SET status=?, decided_by=?, decided_at=? WHERE id=?`)
         .run(status, decidedBy, at, id);
-      this.audit("UPDATE", "reminder", id, { status, decidedBy }, actor);
+      this.auditSync("UPDATE", "reminder", id, { status, decidedBy }, actor);
     })();
     return { ...cur, status, decidedBy, decidedAt: at };
   }
