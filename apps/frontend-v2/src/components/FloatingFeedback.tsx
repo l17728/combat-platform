@@ -61,6 +61,8 @@ export default function FloatingFeedback() {
         userAgent: navigator.userAgent,
       });
       message.success('反馈已提交');
+      // 通知问题反馈列表页(如果同时打开)立即拉取最新条目;CustomEvent 比 storage event 更精准。
+      window.dispatchEvent(new CustomEvent('bug-report:created'));
       setOpen(false);
       setScreenshot(null);
       form.resetFields();

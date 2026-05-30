@@ -43,6 +43,13 @@ export default function BugReport() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // 监听全局「截图反馈悬浮按钮」提交事件,实时刷新列表(用 silent 不闪 Skeleton)
+  useEffect(() => {
+    const onCreated = () => fetchData(true);
+    window.addEventListener('bug-report:created', onCreated);
+    return () => window.removeEventListener('bug-report:created', onCreated);
+  }, [fetchData]);
+
   // 共享的截图处理函数
   const processScreenshotFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) {
