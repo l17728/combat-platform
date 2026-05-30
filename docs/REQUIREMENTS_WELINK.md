@@ -27,6 +27,15 @@
   - 决策点与争议点
   - 截图/链接附件的语义化标签
 
+### 场景 2.5 — 消息粒度控制(用户提出的补充)
+
+Welink 标签页内,用户对已上传消息有**完全的选择和删除控制权**:
+
+- **多选 / 全选 / 取消选**:消息列表每行带 checkbox,顶部勾选条「全选 / 取消全选 / 反选」;支持按时段、按发言人、按关键词三种快捷过滤面板,降低勾选成本
+- **删除**:单条 / 批量物理删除(从 \`welink_messages\` 表 DELETE,或软删 \`deleted_at\` 字段供撤销);删除后这些消息不再进入 AI 抽取范围,不出现在时间线
+- **「让 AI 分析」按钮**只对当前 \`选中 = true AND deleted_at IS NULL\` 的子集生效;界面顶部实时显示「已选 12 条 / 共 384 条」
+- **典型场景**:组长上传后想"只让 AI 分析昨天下午 3 点后真正讨论问题的消息,过滤掉早上的闲聊和无关吐槽" → 时段筛选选「昨天 15:00 后」+ 关键词排除「哈哈/吃饭」→ 勾选剩下的 → 让 AI 分析
+
 ### 场景 3 — 对话式问答(基于群消息+结构化数据)
 - AI 助手浮窗里可直接问"小王是几号开始介入的?""谁最早提到那个 OOM 现象?",AI 同时检索结构化数据 + 群消息回答,带可点击溯源(具体消息时间戳/作者/链接到原消息上下文)
 
@@ -70,14 +79,20 @@
    - 唯一约束:(ticketId, messageId) — 覆盖式 upsert
    - 端点:
      - \`POST /api/tickets/:id/welink-messages\` — 批量上传(JSON 数组,事务覆盖)
-     - \`GET /api/tickets/:id/welink-messages\` — 分页查阅
+     - \`GET /api/tickets/:id/welink-messages\` — 分页查阅 + 过滤(time range / author / keyword)
      - \`DELETE /api/tickets/:id/welink-messages\` — 清空(给重新上传用)
+     - \`DELETE /api/tickets/:id/welink-messages/:messageId\` — 单条软删(set deleted_at)
+     - \`POST /api/tickets/:id/welink-messages/batch-delete\` — 批量软删({ ids: [...] })
+     - \`PATCH /api/tickets/:id/welink-messages/selection\` — 批量改选中状态({ ids: [...], selected: bool })
+     - \`POST /api/tickets/:id/welink-messages/analyze\` — 仅对选中+未删除子集触发 AI 抽取
    - 后台 worker:消息入库后异步触发 AI 抽取 → 写入 \`welink_extractions\` 表(实体/节点/争议/决策)
 
 3. **前端 Welink 标签页**(攻关详情新固定 Tab,或动态 Tab)
-   - 顶部条:上传区(拖拽 .json 文件)+ 上次同步时间 + 消息总数
-   - 主区:时间轴展示(类似进展同步 Timeline),可按作者过滤
-   - 底部:**「让 AI 分析」按钮 → 触发抽取**;抽取结果显示在右侧抽屉
+   - 顶部条:上传区(拖拽 .json 文件)+ 上次同步时间 + 消息总数 + 「已选 N 条」实时统计
+   - 主区:消息列表(类似邮件客户端的勾选表) — 每行 checkbox / 时间 / 发言人 / 内容预览 / 操作(删除)
+   - 工具栏:全选 / 取消全选 / 反选;时段筛选(date range picker)/ 发言人多选 / 关键词包含/排除
+   - 底部:**「让 AI 分析(N 条)」按钮 → 仅对当前选中 + 未删除子集触发抽取**;抽取结果显示在右侧抽屉
+   - 删除:行级单条删除(Popconfirm)+ 顶栏批量删除(已选)
 
 4. **AI 助手扩展**(新增工具集)
    - 现有 hermes_lookup / hermes_getContext / hermes_ticketTabs / hermes_recommendHelpers
@@ -103,6 +118,8 @@ welink_messages
   content       TEXT   -- 文本
   attachments   TEXT   -- JSON 数组 [{type, url, name}]
   raw           TEXT   -- 原始 JSON 行,供调试
+  selected      INTEGER DEFAULT 1   -- 是否纳入 AI 分析范围(用户勾选控制)
+  deleted_at    TEXT NULL           -- 软删除时间戳;NULL 表示有效
   created_at    TEXT
 
 welink_extractions
