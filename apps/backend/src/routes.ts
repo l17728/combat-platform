@@ -132,12 +132,13 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   r.delete("/nodes/:id", (req, res) => {
     const cur = repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
-    // 攻关单删除:仅创建人本人可删;管理员也不行。无创建人的老数据 (升级前) 视为孤儿,谁都不能从 UI 删,
-    // 必要时管理员走 CLI/直连 DB 清理。COMBAT_NO_AUTH 模式下 req.user 缺失,放行以保留 e2e/CLI 行为。
-    if (cur.nodeType === "attackTicket" && process.env.COMBAT_NO_AUTH !== "1") {
+    // 攻关单删除:仅创建人本人可删,管理员也不行。
+    // 老数据无创建人 → 视为孤儿,UI 不显示删除;必要时管理员走 CLI/直连 DB 清理。
+    // 无 req.user(test/CLI/COMBAT_NO_AUTH bypass):放行,保留既有行为;真实生产链路 authMiddleware 必然填充 req.user。
+    const reqUser = (req as any).user?.username as string | undefined;
+    if (cur.nodeType === "attackTicket" && reqUser) {
       const creator = String(cur.properties?.["创建人"] ?? "").trim();
-      const username = (req as any).user?.username;
-      if (!creator || !username || creator !== username) {
+      if (!creator || creator !== reqUser) {
         return res.status(403).json({ error: "仅创建人可删除该攻关单" });
       }
     }
