@@ -9,7 +9,7 @@ import {
   DeleteOutlined, LinkOutlined, InfoCircleOutlined, HistoryOutlined,
   FileTextOutlined, NodeIndexOutlined, TeamOutlined, CheckCircleOutlined,
   ClockCircleOutlined, ThunderboltOutlined, MinusCircleOutlined, SyncOutlined,
-  CloseOutlined, AppstoreOutlined,
+  CloseOutlined, AppstoreOutlined, LockOutlined, UnlockOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { api, type TicketTab } from '../api.js';
@@ -37,7 +37,7 @@ dayjs.locale('zh-cn');
 const { Title, Text, Paragraph } = Typography;
 const STATUS_STEPS = ['待响应', '处理中', '进行中', '已解决', '已关闭'];
 // 攻关成员/成员列表 由专用多选 + 成员管理 tab 维护,不在 extraEditFields 通用渲染中出现
-const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关成员', '成员列表', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '创建人']);
+const HARDCODED_EDIT_FIELDS = new Set(['标题', '状态', '问题单号', '事件单号', '事件级别', '客户名称', '当前处理人', '攻关组长', '攻关成员', '成员列表', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '创建人', '私密', '私密授权人', '私密授权组']);
 const SUMMARY_FIELD_IDS = new Set(['标题', '问题单号', '事件单号', '事件级别', '影响及现存风险', '客户名称', '故障发生时间', '当前处理人', '攻关组长']);
 const TEAM_FIELDS = new Set(['攻关组长', '攻关成员']);
 const ROLE_OPTIONS: TeamRole[] = ['组长', '组员'];
@@ -132,6 +132,12 @@ export default function AttackDetail() {
   const [editingMemberIdx, setEditingMemberIdx] = useState<number | null>(null);
   const [memberForm] = Form.useForm<{ 姓名: string; 角色: TeamRole }>();
 
+  // 私密设置 drawer
+  const [privacyDrawerOpen, setPrivacyDrawerOpen] = useState(false);
+  const [privacyForm] = Form.useForm<{ 授权人: string[]; 授权组: string[] }>();
+  const [emailGroups, setEmailGroups] = useState<GraphNode[]>([]);
+  useEffect(() => { api.listNodes('emailGroup').then(setEmailGroups).catch(() => setEmailGroups([])); }, []);
+
   const { isAdmin, isLeader } = auth;
   // 合规追溯 卡仅对 leader/admin 开放;normal 角色看不到
   const SIDEBAR_CARD_OPTIONS = [
@@ -145,17 +151,24 @@ export default function AttackDetail() {
   const DR_TYPES = getValues('日报类型');
 
   const [initialLoading, setInitialLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const fetchData = useCallback(async (silent?: boolean) => {
     if (!id) return;
     if (!silent) setLoading(true);
     try {
-      const [n, p, h, a, ppl, s] = await Promise.all([
-        api.getNode(id), api.listProgress(id), api.recommendHelpers(id, 5).catch(() => []),
+      const n = await api.getNode(id);
+      const [p, h, a, ppl, s] = await Promise.all([
+        api.listProgress(id), api.recommendHelpers(id, 5).catch(() => []),
         api.listAudit({ entityId: id, limit: 20 }).catch(() => []),
         api.listNodes('person').catch(() => []), api.getSchema('attackTicket').catch(() => null),
       ]);
       setNode(n); setProgress(p); setHelpers(h); setAuditLogs(a); setPeople(ppl); setSchema(s);
-    } catch (e: any) { message.error(e.message); }
+      setAccessDenied(false);
+    } catch (e: any) {
+      // 私密攻关单 GET 返回 403 时,显示无权访问页而非 toast 报错
+      if (typeof e?.message === 'string' && /私密|403/.test(e.message)) setAccessDenied(true);
+      else message.error(e.message);
+    }
     finally { setLoading(false); setInitialLoading(false); }
   }, [id]);
 
@@ -188,6 +201,18 @@ export default function AttackDetail() {
 
   useEffect(() => { fetchData(); fetchDailyReports(); fetchSupportNodes(); fetchDynamicTabs(); }, [fetchData, fetchDailyReports, fetchSupportNodes, fetchDynamicTabs]);
 
+  if (accessDenied) {
+    return (
+      <div style={{ padding: 80, textAlign: 'center' }}>
+        <LockOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
+        <Title level={4} style={{ marginTop: 16 }}>无权访问该攻关单</Title>
+        <Text type="secondary">这是一个私密攻关单,仅创建人、成员及指定授权人/群组可见。</Text>
+        <div style={{ marginTop: 24 }}>
+          <Button onClick={() => navigate('/attack')}>返回列表</Button>
+        </div>
+      </div>
+    );
+  }
   if (initialLoading || !node) return <Spin size="large" style={{ display: 'block', marginTop: 100 }} />;
 
   const props = node.properties;
@@ -226,6 +251,36 @@ export default function AttackDetail() {
       message.success('更新成功'); setEditOpen(false); fetchData(true);
     }
     catch (e: any) { message.error(e.message); } finally { setEditSubmitting(false); }
+  };
+
+  // 私密功能:仅创建人可设置/取消;授权人/组追加到 成员+创建人 形成访问白名单
+  const isPrivate = String(props['私密'] ?? '') === '是';
+  const isCreator = !!props['创建人'] && auth.user?.username === props['创建人'];
+  const parsePrivacyJson = (key: string): string[] => {
+    try { const v = JSON.parse(String(props[key] ?? '[]')); return Array.isArray(v) ? v.map(String) : []; }
+    catch { return []; }
+  };
+  const openPrivacyDrawer = () => {
+    privacyForm.setFieldsValue({ 授权人: parsePrivacyJson('私密授权人'), 授权组: parsePrivacyJson('私密授权组') });
+    setPrivacyDrawerOpen(true);
+  };
+  const submitPrivacy = async (values: { 授权人?: string[]; 授权组?: string[] }) => {
+    if (!id) return;
+    try {
+      await api.updateNode(id, {
+        私密: '是',
+        私密授权人: JSON.stringify(values.授权人 ?? []),
+        私密授权组: JSON.stringify(values.授权组 ?? []),
+      });
+      message.success(isPrivate ? '私密配置已更新' : '已设置为私密');
+      setPrivacyDrawerOpen(false);
+      fetchData(true);
+    } catch (e: any) { message.error(e.message); }
+  };
+  const cancelPrivacy = async () => {
+    if (!id) return;
+    try { await api.updateNode(id, { 私密: '否' }); message.success('已取消私密'); fetchData(true); }
+    catch (e: any) { message.error(e.message); }
   };
 
   // 成员管理 tab CRUD:整存整取,保证三字段同步
@@ -624,7 +679,10 @@ export default function AttackDetail() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Title level={4} style={{ margin: 0 }}>{title} <StatusTag status={status} /></Title>
+            <Title level={4} style={{ margin: 0 }}>
+              {isPrivate && <Tooltip title="私密攻关单 — 仅创建人/成员/授权人可访问"><LockOutlined style={{ color: '#fa8c16', marginRight: 6 }} /></Tooltip>}
+              {title} <StatusTag status={status} />
+            </Title>
             <HelpButton title={HELP.attackDetail.title} content={HELP.attackDetail.content} />
           </div>
           <Text type="secondary">创建于 {dayjs(node.createdAt).format(DATE_FORMAT)} · 更新于 {dayjs(node.updatedAt).fromNow()}</Text>
@@ -650,6 +708,18 @@ export default function AttackDetail() {
             <Button icon={<AppstoreOutlined />}>面板</Button>
           </Popover>
           <Link to={`/related/attackTicket/${id}`}><Button icon={<LinkOutlined />}>关联全景</Button></Link>
+          {isCreator && (
+            isPrivate ? (
+              <>
+                <Button icon={<LockOutlined />} onClick={openPrivacyDrawer}>管理私密授权</Button>
+                <Popconfirm title="确认取消私密?所有人都将能访问该攻关单" onConfirm={cancelPrivacy}>
+                  <Button icon={<UnlockOutlined />}>取消私密</Button>
+                </Popconfirm>
+              </>
+            ) : (
+              <Button icon={<LockOutlined />} onClick={openPrivacyDrawer}>设置私密</Button>
+            )
+          )}
           <Button icon={<SwapOutlined />} onClick={() => setTransitionOpen(true)}>状态流转</Button>
           <Button icon={<EditOutlined />} onClick={() => {
             // 编辑抽屉里 攻关成员 是多选,需要把 成员列表 派生出组员姓名数组回填
@@ -863,6 +933,53 @@ export default function AttackDetail() {
           </Form.Item>
           <Form.Item name="note" label="备注"><Input.TextArea rows={3} placeholder="状态变更原因..." /></Form.Item>
           <Button type="primary" htmlType="submit" loading={transSubmitting} block>确认流转</Button>
+        </Form>
+      </Drawer>
+
+      <Drawer
+        title={isPrivate ? '管理私密授权' : '设置私密'}
+        width={520}
+        open={privacyDrawerOpen}
+        onClose={() => setPrivacyDrawerOpen(false)}
+        destroyOnClose
+        maskClosable={false}
+        extra={<Button type="primary" onClick={() => privacyForm.submit()}>{isPrivate ? '保存' : '设为私密'}</Button>}
+      >
+        <Alert
+          type="info"
+          showIcon
+          message="私密攻关单的访问规则"
+          description={<div>
+            <div>• 创建人本人 + 成员管理 tab 内的所有成员(组长 / 组员)默认可访问</div>
+            <div>• 额外指定的人员/邮件群组(下方两个多选)也将获得访问权限</div>
+            <div>• 列表里会在标题前显示 🔒 提醒</div>
+          </div>}
+          style={{ marginBottom: 16 }}
+        />
+        <Form form={privacyForm} layout="vertical" onFinish={submitPrivacy}>
+          <Form.Item name="授权人" label="指定授权人员" tooltip="支持搜索快速定位;成员无需在此重复添加">
+            <Select
+              mode="multiple"
+              showSearch
+              allowClear
+              placeholder="从全员名单多选(可搜索姓名/部门)"
+              options={personOptions}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+          <Form.Item name="授权组" label="指定授权邮件群组" tooltip="选中后该群组所有成员邮箱对应的人都可访问">
+            <Select
+              mode="multiple"
+              showSearch
+              allowClear
+              placeholder="从邮件群组多选(可搜索组名)"
+              options={emailGroups.map(g => ({
+                value: String(g.properties['组名'] ?? ''),
+                label: `${g.properties['组名'] ?? '-'} ${g.properties['描述'] ? `(${g.properties['描述']})` : ''}`,
+              }))}
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
         </Form>
       </Drawer>
 

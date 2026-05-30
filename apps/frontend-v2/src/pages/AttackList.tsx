@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Table, Button, Space, Input, Select, Drawer, Form, message, Popconfirm, Typography, Skeleton, Tooltip, Divider, Checkbox, Popover, Tabs,
 } from 'antd';
-import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined, StarOutlined, StarFilled } from '@ant-design/icons';
+import { PlusOutlined, ExportOutlined, SearchOutlined, SettingOutlined, StarOutlined, StarFilled, LockOutlined } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from '../constants.js';
@@ -23,7 +23,7 @@ dayjs.locale('zh-cn');
 
 const { Title, Text } = Typography;
 // 攻关成员/成员列表 由专用多选框 + 成员管理 tab 维护,不能让通用 extraFields 渲染成单行 Input
-const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '攻关成员', '成员列表', '创建人']);
+const HARDCODED_FIELDS = new Set(['标题', '状态', '事件级别', '客户名称', '问题单号', '事件单号', '当前处理人', '攻关组长', '攻关申请人', '影响及现存风险', '资源ID', '租户ID', '攻关成员', '成员列表', '创建人', '私密', '私密授权人', '私密授权组']);
 const DEFAULT_INFO_SQUARE_CONTENT = '# 信息广场\n\n在这里记录本攻关单的关键信息、决策记录、外部沟通要点等。\n';
 
 const STORAGE_KEY = 'attack-list-visible-columns';
@@ -234,7 +234,15 @@ export default function AttackList() {
     const fieldColMap: Record<string, Record<string, unknown>> = {
       '标题': {
         key: '标题', title: '标题', dataIndex: ['properties', '标题'], ellipsis: true,
-        render: (text: string, r: GraphNode) => <a onClick={() => navigate(`/attack/${r.id}`)}>{text || '-'}</a>,
+        render: (text: string, r: GraphNode) => {
+          const isPrivate = String(r.properties['私密'] ?? '') === '是';
+          return (
+            <a onClick={() => navigate(`/attack/${r.id}`)}>
+              {isPrivate && <Tooltip title="私密攻关单"><LockOutlined style={{ color: '#fa8c16', marginRight: 6 }} /></Tooltip>}
+              {text || '-'}
+            </a>
+          );
+        },
         sorter: (a: GraphNode, b: GraphNode) => ((a.properties['标题'] as string) ?? '').localeCompare((b.properties['标题'] as string) ?? ''),
       },
       '状态': {

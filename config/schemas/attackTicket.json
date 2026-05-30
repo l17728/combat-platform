@@ -258,6 +258,25 @@
       "name": "创建人",
       "type": "string",
       "label": "创建人"
+    },
+    {
+      "id": "私密",
+      "name": "私密",
+      "type": "enum",
+      "label": "私密",
+      "enumValues": ["是", "否"]
+    },
+    {
+      "id": "私密授权人",
+      "name": "私密授权人",
+      "type": "string",
+      "label": "私密授权人"
+    },
+    {
+      "id": "私密授权组",
+      "name": "私密授权组",
+      "type": "string",
+      "label": "私密授权组"
     }
   ]
 }

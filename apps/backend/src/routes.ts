@@ -25,6 +25,69 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
   });
 }
 
+// 私密攻关单访问判定:成员(姓名)/创建人(用户名)/私密授权人(姓名)/私密授权组(经邮件→人员)。
+// 仅当 attackTicket.私密 === '是' 时调用。
+function canAccessPrivateAttackTicket(
+  repo: Repository,
+  node: { properties: Record<string, unknown> },
+  user: { username?: string; displayName?: string },
+): boolean {
+  const p = node.properties as Record<string, unknown>;
+  const username = user.username || "";
+  const displayName = user.displayName || "";
+  // 创建人 (存的是 username)
+  if (String(p["创建人"] ?? "") === username && username) return true;
+  // 成员列表 (姓名)
+  const memberRaw = p["成员列表"];
+  if (typeof memberRaw === "string" && memberRaw.trim()) {
+    try {
+      const arr = JSON.parse(memberRaw);
+      if (Array.isArray(arr)) {
+        for (const m of arr) {
+          const n = String(m?.["姓名"] ?? "").trim();
+          if (n && (n === displayName || n === username)) return true;
+        }
+      }
+    } catch { /* fall through */ }
+  }
+  // 私密授权人 (姓名数组,JSON)
+  const authRaw = p["私密授权人"];
+  if (typeof authRaw === "string" && authRaw.trim()) {
+    try {
+      const arr = JSON.parse(authRaw);
+      if (Array.isArray(arr)) {
+        for (const n of arr) {
+          const s = String(n).trim();
+          if (s && (s === displayName || s === username)) return true;
+        }
+      }
+    } catch { /* fall through */ }
+  }
+  // 私密授权组 (组名数组,JSON):展开为邮箱 → 人员姓名 → 比对 displayName/username
+  const groupRaw = p["私密授权组"];
+  if (typeof groupRaw === "string" && groupRaw.trim()) {
+    try {
+      const groups = JSON.parse(groupRaw);
+      if (Array.isArray(groups) && groups.length > 0) {
+        for (const groupName of groups) {
+          const gNodes = repo.queryNodes("emailGroup", { 组名: String(groupName) });
+          for (const g of gNodes) {
+            const emails = String(g.properties?.["成员邮箱"] ?? "").split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
+            for (const email of emails) {
+              const persons = repo.queryNodes("person", { 邮箱: email });
+              for (const person of persons) {
+                const n = String(person.properties?.["姓名"] ?? "").trim();
+                if (n && (n === displayName || n === username)) return true;
+              }
+            }
+          }
+        }
+      }
+    } catch { /* fall through */ }
+  }
+  return false;
+}
+
 // §50: gate 贡献等级 标定 to privileged roles. Absent X-Role header = trusted
 // system access (CLI / import / tests) → allowed. Returns an error string to
 // send as 403, or null when allowed.
@@ -80,7 +143,15 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       return res.json(repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
     }
     const single = repo.getNode(nodeType);
-    return single ? res.json(single) : res.status(404).json({ error: "not found" });
+    if (!single) return res.status(404).json({ error: "not found" });
+    // 私密访问控制:攻关单 私密=是 → 仅 创建人 + 成员列表 + 私密授权人 + 私密授权组里的人可读
+    if (single.nodeType === "attackTicket" && String(single.properties?.["私密"] ?? "") === "是") {
+      const reqUser = (req as any).user as { username?: string; displayName?: string } | undefined;
+      if (reqUser?.username && !canAccessPrivateAttackTicket(repo, single, reqUser)) {
+        return res.status(403).json({ error: "私密攻关单,仅创建人/成员/授权人可访问" });
+      }
+    }
+    return res.json(single);
   });
 
   r.post("/nodes/:nodeType", (req, res) => {
