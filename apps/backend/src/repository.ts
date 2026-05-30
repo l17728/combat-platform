@@ -3,6 +3,35 @@ import type { DbAdapter } from "./db-adapter.js";
 import type { Repository, NodeFilter, GraphNode, GraphEdge, ProgressLog, RelationProposal, RelationProposalStatus, Reminder, ReminderStatus, AuditLogEntry } from "@combat/shared";
 
 /**
+ * Phase 4 — adapter-aware JSON encode/decode.
+ *
+ * SQLite stores JSON as TEXT (we serialize/deserialize manually).
+ * Postgres stores JSON as JSONB (pg driver auto-serializes objects → jsonb on
+ * write, and auto-deserializes jsonb → JS object on read). So the encode/decode
+ * paths must branch on adapter.kind to avoid double-encoding on the PG side.
+ */
+function encodeJsonForAdapter(adapter: DbAdapter, value: unknown): unknown {
+  if (adapter.kind === "postgres") return value;
+  return JSON.stringify(value ?? {});
+}
+
+function decodeJsonFromAdapter(adapter: DbAdapter, value: unknown): any {
+  if (value === null || value === undefined) return {};
+  if (adapter.kind === "postgres") {
+    // pg already deserialized jsonb columns to JS objects/arrays. But during
+    // migration windows or via raw text APIs the row may still be a string —
+    // be defensive.
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return {}; }
+    }
+    return value;
+  }
+  // sqlite path
+  if (typeof value !== "string") return value;
+  try { return JSON.parse(value); } catch { return {}; }
+}
+
+/**
  * SqliteRepository — historical name, now dialect-neutral. Internally drives all
  * SQL through a `DbAdapter`, so the SAME class transparently runs on:
  *   - SQLite (via SqliteAdapter) — the default test+prod path
@@ -24,14 +53,14 @@ export class SqliteRepository implements Repository {
   private async auditTx(tx: DbAdapter, action: string, entityType: string, entityId: string, changes: unknown, actor: string): Promise<void> {
     await tx.run(
       `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), action, entityType, entityId, JSON.stringify(changes), actor, new Date().toISOString()],
+      [randomUUID(), action, entityType, entityId, encodeJsonForAdapter(tx, changes), actor, new Date().toISOString()],
     );
   }
 
   async logAudit(entry: { action: string; entityType: string; entityId: string; changes: unknown; actor: string }): Promise<void> {
     await this.adapter.run(
       `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), entry.action, entry.entityType, entry.entityId, JSON.stringify(entry.changes), entry.actor, new Date().toISOString()],
+      [randomUUID(), entry.action, entry.entityType, entry.entityId, encodeJsonForAdapter(this.adapter, entry.changes), entry.actor, new Date().toISOString()],
     );
   }
 
@@ -48,16 +77,13 @@ export class SqliteRepository implements Repository {
     const sql = `SELECT * FROM audit_log${where.length ? " WHERE " + where.join(" AND ") : ""} ORDER BY "performedAt" DESC, id LIMIT ${limit}`;
     const rows = await this.adapter.query<{
       id: string; action: string; entityType: string; entityId: string;
-      changes: string; performedBy: string; performedAt: string;
+      changes: unknown; performedBy: string; performedAt: string;
     }>(sql, params);
-    return rows.map(r => {
-      let changes: unknown = r.changes;
-      try { changes = JSON.parse(r.changes); } catch { /* keep raw string */ }
-      return {
-        id: r.id, action: r.action, entityType: r.entityType, entityId: r.entityId,
-        changes, performedBy: r.performedBy, performedAt: r.performedAt,
-      };
-    });
+    return rows.map(r => ({
+      id: r.id, action: r.action, entityType: r.entityType, entityId: r.entityId,
+      changes: decodeJsonFromAdapter(this.adapter, r.changes),
+      performedBy: r.performedBy, performedAt: r.performedAt,
+    }));
   }
 
   async getSetting(key: string): Promise<string | null> {
@@ -81,7 +107,7 @@ export class SqliteRepository implements Repository {
     await this.adapter.transaction(async (tx) => {
       await tx.run(
         `INSERT INTO nodes (id, "nodeType", properties, search_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        [node.id, nodeType, JSON.stringify(properties), this.flatten(properties), now, now],
+        [node.id, nodeType, encodeJsonForAdapter(tx, properties), this.flatten(properties), now, now],
       );
       await this.auditTx(tx, "CREATE", "node", node.id, properties, actor);
     });
@@ -91,7 +117,7 @@ export class SqliteRepository implements Repository {
   async getNode(id: string): Promise<GraphNode | null> {
     const r = await this.adapter.queryOne<any>(`SELECT * FROM nodes WHERE id = ?`, [id]);
     if (!r) return null;
-    return { id: r.id, nodeType: r.nodeType, properties: JSON.parse(r.properties),
+    return { id: r.id, nodeType: r.nodeType, properties: decodeJsonFromAdapter(this.adapter, r.properties),
       createdAt: r.created_at, updatedAt: r.updated_at };
   }
 
@@ -103,7 +129,7 @@ export class SqliteRepository implements Repository {
     await this.adapter.transaction(async (tx) => {
       await tx.run(
         `UPDATE nodes SET properties = ?, search_text = ?, updated_at = ? WHERE id = ?`,
-        [JSON.stringify(properties), this.flatten(properties), now, id],
+        [encodeJsonForAdapter(tx, properties), this.flatten(properties), now, id],
       );
       await this.auditTx(tx, "UPDATE", "node", id, patch, actor);
     });
@@ -116,7 +142,7 @@ export class SqliteRepository implements Repository {
       [nodeType],
     );
     let out = rows.map(r => ({ id: r.id, nodeType: r.nodeType,
-      properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
+      properties: decodeJsonFromAdapter(this.adapter, r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
     if (filter) out = out.filter(n => Object.entries(filter).every(([k, v]) => n.properties[k] === v));
     return out;
   }
@@ -127,7 +153,7 @@ export class SqliteRepository implements Repository {
     await this.adapter.transaction(async (tx) => {
       await tx.run(
         `INSERT INTO edges (id, "edgeType", "sourceId", "targetId", properties, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [e.id, edgeType, sourceId, targetId, JSON.stringify(properties), now, now],
+        [e.id, edgeType, sourceId, targetId, encodeJsonForAdapter(tx, properties), now, now],
       );
       await this.auditTx(tx, "CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
     });
@@ -143,7 +169,7 @@ export class SqliteRepository implements Repository {
     const sql = `SELECT * FROM edges${wh.length ? " WHERE " + wh.join(" AND ") : ""}`;
     const rows = await this.adapter.query<any>(sql, params);
     return rows.map(r => ({ id: r.id, edgeType: r.edgeType, sourceId: r.sourceId,
-      targetId: r.targetId, properties: JSON.parse(r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
+      targetId: r.targetId, properties: decodeJsonFromAdapter(this.adapter, r.properties), createdAt: r.created_at, updatedAt: r.updated_at }));
   }
 
   async deleteEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }, actor: string): Promise<void> {
