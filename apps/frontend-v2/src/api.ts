@@ -114,6 +114,37 @@ export interface Reminder {
   createdAt: string;
 }
 
+export interface WelinkAttachment {
+  type?: string;
+  url?: string;
+  name?: string;
+}
+
+export interface WelinkUploadMessage {
+  messageId: string;
+  sentAt: string;
+  author: string;
+  authorId?: string;
+  content: string;
+  attachments?: WelinkAttachment[];
+  raw?: unknown;
+}
+
+export interface WelinkMessage {
+  id: string;
+  ticketId: string;
+  messageId: string;
+  sentAt: string;
+  author: string;
+  authorId: string | null;
+  content: string;
+  attachments: WelinkAttachment[];
+  raw: string | null;
+  selected: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
 export interface QueryContext {
   node: GraphNode;
   related: {
@@ -788,6 +819,80 @@ export class Api {
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ order }),
+    });
+  }
+
+  uploadWelinkMessages(
+    ticketId: string,
+    messages: WelinkUploadMessage[],
+  ): Promise<{ inserted: number; updated: number; total: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages }),
+    });
+  }
+
+  listWelinkMessages(
+    ticketId: string,
+    filter: {
+      author?: string;
+      since?: string;
+      until?: string;
+      keyword?: string;
+      includeDeleted?: boolean;
+      offset?: number;
+      limit?: number;
+    } = {},
+  ): Promise<{ messages: WelinkMessage[]; stats: { total: number; selected: number; deleted: number } }> {
+    const p = new URLSearchParams();
+    if (filter.author) p.set('author', filter.author);
+    if (filter.since) p.set('since', filter.since);
+    if (filter.until) p.set('until', filter.until);
+    if (filter.keyword) p.set('keyword', filter.keyword);
+    if (filter.includeDeleted) p.set('includeDeleted', 'true');
+    if (filter.offset !== undefined) p.set('offset', String(filter.offset));
+    if (filter.limit !== undefined) p.set('limit', String(filter.limit));
+    const qs = p.toString();
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages${qs ? '?' + qs : ''}`);
+  }
+
+  deleteAllWelinkMessages(ticketId: string): Promise<{ deleted: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages`, { method: 'DELETE' });
+  }
+
+  deleteWelinkMessage(ticketId: string, messageIdOrId: string): Promise<{ deleted: number }> {
+    return this.req(
+      `/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/${encodeURIComponent(messageIdOrId)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  batchDeleteWelinkMessages(ticketId: string, ids: string[]): Promise<{ deleted: number }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/batch-delete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+  }
+
+  updateWelinkSelection(
+    ticketId: string,
+    ids: string[],
+    selected: boolean,
+  ): Promise<{ updated: number; selected: boolean }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/selection`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids, selected }),
+    });
+  }
+
+  analyzeWelinkMessages(ticketId: string): Promise<{ ok: boolean; queued: number; message: string }> {
+    return this.req(`/api/tickets/${encodeURIComponent(ticketId)}/welink-messages/analyze`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
     });
   }
 }
