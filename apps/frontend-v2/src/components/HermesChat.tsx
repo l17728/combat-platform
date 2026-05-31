@@ -5,7 +5,9 @@ import { RobotOutlined, SendOutlined, UserOutlined, CloseOutlined, DragOutlined 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api.js";
+import type { HermesTraceStep } from "../api.js";
 import { useDraggable } from "../hooks/useDraggable.js";
+import ToolTrace from "./ToolTrace.js";
 
 const { Text } = Typography;
 
@@ -22,6 +24,9 @@ interface Msg {
   role: "user" | "assistant";
   text: string;
   citations?: Citation[];
+  trace?: HermesTraceStep[];
+  engine?: "tool" | "intent";
+  fallbackReason?: string;
 }
 
 /**
@@ -82,7 +87,17 @@ export default function HermesChat({
     setLoading(true);
     try {
       const res = await api.hermesAsk(question, context);
-      setMsgs((m) => [...m, { role: "assistant", text: res.answer || "未找到相关记录。", citations: res.citations }]);
+      setMsgs((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: res.answer || "未找到相关记录。",
+          citations: res.citations,
+          trace: res.trace,
+          engine: res.engine,
+          fallbackReason: res.fallback_reason,
+        },
+      ]);
     } catch (e) {
       setMsgs((m) => [...m, { role: "assistant", text: `出错了:${e instanceof Error ? e.message : String(e)}` }]);
     } finally {
@@ -194,6 +209,9 @@ export default function HermesChat({
                         <div className="markdown-body" style={{ fontSize: 13 }}>
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
                         </div>
+                        {((m.trace && m.trace.length > 0) || m.fallbackReason) && (
+                          <ToolTrace trace={m.trace || []} engine={m.engine} fallbackReason={m.fallbackReason} />
+                        )}
                         {m.citations && m.citations.length > 0 && (
                           <div style={{ marginTop: 6 }}>
                             <Text type="secondary" style={{ fontSize: 11 }}>
