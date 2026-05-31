@@ -94,12 +94,15 @@ export function SchemaFieldInput(props: {
   value?: unknown;
   onChange?: (v: unknown) => void;
   personOptions?: PersonOption[];
+  /** AntD Form.Item cloneElement-injected id (drives <label htmlFor> linkage). */
+  id?: string;
 }): React.ReactElement {
-  const { field: f, value, onChange, personOptions } = props;
+  const { field: f, value, onChange, personOptions, id } = props;
   const t = f.type;
   if (t === "enum") {
     return (
       <Select
+        id={id}
         value={value as string | undefined}
         onChange={onChange}
         allowClear
@@ -109,11 +112,12 @@ export function SchemaFieldInput(props: {
     );
   }
   if (t === "boolean") {
-    return <Switch checked={!!value} onChange={onChange} />;
+    return <Switch id={id} checked={!!value} onChange={onChange} />;
   }
   if (t === "number") {
     return (
       <InputNumber
+        id={id}
         value={value as number | undefined}
         onChange={onChange}
         style={{ width: "100%" }}
@@ -127,6 +131,7 @@ export function SchemaFieldInput(props: {
     const d = value ? dayjs(value as string) : null;
     return (
       <DatePicker
+        id={id}
         value={d && d.isValid() ? d : null}
         onChange={(v) => onChange?.(v ? v.format("YYYY-MM-DD") : null)}
         style={{ width: "100%" }}
@@ -137,6 +142,7 @@ export function SchemaFieldInput(props: {
     const d = value ? dayjs(value as string) : null;
     return (
       <DatePicker
+        id={id}
         showTime
         value={d && d.isValid() ? d : null}
         onChange={(v) => onChange?.(v ? v.format("YYYY-MM-DDTHH:mm:ss") : null)}
@@ -147,6 +153,7 @@ export function SchemaFieldInput(props: {
   if (t === "ref" && f.refType === "person") {
     return (
       <Select
+        id={id}
         value={value as string | undefined}
         onChange={onChange}
         showSearch
@@ -160,6 +167,7 @@ export function SchemaFieldInput(props: {
   if (t === "ref") {
     return (
       <Input
+        id={id}
         value={value as string | undefined}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder={`${f.refType} id`}
@@ -169,6 +177,7 @@ export function SchemaFieldInput(props: {
   if (t === "textarea") {
     return (
       <Input.TextArea
+        id={id}
         value={value as string | undefined}
         onChange={(e) => onChange?.(e.target.value)}
         rows={3}
@@ -180,6 +189,7 @@ export function SchemaFieldInput(props: {
   if (t === "array") {
     return (
       <Select
+        id={id}
         mode="tags"
         value={Array.isArray(value) ? (value as string[]) : []}
         onChange={onChange}
@@ -191,6 +201,7 @@ export function SchemaFieldInput(props: {
   if (t === "json") {
     return (
       <Input.TextArea
+        id={id}
         value={typeof value === "string" ? value : value ? JSON.stringify(value, null, 2) : ""}
         onChange={(e) => onChange?.(e.target.value)}
         rows={4}
@@ -200,6 +211,7 @@ export function SchemaFieldInput(props: {
   }
   return (
     <Input
+      id={id}
       value={value as string | undefined}
       onChange={(e) => onChange?.(e.target.value)}
       placeholder={f.label}
