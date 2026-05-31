@@ -37,6 +37,8 @@ import { makeSupportNodeRouter } from "./support-node.js";
 import { makeHelpRequestRouter } from "./help-request.js";
 import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
+import { makeNotificationsRouter } from "./notifications-router.js";
+import { NotificationsRepo } from "./notifications.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
 import { csrfMiddleware } from "./csrf.js";
@@ -216,7 +218,10 @@ export function createApp(deps: {
   app.use("/api", makeRecommendRouter(deps.repo));
   app.use("/api", makeDashboardRouter(deps.repo));
   app.use("/api", makeDailyReportRouter(deps.repo));
-  app.use("/api", makeRemindersRouter(deps.repo, deps.registry));
+  app.use(
+    "/api",
+    makeRemindersRouter(deps.repo, deps.registry, undefined, adapter ? new NotificationsRepo(adapter) : undefined)
+  );
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
   // §v2.6: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
@@ -296,7 +301,7 @@ export function createApp(deps: {
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));
-  app.use("/api", makeEscalationRouter(deps.repo));
+  app.use("/api", makeEscalationRouter(deps.repo, adapter ? new NotificationsRepo(adapter) : undefined));
   app.use("/api", makeRelationsRouter(deps.repo));
   app.use("/api", makeJobsRouter(deps.repo, deps.registry));
   app.use("/api", makeOncallRouter(deps.repo));
@@ -309,11 +314,13 @@ export function createApp(deps: {
   app.use("/api", makeResponsibilityRouter(deps.repo));
   app.use("/api", makeUiCacheRouter(deps.repo));
   if (adapter) {
+    const notificationsRepo = new NotificationsRepo(adapter);
+    app.use("/api", makeNotificationsRouter(adapter));
     app.use("/api", makeDailyReportEntryRouter(adapter));
     app.use("/api", makeSupportNodeRouter(adapter));
-    app.use("/api", makeHelpRequestRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeHelpRequestRouter(adapter, deps.repo, mailSender, undefined, notificationsRepo));
     app.use("/api", makeSettingsRouter(adapter));
-    app.use("/api", makeBugReportRouter(adapter));
+    app.use("/api", makeBugReportRouter(adapter, notificationsRepo));
     app.use("/api", makeOpLogRouter(adapter));
     app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(adapter));

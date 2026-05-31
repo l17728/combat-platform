@@ -29,6 +29,7 @@ import UserManagement from "./pages/UserManagement.js";
 import DbMigration from "./pages/DbMigration.js";
 import SystemUpgrade from "./pages/SystemUpgrade.js";
 import OperationLog from "./pages/OperationLog.js";
+import NotificationsPage from "./pages/NotificationsPage.js";
 import BackupRestore from "./pages/BackupRestore.js";
 import DocumentCenter from "./pages/DocumentCenter.js";
 import ManualCenter from "./pages/ManualCenter.js";
@@ -150,6 +151,7 @@ function AppInner() {
           }
         />
         <Route path="/bug-report" element={<BugReport />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/op-log" element={<OperationLog />} />
         <Route path="/backup" element={<BackupRestore />} />

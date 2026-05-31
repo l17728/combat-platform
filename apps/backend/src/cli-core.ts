@@ -1433,6 +1433,50 @@ export const COMMANDS: CliCommand[] = [
       );
     },
   },
+
+  // ---- inbox notifications (用户收件箱) ----
+  {
+    name: "notifications:list",
+    summary: "查看当前用户收件箱通知 (--unread 仅未读)",
+    usage: "notifications:list [--unread] [--limit N]",
+    build: (_pos, opts) => {
+      const params: string[] = [];
+      if (opts.unread) params.push("unread=true");
+      if (opts.limit) params.push(`limit=${encodeURIComponent(str(opts.limit)!)}`);
+      return { method: "GET", path: `/api/notifications${params.length ? "?" + params.join("&") : ""}` };
+    },
+  },
+  {
+    name: "notifications:read",
+    summary: "标记一条通知为已读",
+    usage: "notifications:read <id>",
+    build: (pos) => {
+      requirePos(pos, 1, "notifications:read <id>");
+      return { method: "POST", path: `/api/notifications/${encodeURIComponent(pos[0])}/read` };
+    },
+  },
+  {
+    name: "notifications:read-all",
+    summary: "全部标已读",
+    usage: "notifications:read-all",
+    build: () => ({ method: "POST", path: "/api/notifications/read-all" }),
+  },
+  {
+    name: "notifications:create",
+    summary: "创建一条通知 (仅 admin,用于手动通知 / 测试)",
+    usage: "notifications:create --user <u> --kind <k> --title <t> [--body <b>] [--link <url>]",
+    build: (_pos, opts) => {
+      const user = str(opts.user);
+      const kind = str(opts.kind);
+      const title = str(opts.title);
+      if (!user || !kind || !title) throw new Error("缺少 --user, --kind, --title");
+      const body: Record<string, unknown> = { userId: user, kind, title };
+      if (opts.body) body.body = str(opts.body);
+      if (opts.link) body.link = str(opts.link);
+      if (opts.sourceEntityId) body.sourceEntityId = str(opts.sourceEntityId);
+      return { method: "POST", path: "/api/notifications", body };
+    },
+  },
 ];
 
 export function renderHelp(commandName?: string): unknown {
