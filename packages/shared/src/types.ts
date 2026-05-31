@@ -294,12 +294,28 @@ export interface PinnedUi {
   uiSpec: UiSpec;
   pinnedAt: string;
 }
+/** §v2.5 tool-calling trace — one entry per tool invocation (success or error). */
+export interface HermesToolTrace {
+  tool: string;
+  input: Record<string, unknown>;
+  outputSize: number;
+  ms: number;
+  error?: string;
+  /** true 当工具结果在 32KB cap 上被截断,LLM 已看到 _truncated 提示 */
+  _truncated?: boolean;
+}
 export interface HermesAnswer {
   question: string;
   intent: HermesIntent;
   answer: string;
   citations: HermesCitation[];
   uiSpec?: UiSpec;
+  /** §v2.5: 'tool' = tool-calling agent, 'intent' = rule-based router, 'agent' = single-turn LLM. */
+  engine?: "tool" | "intent" | "agent";
+  /** §v2.5: tool-calling 历史(给前端 trace UI / 调试)。intent 引擎不填。 */
+  trace?: HermesToolTrace[];
+  /** §v2.5: 当 tool 模式失败回落到 intent 引擎时,填写回退原因。 */
+  fallback_reason?: string;
 }
 export interface QueryContext {
   node: GraphNode;

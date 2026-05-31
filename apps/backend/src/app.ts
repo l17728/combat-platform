@@ -16,6 +16,7 @@ import { makeRemindersRouter } from "./reminders.js";
 import { makeConflictsRouter } from "./conflicts.js";
 import { makeKGRouter } from "./kg-rebuild.js";
 import { makeHermesRouter } from "./hermes.js";
+import { makeHermesToolsRouter } from "./hermes-tools-router.js";
 import { makeGraphRouter } from "./graph.js";
 import { makeAuditRouter } from "./audit.js";
 import { makeMergeRouter } from "./merge-route.js";
@@ -225,6 +226,8 @@ export function createApp(deps: {
       : undefined;
   hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
   app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner, deps.db));
+  // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
+  app.use("/api", makeHermesToolsRouter(deps.repo, deps.registry, adapter, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));

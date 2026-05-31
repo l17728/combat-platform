@@ -2,8 +2,31 @@ import { Router } from "express";
 import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNode, UiSpec } from "@combat/shared";
 import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
-import { answerWithAgent, type AgentRunner } from "./hermes-agent.js";
+import { answerWithAgent, answerWithToolCalling, type AgentRunner, type ToolCallingRunner } from "./hermes-agent.js";
 import type { DB } from "./db.js";
+
+// §v2.5 桶 B: HERMES_MODE 控制 ask 路径
+//   - 'tool'  : 强制走 tool-calling agent;失败 fallback intent
+//   - 'intent': 强制走规则引擎(不调 LLM,纯本地)
+//   - 'auto'  : 短问题 + 命中 intent 正则走 intent;否则走 tool (默认)
+export type HermesMode = "tool" | "intent" | "auto";
+
+const INTENT_REGEX =
+  /找谁帮忙|找帮手|谁能帮|PB[-_]|问题单号|谁负责|谁在做|owner|负责人|状态|进展|怎么样|现在|贡献|最忙|负载最重|今天|本周|最近/i;
+
+function parseMode(raw: unknown): HermesMode {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "tool" || s === "intent" || s === "auto") return s as HermesMode;
+  const env = String(process.env.HERMES_MODE ?? "").toLowerCase();
+  if (env === "tool" || env === "intent" || env === "auto") return env as HermesMode;
+  return "auto";
+}
+
+function chooseEngineForAuto(question: string): "tool" | "intent" {
+  // 短问题(<30 字符)且命中已知 intent 正则 → intent 快路径
+  if (question.length < 30 && INTENT_REGEX.test(question)) return "intent";
+  return "tool";
+}
 
 const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 
@@ -470,44 +493,168 @@ function welinkFallbackCitations(db: DB, question: string, ticketId: string): He
   return out;
 }
 
-export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, runner?: AgentRunner, db?: DB): Router {
+export interface HermesRouterOptions {
+  /** 兼容旧接口:单轮 prompt-based AgentRunner(走 answerWithAgent) */
+  runner?: AgentRunner;
+  /** §v2.5 新接口:OpenAI tool-calling LLM runner(走 answerWithToolCalling) */
+  toolRunner?: ToolCallingRunner;
+  /** Welink DB 句柄(可选) */
+  db?: DB;
+  /** 启动期默认 mode(env 优先于此默认) */
+  defaultMode?: HermesMode;
+  /** 审计写入(可选;mode=tool 成功/失败都记一条) */
+  auditActor?: string;
+}
+
+export function makeHermesRouter(
+  repo: Repository,
+  registry: SchemaRegistry,
+  optsOrRunner?: HermesRouterOptions | AgentRunner,
+  db?: DB
+): Router {
+  // 向后兼容:旧调用 makeHermesRouter(repo, registry, runner, db)
+  const opts: HermesRouterOptions =
+    optsOrRunner && typeof (optsOrRunner as AgentRunner).run === "function"
+      ? { runner: optsOrRunner as AgentRunner, db }
+      : ((optsOrRunner as HermesRouterOptions) ?? { db });
+  if (db && !opts.db) opts.db = db;
+
   const r = Router();
   r.post(
     "/hermes/ask",
     asyncHandler(async (req, res) => {
       const q = String(req.body?.question ?? "").trim();
       if (!q) return res.status(400).json({ error: "question 必填" });
-      const context = String(req.body?.context ?? "").trim() || undefined; // 调用方上下文(如当前攻关单),仅 agent 使用
-      log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
+      const context = String(req.body?.context ?? "").trim() || undefined;
+      const requestedMode = parseMode(req.body?.mode ?? opts.defaultMode);
       const ticketIdHint = extractTicketIdHint(context);
-      // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
-      if (runner) {
+      const startedAt = Date.now();
+
+      // ===== mode dispatch =====
+      // intent: 强制走规则引擎
+      // tool : 走 tool-calling agent;失败 fallback intent
+      // auto : 有 toolRunner 时按短问题+正则启发式;否则保持旧契约(有 runner 全走 agent)
+      let plannedEngine: "tool" | "intent";
+      if (requestedMode === "intent") {
+        plannedEngine = "intent";
+      } else if (requestedMode === "tool") {
+        plannedEngine = "tool";
+      } else if (opts.toolRunner) {
+        plannedEngine = chooseEngineForAuto(q);
+      } else if (opts.runner) {
+        // 向后兼容:旧路径(只配 runner)始终优先走 agent
+        plannedEngine = "tool";
+      } else {
+        plannedEngine = "intent";
+      }
+
+      log.info("hermes.ask.start", {
+        question: q,
+        mode: requestedMode,
+        planned: plannedEngine,
+        hasToolRunner: !!opts.toolRunner,
+        hasRunner: !!opts.runner,
+      });
+
+      // ===== tool-calling path (新) =====
+      if (plannedEngine === "tool" && opts.toolRunner) {
         try {
-          const answer = await answerWithAgent(repo, registry, q, runner, context, db);
-          // 场景 3 兜底:agent 没给 welink 引用但问题明显是群消息相关 → 补充关键词 hit
-          if (db && ticketIdHint && WELINK_KEYWORDS.test(q) && !answer.citations.some((c) => c.kind === "welink")) {
-            const extra = welinkFallbackCitations(db, q, ticketIdHint);
-            if (extra.length > 0) answer.citations.push(...extra);
-          }
+          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, context, opts.db);
+          enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
+          const ms = Date.now() - startedAt;
           log.info("hermes.ask.done", {
             intent: answer.intent,
+            engine: "tool",
+            mode: requestedMode,
+            hops: answer.trace?.length ?? 0,
             citationCount: answer.citations.length,
+            ms,
+          });
+          if (opts.auditActor) {
+            await repo
+              .logAudit({
+                action: "HERMES_ASK",
+                entityType: "setting",
+                entityId: "hermes",
+                changes: { mode: requestedMode, engine: "tool", hops: answer.trace?.length ?? 0, ms, ok: true },
+                actor: opts.auditActor,
+              })
+              .catch(() => {});
+          }
+          return res.json(answer);
+        } catch (e) {
+          const reason = (e as Error).message || "tool_engine_error";
+          log.warn("hermes.ask.tool_fallback", { error: reason });
+          plannedEngine = "intent";
+          // fallthrough to intent path; 标 fallback_reason
+          const answer = await intentPath(repo, registry, q, opts, ticketIdHint, requestedMode);
+          answer.fallback_reason = reason;
+          log.info("hermes.ask.done", {
+            intent: answer.intent,
+            engine: "intent",
+            mode: requestedMode,
+            fallback: true,
+            ms: Date.now() - startedAt,
+          });
+          return res.json(answer);
+        }
+      }
+
+      // ===== legacy single-turn AgentRunner path (向后兼容) =====
+      if (plannedEngine === "tool" && opts.runner) {
+        try {
+          const answer = await answerWithAgent(repo, registry, q, opts.runner, context, opts.db);
+          enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
+          log.info("hermes.ask.done", {
+            intent: answer.intent,
             engine: "agent",
+            mode: requestedMode,
+            citationCount: answer.citations.length,
+            ms: Date.now() - startedAt,
           });
           return res.json(answer);
         } catch (e) {
           log.warn("hermes.ask.agent_fallback", { error: (e as Error).message });
         }
       }
-      const answer = await answerQuestion(repo, registry, q);
-      // 规则引擎本身不查 welink_messages,这里统一补 welink 兜底
-      if (db && ticketIdHint && WELINK_KEYWORDS.test(q)) {
-        const extra = welinkFallbackCitations(db, q, ticketIdHint);
-        if (extra.length > 0) answer.citations.push(...extra);
-      }
-      log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "rule" });
+
+      // ===== intent (rule) path =====
+      const answer = await intentPath(repo, registry, q, opts, ticketIdHint, requestedMode);
+      log.info("hermes.ask.done", {
+        intent: answer.intent,
+        engine: "intent",
+        mode: requestedMode,
+        ms: Date.now() - startedAt,
+      });
       res.json(answer);
     })
   );
   return r;
+}
+
+async function intentPath(
+  repo: Repository,
+  registry: SchemaRegistry,
+  q: string,
+  opts: HermesRouterOptions,
+  ticketIdHint: string | undefined,
+  _mode: HermesMode
+): Promise<HermesAnswer> {
+  const answer = await answerQuestion(repo, registry, q);
+  enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
+  (answer as HermesAnswer).engine = "intent";
+  return answer;
+}
+
+function enrichWithWelinkFallback(
+  answer: HermesAnswer,
+  db: DB | undefined,
+  ticketIdHint: string | undefined,
+  q: string
+): void {
+  if (!db || !ticketIdHint) return;
+  if (!WELINK_KEYWORDS.test(q)) return;
+  if (answer.citations.some((c) => c.kind === "welink")) return;
+  const extra = welinkFallbackCitations(db, q, ticketIdHint);
+  if (extra.length > 0) answer.citations.push(...extra);
 }
