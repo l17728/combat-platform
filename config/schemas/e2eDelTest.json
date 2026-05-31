@@ -1,0 +1,14 @@
+{
+  "nodeType": "e2eDelTest",
+  "label": "删除测试",
+  "fields": [
+    {
+      "id": "name",
+      "name": "name",
+      "label": "名称",
+      "type": "string"
+    }
+  ],
+  "identityKeys": [],
+  "derivedToKG": false
+}

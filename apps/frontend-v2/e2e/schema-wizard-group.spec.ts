@@ -8,7 +8,7 @@ import { API, selectOption } from "./helpers";
 test.describe("SchemaWizard 字段分组管理 (v2.6)", () => {
   test("groups panel + per-field group select are rendered for attackTicket", async ({ page }) => {
     await page.goto("/schema");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
     // 点 attackTicket 行展开详情卡
     const row = page.locator(".ant-table-row").filter({ hasText: "attackTicket" });
@@ -36,7 +36,7 @@ test.describe("SchemaWizard 字段分组管理 (v2.6)", () => {
     expect(add.ok()).toBeTruthy();
     try {
       await page.goto("/schema");
-      await page.waitForLoadState("networkidle");
+      await page.waitForLoadState("domcontentloaded");
       const row = page.locator(".ant-table-row").filter({ hasText: "attackTicket" });
       await row.first().click();
       await page.waitForTimeout(500);
