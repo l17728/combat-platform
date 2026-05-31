@@ -53,13 +53,13 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     };
     const list = await load(repo);
     list.push(cmd);
-    await save(repo, list, "api");
+    await save(repo, list, (req as any).user?.username ?? "api");
     await repo.logAudit({
       action: "CUSTOM_COMMAND_CREATE",
       entityType: "setting",
       entityId: cmd.id,
       changes: { name, template },
-      actor: "api",
+      actor: (req as any).user?.username ?? "api",
     });
     res.status(201).json(cmd);
   });
@@ -69,13 +69,13 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     const idx = list.findIndex((c) => c.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: "命令不存在" });
     const [removed] = list.splice(idx, 1);
-    await save(repo, list, "api");
+    await save(repo, list, (req as any).user?.username ?? "api");
     await repo.logAudit({
       action: "CUSTOM_COMMAND_DELETE",
       entityType: "setting",
       entityId: removed.id,
       changes: { name: removed.name },
-      actor: "api",
+      actor: (req as any).user?.username ?? "api",
     });
     res.json({ ok: true });
   });
@@ -112,7 +112,7 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
       entityType: "setting",
       entityId: cmd.id,
       changes: { resolved },
-      actor: "api",
+      actor: (req as any).user?.username ?? "api",
     });
     res.json({ resolved, request });
   });

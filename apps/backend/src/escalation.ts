@@ -85,7 +85,7 @@ export function makeEscalationRouter(repo: Repository): Router {
   r.put("/escalation/config", async (req, res) => {
     const rules = Array.isArray(req.body?.rules) ? req.body.rules : null;
     if (!rules) return res.status(400).json({ error: "rules 数组必填" });
-    await repo.setSetting("escalation", JSON.stringify({ rules }), "api");
+    await repo.setSetting("escalation", JSON.stringify({ rules }), (req as any).user?.username ?? "api");
     res.json(await readConfig(repo));
   });
   r.post("/escalation/scan", async (_req, res) => res.json(await scanEscalation(repo)));

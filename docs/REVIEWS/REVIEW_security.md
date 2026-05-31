@@ -256,7 +256,25 @@ r.use("/audit", adminOnly);
 ### 未在本批次修复(待后续 P0/M 系列推进)
 
 - P0-6 现网 HTTP 明文 — 需要 Nginx/Caddy 前置 TLS,涉及现网架构变更
-- M1 默认 admin/admin123 — 部署脚本生成随机密码 + 首次登录强制改密
-- M2 暴力破解无防护 — `express-rate-limit` 接入
-- M3 SMTP 密码明文存储 — AES-256-GCM 加密 + 备份导出过滤
-- M4 私密单列表无过滤、M5 errorHandler 回显 stack、M6 COMBAT_NO_AUTH 误开 panic、M7 上传校验、M8 audit actor 伪造
+- M5 errorHandler 回显 stack、M6 COMBAT_NO_AUTH 误开 panic、M7 上传校验
+
+---
+
+## v2.2 P1 已实施 (2026-05-31, 分支 feature/roadmap-sec-p1)
+
+| #   | 漏洞                                                                                         | commit / 文件                                  |
+| --- | -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| M4  | 私密 ticket 全集泄露 — list/export/audit/dashboard 全部走相同 `canAccessPrivateAttackTicket` | `2410744` `private-tickets.ts`                 |
+| M3  | SMTP 密码明文 — AES-256-GCM 加密 + 启动期自动迁移                                            | `0c6f584` `crypto.ts`, `email.ts`              |
+| M1  | 默认 admin/admin123 — 后端登录响应 `passwordMustChange:true` + 前端全局强制 Modal            | `7bfe0ec` `auth.ts`, `ForcePasswordChange.tsx` |
+| —   | helmet 安全头 + CORS 同源 + 60req/IP/min 全局 + 5req/15min 登录限流                          | `98188d9` `app.ts`                             |
+| —   | CSRF 同源 Referer/Origin 校验中间件                                                          | `403fddc` `csrf.ts`                            |
+| —   | 依赖 CVE — multer 1.x→2.x, express ≥4.21.2                                                   | `4f8d762`                                      |
+| M8  | audit actor 伪造 — `logAudit(entry, req)` req.user 优先;路由层 `actorOf(req)` 统一取值       | (本次 commit) `repository.ts`, `routes.ts`     |
+
+### 回归状态
+
+- backend tests: 493 通过(基线 463 → 新增 30 个 P1 用例)
+- TypeScript: backend + shared + frontend-v2 `tsc --noEmit` 全绿
+- 详细运营/事故响应:见 [SECURITY_RUNBOOK.md](../SECURITY_RUNBOOK.md)
+- xlsx 0.18.5 已知 GHSA-4r6h-8v6p-xvw6/5pgg-2g8v-p4x9 未清零 — npm 末版本无补丁,跟踪到 RUNBOOK

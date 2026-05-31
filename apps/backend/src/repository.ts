@@ -83,13 +83,19 @@ export class SqliteRepository implements Repository {
     );
   }
 
-  async logAudit(entry: {
-    action: string;
-    entityType: string;
-    entityId: string;
-    changes: unknown;
-    actor: string;
-  }): Promise<void> {
+  // P1 audit actor 强制取自 req.user:调用方传 entry.actor 仅作 fallback,
+  // 当 req 存在且带 user.username 时 — 以 req.user.username 为准,避免任传字符串伪造。
+  async logAudit(
+    entry: {
+      action: string;
+      entityType: string;
+      entityId: string;
+      changes: unknown;
+      actor: string;
+    },
+    req?: { user?: { username?: string } } | undefined
+  ): Promise<void> {
+    const actor = req?.user?.username || entry.actor;
     await this.adapter.run(
       `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -98,7 +104,7 @@ export class SqliteRepository implements Repository {
         entry.entityType,
         entry.entityId,
         encodeJsonForAdapter(this.adapter, entry.changes),
-        entry.actor,
+        actor,
         new Date().toISOString(),
       ]
     );

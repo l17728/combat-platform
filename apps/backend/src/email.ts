@@ -11,6 +11,7 @@ import type {
 } from "@combat/shared";
 import type { MailSender } from "./mailer.js";
 import { log, asyncHandler } from "./logger.js";
+import { encrypt, decrypt, isEncrypted } from "./crypto.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -27,10 +28,31 @@ async function readConfig(repo: Repository): Promise<SmtpConfig | null> {
   const raw = await repo.getSetting("smtp");
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as SmtpConfig;
+    const cfg = JSON.parse(raw) as SmtpConfig;
+    // 透明解密:历史明文 / 新加密密文都能读出明文。
+    if (cfg.password) cfg.password = decrypt(cfg.password);
+    return cfg;
   } catch {
     return null;
   }
+}
+
+// 启动期一次性迁移:把库里 SMTP 明文密码原地加密(只跑一次)。
+// 启动时即便配置不存在 / 已加密都正确 no-op,生产/测试均安全。
+export async function migrateSmtpPasswordIfNeeded(repo: Repository): Promise<void> {
+  const raw = await repo.getSetting("smtp");
+  if (!raw) return;
+  let cfg: SmtpConfig;
+  try {
+    cfg = JSON.parse(raw) as SmtpConfig;
+  } catch {
+    return;
+  }
+  if (!cfg.password) return;
+  if (isEncrypted(cfg.password)) return; // 已经加密过
+  cfg.password = encrypt(cfg.password);
+  await repo.setSetting("smtp", JSON.stringify(cfg), "system-migration");
+  log.info("smtp.password_migrated_to_encrypted");
 }
 
 function mask(cfg: SmtpConfig): SmtpConfigMasked {
@@ -88,6 +110,7 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
   r.put("/email/config", async (req, res) => {
     const body = (req.body ?? {}) as Partial<SmtpConfig>;
     const old = await readConfig(repo);
+    // old.password 已透明解密 → 用户没传新密码就保留旧明文,再统一加密落库。
     const password = body.password && String(body.password).length > 0 ? String(body.password) : (old?.password ?? "");
     const cfg: SmtpConfig = {
       host: String(body.host ?? ""),
@@ -98,7 +121,11 @@ export function makeEmailRouter(repo: Repository, _registry: SchemaRegistry, mai
       fromEmail: String(body.fromEmail ?? ""),
       fromName: body.fromName !== undefined ? String(body.fromName) : undefined,
     };
-    await repo.setSetting("smtp", JSON.stringify(cfg), "api");
+    // 落库前加密 password 字段 (P1):AES-256-GCM,key 来自 COMBAT_ENCRYPT_KEY
+    // 或 derive 自 JWT_SECRET。其它字段(host/port/username/fromEmail)仍明文,
+    // 不属于敏感信息且 GET /email/config 已返回 (用 mask 只藏 password)。
+    const stored: SmtpConfig = { ...cfg, password: cfg.password ? encrypt(cfg.password) : "" };
+    await repo.setSetting("smtp", JSON.stringify(stored), (req as any).user?.username ?? "api");
     res.json(mask(cfg));
   });
 

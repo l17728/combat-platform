@@ -15,8 +15,12 @@ export default function LoginPage() {
   const handleSubmit = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      await login(values.username, values.password);
-      message.success("登录成功");
+      const result = await login(values.username, values.password);
+      if (result?.passwordMustChange) {
+        message.warning("请先修改默认密码后再使用");
+      } else {
+        message.success("登录成功");
+      }
       navigate("/", { replace: true });
     } catch (e) {
       handleApiError(e, "登录失败");

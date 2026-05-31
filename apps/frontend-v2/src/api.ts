@@ -847,7 +847,7 @@ export class Api {
     });
   }
 
-  getMe(): Promise<{ user: AuthUser }> {
+  getMe(): Promise<{ user: AuthUser; passwordMustChange?: boolean }> {
     return this.req("/api/auth/me");
   }
 
@@ -1201,6 +1201,7 @@ export interface AuthUser {
 export interface LoginResult {
   token: string;
   user: AuthUser;
+  passwordMustChange?: boolean;
 }
 
 export interface OpLogEntry {

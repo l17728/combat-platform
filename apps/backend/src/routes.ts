@@ -8,6 +8,7 @@ import { syncConflicts, syncConflictsForOne } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { verifyAuth } from "./auth.js";
+import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
 
 /**
  * 节点保存后异步触发后台扫描任务（fire-and-forget）。
@@ -90,78 +91,6 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry, ticketI
   });
 }
 
-// 私密攻关单访问判定:成员(姓名)/创建人(用户名)/私密授权人(姓名)/私密授权组(经邮件→人员)。
-// 仅当 attackTicket.私密 === '是' 时调用。
-async function canAccessPrivateAttackTicket(
-  repo: Repository,
-  node: { properties: Record<string, unknown> },
-  user: { username?: string; displayName?: string }
-): Promise<boolean> {
-  const p = node.properties as Record<string, unknown>;
-  const username = user.username || "";
-  const displayName = user.displayName || "";
-  // 创建人 (存的是 username)
-  if (String(p["创建人"] ?? "") === username && username) return true;
-  // 成员列表 (姓名)
-  const memberRaw = p["成员列表"];
-  if (typeof memberRaw === "string" && memberRaw.trim()) {
-    try {
-      const arr = JSON.parse(memberRaw);
-      if (Array.isArray(arr)) {
-        for (const m of arr) {
-          const n = String(m?.["姓名"] ?? "").trim();
-          if (n && (n === displayName || n === username)) return true;
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  // 私密授权人 (姓名数组,JSON)
-  const authRaw = p["私密授权人"];
-  if (typeof authRaw === "string" && authRaw.trim()) {
-    try {
-      const arr = JSON.parse(authRaw);
-      if (Array.isArray(arr)) {
-        for (const n of arr) {
-          const s = String(n).trim();
-          if (s && (s === displayName || s === username)) return true;
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  // 私密授权组 (组名数组,JSON):展开为邮箱 → 人员姓名 → 比对 displayName/username
-  const groupRaw = p["私密授权组"];
-  if (typeof groupRaw === "string" && groupRaw.trim()) {
-    try {
-      const groups = JSON.parse(groupRaw);
-      if (Array.isArray(groups) && groups.length > 0) {
-        for (const groupName of groups) {
-          // v2.2 P1 §2: SQL 下推 emailGroup.组名 + person.邮箱 等值查找,走 json_extract 索引
-          const gNodes = await repo.queryNodesByProperty("emailGroup", "组名", String(groupName));
-          for (const g of gNodes) {
-            const emails = String(g.properties?.["成员邮箱"] ?? "")
-              .split(/[,，;；]/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            for (const email of emails) {
-              const persons = await repo.queryNodesByProperty("person", "邮箱", email);
-              for (const person of persons) {
-                const n = String(person.properties?.["姓名"] ?? "").trim();
-                if (n && (n === displayName || n === username)) return true;
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  return false;
-}
 
 // §50: gate 贡献等级 标定 to privileged roles. P0-3 修复:role 必须从 JWT payload 取,
 // 严禁信任客户端可控的 X-Role 头(localStorage 写入,curl 可任意伪造)。
@@ -179,6 +108,15 @@ function gradeGate(req: { headers: Record<string, unknown>; body: unknown }, nod
   if (!payload) return "未登录或 token 已过期";
   if (PRIVILEGED_ROLES.includes(payload.role as Role)) return null;
   return "仅 Leader 可标定贡献等级";
+}
+
+// P1 audit actor 强制取自 req.user:任何调用 repo 写操作的 actor 实参,
+// 必须经此 helper 取值 — 不再硬编码 "api" 字符串(那是任传字符串伪造来源)。
+// 仅 CLI / 内部测试 / COMBAT_NO_AUTH bypass 链路没有 req.user → 回退到 fallback。
+// 用 unknown 入参 + 内部断言:Express Request 类型不含 user (中间件 (req as any).user 注入),
+// 避免到处再写一遍类型断言;helper 内部一次 cast 即可。
+export function actorOf(req: unknown, fallback = "api"): string {
+  return (req as { user?: { username?: string } })?.user?.username || fallback;
 }
 
 export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
@@ -203,13 +141,16 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     try {
       const s = registry.applyFieldOp(nodeType, req.body);
-      await repo.logAudit({
-        action: `SCHEMA_${req.body?.op}`,
-        entityType: "schema",
-        entityId: nodeType,
-        changes: req.body,
-        actor: "api",
-      });
+      await repo.logAudit(
+        {
+          action: `SCHEMA_${req.body?.op}`,
+          entityType: "schema",
+          entityId: nodeType,
+          changes: req.body,
+          actor: actorOf(req),
+        },
+        req as unknown as { user?: { username?: string } }
+      );
       log.info("schema.fieldOp", { nodeType, op: req.body?.op });
       res.json(s);
     } catch (e) {
@@ -225,7 +166,14 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       // string property values, so collapse each param to its first scalar value.
       const filter: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.query)) filter[k] = Array.isArray(v) ? String(v[0]) : String(v);
-      return res.json(await repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
+      const nodes = await repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined);
+      // 私密攻关单全集过滤 (P1):list 也走与单条 GET 相同的访问控制,
+      // 防止越权用户从列表里看到 私密=是 的标题/状态/创建人等元信息。
+      if (nodeType === "attackTicket") {
+        const reqUser = (req as any).user as { username?: string; displayName?: string } | undefined;
+        return res.json(await filterAccessibleTickets(repo, nodes, reqUser));
+      }
+      return res.json(nodes);
     }
     const single = await repo.getNode(nodeType);
     if (!single) return res.status(404).json({ error: "not found" });
@@ -251,8 +199,9 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const node = await repo.createNode(nodeType, req.body, "api");
-    log.info("node.create", { nodeType, id: node.id });
+    const actor = actorOf(req);
+    const node = await repo.createNode(nodeType, req.body, actor);
+    log.info("node.create", { nodeType, id: node.id, actor });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
@@ -260,11 +209,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         const target =
           tickets.find((t) => String(t.properties["攻关单号"] ?? "") === ref) ??
           tickets.find((t) => String(t.properties["标题"] ?? "") === ref);
-        if (target) await repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
+        if (target) await repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, actor);
       }
     }
-    await syncRefEdges(repo, registry, node, req.body, "api");
-    await syncAnchorEdges(repo, registry, node, req.body, "api");
+    await syncRefEdges(repo, registry, node, req.body, actor);
+    await syncAnchorEdges(repo, registry, node, req.body, actor);
     if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, node.id);
     res.status(201).json(node);
   });
@@ -278,10 +227,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const updated = await repo.updateNode(req.params.id, req.body, "api");
-    log.info("node.update", { id: req.params.id, nodeType: cur.nodeType });
-    await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
-    await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    const actor = actorOf(req);
+    const updated = await repo.updateNode(req.params.id, req.body, actor);
+    log.info("node.update", { id: req.params.id, nodeType: cur.nodeType, actor });
+    await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
+    await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, req.params.id);
     res.json(updated);
   });
@@ -299,16 +249,18 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         return res.status(403).json({ error: "仅创建人可删除该攻关单" });
       }
     }
-    await repo.deleteNode(req.params.id, "api");
-    log.info("node.delete", { id: req.params.id });
+    const actor = actorOf(req);
+    await repo.deleteNode(req.params.id, actor);
+    log.info("node.delete", { id: req.params.id, actor });
     res.json({ ok: true });
   });
 
   r.get("/nodes/:id/progress", async (req, res) => res.json(await repo.listProgress(req.params.id)));
   r.post("/nodes/:id/progress", async (req, res) => {
-    const { content, statusSnapshot, actor } = req.body;
+    const { content, statusSnapshot } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
-    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
+    // body.actor 不再被信任(P1 防伪造);req.user 缺失才退回 "api"
+    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req)));
   });
 
   // §41: atomic state transition — update 状态 + append a status-snapshotted
@@ -325,10 +277,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (!toStatus || !allowed.includes(toStatus))
       return res.status(400).json({ error: `非法目标状态：${toStatus || "(空)"}` });
     const fromStatus = String(node.properties["状态"] ?? "");
-    const updated = await repo.updateNode(node.id, { 状态: toStatus }, "api");
+    const actor = actorOf(req);
+    const updated = await repo.updateNode(node.id, { 状态: toStatus }, actor);
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
-    const progress = await repo.appendProgress(node.id, content, toStatus, "api");
-    log.info("node.transition", { id: node.id, toStatus });
+    const progress = await repo.appendProgress(node.id, content, toStatus, actor);
+    log.info("node.transition", { id: node.id, toStatus, actor });
     triggerPostSaveJobs(repo, registry, node.id);
     res.json({ node: updated, progress });
   });
