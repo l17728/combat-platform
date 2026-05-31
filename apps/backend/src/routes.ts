@@ -4,7 +4,7 @@ import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
-import { syncConflicts } from "./conflicts.js";
+import { syncConflicts, syncConflictsForOne } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { verifyAuth } from "./auth.js";
@@ -14,28 +14,49 @@ import { verifyAuth } from "./auth.js";
  * 仅对 attackTicket 变更调用，不阻塞 API 响应，失败只写日志。
  * scanAndCreateReminders 同时需要 registry，一并触发。
  *
- * conflicts 走 30s 防抖:全量重建 O(N + k²) 且每条边写 audit_log,连续 10 次保存
- * = 10 次全量重建 = 数万次 INSERT。debounce 把窗口内多次保存合并成 1 次扫描,
- * audit 写放大降低 10-100×。escalation/reminders 仍走 setImmediate(开销小)。
+ * v2.2 P1 §3: conflicts 走 30s 防抖 + 增量算法。
+ * - 窗口内同一 ticket 多次保存合并成 1 次 syncConflictsForOne(只重算这单一个 ticket)
+ * - 多 ticket 累积:每个 ticket 各跑 1 次 syncConflictsForOne
+ * - 兜底:>50 ticket 窗口内变更则降级到全量 syncConflicts(避免逐个增量也变 O(N²))
+ *
+ * 这把单 ticket 保存的 audit 写从 ~Σk²(全量) 降到 ~k(单 ticket 同组大小),
+ * N 次保存窗口内合并的写放大降低 10-100×。escalation/reminders 仍走 setImmediate(开销小)。
  */
 const CONFLICTS_DEBOUNCE_MS = 30_000;
+const CONFLICTS_FULL_RESCAN_THRESHOLD = 50;
 let conflictsDebounceTimer: NodeJS.Timeout | null = null;
 let conflictsDebounceRepo: Repository | null = null;
+const conflictsDebounceTicketIds = new Set<string>();
 
-function scheduleConflictsSync(repo: Repository): void {
+async function runDebouncedConflicts(): Promise<void> {
+  const r = conflictsDebounceRepo;
+  const ids = Array.from(conflictsDebounceTicketIds);
+  conflictsDebounceTicketIds.clear();
+  conflictsDebounceRepo = null;
+  if (!r) return;
+  try {
+    if (ids.length === 0 || ids.length > CONFLICTS_FULL_RESCAN_THRESHOLD) {
+      // 兜底全量:无 id 信息或变更面太广(>50),走全量比逐个增量更便宜
+      await syncConflicts(r);
+      log.info("post_save.conflicts.debounced_full", { ticketCount: ids.length });
+    } else {
+      for (const id of ids) {
+        await syncConflictsForOne(r, id);
+      }
+      log.info("post_save.conflicts.debounced_incremental", { ticketCount: ids.length });
+    }
+  } catch (e) {
+    log.warn("post_save.conflicts.fail", { error: (e as Error).message });
+  }
+}
+
+function scheduleConflictsSync(repo: Repository, ticketId?: string): void {
   conflictsDebounceRepo = repo;
+  if (ticketId) conflictsDebounceTicketIds.add(ticketId);
   if (conflictsDebounceTimer) clearTimeout(conflictsDebounceTimer);
   conflictsDebounceTimer = setTimeout(async () => {
     conflictsDebounceTimer = null;
-    const r = conflictsDebounceRepo;
-    conflictsDebounceRepo = null;
-    if (!r) return;
-    try {
-      await syncConflicts(r);
-      log.info("post_save.conflicts.debounced_run");
-    } catch (e) {
-      log.warn("post_save.conflicts.fail", { error: (e as Error).message });
-    }
+    await runDebouncedConflicts();
   }, CONFLICTS_DEBOUNCE_MS);
   conflictsDebounceTimer.unref?.();
 }
@@ -45,24 +66,16 @@ export async function __flushConflictsDebounceForTest(): Promise<void> {
   if (conflictsDebounceTimer) {
     clearTimeout(conflictsDebounceTimer);
     conflictsDebounceTimer = null;
-    const r = conflictsDebounceRepo;
-    conflictsDebounceRepo = null;
-    if (r) {
-      try {
-        await syncConflicts(r);
-      } catch {
-        /* swallow */
-      }
-    }
+    await runDebouncedConflicts();
   }
 }
 
-function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
+function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry, ticketId?: string): void {
   // Skip in test environment to avoid interfering with tests that explicitly
   // call scan endpoints (scans are idempotent — auto-trigger would consume the
   // first run, making the explicit test call return 0).
   if (process.env.NODE_ENV === "test") return;
-  scheduleConflictsSync(repo);
+  scheduleConflictsSync(repo, ticketId);
   setImmediate(async () => {
     try {
       await scanEscalation(repo);
@@ -252,7 +265,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     await syncRefEdges(repo, registry, node, req.body, "api");
     await syncAnchorEdges(repo, registry, node, req.body, "api");
-    if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
+    if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, node.id);
     res.status(201).json(node);
   });
 
@@ -269,7 +282,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     log.info("node.update", { id: req.params.id, nodeType: cur.nodeType });
     await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
     await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
-    if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
+    if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, req.params.id);
     res.json(updated);
   });
 
@@ -316,7 +329,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
     const progress = await repo.appendProgress(node.id, content, toStatus, "api");
     log.info("node.transition", { id: node.id, toStatus });
-    triggerPostSaveJobs(repo, registry);
+    triggerPostSaveJobs(repo, registry, node.id);
     res.json({ node: updated, progress });
   });
 
