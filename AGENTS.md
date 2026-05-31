@@ -68,39 +68,48 @@ claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"  
 - 并行化指令优先级最高——"能并行的任务一定要并行处理，使用多个agent"
 - Claude CLI 执行的任务可以和 opencode 的 Task subagent 并行运行，互不阻塞
 
-### 8. Local-First Development & Testing (本机先行，现网后行)
+### 8. Remote-First Development & Testing (远程优先，开发测试部署一体化)
 
-**所有开发和测试必须先在本机完成，确认无误后再部署到现网。** 绝不能跳过本机验证直接部署到生产环境。
+**所有开发、测试和部署均在远程服务器 `/fighting` 上完成。** SSH 登录 → opencode/claude 开发 → 测试 → 同机部署。
 
 **标准流程（严格顺序）**：
 
-1. **本机开发** — 编写代码 + 对应测试
-2. **本机后端测试** — `npm run test:backend` 全部通过
-3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
-4. **本机冒烟验证** — `npm run dev:backend` + `npm run dev:frontend-v2`，Playwright 脚本模拟真实用户操作（登录→浏览→创建→编辑→删除），确认功能正常
+1. **开发** — 在 `/fighting` 编写代码 + 对应测试
+2. **后端测试** — `./dev-test.sh` 或 `npm run test:backend` 全部通过
+3. **E2E 测试** — `./dev-e2e.sh` 或 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
+4. **冒烟验证** — `./dev-with-snapshot.sh` + `./dev-frontend.sh`，Playwright 脚本模拟真实用户操作（登录→浏览→创建→编辑→删除），确认功能正常
 5. **git commit** — 所有改动必须先提交
-6. **部署到现网** — `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+6. **部署到现网** — `./dev-deploy.sh`（同机 rsync `/fighting` → `/opt/combat-v2` → systemctl restart）
 7. **现网验证** — Playwright 跑现网 `http://124.156.193.122:3001/`，确认部署后功能正常
 8. **关闭 issue** — 更新问题反馈状态为"已关闭"
 
-**本机冒烟验证脚本示例**：
+**6 个一键脚本**（放在 `/fighting/` 根目录）：
 
-```javascript
-// 用 Playwright 在本机 localhost:5174 跑冒烟测试
-const { chromium } = require("playwright");
-// 登录 → 仪表盘 → 攻关列表 → 人员列表 → 导出 → 关闭
-```
+| 脚本 | 用途 | DB 路径 | 端口 |
+|---|---|---|---|
+| `./dev.sh` | 启 dev backend(空 db) | `/fighting/data/dev-combat.sqlite` | 3500 |
+| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend | 同上(覆盖为生产快照) | 3500 |
+| `./dev-frontend.sh` | 启 vite dev(proxy `/api` → :3500) | — | 5174 |
+| `./dev-test.sh` | 跑 vitest backend(in-memory db) | 临时 | — |
+| `./dev-e2e.sh` | 跑 Playwright(自启 webServer) | 临时 | — |
+| `./dev-deploy.sh` | 同机部署到生产(rsync + systemctl restart) | — | — |
 
-**原则**：
+**DB 隔离矩阵（铁律）**：
 
-- 本机是第一道防线，现网是最终确认
-- 现网验证不要删除原有数据，测试数据测试后清理
-- 部署后如果发现问题，先在本机复现，修复后再重新走流程
-- 现网问题反馈读取后，在本机环境复现和修复，不要直接在现网调试
+| | 生产 db | dev 副本 | 测试 db |
+|---|---|---|---|
+| 路径 | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite` | tmpdir/in-memory |
+| 谁写 | 生产 systemd combat-v2.service | `./dev.sh` / `./dev-with-snapshot.sh` | vitest |
+| 互相影响 | ❌ 完全独立 | ❌ 完全独立 | ❌ 完全独立 |
+
+**端口约定**：
+- `:3001` — 生产 backend(`/opt/combat-v2/`,systemd) — **绝不动**
+- `:3500` — `/fighting` dev backend
+- `:5174` — `/fighting` dev frontend(vite)
 
 ### 8.1 Deploy After Green
 
-**After every milestone reaches all-green (`npm run test:all` fully passing), deploy to the test server** so the user can manually verify. Deploy credentials are in `.env.deploy` (gitignored) — **never hardcode server passwords in any committed file**.
+**After every milestone reaches all-green (`npm run test:all` fully passing), deploy using `./dev-deploy.sh`.** The user does hands-on testing on `http://124.156.193.122:3001` each cycle.
 
 ### 9. Domain Language: Chinese Only
 
@@ -175,36 +184,38 @@ Do NOT create or modify any files under `apps/frontend/`.
 
 ### Production Server (生产环境 — 唯一部署目标)
 
-- **服务器**: `124.156.193.122`（直连 SSH，用户 `root`，密码见 `.env.deploy`）
+- **服务器**: `124.156.193.122`（同机开发+部署）
+- **开发目录**: `/fighting/`（完整 git 工作树，与生产隔离）
 - **部署路径**: `/opt/combat-v2/`
 - **访问地址**: `http://124.156.193.122:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
 - **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
-- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+- **部署脚本**: `./dev-deploy.sh`（同机 rsync，无需 SSH/密码）
 - **默认登录**: `admin` / `admin123`
 
-> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
-
-#### 部署命令（从 repo 根目录执行）
+#### 部署命令（在 /fighting 目录执行）
 
 ```bash
-# 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
-git add -A && git commit -m "your message"
+# 全流程：测试 → build → 备份 DB → rsync → systemctl restart → verify
+./dev-deploy.sh
 
-# 安装部署脚本依赖（仅首次）
-cd scripts/deploy-v2 && npm install && cd ../..
+# 跳过测试（紧急部署）
+./dev-deploy.sh --skip-test
 
-# 一键部署（直连 SSH → 目标机）
-cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
+# 仅 rsync + restart（小改动）
+./dev-deploy.sh --skip-test --skip-build
+
+# 预览不真执行
+./dev-deploy.sh --dry-run
 
 # 查看日志
-ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
+tail -f /opt/combat-v2/backend.log
 ```
 
-#### 部署架构（2026-05-28 更新）
+#### 部署架构（2026-06-01 更新）
 
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
-- **直连部署**：`deploy-direct.mjs` 直连 SSH 到 124.156.193.122，无需跳板机
+- **同机部署**：`dev-deploy.sh` rsync `/fighting/` → `/opt/combat-v2/`，不需要 SSH
 
 #### 日志体系与文件路径
 
@@ -302,6 +313,12 @@ scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 | Migrate import | `scripts/migrate/import.mjs`          | `node scripts/migrate/import.mjs [--api URL] [--dir DIR] [--dryRun]` — imports xlsx files via upsert                                                                                                            |
 | Deploy v2      | `scripts/deploy-v2/deploy.mjs`        | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline (跳板机→目标机)                                                                                                 |
 | Deploy direct  | `scripts/deploy-v2/deploy-direct.mjs` | `cd scripts/deploy-v2 && node deploy-direct.mjs <host> <user> <pass>` — direct SSH deploy (e.g. 124.156.193.122)                                                                                                |
+| Dev backend    | `dev.sh`                              | `./dev.sh` — 启 dev backend(空 db) :3500                                                                                                                                                                        |
+| Dev snapshot   | `dev-with-snapshot.sh`                | `./dev-with-snapshot.sh` — 拷生产 db 快照后启 dev backend :3500                                                                                                                                                 |
+| Dev frontend   | `dev-frontend.sh`                     | `./dev-frontend.sh` — 启 vite dev :5174(proxy /api → :3500)                                                                                                                                                     |
+| Dev test       | `dev-test.sh`                         | `./dev-test.sh` — 跑 vitest backend(in-memory db)                                                                                                                                                                |
+| Dev e2e        | `dev-e2e.sh`                          | `./dev-e2e.sh` — 跑 Playwright(自启 webServer)                                                                                                                                                                   |
+| Dev deploy     | `dev-deploy.sh`                       | `./dev-deploy.sh` — 同机部署 /fighting → /opt/combat-v2(rsync + systemctl restart)                                                                                                                               |
 | Deploy v1      | `scripts/deploy/deploy.mjs`           | Old deployment for reference frontend only                                                                                                                                                                      |
 
 ## Build / Dev / Test Commands
@@ -588,24 +605,27 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 
 测试验证：打开 drawer、填写数据、点击关闭按钮（`.ant-drawer-close`）不会创建任何数据。这是回归防护测试之一。
 
-## Deploy Infrastructure (2026-05-28 更新)
+## Deploy Infrastructure (2026-06-01 更新)
 
-### 直连部署（当前方式）
+### 同机部署（当前方式 — 远程优先）
 
-- **生产服务器**: `124.156.193.122`（直连 SSH，无需跳板机）
-- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+- **开发+部署同机**: `124.156.193.122`
+- **开发目录**: `/fighting/`（完整 git 工作树）
+- **部署脚本**: `./dev-deploy.sh`（同机 rsync，无需 SSH/密码）
 - **Node 版本**: v22.22.3（通过 nvm 管理）
 - **systemd 服务**: `combat-v2.service`，自动重启，开机自启
-
-> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 ### 部署流程
 
 ```bash
-cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
+cd /fighting
+./dev-deploy.sh                  # 全流程: test → build → backup → rsync → restart
+./dev-deploy.sh --skip-test      # 跳过测试
+./dev-deploy.sh --dry-run        # 预览
 ```
 
-- 从 git HEAD 打包 → 直连 SFTP 到生产机 → tar 解压 → npm install → build frontend-v2 → systemctl restart combat-v2
+- rsync `/fighting/` → `/opt/combat-v2/`（排除 node_modules/.git/dev 脚本等）
+- 在 `/opt/combat-v2/` 运行 `npm install` → `systemctl restart combat-v2` → 健康检查
 - 前端 build 产物在 `apps/frontend-v2/dist/`，由后端 Express 静态服务
 
 ## 前端设计规范（Frontend-v2 Design System）
@@ -1298,7 +1318,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 2. **分析 & 分类** — bug 立即修，功能需求记录为 feature request
 3. **修复代码** — TDD：先写/改测试 → 改代码 → 确认测试通过
 4. **测试验证** — `npm run test:all` 或至少 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter line` + `npm run test:backend`
-5. **部署** — `git add -A && git commit -m "fix: ..."` → `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+5. **部署** — `git add -A && git commit -m "fix: ..."` → `./dev-deploy.sh`
 6. **关闭问题** — 部署验证后，逐条 PATCH 对应 bug report 状态为"已关闭"：
    ```bash
     curl -s -X PATCH http://124.156.193.122:3001/api/bug-reports/<id> \
