@@ -339,28 +339,34 @@ export class SqliteRepository implements Repository {
   }
 
   async appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): Promise<ProgressLog> {
-    let p!: ProgressLog;
+    /* v2.2 P1 §6: 原子 seqNo —— 用单条 INSERT...SELECT COALESCE(MAX(seqNo),0)+1 取代
+       `SELECT MAX+1 然后 INSERT`,后者在事务里 SQLite 同步下虽安全,但 PG/异步驱动下是
+       经典 read-modify-write 竞态。SQLite 和 Postgres 都支持 INSERT...SELECT 形式。
+       SELECT 在 INSERT 内可读到同事务上下文 — 用 WHERE "ownerId" = ? 圈定计数范围,
+       MAX 取的是已提交 + 本事务可见行的最大 seqNo。 */
+    const id = randomUUID();
+    const updatedAt = new Date().toISOString();
+    let seqNo = 0;
     await this.adapter.transaction(async (tx) => {
-      const max = await tx.queryOne<{ m: number | null }>(
-        `SELECT MAX("seqNo") as m FROM progress_log WHERE "ownerId" = ?`,
-        [ownerId]
-      );
-      p = {
-        id: randomUUID(),
-        ownerId,
-        seqNo: (max?.m ?? 0) + 1,
-        content,
-        statusSnapshot,
-        updatedBy: actor,
-        updatedAt: new Date().toISOString(),
-      };
       await tx.run(
-        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [p.id, ownerId, p.seqNo, content, statusSnapshot, actor, p.updatedAt]
+        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt")
+         SELECT ?, ?, COALESCE(MAX("seqNo"), 0) + 1, ?, ?, ?, ?
+         FROM progress_log WHERE "ownerId" = ?`,
+        [id, ownerId, content, statusSnapshot, actor, updatedAt, ownerId]
       );
-      await this.auditTx(tx, "PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
+      const row = await tx.queryOne<{ seqNo: number }>(`SELECT "seqNo" FROM progress_log WHERE id = ?`, [id]);
+      seqNo = row?.seqNo ?? 1;
+      await this.auditTx(tx, "PROGRESS", "node", ownerId, { seqNo, content }, actor);
     });
-    return p;
+    return {
+      id,
+      ownerId,
+      seqNo,
+      content,
+      statusSnapshot,
+      updatedBy: actor,
+      updatedAt,
+    };
   }
 
   async listProgress(ownerId: string): Promise<ProgressLog[]> {
