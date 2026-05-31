@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
 import { SqliteAdapter } from "../src/db-adapter.js";
@@ -23,12 +23,7 @@ function make() {
     registry: new FileSchemaRegistry(CFG),
   };
 }
-function xlsx(rows: Record<string, unknown>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "S");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-}
+const xlsx = (rows: Record<string, unknown>[]) => xlsxBuffer(rows);
 
 describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
   it("53.1 attackTicket 资源ID/租户ID 落库；导入 故障局点 命中 局点 alias", async () => {
@@ -44,7 +39,7 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     // 导入用 alias 列名 故障局点 → 归一到 局点
     const r = await request(app)
       .post("/api/import?type=attackTicket")
-      .attach("file", xlsx([{ 标题: "导入单", 状态: "进行中", 故障局点: "华东二" }]), "x.xlsx");
+      .attach("file", await xlsx([{ 标题: "导入单", 状态: "进行中", 故障局点: "华东二" }]), "x.xlsx");
     expect(r.status).toBe(200);
     const imported = (await repo.queryNodes("attackTicket")).find((n) => n.properties["标题"] === "导入单")!;
     expect(imported.properties["局点"]).toBe("华东二");

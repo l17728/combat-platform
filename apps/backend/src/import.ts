@@ -1,10 +1,10 @@
 import { Router } from "express";
 import multer from "multer";
-import * as XLSX from "xlsx";
 import type { Repository, SchemaRegistry, NodeSchema, ImportPreview, ImportRowResult, GraphNode } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
+import { readSheetRows } from "./xlsx-util.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -155,10 +155,7 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
     if (!req.file?.buffer) return res.status(400).json({ error: "file 必填（multipart 字段名应为 file）" });
     let rows: Record<string, unknown>[];
     try {
-      const wb = XLSX.read(req.file.buffer, { type: "buffer" });
-      const sheet = wb.SheetNames.length ? wb.Sheets[wb.SheetNames[0]] : undefined;
-      if (!sheet) return res.status(400).json({ error: "Excel 无有效 Sheet" });
-      rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+      rows = await readSheetRows(req.file.buffer);
     } catch (e) {
       log.warn("import.parse_fail", { nodeType, error: (e as Error).message });
       return res.status(400).json({ error: `无法解析 Excel 文件：${(e as Error).message}` });
