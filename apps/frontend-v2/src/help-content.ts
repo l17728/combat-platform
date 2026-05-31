@@ -4,6 +4,47 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.5.0 — 2026-05-31 (旗舰特性:Hermes Tool-using Agent + 14 通用工具)
+
+本版把 Hermes 从「intent 路由器」升级为「Tool-using Agent」——LLM 自己看 schema 选工具,不再硬编码 intent 正则。v2.4 现网"有多少员工"这类问题(intent 命不中 → fallback-search 空)v2.5 直接命中 \`count_nodes\` 返回精确答案。
+
+### 四桶整合
+
+**① 通用工具集** (\`apps/backend/src/hermes-tools.ts\`,1033 行)
+- **14 个只读工具**: list_node_types / describe_node_type / count_nodes / query_nodes / get_node / search_text / traverse_graph / get_progress / get_audit / aggregate / dashboard_metric / recommend_helpers / ticket_tabs / welink_*
+- **统一 filter DSL**: 支持 \`eq/ne/gt/gte/lt/lte/in/like\` + 简写等值;key 正则 \`/^[A-Za-z0-9_一-鿿]+$/\` 兼容中文拒注入;所有 SQL 参数化
+- **私单收口**: attackTicket 类工具全部经 \`filterAccessibleTickets\`;用户 A 私单对用户 B 不可见
+- **32KB 出参截断**: 数组二分截尾,对象置错;\`_truncated:true\` 透传给 LLM 提示翻页
+- **写工具默认禁用**: \`HERMES_ENABLE_WRITE=1\` 扩展点
+- HTTP: \`GET /api/hermes/tools\` + \`POST /api/hermes/tool/:name\`;CLI: \`hermes:tools\` / \`hermes:tool\`
+
+**② Tool-using Agent** (\`apps/backend/src/hermes-agent.ts\` 改造)
+- OpenAI-compatible tool-calling 协议;LLM 看 \`TOOL_SCHEMAS\` 自决调用
+- 多轮编排: 默认 \`MAX_TOOL_HOPS=6\`;单工具出参 \`TOOL_RESULT_MAX_BYTES=32KB\`;累积 \`CONTEXT_MAX_BYTES=80KB\` 触发上下文折叠(早期 tool result 压缩成 summary)
+- 三模式: \`HERMES_MODE=auto|tool|intent\`,\`auto\` 短问题(<30 字符 + 命中 intent 正则)走 intent 快路径,其余走 tool
+- 失败 fallback: tool 超 hop/超时/LLM 错 → 自动回退到 intent 路由,trace 标 \`fallback_reason\`
+
+**③ 前端 trace UI** (\`apps/frontend-v2/src/components/ToolTrace.tsx\`)
+- 答复气泡内可展开「🔧 工具调用 (N 步,共 Xms)」时间线
+- 每步显示工具名 + 入参 size + 出参 size (\`_truncated\` 橙色徽标) + 耗时(按阈值分级染色)
+- \`engine\` badge: 蓝色"工具调用" / 灰色"规则路由";\`fallback_reason\` 黄色 Alert
+- 优雅降级: 旧 response 无 trace 时完全不渲染,与 v2.4.1 行为一致
+
+**④ 文档 + 评测**
+- \`docs/HERMES_TOOLS.md\` 完整文档
+- 15 题 golden set e2e 评测,门槛 12/15
+
+### 测试
+
+- Backend **649/649** 通过(90 文件 = v2.4 baseline 575 + tools 57 + agent 17)
+- Shared **28/28** 通过
+- Frontend trace UI e2e **4/4** + 抖动回归 **1/1** 通过
+- Frontend tsc 0 错
+
+### 经验沉淀
+
+> 把硬编码 intent 升级为通用工具集后,新需求(新报表、新指标、新过滤)不再要求"加一个 endpoint + 加一个 intent 正则";LLM 自己组合工具回答。代价是延迟变高(多轮 LLM + 工具往返),所以 \`auto\` 模式保留 intent 快路径处理高频简单问句。这是 v2.6+ Agent 能力进一步扩张的基座(memory / planner / reflection)。
+
 ## v2.4.1 — 2026-05-31 (Hot-fix)
 
 线上紧急修复,仅含两条修补,无新特性。
