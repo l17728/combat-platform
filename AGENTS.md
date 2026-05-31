@@ -879,6 +879,25 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-05-31 v2.6.0 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
+
+**v2.6.0 = v2.5.0 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**
+
+- 后端 vitest **715/715 全绿**(96 文件)
+- shared vitest **28/28 全绿**
+- 前端 tsc 0 错
+- 前端 e2e: LLM settings 4 + breadcrumb 6 + notifications 3 + schema-driven-detail 2 + schema-wizard-group 2 + 回归全绿
+- **现网 LLM 端到端 golden set 真跑**: **14/15 通过**(门槛 12/15) — model=`glm-4-flash`(智谱免费层 OpenAI 兼容),"有多少员工" → tool=count_nodes → answer="共有22名员工",平均 1-4s/题
+- 现网部署 `124.156.193.122:3001` active running、`977c543` 落地
+- systemd drop-in `hermes-llm.conf` 注入: `HERMES_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4`(智谱) + `HERMES_LLM_API_KEY`(zhipu key) + `HERMES_MODEL=glm-4-flash` + `HERMES_THINKING=disabled`;旧 hermes.conf / hermes-mode.conf 已删
+- 文档:help-content 顶部追加 v2.6.0 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
+- Playwright 现网截图 `test-results/v2.6-trace.png` 留档
+
+**关键教训(v2.6 → v2.7)**:
+1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.4 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.6 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
+2. **provider key 的资源限额是隐式的** — zhipuai-coding-plan key 在 zhipu OpenAI 兼容 endpoint 上可访问 glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1 但都需余额(1113);唯独 `glm-4-flash` / `glm-4-flash-250414` 免费层可用。线上选 model 一定要先用 `GET /api/paas/v4/models` 列表 + 小请求实测,避免上线后 401/1113 才发现
+3. UI 配置后端的"测试连接"endpoint 必须支持 env-fallback(如果 admin 没存 DB 就直接走 env 实测);当前 router 仅看 body + DB,部分场景误报"缺 baseUrl"
+
 ### 当前测试状态(2026-05-31 v2.4.1 hot-fix — React #310 + AI 抖动)
 
 **v2.4.1 = v2.4.0(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
