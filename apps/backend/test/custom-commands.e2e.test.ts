@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cc-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cc-")), "t.sqlite")))
+  );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
@@ -20,7 +22,10 @@ describe("增量39 自定义命令（§54）", () => {
   it("创建抽取参数 + 列表", async () => {
     const { app } = make();
     const c = await request(app).post("/api/commands").send({
-      name: "查进行中攻关单", description: "按状态过滤", template: "nodes:list attackTicket --状态 {状态}" });
+      name: "查进行中攻关单",
+      description: "按状态过滤",
+      template: "nodes:list attackTicket --状态 {状态}",
+    });
     expect(c.status).toBe(201);
     expect(c.body.params).toEqual(["状态"]);
     expect(c.body.id).toBeTruthy();
@@ -31,8 +36,12 @@ describe("增量39 自定义命令（§54）", () => {
 
   it("参数去重保序；多参数模板", async () => {
     const { app } = make();
-    const c = (await request(app).post("/api/commands").send({
-      name: "发邮件", template: "email:send --persons {收件人} --subject {主题} --body {内容}" })).body;
+    const c = (
+      await request(app).post("/api/commands").send({
+        name: "发邮件",
+        template: "email:send --persons {收件人} --subject {主题} --body {内容}",
+      })
+    ).body;
     expect(c.params).toEqual(["收件人", "主题", "内容"]);
   });
 
@@ -40,16 +49,24 @@ describe("增量39 自定义命令（§54）", () => {
     const { app } = make();
     expect((await request(app).post("/api/commands").send({ template: "nodes:list x" })).status).toBe(400);
     expect((await request(app).post("/api/commands").send({ name: "n" })).status).toBe(400);
-    expect((await request(app).post("/api/commands").send({ name: "n", template: "bogus:cmd --x 1" })).status).toBe(400);
+    expect((await request(app).post("/api/commands").send({ name: "n", template: "bogus:cmd --x 1" })).status).toBe(
+      400
+    );
   });
 
   it("run 解析为正确的 request；缺参 → 400", async () => {
     const { app } = make();
-    const c = (await request(app).post("/api/commands").send({
-      name: "查单", template: "nodes:list attackTicket --状态 {状态}" })).body;
+    const c = (
+      await request(app).post("/api/commands").send({
+        name: "查单",
+        template: "nodes:list attackTicket --状态 {状态}",
+      })
+    ).body;
     const miss = await request(app).post(`/api/commands/${c.id}/run`).send({ args: {} });
     expect(miss.status).toBe(400);
-    const r = await request(app).post(`/api/commands/${c.id}/run`).send({ args: { 状态: "进行中" } });
+    const r = await request(app)
+      .post(`/api/commands/${c.id}/run`)
+      .send({ args: { 状态: "进行中" } });
     expect(r.status).toBe(200);
     expect(r.body.resolved).toBe("nodes:list attackTicket --状态 进行中");
     expect(r.body.request.method).toBe("GET");
@@ -58,9 +75,15 @@ describe("增量39 自定义命令（§54）", () => {
 
   it("run 解析 POST body 类命令（email:send）", async () => {
     const { app } = make();
-    const c = (await request(app).post("/api/commands").send({
-      name: "发邮件", template: "email:send --persons {人} --subject {标题} --body {正文}" })).body;
-    const r = await request(app).post(`/api/commands/${c.id}/run`).send({ args: { 人: "张三", 标题: "S", 正文: "B" } });
+    const c = (
+      await request(app).post("/api/commands").send({
+        name: "发邮件",
+        template: "email:send --persons {人} --subject {标题} --body {正文}",
+      })
+    ).body;
+    const r = await request(app)
+      .post(`/api/commands/${c.id}/run`)
+      .send({ args: { 人: "张三", 标题: "S", 正文: "B" } });
     expect(r.status).toBe(200);
     expect(r.body.request.method).toBe("POST");
     expect(r.body.request.path).toBe("/api/email/send");

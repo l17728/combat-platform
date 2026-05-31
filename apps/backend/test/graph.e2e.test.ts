@@ -31,11 +31,19 @@ describe("§38 KG 图形快照 e2e", () => {
   it("depth=2 BFS 含 REF + ANCHORED_TO + 跨锚点对端", async () => {
     const { app } = await makeApp();
     const PB = "PB-GR-" + Date.now();
-    const A = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "图根", 状态: "进行中", 当前处理人: "甲", 问题单号: PB,
-    })).body;
+    const A = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "图根",
+        状态: "进行中",
+        当前处理人: "甲",
+        问题单号: PB,
+      })
+    ).body;
     await request(app).post("/api/nodes/attackTicket").send({
-      标题: "图邻", 状态: "进行中", 当前处理人: "乙", 问题单号: PB,
+      标题: "图邻",
+      状态: "进行中",
+      当前处理人: "乙",
+      问题单号: PB,
     });
     const r = await request(app).get(`/api/graph/snapshot/attackTicket/${A.id}?depth=2`);
     expect(r.status).toBe(200);

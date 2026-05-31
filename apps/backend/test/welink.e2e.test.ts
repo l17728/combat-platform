@@ -13,24 +13,28 @@ describe("welink messages e2e", () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
 
-    const r1 = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "m1", sentAt: "2026-05-29T10:00:00Z", author: "张三", content: "你好" },
-        { messageId: "m2", sentAt: "2026-05-29T10:01:00Z", author: "李四", content: "在吗" },
-        { messageId: "m3", sentAt: "2026-05-29T10:02:00Z", author: "王五", content: "OOM 现象" },
-      ],
-    });
+    const r1 = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "m1", sentAt: "2026-05-29T10:00:00Z", author: "张三", content: "你好" },
+          { messageId: "m2", sentAt: "2026-05-29T10:01:00Z", author: "李四", content: "在吗" },
+          { messageId: "m3", sentAt: "2026-05-29T10:02:00Z", author: "王五", content: "OOM 现象" },
+        ],
+      });
     expect(r1.status).toBe(200);
     expect(r1.body.inserted).toBe(3);
     expect(r1.body.updated).toBe(0);
 
     // 再上传:覆盖式 — m1 内容变化、m4 新增
-    const r2 = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "m1", sentAt: "2026-05-29T10:00:00Z", author: "张三", content: "你好(已修改)" },
-        { messageId: "m4", sentAt: "2026-05-29T10:03:00Z", author: "赵六", content: "我来看" },
-      ],
-    });
+    const r2 = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "m1", sentAt: "2026-05-29T10:00:00Z", author: "张三", content: "你好(已修改)" },
+          { messageId: "m4", sentAt: "2026-05-29T10:03:00Z", author: "赵六", content: "我来看" },
+        ],
+      });
     expect(r2.body.inserted).toBe(1);
     expect(r2.body.updated).toBe(1);
 
@@ -47,13 +51,15 @@ describe("welink messages e2e", () => {
   it("supports author / since / until / keyword filters", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "a1", sentAt: "2026-05-29T08:00:00Z", author: "张三", content: "早上好" },
-        { messageId: "a2", sentAt: "2026-05-29T15:00:00Z", author: "张三", content: "OOM 问题排查" },
-        { messageId: "a3", sentAt: "2026-05-29T15:30:00Z", author: "李四", content: "吃饭了吗" },
-      ],
-    });
+    await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "a1", sentAt: "2026-05-29T08:00:00Z", author: "张三", content: "早上好" },
+          { messageId: "a2", sentAt: "2026-05-29T15:00:00Z", author: "张三", content: "OOM 问题排查" },
+          { messageId: "a3", sentAt: "2026-05-29T15:30:00Z", author: "李四", content: "吃饭了吗" },
+        ],
+      });
 
     const byAuthor = await request(app).get(`/api/tickets/${tid}/welink-messages?author=张三`);
     expect(byAuthor.body.messages.length).toBe(2);
@@ -69,13 +75,15 @@ describe("welink messages e2e", () => {
   it("soft-deletes single + batch + excludes from default list but visible with includeDeleted", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    const up = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "x1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-        { messageId: "x2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
-        { messageId: "x3", sentAt: "2026-05-29T10:02:00Z", author: "C", content: "3" },
-      ],
-    });
+    const up = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "x1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
+          { messageId: "x2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
+          { messageId: "x3", sentAt: "2026-05-29T10:02:00Z", author: "C", content: "3" },
+        ],
+      });
     expect(up.status).toBe(200);
 
     const list1 = await request(app).get(`/api/tickets/${tid}/welink-messages`);
@@ -96,7 +104,9 @@ describe("welink messages e2e", () => {
 
     // 批量软删(by id)
     const remainIds = list2.body.messages.map((m: any) => m.id);
-    const delBatch = await request(app).post(`/api/tickets/${tid}/welink-messages/batch-delete`).send({ ids: remainIds });
+    const delBatch = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages/batch-delete`)
+      .send({ ids: remainIds });
     expect(delBatch.status).toBe(200);
     expect(delBatch.body.deleted).toBe(2);
 
@@ -109,12 +119,14 @@ describe("welink messages e2e", () => {
   it("clears ALL physically for a ticket", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "c1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-        { messageId: "c2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
-      ],
-    });
+    await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "c1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
+          { messageId: "c2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
+        ],
+      });
     const clear = await request(app).delete(`/api/tickets/${tid}/welink-messages`);
     expect(clear.status).toBe(200);
     expect(clear.body.deleted).toBe(2);
@@ -126,17 +138,21 @@ describe("welink messages e2e", () => {
   it("toggles selection in batch", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "s1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-        { messageId: "s2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
-        { messageId: "s3", sentAt: "2026-05-29T10:02:00Z", author: "C", content: "3" },
-      ],
-    });
+    await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "s1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
+          { messageId: "s2", sentAt: "2026-05-29T10:01:00Z", author: "B", content: "2" },
+          { messageId: "s3", sentAt: "2026-05-29T10:02:00Z", author: "C", content: "3" },
+        ],
+      });
     const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
     const ids = list.body.messages.map((m: any) => m.id);
 
-    const off = await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: [ids[0], ids[1]], selected: false });
+    const off = await request(app)
+      .patch(`/api/tickets/${tid}/welink-messages/selection`)
+      .send({ ids: [ids[0], ids[1]], selected: false });
     expect(off.status).toBe(200);
     expect(off.body.updated).toBe(2);
     expect(off.body.selected).toBe(false);
@@ -146,7 +162,9 @@ describe("welink messages e2e", () => {
     const s1 = after.body.messages.find((m: any) => m.messageId === "s1");
     expect(s1.selected).toBe(false);
 
-    const back = await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: [ids[0]], selected: true });
+    const back = await request(app)
+      .patch(`/api/tickets/${tid}/welink-messages/selection`)
+      .send({ ids: [ids[0]], selected: true });
     expect(back.body.updated).toBe(1);
     const after2 = await request(app).get(`/api/tickets/${tid}/welink-messages`);
     expect(after2.body.stats.selected).toBe(2);
@@ -155,18 +173,22 @@ describe("welink messages e2e", () => {
   it("analyze endpoint runs heuristic extraction when no agent runner (queued = selected, returns extractions)", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "z1", sentAt: "2026-05-29T10:00:00Z", author: "陈某", content: "OOM 排查开始" },
-        { messageId: "z2", sentAt: "2026-05-29T10:01:00Z", author: "李某", content: "我看下日志" },
-        { messageId: "z3", sentAt: "2026-05-29T10:02:00Z", author: "王某", content: "复现一下" },
-      ],
-    });
+    await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "z1", sentAt: "2026-05-29T10:00:00Z", author: "陈某", content: "OOM 排查开始" },
+          { messageId: "z2", sentAt: "2026-05-29T10:01:00Z", author: "李某", content: "我看下日志" },
+          { messageId: "z3", sentAt: "2026-05-29T10:02:00Z", author: "王某", content: "复现一下" },
+        ],
+      });
     const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
     const ids = list.body.messages.map((m: any) => m.id);
 
     // 取消选中一条
-    await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: [ids[0]], selected: false });
+    await request(app)
+      .patch(`/api/tickets/${tid}/welink-messages/selection`)
+      .send({ ids: [ids[0]], selected: false });
 
     const an = await request(app).post(`/api/tickets/${tid}/welink-messages/analyze`).send({});
     expect(an.status).toBe(200);
@@ -185,45 +207,63 @@ describe("welink messages e2e", () => {
     const tid = await createTicket(app);
     expect((await request(app).post(`/api/tickets/${tid}/welink-messages`).send({})).status).toBe(400);
     expect((await request(app).post(`/api/tickets/${tid}/welink-messages/batch-delete`).send({})).status).toBe(400);
-    expect((await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: [] })).status).toBe(400);
-    expect((await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: ["x"] })).status).toBe(400);
+    expect((await request(app).patch(`/api/tickets/${tid}/welink-messages/selection`).send({ ids: [] })).status).toBe(
+      400
+    );
+    expect(
+      (
+        await request(app)
+          .patch(`/api/tickets/${tid}/welink-messages/selection`)
+          .send({ ids: ["x"] })
+      ).status
+    ).toBe(400);
   });
 
   it("parses raw Welink format: msgId/sender/serverSendTime + TEXT_MSG/CARD_MSG/PICTURE_MSG", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        {
-          msgId: "88984567318609400",
-          contentType: "TEXT_MSG",
-          sender: "l00865342",
-          serverSendTime: 1779691346372,
-          content: "陈挺,本周末之前能刷新完不",
-        },
-        {
-          msgId: "88997913706762960",
-          contentType: "CARD_MSG",
-          sender: "p30007122",
-          serverSendTime: 1779958274135,
-          content: {
-            cardType: 65,
-            cardContext: {
-              preMsg: { messageID: "abc", nameZH: "陈挺", sender: "c00493147", type: 0, content: "@蒲星武 黄色底纹的,先上" },
-              replyMsg: { type: 0, content: "@所有人 已刷新,https://example.com/" },
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          {
+            msgId: "88984567318609400",
+            contentType: "TEXT_MSG",
+            sender: "l00865342",
+            serverSendTime: 1779691346372,
+            content: "陈挺,本周末之前能刷新完不",
+          },
+          {
+            msgId: "88997913706762960",
+            contentType: "CARD_MSG",
+            sender: "p30007122",
+            serverSendTime: 1779958274135,
+            content: {
+              cardType: 65,
+              cardContext: {
+                preMsg: {
+                  messageID: "abc",
+                  nameZH: "陈挺",
+                  sender: "c00493147",
+                  type: 0,
+                  content: "@蒲星武 黄色底纹的,先上",
+                },
+                replyMsg: { type: 0, content: "@所有人 已刷新,https://example.com/" },
+              },
             },
           },
-        },
-        {
-          msgId: "89006566466688050",
-          contentType: "PICTURE_MSG",
-          sender: "c00493147",
-          serverSendTime: 1780131329333,
-          content: "[图片]",
-          images: [{ filename: "x.png", url: "https://cdn/x.png", width: 1745, height: 615, size: 190839, md5: "abc" }],
-        },
-      ],
-    });
+          {
+            msgId: "89006566466688050",
+            contentType: "PICTURE_MSG",
+            sender: "c00493147",
+            serverSendTime: 1780131329333,
+            content: "[图片]",
+            images: [
+              { filename: "x.png", url: "https://cdn/x.png", width: 1745, height: 615, size: 190839, md5: "abc" },
+            ],
+          },
+        ],
+      });
     expect(r.status).toBe(200);
     expect(r.body.inserted).toBe(3);
 
@@ -257,13 +297,15 @@ describe("welink messages e2e", () => {
   it("normalizes epoch seconds + string timestamps to ISO", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { msgId: "ts-ms", sender: "u1", serverSendTime: 1779691346372, content: "ms" },
-        { msgId: "ts-sec", sender: "u2", serverSendTime: 1779691346, content: "sec" },
-        { msgId: "ts-iso", sender: "u3", sentAt: "2026-05-29T10:00:00Z", content: "iso" },
-      ],
-    });
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { msgId: "ts-ms", sender: "u1", serverSendTime: 1779691346372, content: "ms" },
+          { msgId: "ts-sec", sender: "u2", serverSendTime: 1779691346, content: "sec" },
+          { msgId: "ts-iso", sender: "u3", sentAt: "2026-05-29T10:00:00Z", content: "iso" },
+        ],
+      });
     expect(r.body.inserted).toBe(3);
     const list = await request(app).get(`/api/tickets/${tid}/welink-messages`);
     for (const m of list.body.messages) {
@@ -274,13 +316,15 @@ describe("welink messages e2e", () => {
   it("skips messages missing required fields silently (does not fail whole batch)", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    const r = await request(app).post(`/api/tickets/${tid}/welink-messages`).send({
-      messages: [
-        { messageId: "ok1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-        { sentAt: "2026-05-29T10:01:00Z", author: "B", content: "no id" },
-        { messageId: "ok2", sentAt: "2026-05-29T10:02:00Z", author: "C" },
-      ],
-    });
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink-messages`)
+      .send({
+        messages: [
+          { messageId: "ok1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
+          { sentAt: "2026-05-29T10:01:00Z", author: "B", content: "no id" },
+          { messageId: "ok2", sentAt: "2026-05-29T10:02:00Z", author: "C" },
+        ],
+      });
     expect(r.status).toBe(200);
     expect(r.body.inserted).toBe(2);
     expect(r.body.total).toBe(3);

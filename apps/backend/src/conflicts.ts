@@ -7,7 +7,7 @@ const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 async function groupTicketsBy(
   repo: Repository,
   field: string,
-  predicate: (props: Record<string, unknown>) => boolean = () => true,
+  predicate: (props: Record<string, unknown>) => boolean = () => true
 ): Promise<Map<string, { id: string }[]>> {
   const out = new Map<string, { id: string }[]>();
   for (const n of await repo.queryNodes("attackTicket")) {
@@ -23,7 +23,12 @@ async function groupTicketsBy(
 
 /** Two-way derived edge: A→B and B→A both written so RelatedPage on either end sees the peer. */
 async function writeBidirectional(
-  repo: Repository, edgeType: ConflictEdgeType, aId: string, bId: string, reason: string, actor: string,
+  repo: Repository,
+  edgeType: ConflictEdgeType,
+  aId: string,
+  bId: string,
+  reason: string,
+  actor: string
 ): Promise<void> {
   await repo.createEdge(edgeType, aId, bId, { reason }, actor);
   await repo.createEdge(edgeType, bId, aId, { reason }, actor);
@@ -43,10 +48,7 @@ export async function syncConflicts(repo: Repository): Promise<ScanConflictsResu
 
   let conflicts = 0;
   // Rule 1: same 当前处理人, active tickets only
-  const byOwner = await groupTicketsBy(
-    repo, "当前处理人",
-    p => ACTIVE_STATUSES.has(String(p["状态"] ?? "")),
-  );
+  const byOwner = await groupTicketsBy(repo, "当前处理人", (p) => ACTIVE_STATUSES.has(String(p["状态"] ?? "")));
   for (const [owner, items] of byOwner) {
     if (items.length < 2) continue;
     const reason = `同负责人多并发：${owner}`;
@@ -75,11 +77,19 @@ export async function syncConflicts(repo: Repository): Promise<ScanConflictsResu
   return { conflicts, overlaps };
 }
 
-/** Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id. */
-export async function listConflictRows(repo: Repository): Promise<ConflictRow[]> {
-  // Preload all attackTicket nodes to avoid N+1 getNode calls
+/**
+ * Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id.
+ *
+ * 可选 preloadedTickets:调用方(如 dashboard)若已扫过一遍 attackTicket,可直接复用
+ * 避免重复全表扫描 + JSON.parse(每个 ticket properties 都 parse 一次)。
+ */
+export async function listConflictRows(
+  repo: Repository,
+  preloadedTickets?: import("@combat/shared").GraphNode[]
+): Promise<ConflictRow[]> {
   const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
-  for (const n of await repo.queryNodes("attackTicket")) nodeMap.set(n.id, n);
+  const tickets = preloadedTickets ?? (await repo.queryNodes("attackTicket"));
+  for (const n of tickets) nodeMap.set(n.id, n);
 
   const out: ConflictRow[] = [];
   for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {

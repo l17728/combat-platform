@@ -7,23 +7,19 @@ import { PostgresAdapter, rewritePlaceholders } from "../src/db-adapter.js";
 
 describe("rewritePlaceholders", () => {
   it("rewrites a single ? to $1", () => {
-    expect(rewritePlaceholders("SELECT * FROM t WHERE id = ?")).toBe(
-      "SELECT * FROM t WHERE id = $1",
-    );
+    expect(rewritePlaceholders("SELECT * FROM t WHERE id = ?")).toBe("SELECT * FROM t WHERE id = $1");
   });
 
   it("rewrites multiple ? to $1, $2, $3 in order", () => {
     expect(rewritePlaceholders("INSERT INTO t (a, b, c) VALUES (?, ?, ?)")).toBe(
-      "INSERT INTO t (a, b, c) VALUES ($1, $2, $3)",
+      "INSERT INTO t (a, b, c) VALUES ($1, $2, $3)"
     );
   });
 
   it("leaves ? inside single-quoted string literals alone", () => {
     // The literal '?' must NOT be replaced; the outer ? in WHERE k = ? must be.
     const sql = "SELECT * FROM t WHERE note = '??' AND k = ?";
-    expect(rewritePlaceholders(sql)).toBe(
-      "SELECT * FROM t WHERE note = '??' AND k = $1",
-    );
+    expect(rewritePlaceholders(sql)).toBe("SELECT * FROM t WHERE note = '??' AND k = $1");
   });
 
   it("treats consecutive ? bound to params positionally", () => {
@@ -33,9 +29,7 @@ describe("rewritePlaceholders", () => {
 
   it("returns SQL unchanged when no placeholders are present", () => {
     expect(rewritePlaceholders("SELECT 1")).toBe("SELECT 1");
-    expect(rewritePlaceholders("CREATE TABLE foo (id TEXT)")).toBe(
-      "CREATE TABLE foo (id TEXT)",
-    );
+    expect(rewritePlaceholders("CREATE TABLE foo (id TEXT)")).toBe("CREATE TABLE foo (id TEXT)");
   });
 
   it("handles ? right after open paren / before comma without spacing issues", () => {
@@ -85,10 +79,7 @@ describe("PostgresAdapter wiring", () => {
 
   it("query() rewrites ? to $n before calling pool.query", async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ id: "n1" }], rowCount: 1 });
-    const rows = await adapter.query("SELECT id FROM nodes WHERE id = ? AND nodeType = ?", [
-      "n1",
-      "person",
-    ]);
+    const rows = await adapter.query("SELECT id FROM nodes WHERE id = ? AND nodeType = ?", ["n1", "person"]);
     expect(pool.query).toHaveBeenCalledTimes(1);
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toBe("SELECT id FROM nodes WHERE id = $1 AND nodeType = $2");
@@ -129,9 +120,7 @@ describe("PostgresAdapter wiring", () => {
 
   it("does NOT rewrite ? inside single-quoted SQL string literals", async () => {
     await adapter.query("SELECT * FROM t WHERE label = '??' AND k = ?", ["v"]);
-    expect(pool.query.mock.calls[0][0]).toBe(
-      "SELECT * FROM t WHERE label = '??' AND k = $1",
-    );
+    expect(pool.query.mock.calls[0][0]).toBe("SELECT * FROM t WHERE label = '??' AND k = $1");
   });
 
   it("rawSqlite() throws — Postgres path does not expose better-sqlite3", () => {
@@ -145,7 +134,7 @@ describe("PostgresAdapter wiring", () => {
     };
     pool.connect.mockResolvedValueOnce(client);
 
-    const result = await adapter.transaction(async tx => {
+    const result = await adapter.transaction(async (tx) => {
       expect(tx.kind).toBe("postgres");
       await tx.run("INSERT INTO t VALUES (?)", [1]);
       return "ok";
@@ -153,7 +142,7 @@ describe("PostgresAdapter wiring", () => {
 
     expect(result).toBe("ok");
     // BEGIN + the INSERT + COMMIT
-    const sqls = client.query.mock.calls.map(c => c[0]);
+    const sqls = client.query.mock.calls.map((c) => c[0]);
     expect(sqls[0]).toBe("BEGIN");
     expect(sqls[sqls.length - 1]).toBe("COMMIT");
     expect(client.release).toHaveBeenCalledTimes(1);
@@ -170,10 +159,10 @@ describe("PostgresAdapter wiring", () => {
     await expect(
       adapter.transaction(async () => {
         throw err;
-      }),
+      })
     ).rejects.toBe(err);
 
-    const sqls = client.query.mock.calls.map(c => c[0]);
+    const sqls = client.query.mock.calls.map((c) => c[0]);
     expect(sqls).toContain("BEGIN");
     expect(sqls).toContain("ROLLBACK");
     expect(sqls).not.toContain("COMMIT");
@@ -187,21 +176,21 @@ describe("PostgresAdapter wiring", () => {
     };
     pool.connect.mockResolvedValueOnce(client);
 
-    await adapter.transaction(async outerTx => {
+    await adapter.transaction(async (outerTx) => {
       // capture how many BEGINs ran before the inner call
-      const beforeBegins = client.query.mock.calls.filter(c => c[0] === "BEGIN").length;
-      await (outerTx as PostgresAdapter).transaction(async innerTx => {
+      const beforeBegins = client.query.mock.calls.filter((c) => c[0] === "BEGIN").length;
+      await (outerTx as PostgresAdapter).transaction(async (innerTx) => {
         expect(innerTx.kind).toBe("postgres");
         await innerTx.run("SELECT ?", [1]);
       });
-      const afterBegins = client.query.mock.calls.filter(c => c[0] === "BEGIN").length;
+      const afterBegins = client.query.mock.calls.filter((c) => c[0] === "BEGIN").length;
       // no new BEGIN issued for nested call
       expect(afterBegins).toBe(beforeBegins);
     });
 
     // exactly one COMMIT, one BEGIN total
-    const sqls = client.query.mock.calls.map(c => c[0]);
-    expect(sqls.filter(s => s === "BEGIN")).toHaveLength(1);
-    expect(sqls.filter(s => s === "COMMIT")).toHaveLength(1);
+    const sqls = client.query.mock.calls.map((c) => c[0]);
+    expect(sqls.filter((s) => s === "BEGIN")).toHaveLength(1);
+    expect(sqls.filter((s) => s === "COMMIT")).toHaveLength(1);
   });
 });

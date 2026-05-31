@@ -74,8 +74,7 @@ export function makeBugReportRouter(adapter: DbAdapter): Router {
   r.post(
     "/bug-reports",
     asyncHandler(async (req, res) => {
-      const { title, description, severity, pageUrl, reporter, screenshot, consoleLogs, userAgent } =
-        req.body ?? {};
+      const { title, description, severity, pageUrl, reporter, screenshot, consoleLogs, userAgent } = req.body ?? {};
       if (!title) return res.status(400).json({ error: "title 为必填项" });
 
       const now = new Date().toISOString();
@@ -97,31 +96,43 @@ export function makeBugReportRouter(adapter: DbAdapter): Router {
           "待处理",
           now,
           now,
-        ],
+        ]
       );
 
       log.info("bug_report.create", { id, title });
       const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [id]);
       res.status(201).json(toBugReport(row));
-    }),
+    })
   );
 
-  r.get("/bug-reports", asyncHandler(async (req, res) => {
-    const { status, severity } = req.query ?? {};
-    let sql = "SELECT * FROM bug_reports WHERE 1=1";
-    const params: any[] = [];
-    if (status) { sql += " AND status=?"; params.push(status); }
-    if (severity) { sql += " AND severity=?"; params.push(severity); }
-    sql += " ORDER BY created_at DESC";
-    const rows = await adapter.query<any>(sql, params);
-    res.json(rows.map(toBugReport));
-  }));
+  r.get(
+    "/bug-reports",
+    asyncHandler(async (req, res) => {
+      const { status, severity } = req.query ?? {};
+      let sql = "SELECT * FROM bug_reports WHERE 1=1";
+      const params: any[] = [];
+      if (status) {
+        sql += " AND status=?";
+        params.push(status);
+      }
+      if (severity) {
+        sql += " AND severity=?";
+        params.push(severity);
+      }
+      sql += " ORDER BY created_at DESC";
+      const rows = await adapter.query<any>(sql, params);
+      res.json(rows.map(toBugReport));
+    })
+  );
 
-  r.get("/bug-reports/:id", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
-    if (!row) return res.status(404).json({ error: "未找到该问题" });
-    res.json(toBugReport(row));
-  }));
+  r.get(
+    "/bug-reports/:id",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      if (!row) return res.status(404).json({ error: "未找到该问题" });
+      res.json(toBugReport(row));
+    })
+  );
 
   r.patch(
     "/bug-reports/:id",
@@ -134,15 +145,42 @@ export function makeBugReportRouter(adapter: DbAdapter): Router {
       const updates: string[] = ["updated_at=?"];
       const params: any[] = [now];
 
-      if (title !== undefined) { updates.push("title=?"); params.push(title); }
-      if (description !== undefined) { updates.push("description=?"); params.push(description); }
-      if (severity !== undefined) { updates.push("severity=?"); params.push(severity); }
-      if (pageUrl !== undefined) { updates.push("page_url=?"); params.push(pageUrl); }
-      if (reporter !== undefined) { updates.push("reporter=?"); params.push(reporter); }
-      if (status !== undefined) { updates.push("status=?"); params.push(status); }
-      if (resolution !== undefined) { updates.push("resolution=?"); params.push(resolution); }
-      if (resolvedBy !== undefined) { updates.push("resolved_by=?"); params.push(resolvedBy); }
-      if (status === "已解决" || status === "已关闭") { updates.push("resolved_at=?"); params.push(now); }
+      if (title !== undefined) {
+        updates.push("title=?");
+        params.push(title);
+      }
+      if (description !== undefined) {
+        updates.push("description=?");
+        params.push(description);
+      }
+      if (severity !== undefined) {
+        updates.push("severity=?");
+        params.push(severity);
+      }
+      if (pageUrl !== undefined) {
+        updates.push("page_url=?");
+        params.push(pageUrl);
+      }
+      if (reporter !== undefined) {
+        updates.push("reporter=?");
+        params.push(reporter);
+      }
+      if (status !== undefined) {
+        updates.push("status=?");
+        params.push(status);
+      }
+      if (resolution !== undefined) {
+        updates.push("resolution=?");
+        params.push(resolution);
+      }
+      if (resolvedBy !== undefined) {
+        updates.push("resolved_by=?");
+        params.push(resolvedBy);
+      }
+      if (status === "已解决" || status === "已关闭") {
+        updates.push("resolved_at=?");
+        params.push(now);
+      }
 
       params.push(req.params.id);
       await adapter.run(`UPDATE bug_reports SET ${updates.join(", ")} WHERE id=?`, params);
@@ -150,16 +188,19 @@ export function makeBugReportRouter(adapter: DbAdapter): Router {
       log.info("bug_report.update", { id: req.params.id, status });
       const updated = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
       res.json(toBugReport(updated));
-    }),
+    })
   );
 
-  r.delete("/bug-reports/:id", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
-    if (!row) return res.status(404).json({ error: "未找到该问题" });
-    await adapter.run("DELETE FROM bug_reports WHERE id=?", [req.params.id]);
-    log.info("bug_report.delete", { id: req.params.id });
-    res.json({ deleted: req.params.id });
-  }));
+  r.delete(
+    "/bug-reports/:id",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      if (!row) return res.status(404).json({ error: "未找到该问题" });
+      await adapter.run("DELETE FROM bug_reports WHERE id=?", [req.params.id]);
+      log.info("bug_report.delete", { id: req.params.id });
+      res.json({ deleted: req.params.id });
+    })
+  );
 
   return r;
 }

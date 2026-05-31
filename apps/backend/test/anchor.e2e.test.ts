@@ -11,17 +11,34 @@ import { createApp } from "../src/app.js";
 
 async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-anchor-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [{ name: "标题", type: "string", label: "标题", required: true },
-      { name: "问题单号", type: "string", label: "问题单号", anchor: "问题单号" }],
-  }));
-  writeFileSync(join(cfg, "contribution.json"), JSON.stringify({
-    nodeType: "contribution", label: "贡献记录", identityKeys: [], derivedToKG: true,
-    fields: [{ name: "贡献人", type: "string", label: "贡献人", required: true },
-      { name: "关联问题单", type: "string", label: "关联问题单", anchor: "问题单号" }],
-  }));
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "问题单号", type: "string", label: "问题单号", anchor: "问题单号" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "contribution.json"),
+    JSON.stringify({
+      nodeType: "contribution",
+      label: "贡献记录",
+      identityKeys: [],
+      derivedToKG: true,
+      fields: [
+        { name: "贡献人", type: "string", label: "贡献人", required: true },
+        { name: "关联问题单", type: "string", label: "关联问题单", anchor: "问题单号" },
+      ],
+    })
+  );
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, cfg };
 }
@@ -66,7 +83,9 @@ describe("cross-granularity anchor e2e", () => {
 
   it("PATCH setAnchor persists + reload; non-string → 400 + config unchanged; update re-syncs idempotently", async () => {
     const { app, cfg } = await makeApp();
-    const p = await request(app).patch("/api/schema/attackTicket").send({ op: "setAnchor", id: "标题", anchor: "问题单号" });
+    const p = await request(app)
+      .patch("/api/schema/attackTicket")
+      .send({ op: "setAnchor", id: "标题", anchor: "问题单号" });
     expect(p.status).toBe(200);
     expect(p.body.fields.find((f: any) => f.id === "标题").anchor).toBe("问题单号");
     const before = readFileSync(join(cfg, "attackTicket.json"), "utf8");

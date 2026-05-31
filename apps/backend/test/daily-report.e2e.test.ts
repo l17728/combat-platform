@@ -19,8 +19,15 @@ async function makeApp() {
 }
 
 function insertProgressAt(db: any, ownerId: string, seqNo: number, content: string, status: string, at: string) {
-  db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`)
-    .run({ id: `pr-${ownerId}-${seqNo}`, ownerId, seqNo, content, s: status, by: "seed", at });
+  db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`).run({
+    id: `pr-${ownerId}-${seqNo}`,
+    ownerId,
+    seqNo,
+    content,
+    s: status,
+    by: "seed",
+    at,
+  });
 }
 
 describe("daily-report e2e", () => {
@@ -29,7 +36,8 @@ describe("daily-report e2e", () => {
     const A = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" })).body;
     const B = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "B", 状态: "已解决" })).body;
     const C = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "C", 状态: "进行中" })).body;
-    const d1 = "2026-05-20", d2 = "2026-05-21";
+    const d1 = "2026-05-20",
+      d2 = "2026-05-21";
     insertProgressAt(db, A.id, 1, "A-1", "进行中", `${d1}T01:00:00Z`);
     insertProgressAt(db, A.id, 2, "A-2", "已解决", `${d1}T05:00:00Z`);
     insertProgressAt(db, B.id, 1, "B-1", "已解决", `${d1}T02:00:00Z`);
@@ -79,8 +87,12 @@ describe("daily-report e2e", () => {
     const { app } = await makeApp();
     // Server uses Asia/Shanghai (UTC+8) calendar date — match that here to avoid
     // false failure when UTC and CST are on different calendar days (16:00-24:00 UTC).
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai",
-      year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Shanghai",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
     const r1 = await request(app).get("/api/daily-report");
     expect(r1.status).toBe(200);
     expect(r1.body.date).toBe(today);

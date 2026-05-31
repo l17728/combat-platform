@@ -3,7 +3,9 @@ import request from "supertest";
 import { makeTestApp } from "./helpers.js";
 
 async function createTicket(app: any, props: Record<string, unknown> = {}) {
-  const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "Welink 抽取测试", 状态: "处理中", ...props });
+  const t = await request(app)
+    .post("/api/nodes/attackTicket")
+    .send({ 标题: "Welink 抽取测试", 状态: "处理中", ...props });
   expect(t.status).toBe(201);
   return t.body.id as string;
 }
@@ -43,9 +45,7 @@ describe("welink extraction e2e", () => {
   it("GET list/PATCH reviewed/DELETE 一条 — full CRUD over welink_extractions", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    await uploadMessages(app, tid, [
-      { messageId: "n1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" },
-    ]);
+    await uploadMessages(app, tid, [{ messageId: "n1", sentAt: "2026-05-29T10:00:00Z", author: "A", content: "1" }]);
     const an = await request(app).post(`/api/tickets/${tid}/welink-messages/analyze`).send({});
     const id = (an.body.extractions as any[])[0].id;
 
@@ -81,7 +81,9 @@ describe("welink extraction e2e", () => {
   it("PATCH 不存在 404 / DELETE 不存在 404", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    expect((await request(app).patch(`/api/tickets/${tid}/welink-extractions/nope`).send({ reviewed: true })).status).toBe(404);
+    expect(
+      (await request(app).patch(`/api/tickets/${tid}/welink-extractions/nope`).send({ reviewed: true })).status
+    ).toBe(404);
     expect((await request(app).delete(`/api/tickets/${tid}/welink-extractions/nope`)).status).toBe(404);
   });
 

@@ -3,7 +3,9 @@ import request from "supertest";
 import { makeTestApp } from "./helpers.js";
 
 async function createTicket(app: any, props: Record<string, unknown> = {}) {
-  const t = await request(app).post("/api/nodes/attackTicket").send({ 标题: "Welink 成员补齐测试", 状态: "处理中", ...props });
+  const t = await request(app)
+    .post("/api/nodes/attackTicket")
+    .send({ 标题: "Welink 成员补齐测试", 状态: "处理中", ...props });
   expect(t.status).toBe(201);
   return t.body.id as string;
 }
@@ -84,7 +86,9 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
       攻关组长: "陈某",
       攻关成员: "陈某",
     });
-    const r = await request(app).post(`/api/tickets/${tid}/welink/add-members`).send({ names: ["李某", "王某", "陈某"] });
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink/add-members`)
+      .send({ names: ["李某", "王某", "陈某"] });
     expect(r.status).toBe(200);
     expect(r.body.added).toBe(2); // 陈某去重
     expect(r.body.members.length).toBe(3);
@@ -98,7 +102,9 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
   it("POST welink/add-members role=组长 加新组长", async () => {
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
-    const r = await request(app).post(`/api/tickets/${tid}/welink/add-members`).send({ names: ["李某"], role: "组长" });
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink/add-members`)
+      .send({ names: ["李某"], role: "组长" });
     expect(r.status).toBe(200);
     expect(r.body.members[0].角色).toBe("组长");
   });
@@ -108,7 +114,9 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
     const tid = await createTicket(app, {
       成员列表: JSON.stringify([{ 姓名: "陈某", 角色: "组员" }]),
     });
-    const r = await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "陈某", role: "组长" });
+    const r = await request(app)
+      .post(`/api/tickets/${tid}/welink/set-member-role`)
+      .send({ name: "陈某", role: "组长" });
     expect(r.status).toBe(200);
     expect(r.body.members[0].角色).toBe("组长");
     const get = await request(app).get(`/api/nodes/${tid}`);
@@ -119,8 +127,19 @@ describe("welink agent-friendly endpoints (search/timeline/gap/add-members/set-r
     const { app } = await makeTestApp();
     const tid = await createTicket(app);
     expect((await request(app).post(`/api/tickets/${tid}/welink/add-members`).send({ names: [] })).status).toBe(400);
-    expect((await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "x" })).status).toBe(400);
-    expect((await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "无此人", role: "组员" })).status).toBe(404);
-    expect((await request(app).post(`/api/tickets/nonexistent/welink/add-members`).send({ names: ["a"] })).status).toBe(404);
+    expect((await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "x" })).status).toBe(
+      400
+    );
+    expect(
+      (await request(app).post(`/api/tickets/${tid}/welink/set-member-role`).send({ name: "无此人", role: "组员" }))
+        .status
+    ).toBe(404);
+    expect(
+      (
+        await request(app)
+          .post(`/api/tickets/nonexistent/welink/add-members`)
+          .send({ names: ["a"] })
+      ).status
+    ).toBe(404);
   });
 });

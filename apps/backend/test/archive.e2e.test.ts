@@ -16,7 +16,9 @@ import { fileURLToPath } from "node:url";
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 
 async function makeApp() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-arc-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-arc-")), "t.sqlite")))
+  );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
@@ -26,7 +28,11 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
     const bad = await request(app).post("/api/nodes/releasePackage").send({ 产品: "X" });
     expect(bad.status).toBe(400);
     const c = await request(app).post("/api/nodes/releasePackage").send({
-      版本号: "v1.0.0-RC", 产品: "ModelArts", 责任人: "张归档", 关联问题单: "ARC-1", 链接: "https://x/v1.0.0",
+      版本号: "v1.0.0-RC",
+      产品: "ModelArts",
+      责任人: "张归档",
+      关联问题单: "ARC-1",
+      链接: "https://x/v1.0.0",
     });
     expect(c.status).toBe(201);
     expect(c.body.properties["版本号"]).toBe("v1.0.0-RC");
@@ -49,7 +55,11 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
     const bad = await request(app).post("/api/nodes/weightFile").send({});
     expect(bad.status).toBe(400);
     const c = await request(app).post("/api/nodes/weightFile").send({
-      名称: "BERT-base-v3.2", 模型: "BERT", 责任人: "李训", 关联问题单: "ARC-2", 链接: "s3://x/y",
+      名称: "BERT-base-v3.2",
+      模型: "BERT",
+      责任人: "李训",
+      关联问题单: "ARC-2",
+      链接: "s3://x/y",
     });
     expect(c.status).toBe(201);
     expect(c.body.properties["名称"]).toBe("BERT-base-v3.2");
@@ -58,7 +68,9 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
   it("cross-view cross-nodeType coAnchored — attackTicket + releasePackage + weightFile via shared 问题单号", async () => {
     const { app } = await makeApp();
     const PB = "ARC-X-" + Date.now();
-    const at = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "归档关联攻关", 状态: "进行中", 问题单号: PB })).body;
+    const at = (
+      await request(app).post("/api/nodes/attackTicket").send({ 标题: "归档关联攻关", 状态: "进行中", 问题单号: PB })
+    ).body;
     const rp = (await request(app).post("/api/nodes/releasePackage").send({ 版本号: "归档v9", 关联问题单: PB })).body;
     const wf = (await request(app).post("/api/nodes/weightFile").send({ 名称: "归档W9", 关联问题单: PB })).body;
     const relAt = await request(app).get(`/api/related/attackTicket/${at.id}`);
@@ -75,7 +87,9 @@ describe("archive (release/weight) e2e — config-driven, zero backend code", ()
     const { app } = await makeApp();
     const tag = "ARC检索X-" + Date.now();
     await request(app).post("/api/nodes/releasePackage").send({ 版本号: tag, 产品: "搜得到" });
-    await request(app).post("/api/nodes/weightFile").send({ 名称: "W-" + tag, 模型: "搜得到W" });
+    await request(app)
+      .post("/api/nodes/weightFile")
+      .send({ 名称: "W-" + tag, 模型: "搜得到W" });
     const hits = (await request(app).get(`/api/query/search?q=${encodeURIComponent(tag)}`)).body;
     const types = new Set(hits.map((h: any) => h.nodeType));
     expect(types.has("releasePackage")).toBe(true);

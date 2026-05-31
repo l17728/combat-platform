@@ -15,7 +15,11 @@ const DEFAULT_CONFIG: EscalationConfig = {
 async function readConfig(repo: Repository): Promise<EscalationConfig> {
   const raw = await repo.getSetting("escalation");
   if (!raw) return DEFAULT_CONFIG;
-  try { return JSON.parse(raw) as EscalationConfig; } catch { return DEFAULT_CONFIG; }
+  try {
+    return JSON.parse(raw) as EscalationConfig;
+  } catch {
+    return DEFAULT_CONFIG;
+  }
 }
 
 /**
@@ -26,11 +30,12 @@ async function readConfig(repo: Repository): Promise<EscalationConfig> {
  */
 export async function scanEscalation(repo: Repository): Promise<EscalationScanResult> {
   const cfg = await readConfig(repo);
-  const byLevel = new Map(cfg.rules.map(r => [r.事件级别, r]));
+  const byLevel = new Map(cfg.rules.map((r) => [r.事件级别, r]));
   const now = Date.now();
-  let overdue = 0, escalated = 0;
+  let overdue = 0,
+    escalated = 0;
   // Preload to avoid N+1 inside the loop
-  const escalatedIds = new Set((await repo.listAuditLog({ action: "ESCALATE" })).map(a => a.entityId));
+  const escalatedIds = new Set((await repo.listAuditLog({ action: "ESCALATE" })).map((a) => a.entityId));
   const allRefEdges = await repo.queryEdges({ edgeType: "REF" });
   for (const t of await repo.queryNodes("attackTicket")) {
     const status = String(t.properties["状态"] ?? "");
@@ -44,12 +49,29 @@ export async function scanEscalation(repo: Repository): Promise<EscalationScanRe
     const already = escalatedIds.has(t.id);
     if (already) continue;
     // resolve current owner person via REF edge (field 当前处理人) for the ESCALATED_TO edge
-    const ownerRef = allRefEdges.filter(e => e.sourceId === t.id)
-      .find(e => String(e.properties["field"]) === "当前处理人");
-    if (ownerRef) await repo.createEdge("ESCALATED_TO", t.id, ownerRef.targetId,
-      { level: lvl, 上升角色: rule.上升角色, at: new Date().toISOString() }, "system");
-    await repo.logAudit({ action: "ESCALATE", entityType: "node", entityId: t.id,
-      changes: { 事件级别: lvl, slaHours: rule.slaHours, 上升角色: rule.上升角色, ageHours: Math.round(ageMs / 3600000) }, actor: "system" });
+    const ownerRef = allRefEdges
+      .filter((e) => e.sourceId === t.id)
+      .find((e) => String(e.properties["field"]) === "当前处理人");
+    if (ownerRef)
+      await repo.createEdge(
+        "ESCALATED_TO",
+        t.id,
+        ownerRef.targetId,
+        { level: lvl, 上升角色: rule.上升角色, at: new Date().toISOString() },
+        "system"
+      );
+    await repo.logAudit({
+      action: "ESCALATE",
+      entityType: "node",
+      entityId: t.id,
+      changes: {
+        事件级别: lvl,
+        slaHours: rule.slaHours,
+        上升角色: rule.上升角色,
+        ageHours: Math.round(ageMs / 3600000),
+      },
+      actor: "system",
+    });
     log.warn("escalation.triggered", { ticketId: t.id, 上升角色: rule.上升角色 });
     escalated++;
   }

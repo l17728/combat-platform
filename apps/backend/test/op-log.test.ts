@@ -31,10 +31,12 @@ describe("op-log router", () => {
   });
 
   it("POST /op-logs batch inserts entries", async () => {
-    const res = await request(app).post("/api/op-logs").send([
-      { session_id: "s1", user_name: "u1", category: "api", detail: { method: "GET", path: "/test" } },
-      { session_id: "s1", user_name: "u1", category: "navigate", detail: { from: "/", to: "/attack" } },
-    ]);
+    const res = await request(app)
+      .post("/api/op-logs")
+      .send([
+        { session_id: "s1", user_name: "u1", category: "api", detail: { method: "GET", path: "/test" } },
+        { session_id: "s1", user_name: "u1", category: "navigate", detail: { from: "/", to: "/attack" } },
+      ]);
     expect(res.status).toBe(200);
     expect(res.body.inserted).toBe(2);
     expect(res.body.ids).toHaveLength(2);
@@ -52,7 +54,10 @@ describe("op-log router", () => {
 
   it("POST /op-logs caps at 200 entries", async () => {
     const entries = Array.from({ length: 250 }, (_, i) => ({
-      session_id: "cap-test", user_name: "u", category: "action", detail: { i },
+      session_id: "cap-test",
+      user_name: "u",
+      category: "action",
+      detail: { i },
     }));
     const res = await request(app).post("/api/op-logs").send(entries);
     expect(res.body.inserted).toBe(200);
@@ -60,17 +65,17 @@ describe("op-log router", () => {
 
   it("POST /op-logs returns disabled when tracking is off", async () => {
     await request(app).put("/api/op-logs/settings").send({ enabled: false });
-    const res = await request(app).post("/api/op-logs").send([
-      { session_id: "s", category: "action", detail: {} },
-    ]);
+    const res = await request(app)
+      .post("/api/op-logs")
+      .send([{ session_id: "s", category: "action", detail: {} }]);
     expect(res.body.inserted).toBe(0);
     expect(res.body.disabled).toBe(true);
   });
 
   it("GET /op-logs returns inserted entries", async () => {
-    await request(app).post("/api/op-logs").send([
-      { session_id: "list-test", user_name: "tester", category: "api", detail: { path: "/x" } },
-    ]);
+    await request(app)
+      .post("/api/op-logs")
+      .send([{ session_id: "list-test", user_name: "tester", category: "api", detail: { path: "/x" } }]);
     const res = await request(app).get("/api/op-logs?sessionId=list-test");
     expect(res.body.total).toBe(1);
     expect(res.body.rows[0].session_id).toBe("list-test");
@@ -79,29 +84,33 @@ describe("op-log router", () => {
   });
 
   it("GET /op-logs filters by userName", async () => {
-    await request(app).post("/api/op-logs").send([
-      { session_id: "filter-s", user_name: "alice", category: "action", detail: {} },
-      { session_id: "filter-s", user_name: "bob", category: "action", detail: {} },
-    ]);
+    await request(app)
+      .post("/api/op-logs")
+      .send([
+        { session_id: "filter-s", user_name: "alice", category: "action", detail: {} },
+        { session_id: "filter-s", user_name: "bob", category: "action", detail: {} },
+      ]);
     const res = await request(app).get("/api/op-logs?userName=alice&sessionId=filter-s");
     expect(res.body.total).toBe(1);
     expect(res.body.rows[0].user_name).toBe("alice");
   });
 
   it("GET /op-logs filters by category", async () => {
-    await request(app).post("/api/op-logs").send([
-      { session_id: "cat-s", user_name: "u", category: "api", detail: {} },
-      { session_id: "cat-s", user_name: "u", category: "error", detail: {} },
-    ]);
+    await request(app)
+      .post("/api/op-logs")
+      .send([
+        { session_id: "cat-s", user_name: "u", category: "api", detail: {} },
+        { session_id: "cat-s", user_name: "u", category: "error", detail: {} },
+      ]);
     const res = await request(app).get("/api/op-logs?category=error&sessionId=cat-s");
     expect(res.body.total).toBe(1);
     expect(res.body.rows[0].category).toBe("error");
   });
 
   it("DELETE /op-logs by sessionId", async () => {
-    await request(app).post("/api/op-logs").send([
-      { session_id: "del-s", user_name: "u", category: "action", detail: {} },
-    ]);
+    await request(app)
+      .post("/api/op-logs")
+      .send([{ session_id: "del-s", user_name: "u", category: "action", detail: {} }]);
     const res = await request(app).delete("/api/op-logs?sessionId=del-s");
     expect(res.body.deleted).toBe(1);
 
@@ -110,9 +119,11 @@ describe("op-log router", () => {
   });
 
   it("DELETE /op-logs by before timestamp", async () => {
-    await request(app).post("/api/op-logs").send([
-      { session_id: "old-s", user_name: "u", category: "action", detail: {}, timestamp: "2020-01-01T00:00:00Z" },
-    ]);
+    await request(app)
+      .post("/api/op-logs")
+      .send([
+        { session_id: "old-s", user_name: "u", category: "action", detail: {}, timestamp: "2020-01-01T00:00:00Z" },
+      ]);
     const res = await request(app).delete("/api/op-logs?before=2021-01-01T00:00:00Z");
     expect(res.body.deleted).toBeGreaterThanOrEqual(1);
   });
@@ -124,7 +135,10 @@ describe("op-log router", () => {
 
   it("GET /op-logs paginates with limit/offset", async () => {
     const entries = Array.from({ length: 5 }, (_, i) => ({
-      session_id: "page-s", user_name: "u", category: "action", detail: { i },
+      session_id: "page-s",
+      user_name: "u",
+      category: "action",
+      detail: { i },
     }));
     await request(app).post("/api/op-logs").send(entries);
 

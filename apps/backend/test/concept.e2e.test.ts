@@ -11,27 +11,48 @@ import { createApp } from "../src/app.js";
 
 async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-concept-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [
-      { name: "标题", type: "string", label: "标题", required: true },
-      { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" },
-      { name: "协办人", type: "ref", label: "协办人", refType: "person" },
-    ],
-  }));
-  writeFileSync(join(cfg, "contribution.json"), JSON.stringify({
-    nodeType: "contribution", label: "贡献记录", identityKeys: [], derivedToKG: true,
-    fields: [
-      { name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true, concept: "负责人" },
-      { name: "贡献类型", type: "string", label: "贡献类型" },
-    ],
-  }));
-  writeFileSync(join(cfg, "person.json"), JSON.stringify({
-    nodeType: "person", label: "人员", identityKeys: ["employeeId", "email"], derivedToKG: true,
-    fields: [{ name: "name", type: "string", label: "姓名", required: true },
-             { name: "employeeId", type: "string", label: "工号" }],
-  }));
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" },
+        { name: "协办人", type: "ref", label: "协办人", refType: "person" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "contribution.json"),
+    JSON.stringify({
+      nodeType: "contribution",
+      label: "贡献记录",
+      identityKeys: [],
+      derivedToKG: true,
+      fields: [
+        { name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true, concept: "负责人" },
+        { name: "贡献类型", type: "string", label: "贡献类型" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "person.json"),
+    JSON.stringify({
+      nodeType: "person",
+      label: "人员",
+      identityKeys: ["employeeId", "email"],
+      derivedToKG: true,
+      fields: [
+        { name: "name", type: "string", label: "姓名", required: true },
+        { name: "employeeId", type: "string", label: "工号" },
+      ],
+    })
+  );
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, cfg };
 }
@@ -61,7 +82,9 @@ describe("concept e2e", () => {
   });
   it("ref field WITHOUT concept → related item concept is '' (RelatedPage falls back to nodeType)", async () => {
     const { app, repo } = await makeApp();
-    await request(app).post("/api/nodes/attackTicket").send({ 标题: "无concept边", 当前处理人: "钱七", 协办人: "钱七" });
+    await request(app)
+      .post("/api/nodes/attackTicket")
+      .send({ 标题: "无concept边", 当前处理人: "钱七", 协办人: "钱七" });
     const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);
     expect(r.body.incoming).toHaveLength(2);
@@ -71,7 +94,9 @@ describe("concept e2e", () => {
   });
   it("PATCH setConcept persists to config + reload; non-string -> 400, config unchanged", async () => {
     const { app, cfg } = await makeApp();
-    const p = await request(app).patch("/api/schema/attackTicket").send({ op: "setConcept", id: "标题", concept: "标识" });
+    const p = await request(app)
+      .patch("/api/schema/attackTicket")
+      .send({ op: "setConcept", id: "标题", concept: "标识" });
     expect(p.status).toBe(200);
     expect(p.body.fields.find((f: any) => f.id === "标题").concept).toBe("标识");
     const onDisk = JSON.parse(readFileSync(join(cfg, "attackTicket.json"), "utf8"));
@@ -79,7 +104,9 @@ describe("concept e2e", () => {
     const before = readFileSync(join(cfg, "attackTicket.json"), "utf8");
     const bad = await request(app).patch("/api/schema/attackTicket").send({ op: "setConcept", id: "标题" });
     expect(bad.status).toBe(400);
-    const bad2 = await request(app).patch("/api/schema/attackTicket").send({ op: "setConcept", id: "标题", concept: 42 });
+    const bad2 = await request(app)
+      .patch("/api/schema/attackTicket")
+      .send({ op: "setConcept", id: "标题", concept: 42 });
     expect(bad2.status).toBe(400);
     expect(readFileSync(join(cfg, "attackTicket.json"), "utf8")).toBe(before);
   });

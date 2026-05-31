@@ -35,14 +35,11 @@ for (const filePath of FILES) {
     }
 
     // Replace call sites: any `<name>(...)` not preceded by `await` or word/dot
-    lines[i] = line.replace(
-      /([^\w.\)\]]|^)((?:makeApp|makeTestApp)[A-Za-z0-9]*)(\s*\()/g,
-      (m, pre, name, paren) => {
-        // skip if preceding context shows `await `
-        if (/await\s*$/.test(pre)) return m;
-        return `${pre}await ${name}${paren}`;
-      },
-    );
+    lines[i] = line.replace(/([^\w.\)\]]|^)((?:makeApp|makeTestApp)[A-Za-z0-9]*)(\s*\()/g, (m, pre, name, paren) => {
+      // skip if preceding context shows `await `
+      if (/await\s*$/.test(pre)) return m;
+      return `${pre}await ${name}${paren}`;
+    });
     // squash duplicate awaits
     lines[i] = lines[i].replace(/await\s+await\s+/g, "await ");
   }

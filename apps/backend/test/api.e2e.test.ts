@@ -43,7 +43,9 @@ describe("API e2e", () => {
     const { app, repo } = await makeTestApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "a", 状态: "进行中" });
     for (const t of ["d1", "d2", "d3"])
-      await request(app).post(`/api/nodes/${c.body.id}/progress`).send({ content: t, statusSnapshot: "进行中", actor: "u" });
+      await request(app)
+        .post(`/api/nodes/${c.body.id}/progress`)
+        .send({ content: t, statusSnapshot: "进行中", actor: "u" });
     const seq = await request(app).get(`/api/nodes/${c.body.id}/progress`);
     expect(seq.body).toHaveLength(3);
     expect(seq.body[0].updatedBy).toBe("u");
@@ -52,19 +54,31 @@ describe("API e2e", () => {
   });
   it("BE-7 add field via config + scan, no DDL", async () => {
     const { app, cfgDir } = await makeTestApp();
-    writeFileSync(join(cfgDir, "attackTicket.json"), JSON.stringify({
-      nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-      fields: [
-        { name: "标题", type: "string", label: "标题", required: true },
-        { name: "状态", type: "enum", label: "状态", required: true,
-          enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
-        { name: "根因服务", type: "string", label: "根因服务" },
-      ],
-    }));
+    writeFileSync(
+      join(cfgDir, "attackTicket.json"),
+      JSON.stringify({
+        nodeType: "attackTicket",
+        label: "攻关单",
+        identityKeys: ["攻关单号"],
+        derivedToKG: true,
+        fields: [
+          { name: "标题", type: "string", label: "标题", required: true },
+          {
+            name: "状态",
+            type: "enum",
+            label: "状态",
+            required: true,
+            enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"],
+          },
+          { name: "根因服务", type: "string", label: "根因服务" },
+        ],
+      })
+    );
     const sc = await request(app).post("/api/schema/scan");
     expect(sc.status).toBe(200);
     expect(sc.body.ok).toBe(true);
-    const c = await request(app).post("/api/nodes/attackTicket")
+    const c = await request(app)
+      .post("/api/nodes/attackTicket")
       .send({ 标题: "x", 状态: "进行中", 根因服务: "ModelArts" });
     expect(c.status).toBe(201);
     const g = await request(app).get(`/api/nodes/${c.body.id}`);

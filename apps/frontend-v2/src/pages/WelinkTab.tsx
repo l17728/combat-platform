@@ -1,30 +1,51 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  Upload, Button, Space, Table, Input, Select, DatePicker, message, Popconfirm,
-  Tag, Typography, Empty, Alert, Tooltip, Segmented,
-} from 'antd';
+  Upload,
+  Button,
+  Space,
+  Table,
+  Input,
+  Select,
+  DatePicker,
+  message,
+  Popconfirm,
+  Tag,
+  Typography,
+  Empty,
+  Alert,
+  Tooltip,
+  Segmented,
+} from "antd";
 import {
-  InboxOutlined, DeleteOutlined, ReloadOutlined, RobotOutlined,
-  CheckSquareOutlined, ClearOutlined, UnorderedListOutlined, MessageOutlined,
-  BulbOutlined, DownloadOutlined, WarningOutlined,
-} from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import type { UploadFile } from 'antd/es/upload';
-import { useNavigate } from 'react-router-dom';
-import dayjs, { type Dayjs } from 'dayjs';
-import { api, type WelinkMessage, type DocItem } from '../api.js';
-import WelinkChatView from './WelinkChatView.js';
-import WelinkExtractionsDrawer from './WelinkExtractionsDrawer.js';
-import HermesChat from '../components/HermesChat.js';
+  InboxOutlined,
+  DeleteOutlined,
+  ReloadOutlined,
+  RobotOutlined,
+  CheckSquareOutlined,
+  ClearOutlined,
+  UnorderedListOutlined,
+  MessageOutlined,
+  BulbOutlined,
+  DownloadOutlined,
+  WarningOutlined,
+} from "@ant-design/icons";
+import type { ColumnsType } from "antd/es/table";
+import type { UploadFile } from "antd/es/upload";
+import { useNavigate } from "react-router-dom";
+import dayjs, { type Dayjs } from "dayjs";
+import { api, type WelinkMessage, type DocItem } from "../api.js";
+import WelinkChatView from "./WelinkChatView.js";
+import WelinkExtractionsDrawer from "./WelinkExtractionsDrawer.js";
+import HermesChat from "../components/HermesChat.js";
 
-const DOWNLOAD_PROMPT_DISMISS_KEY = 'combat-welink-download-prompt-dismissed';
+const DOWNLOAD_PROMPT_DISMISS_KEY = "combat-welink-download-prompt-dismissed";
 
 /** 在文档中心找 Welink 下载工具:title 含 Welink + (下载|工具),取第一个 */
 function pickWelinkDownloadDoc(docs: DocItem[]): DocItem | null {
   const re = /welink/i;
   const kw = /(下载|工具)/;
   for (const d of docs) {
-    const name = d.name || '';
+    const name = d.name || "";
     if (re.test(name) && kw.test(name)) return d;
   }
   return null;
@@ -40,20 +61,24 @@ interface Props {
   highlightMessageId?: string;
 }
 
-interface Stats { total: number; selected: number; deleted: number }
+interface Stats {
+  total: number;
+  selected: number;
+  deleted: number;
+}
 
 function normalizeMessage(raw: any): any {
-  if (!raw || typeof raw !== 'object') return null;
-  const messageId = String(raw.messageId ?? raw.id ?? raw.msgId ?? '').trim();
+  if (!raw || typeof raw !== "object") return null;
+  const messageId = String(raw.messageId ?? raw.id ?? raw.msgId ?? "").trim();
   const sentAtSrc = raw.sentAt ?? raw.time ?? raw.timestamp ?? raw.sendTime ?? raw.serverSendTime;
-  const sentAt = sentAtSrc ?? '';
-  const author = String(raw.author ?? raw.sender ?? raw.from ?? raw.userName ?? '').trim();
-  if (!messageId || sentAt === '' || sentAt == null || !author) return null;
+  const sentAt = sentAtSrc ?? "";
+  const author = String(raw.author ?? raw.sender ?? raw.from ?? raw.userName ?? "").trim();
+  if (!messageId || sentAt === "" || sentAt == null || !author) return null;
   // 透传原始字段(serverSendTime / contentType / images / 对象 content),后端解析
   return {
     ...raw,
     messageId,
-    sentAt: typeof sentAt === 'number' ? sentAt : String(sentAt),
+    sentAt: typeof sentAt === "number" ? sentAt : String(sentAt),
     author,
   };
 }
@@ -63,10 +88,10 @@ function parseUploadFile(file: File): Promise<any[]> {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const text = String(reader.result || '');
+        const text = String(reader.result || "");
         const data = JSON.parse(text);
         const list = Array.isArray(data) ? data : Array.isArray(data?.messages) ? data.messages : null;
-        if (!list) return reject(new Error('JSON 必须为消息数组或 { messages: [...] }'));
+        if (!list) return reject(new Error("JSON 必须为消息数组或 { messages: [...] }"));
         const normalized: any[] = [];
         for (const m of list) {
           const n = normalizeMessage(m);
@@ -77,8 +102,8 @@ function parseUploadFile(file: File): Promise<any[]> {
         reject(new Error(`解析 JSON 失败: ${e.message || e}`));
       }
     };
-    reader.onerror = () => reject(new Error('读取文件失败'));
-    reader.readAsText(file, 'utf-8');
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.readAsText(file, "utf-8");
   });
 }
 
@@ -95,35 +120,40 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
   const [downloadDoc, setDownloadDoc] = useState<DocItem | null>(null);
   const [downloadDocLoaded, setDownloadDocLoaded] = useState(false);
   const [promptDismissed, setPromptDismissed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(DOWNLOAD_PROMPT_DISMISS_KEY) === '1';
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(DOWNLOAD_PROMPT_DISMISS_KEY) === "1";
   });
-  const [viewMode, setViewMode] = useState<'list' | 'chat'>(() => {
-    if (typeof window === 'undefined') return 'list';
-    const v = window.localStorage.getItem('combat-welink-view');
-    return v === 'chat' ? 'chat' : 'list';
+  const [viewMode, setViewMode] = useState<"list" | "chat">(() => {
+    if (typeof window === "undefined") return "list";
+    const v = window.localStorage.getItem("combat-welink-view");
+    return v === "chat" ? "chat" : "list";
   });
 
   // 筛选状态
   const [authorFilter, setAuthorFilter] = useState<string[]>([]);
   const [timeRange, setTimeRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-  const [keywordInclude, setKeywordInclude] = useState('');
-  const [keywordExclude, setKeywordExclude] = useState('');
+  const [keywordInclude, setKeywordInclude] = useState("");
+  const [keywordExclude, setKeywordExclude] = useState("");
 
-  const fetchMessages = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const r = await api.listWelinkMessages(ticketId, { limit: 2000 });
-      setMessages(r.messages);
-      setStats(r.stats);
-    } catch (e: any) {
-      message.error(`加载消息失败: ${e.message || e}`);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [ticketId]);
+  const fetchMessages = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        const r = await api.listWelinkMessages(ticketId, { limit: 2000 });
+        setMessages(r.messages);
+        setStats(r.stats);
+      } catch (e: any) {
+        message.error(`加载消息失败: ${e.message || e}`);
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [ticketId]
+  );
 
-  useEffect(() => { void fetchMessages(); }, [fetchMessages]);
+  useEffect(() => {
+    void fetchMessages();
+  }, [fetchMessages]);
 
   const fetchExtractionCount = useCallback(async () => {
     try {
@@ -133,7 +163,9 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       // 不打扰用户:统计失败保持 0
     }
   }, [ticketId]);
-  useEffect(() => { void fetchExtractionCount(); }, [fetchExtractionCount]);
+  useEffect(() => {
+    void fetchExtractionCount();
+  }, [fetchExtractionCount]);
 
   // 拉文档中心,找下载工具
   useEffect(() => {
@@ -149,25 +181,27 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         if (!cancelled) setDownloadDocLoaded(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleDismissPrompt = useCallback(() => {
     setPromptDismissed(true);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(DOWNLOAD_PROMPT_DISMISS_KEY, '1');
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DOWNLOAD_PROMPT_DISMISS_KEY, "1");
     }
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('combat-welink-view', viewMode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("combat-welink-view", viewMode);
     }
   }, [viewMode]);
 
   // 场景 3:有外部 highlightMessageId 时强制聊天视图,方便高亮锚点
   useEffect(() => {
-    if (highlightMessageId) setViewMode('chat');
+    if (highlightMessageId) setViewMode("chat");
   }, [highlightMessageId]);
 
   const authorOptions = useMemo(() => {
@@ -191,32 +225,35 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
     });
   }, [messages, authorFilter, timeRange, keywordInclude, keywordExclude]);
 
-  const beforeUpload = useCallback(async (file: File) => {
-    setUploading(true);
-    try {
-      const messagesToUpload = await parseUploadFile(file);
-      if (messagesToUpload.length === 0) {
-        message.warning('未在文件中发现可识别的消息');
-        return Upload.LIST_IGNORE;
+  const beforeUpload = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      try {
+        const messagesToUpload = await parseUploadFile(file);
+        if (messagesToUpload.length === 0) {
+          message.warning("未在文件中发现可识别的消息");
+          return Upload.LIST_IGNORE;
+        }
+        const chunkSize = 500;
+        let inserted = 0;
+        let updated = 0;
+        for (let i = 0; i < messagesToUpload.length; i += chunkSize) {
+          const slice = messagesToUpload.slice(i, i + chunkSize);
+          const r = await api.uploadWelinkMessages(ticketId, slice);
+          inserted += r.inserted;
+          updated += r.updated;
+        }
+        message.success(`上传完成:新增 ${inserted} 条,覆盖 ${updated} 条`);
+        await fetchMessages(true);
+      } catch (e: any) {
+        message.error(`上传失败: ${e.message || e}`);
+      } finally {
+        setUploading(false);
       }
-      const chunkSize = 500;
-      let inserted = 0;
-      let updated = 0;
-      for (let i = 0; i < messagesToUpload.length; i += chunkSize) {
-        const slice = messagesToUpload.slice(i, i + chunkSize);
-        const r = await api.uploadWelinkMessages(ticketId, slice);
-        inserted += r.inserted;
-        updated += r.updated;
-      }
-      message.success(`上传完成:新增 ${inserted} 条,覆盖 ${updated} 条`);
-      await fetchMessages(true);
-    } catch (e: any) {
-      message.error(`上传失败: ${e.message || e}`);
-    } finally {
-      setUploading(false);
-    }
-    return Upload.LIST_IGNORE;
-  }, [ticketId, fetchMessages]);
+      return Upload.LIST_IGNORE;
+    },
+    [ticketId, fetchMessages]
+  );
 
   const handleSelectAllFiltered = () => {
     setSelectedRowKeys(filtered.map((m) => m.id));
@@ -230,7 +267,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
 
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning('请先勾选要删除的消息');
+      message.warning("请先勾选要删除的消息");
       return;
     }
     try {
@@ -246,7 +283,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
   const handleDeleteOne = async (id: string) => {
     try {
       await api.deleteWelinkMessage(ticketId, id);
-      message.success('已删除');
+      message.success("已删除");
       await fetchMessages(true);
     } catch (e: any) {
       message.error(`删除失败: ${e.message || e}`);
@@ -266,12 +303,12 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
 
   const handleToggleSelected = async (ids: string[], selected: boolean) => {
     if (ids.length === 0) {
-      message.warning('请先勾选消息');
+      message.warning("请先勾选消息");
       return;
     }
     try {
       const r = await api.updateWelinkSelection(ticketId, ids, selected);
-      message.success(`已${selected ? '纳入' : '排除'} ${r.updated} 条`);
+      message.success(`已${selected ? "纳入" : "排除"} ${r.updated} 条`);
       await fetchMessages(true);
     } catch (e: any) {
       message.error(`更新选中失败: ${e.message || e}`);
@@ -283,9 +320,9 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
     try {
       const r = await api.analyzeWelinkMessages(ticketId);
       if (r.queued === 0) {
-        message.warning('没有已选中的消息可供分析,请先勾选要分析的消息');
+        message.warning("没有已选中的消息可供分析,请先勾选要分析的消息");
       } else if (r.extracted === 0) {
-        message.info('未抽取出新信息');
+        message.info("未抽取出新信息");
       } else {
         message.success(`AI 抽取完成:从 ${r.queued} 条消息抽出 ${r.extracted} 项 (来源:${r.source})`);
       }
@@ -306,46 +343,60 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
 
   const columns: ColumnsType<WelinkMessage> = [
     {
-      title: '时间', dataIndex: 'sentAt', key: 'sentAt', width: 170,
+      title: "时间",
+      dataIndex: "sentAt",
+      key: "sentAt",
+      width: 170,
       render: (v: string) => (
         <Tooltip title={v}>
-          <Text style={{ fontSize: 12 }}>{dayjs(v).isValid() ? dayjs(v).format('MM-DD HH:mm:ss') : v}</Text>
+          <Text style={{ fontSize: 12 }}>{dayjs(v).isValid() ? dayjs(v).format("MM-DD HH:mm:ss") : v}</Text>
         </Tooltip>
       ),
       sorter: (a, b) => a.sentAt.localeCompare(b.sentAt),
-      defaultSortOrder: 'ascend',
+      defaultSortOrder: "ascend",
     },
     {
-      title: '发言人', dataIndex: 'author', key: 'author', width: 120,
+      title: "发言人",
+      dataIndex: "author",
+      key: "author",
+      width: 120,
       render: (v: string) => <Tag color="blue">{v}</Tag>,
     },
     {
-      title: '内容', dataIndex: 'content', key: 'content', ellipsis: true,
-      render: (v: string) => <Text style={{ whiteSpace: 'pre-wrap' }}>{v}</Text>,
+      title: "内容",
+      dataIndex: "content",
+      key: "content",
+      ellipsis: true,
+      render: (v: string) => <Text style={{ whiteSpace: "pre-wrap" }}>{v}</Text>,
     },
     {
-      title: '纳入分析', dataIndex: 'selected', key: 'selected', width: 100,
-      render: (v: boolean, row) => (
-        v ? <Tag color="green">已纳入</Tag>
-          : <a onClick={() => handleToggleSelected([row.id], true)}>排除中</a>
-      ),
+      title: "纳入分析",
+      dataIndex: "selected",
+      key: "selected",
+      width: 100,
+      render: (v: boolean, row) =>
+        v ? <Tag color="green">已纳入</Tag> : <a onClick={() => handleToggleSelected([row.id], true)}>排除中</a>,
     },
     {
-      title: '操作', key: 'actions', width: 80, fixed: 'right',
+      title: "操作",
+      key: "actions",
+      width: 80,
+      fixed: "right",
       render: (_, row) => (
         <Popconfirm title="确认删除该条消息？" onConfirm={() => handleDeleteOne(row.id)}>
-          <a style={{ color: '#ff4d4f' }}>删除</a>
+          <a style={{ color: "#ff4d4f" }}>删除</a>
         </Popconfirm>
       ),
     },
   ];
 
-  const downloadHref = downloadDoc ? `/api/documents/${downloadDoc.id}/download` : '';
+  const downloadHref = downloadDoc ? `/api/documents/${downloadDoc.id}/download` : "";
 
   return (
-    <div style={{ padding: '16px 0' }}>
-      {!promptDismissed && downloadDocLoaded && (
-        downloadDoc ? (
+    <div style={{ padding: "16px 0" }}>
+      {!promptDismissed &&
+        downloadDocLoaded &&
+        (downloadDoc ? (
           <Alert
             data-testid="welink-download-prompt"
             type="info"
@@ -356,15 +407,10 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
             message={<span>📥 第一步:同步群消息 — 还没下载工具?</span>}
             description={
               <div style={{ fontSize: 13, lineHeight: 1.7 }}>
-                <a
-                  href={downloadHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-testid="welink-download-link"
-                >
+                <a href={downloadHref} target="_blank" rel="noopener noreferrer" data-testid="welink-download-link">
                   <DownloadOutlined /> 下载 Welink 消息下载工具
                 </a>
-                <div style={{ color: '#666', marginTop: 4 }}>
+                <div style={{ color: "#666", marginTop: 4 }}>
                   在你的 Windows 本机运行工具登录 Welink → 选择群 → 导出 JSON → 回到这里拖拽上传
                 </div>
               </div>
@@ -387,20 +433,21 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
                   size="small"
                   type="primary"
                   data-testid="welink-jump-to-documents"
-                  onClick={() => navigate('/documents')}
+                  onClick={() => navigate("/documents")}
                 >
                   跳到文档中心
                 </Button>
               </Space>
             }
           />
-        )
-      )}
+        ))}
 
       <Alert
         message="Welink 群消息"
         description="上传由 Welink 下载工具导出的群消息 JSON;支持按时段/发言人/关键词筛选;选中的子集会进入下一阶段 AI 抽取分析。"
-        type="info" showIcon style={{ marginBottom: 16 }}
+        type="info"
+        showIcon
+        style={{ marginBottom: 16 }}
       />
 
       <Dragger
@@ -411,8 +458,10 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         disabled={uploading}
         style={{ marginBottom: 16 }}
       >
-        <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-        <p className="ant-upload-text">{uploading ? '上传中…' : '点击或拖拽 Welink 群消息 JSON 到此处'}</p>
+        <p className="ant-upload-drag-icon">
+          <InboxOutlined />
+        </p>
+        <p className="ant-upload-text">{uploading ? "上传中…" : "点击或拖拽 Welink 群消息 JSON 到此处"}</p>
         <p className="ant-upload-hint" style={{ fontSize: 12 }}>
           支持顶层数组或 {`{ messages: [...] }`};按 (messageId) 覆盖式去重
         </p>
@@ -420,15 +469,33 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
 
       <Space wrap style={{ marginBottom: 12 }}>
         <Text strong>共 {stats.total} 条</Text>
-        <Text type="secondary">/ 纳入分析 {stats.selected} 条 / 已软删 {stats.deleted} 条</Text>
+        <Text type="secondary">
+          / 纳入分析 {stats.selected} 条 / 已软删 {stats.deleted} 条
+        </Text>
         <Text type="secondary">/ 当前显示 {filtered.length} 条</Text>
-        <Button icon={<ReloadOutlined />} size="small" onClick={() => fetchMessages()}>刷新</Button>
+        <Button icon={<ReloadOutlined />} size="small" onClick={() => fetchMessages()}>
+          刷新
+        </Button>
         <Segmented
           value={viewMode}
-          onChange={(v) => setViewMode(v as 'list' | 'chat')}
+          onChange={(v) => setViewMode(v as "list" | "chat")}
           options={[
-            { label: <span><UnorderedListOutlined /> 列表视图</span>, value: 'list' },
-            { label: <span><MessageOutlined /> 聊天视图</span>, value: 'chat' },
+            {
+              label: (
+                <span>
+                  <UnorderedListOutlined /> 列表视图
+                </span>
+              ),
+              value: "list",
+            },
+            {
+              label: (
+                <span>
+                  <MessageOutlined /> 聊天视图
+                </span>
+              ),
+              value: "chat",
+            },
           ]}
         />
         <Button
@@ -439,7 +506,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         >
           AI 抽取 ({extractionCount})
         </Button>
-        {viewMode === 'chat' && (
+        {viewMode === "chat" && (
           <Button
             type="primary"
             size="small"
@@ -453,7 +520,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         )}
       </Space>
 
-      {viewMode === 'list' ? (
+      {viewMode === "list" ? (
         <>
           <Space wrap style={{ marginBottom: 12 }}>
             <Select
@@ -470,7 +537,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
               showTime
               value={timeRange as any}
               onChange={(v) => setTimeRange(v as any)}
-              placeholder={['起始时间', '截止时间']}
+              placeholder={["起始时间", "截止时间"]}
             />
             <Input
               allowClear
@@ -489,7 +556,9 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
           </Space>
 
           <Space wrap style={{ marginBottom: 12 }}>
-            <Button icon={<CheckSquareOutlined />} onClick={handleSelectAllFiltered}>全选当前</Button>
+            <Button icon={<CheckSquareOutlined />} onClick={handleSelectAllFiltered}>
+              全选当前
+            </Button>
             <Button onClick={handleInvertSelection}>反选当前</Button>
             <Button onClick={handleClearSelection}>清空勾选</Button>
             <Button onClick={() => handleToggleSelected(selectedRowKeys, true)} disabled={!selectedRowKeys.length}>
@@ -498,11 +567,7 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
             <Button onClick={() => handleToggleSelected(selectedRowKeys, false)} disabled={!selectedRowKeys.length}>
               排除分析 ({selectedRowKeys.length})
             </Button>
-            <Popconfirm
-              title="确认软删勾选的消息？"
-              onConfirm={handleBatchDelete}
-              disabled={!selectedRowKeys.length}
-            >
+            <Popconfirm title="确认软删勾选的消息？" onConfirm={handleBatchDelete} disabled={!selectedRowKeys.length}>
               <Button icon={<DeleteOutlined />} danger disabled={!selectedRowKeys.length}>
                 批量删除 ({selectedRowKeys.length})
               </Button>
@@ -544,9 +609,16 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys as string[]),
             }}
-            pagination={{ pageSize: 50, showSizeChanger: true, pageSizeOptions: [20, 50, 100, 200], showTotal: (t) => `共 ${t} 条` }}
+            pagination={{
+              pageSize: 50,
+              showSizeChanger: true,
+              pageSizeOptions: [20, 50, 100, 200],
+              showTotal: (t) => `共 ${t} 条`,
+            }}
             scroll={{ x: true }}
-            locale={{ emptyText: <Empty description="暂无 Welink 消息,先上传一份" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+            locale={{
+              emptyText: <Empty description="暂无 Welink 消息,先上传一份" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
+            }}
           />
         </>
       ) : (
@@ -562,7 +634,10 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       <WelinkExtractionsDrawer
         open={extractionsOpen}
         ticketId={ticketId}
-        onClose={() => { setExtractionsOpen(false); void fetchExtractionCount(); }}
+        onClose={() => {
+          setExtractionsOpen(false);
+          void fetchExtractionCount();
+        }}
         onMembersChanged={handleMembersChanged}
       />
 

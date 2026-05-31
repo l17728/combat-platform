@@ -12,16 +12,10 @@
 
 import { spawn } from "node:child_process";
 
-const PG_URL =
-  process.env.COMBAT_TEST_DB_URL ||
-  "postgres://postgres:postgres@localhost:5433/combat_test_regression";
+const PG_URL = process.env.COMBAT_TEST_DB_URL || "postgres://postgres:postgres@localhost:5433/combat_test_regression";
 
 const env = { ...process.env, COMBAT_TEST_DB_URL: PG_URL };
 
-const child = spawn(
-  "npm",
-  ["run", "test", "--workspace=@combat/backend"],
-  { stdio: "inherit", env, shell: true },
-);
+const child = spawn("npm", ["run", "test", "--workspace=@combat/backend"], { stdio: "inherit", env, shell: true });
 
 child.on("exit", (code) => process.exit(code ?? 1));

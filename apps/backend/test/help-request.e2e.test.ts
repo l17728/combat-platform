@@ -15,13 +15,25 @@ async function makeApp(mailSender?: MailSender) {
   const dir = mkdtempSync(join(tmpdir(), "combat-help-"));
   const cfgDir = join(dir, "schemas");
   mkdirSync(cfgDir);
-  writeFileSync(join(cfgDir, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [
-      { name: "标题", type: "string", label: "标题", required: true },
-      { name: "状态", type: "enum", label: "状态", required: true, enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"] },
-    ],
-  }));
+  writeFileSync(
+    join(cfgDir, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        {
+          name: "状态",
+          type: "enum",
+          label: "状态",
+          required: true,
+          enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"],
+        },
+      ],
+    })
+  );
   const dbPath = join(dir, "t.sqlite");
   const db = openDb(dbPath);
   const repo = new SqliteRepository(new SqliteAdapter(db));
@@ -40,7 +52,11 @@ describe("help-request e2e", () => {
     const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
-      ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助分析",
+      ticketId,
+      requesterName: "罗军",
+      targetEmail: "expert@x.com",
+      category: "领域专家",
+      question: "请协助分析",
     });
     expect(r.status).toBe(201);
     expect(r.body.feedbackLink).toMatch(/\/help\/feedback\/[\w-]+$/);
@@ -51,7 +67,11 @@ describe("help-request e2e", () => {
     const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
-      ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助",
+      ticketId,
+      requesterName: "罗军",
+      targetEmail: "expert@x.com",
+      category: "领域专家",
+      question: "请协助",
     });
     expect(r.status).toBe(201);
     expect(r.body.emailSent).toBe(false);
@@ -60,12 +80,32 @@ describe("help-request e2e", () => {
 
   it("reports emailSent=true and emails the frontend link when SMTP is configured", async () => {
     const sent: { msg: { to: string[]; subject: string; body: string } }[] = [];
-    const fakeMail: MailSender = { async send(_cfg, msg) { sent.push({ msg }); return { messageId: "test" }; } };
+    const fakeMail: MailSender = {
+      async send(_cfg, msg) {
+        sent.push({ msg });
+        return { messageId: "test" };
+      },
+    };
     const { app, repo } = await makeApp(fakeMail);
-    await repo.setSetting("smtp", JSON.stringify({ host: "smtp.test", port: 587, secure: false, username: "u", password: "p", fromEmail: "a@b.com" }), "test");
+    await repo.setSetting(
+      "smtp",
+      JSON.stringify({
+        host: "smtp.test",
+        port: 587,
+        secure: false,
+        username: "u",
+        password: "p",
+        fromEmail: "a@b.com",
+      }),
+      "test"
+    );
     const ticketId = await makeTicket(app);
     const r = await request(app).post("/api/help-requests").send({
-      ticketId, requesterName: "罗军", targetEmail: "expert@x.com", category: "领域专家", question: "请协助",
+      ticketId,
+      requesterName: "罗军",
+      targetEmail: "expert@x.com",
+      category: "领域专家",
+      question: "请协助",
     });
     expect(r.status).toBe(201);
     expect(r.body.emailSent).toBe(true);
@@ -78,7 +118,12 @@ describe("help-request e2e", () => {
     const { app } = await makeApp();
     const ticketId = await makeTicket(app);
     const created = await request(app).post("/api/help-requests").send({
-      ticketId, requesterName: "罗军", targetName: "专家A", targetEmail: "expert@x.com", category: "领域专家", question: "我是谁",
+      ticketId,
+      requesterName: "罗军",
+      targetName: "专家A",
+      targetEmail: "expert@x.com",
+      category: "领域专家",
+      question: "我是谁",
     });
     const token = created.body.feedbackToken;
 
@@ -87,7 +132,9 @@ describe("help-request e2e", () => {
     expect(info.body.question).toBe("我是谁");
     expect(info.body.status).toBe("待回复");
 
-    const fb = await request(app).post(`/api/help/feedback/${token}`).send({ feedback: "建议检查网络抓包", name: "专家A" });
+    const fb = await request(app)
+      .post(`/api/help/feedback/${token}`)
+      .send({ feedback: "建议检查网络抓包", name: "专家A" });
     expect(fb.status).toBe(200);
     expect(fb.body.status).toBe("已回复");
     expect(fb.body.feedback).toBe("建议检查网络抓包");

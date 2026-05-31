@@ -119,11 +119,14 @@ async function main() {
 
   // PG schema 必须事先就绪(server 启动时 ensurePostgresSchema 会建好);
   // 这里只做一次预检,表不存在则停。
-  const tableCheck = await pgPool.query(`
+  const tableCheck = await pgPool.query(
+    `
     SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename = ANY($1)
-  `, [TABLES_ORDER]);
-  const existing = new Set(tableCheck.rows.map(r => r.tablename));
-  const missing = TABLES_ORDER.filter(t => !existing.has(t));
+  `,
+    [TABLES_ORDER]
+  );
+  const existing = new Set(tableCheck.rows.map((r) => r.tablename));
+  const missing = TABLES_ORDER.filter((t) => !existing.has(t));
   if (missing.length > 0) {
     fail(`PG 端缺少以下表(请先启动一次后端用 DB_URL=postgres://... 让它建表):\n  ${missing.join("\n  ")}`);
   }
@@ -155,7 +158,7 @@ async function main() {
       // 取一行得列名(SQLite 的列名与 PG 一致 — schema.ts 已对齐)
       const sample = sqlite.prepare(`SELECT * FROM ${table} LIMIT 1`).get();
       const cols = Object.keys(sample);
-      const colsQuoted = cols.map(c => `"${c}"`).join(", ");
+      const colsQuoted = cols.map((c) => `"${c}"`).join(", ");
 
       // Phase 4: 把 PG 端 JSONB 列名识别出来,迁移时 JSON.parse 一次,
       // 让 pg 驱动用 jsonb 协议序列化(SQLite 那边是 TEXT JSON 字符串)。
@@ -166,25 +169,31 @@ async function main() {
         const rows = sqlite.prepare(`SELECT * FROM ${table} LIMIT ? OFFSET ?`).all(batchSize, offset);
         if (rows.length === 0) break;
         // 构造批量 VALUES
-        const placeholderRows = rows.map((_, i) => {
-          const base = i * cols.length;
-          return `(${cols.map((_, j) => `$${base + j + 1}`).join(", ")})`;
-        }).join(", ");
-        const params = rows.flatMap(r => cols.map(c => {
-          const v = r[c];
-          if (jsonbCols.has(c)) {
-            if (v === null || v === undefined) return null;
-            if (typeof v !== "string") return v;
-            try { return JSON.parse(v); } catch {
-              // 历史脏数据回退:整个字符串包成 { _raw: ... } 保留
-              return { _raw: v };
+        const placeholderRows = rows
+          .map((_, i) => {
+            const base = i * cols.length;
+            return `(${cols.map((_, j) => `$${base + j + 1}`).join(", ")})`;
+          })
+          .join(", ");
+        const params = rows.flatMap((r) =>
+          cols.map((c) => {
+            const v = r[c];
+            if (jsonbCols.has(c)) {
+              if (v === null || v === undefined) return null;
+              if (typeof v !== "string") return v;
+              try {
+                return JSON.parse(v);
+              } catch {
+                // 历史脏数据回退:整个字符串包成 { _raw: ... } 保留
+                return { _raw: v };
+              }
             }
-          }
-          return v;
-        }));
+            return v;
+          })
+        );
         await client.query(
           `INSERT INTO "${table}" (${colsQuoted}) VALUES ${placeholderRows} ON CONFLICT DO NOTHING`,
-          params,
+          params
         );
         offset += rows.length;
         stats[table].copied += rows.length;
@@ -216,11 +225,18 @@ async function main() {
 
   if (!values["dry-run"]) {
     const marker = resolve(sqlitePath + ".migrated-to-postgres");
-    writeFileSync(marker, JSON.stringify({
-      at: new Date().toISOString(),
-      target: redact(values.postgres),
-      stats,
-    }, null, 2));
+    writeFileSync(
+      marker,
+      JSON.stringify(
+        {
+          at: new Date().toISOString(),
+          target: redact(values.postgres),
+          stats,
+        },
+        null,
+        2
+      )
+    );
     log(`✓ 已写迁移标记: ${marker}`);
   }
   log("迁移完成");
@@ -230,4 +246,4 @@ function redact(url) {
   return url.replace(/(:)([^:@/]+)(@)/, "$1***$3");
 }
 
-main().catch(e => fail(e.stack || e.message));
+main().catch((e) => fail(e.stack || e.message));

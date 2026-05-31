@@ -58,9 +58,15 @@ describe("db-migration router", () => {
       const names = res.body.tables.map((t: any) => t.name);
       expect(names).toEqual(
         expect.arrayContaining([
-          "users", "app_settings", "nodes", "edges", "progress_log",
-          "audit_log", "proposals", "notifications",
-        ]),
+          "users",
+          "app_settings",
+          "nodes",
+          "edges",
+          "progress_log",
+          "audit_log",
+          "proposals",
+          "notifications",
+        ])
       );
       // every entry has numeric rows
       for (const t of res.body.tables) {

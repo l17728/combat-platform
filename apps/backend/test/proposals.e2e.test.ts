@@ -11,16 +11,31 @@ import { createApp } from "../src/app.js";
 
 async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-prop-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [{ name: "标题", type: "string", label: "标题", required: true },
-      { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" }],
-  }));
-  writeFileSync(join(cfg, "person.json"), JSON.stringify({
-    nodeType: "person", label: "人员", identityKeys: ["employeeId"], derivedToKG: true,
-    fields: [{ name: "name", type: "string", label: "姓名", required: true }],
-  }));
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "person.json"),
+    JSON.stringify({
+      nodeType: "person",
+      label: "人员",
+      identityKeys: ["employeeId"],
+      derivedToKG: true,
+      fields: [{ name: "name", type: "string", label: "姓名", required: true }],
+    })
+  );
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo };
 }

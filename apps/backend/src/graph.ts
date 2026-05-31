@@ -1,5 +1,12 @@
 import { Router } from "express";
-import type { Repository, SchemaRegistry, GraphSnapshot, GraphSnapshotNode, GraphSnapshotEdge, GraphNode } from "@combat/shared";
+import type {
+  Repository,
+  SchemaRegistry,
+  GraphSnapshot,
+  GraphSnapshotNode,
+  GraphSnapshotEdge,
+  GraphNode,
+} from "@combat/shared";
 
 const VIZ_EDGE_TYPES = new Set(["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"]);
 
@@ -12,8 +19,21 @@ function labelOf(n: GraphNode): string {
     if (who) return tag ? `${who}·${tag}` : `${who}(贡献)`;
   }
   return String(
-    p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ?? p["name"] ?? p["贡献人"] ??
-    p["组名"] ?? p["key"] ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? n.id,
+    p["标题"] ??
+      p["攻关单号"] ??
+      p["版本号"] ??
+      p["名称"] ??
+      p["姓名"] ??
+      p["name"] ??
+      p["贡献人"] ??
+      p["组名"] ??
+      p["key"] ??
+      p["经验"] ??
+      p["问题说明"] ??
+      p["告警问题"] ??
+      p["事件标题"] ??
+      p["事项描述"] ??
+      n.id
   );
 }
 
@@ -38,15 +58,18 @@ export async function buildSnapshot(repo: Repository, rootId: string, maxDepth: 
   while (queue.length) {
     const cur = queue.shift()!;
     if (cur.depth >= maxDepth) continue;
-    const out = (await repo.queryEdges({ sourceId: cur.id })).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
-    const inc = (await repo.queryEdges({ targetId: cur.id })).filter(e => VIZ_EDGE_TYPES.has(e.edgeType));
+    const out = (await repo.queryEdges({ sourceId: cur.id })).filter((e) => VIZ_EDGE_TYPES.has(e.edgeType));
+    const inc = (await repo.queryEdges({ targetId: cur.id })).filter((e) => VIZ_EDGE_TYPES.has(e.edgeType));
     for (const e of out) {
       const peer = await repo.getNode(e.targetId);
       if (!peer) continue;
       const key = edgeKey(cur.id, peer.id, e.edgeType);
       if (!edges.has(key)) edges.set(key, { source: cur.id, target: peer.id, edgeType: e.edgeType });
       if (!nodes.has(peer.id)) nodes.set(peer.id, { id: peer.id, nodeType: peer.nodeType, label: labelOf(peer) });
-      if (!seen.has(peer.id)) { seen.add(peer.id); queue.push({ id: peer.id, depth: cur.depth + 1 }); }
+      if (!seen.has(peer.id)) {
+        seen.add(peer.id);
+        queue.push({ id: peer.id, depth: cur.depth + 1 });
+      }
     }
     for (const e of inc) {
       const peer = await repo.getNode(e.sourceId);
@@ -54,7 +77,10 @@ export async function buildSnapshot(repo: Repository, rootId: string, maxDepth: 
       const key = edgeKey(peer.id, cur.id, e.edgeType);
       if (!edges.has(key)) edges.set(key, { source: peer.id, target: cur.id, edgeType: e.edgeType });
       if (!nodes.has(peer.id)) nodes.set(peer.id, { id: peer.id, nodeType: peer.nodeType, label: labelOf(peer) });
-      if (!seen.has(peer.id)) { seen.add(peer.id); queue.push({ id: peer.id, depth: cur.depth + 1 }); }
+      if (!seen.has(peer.id)) {
+        seen.add(peer.id);
+        queue.push({ id: peer.id, depth: cur.depth + 1 });
+      }
     }
   }
   return { rootId, nodes: [...nodes.values()], edges: [...edges.values()] };
@@ -68,10 +94,10 @@ export async function buildSnapshot(repo: Repository, rootId: string, maxDepth: 
 export async function buildGraph(
   repo: Repository,
   registry: SchemaRegistry,
-  opts: { types?: string[]; q?: string; limit?: number },
+  opts: { types?: string[]; q?: string; limit?: number }
 ): Promise<GraphSnapshot> {
   const limit = Math.max(1, Math.min(opts.limit ?? 500, 2000));
-  const types = opts.types?.length ? opts.types : registry.getConfig().nodeTypes.map(n => n.nodeType);
+  const types = opts.types?.length ? opts.types : registry.getConfig().nodeTypes.map((n) => n.nodeType);
   const q = (opts.q ?? "").trim().toLowerCase();
   const nodes = new Map<string, GraphSnapshotNode>();
   for (const nt of types) {
@@ -79,7 +105,10 @@ export async function buildGraph(
     for (const n of await repo.queryNodes(nt)) {
       if (nodes.size >= limit) break;
       if (q) {
-        const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
+        const hay = Object.values(n.properties)
+          .map((v) => String(v))
+          .join(" ")
+          .toLowerCase();
         if (!hay.includes(q)) continue;
       }
       nodes.set(n.id, { id: n.id, nodeType: n.nodeType, label: labelOf(n) });
@@ -109,7 +138,12 @@ export function makeGraphRouter(repo: Repository, registry: SchemaRegistry): Rou
   });
   r.get("/kg/graph", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
-    const types = req.query.types ? String(first(req.query.types)).split(",").map(s => s.trim()).filter(Boolean) : undefined;
+    const types = req.query.types
+      ? String(first(req.query.types))
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
     const q = req.query.q ? String(first(req.query.q)) : undefined;
     const limit = Number(first(req.query.limit)) || 500;
     res.json(await buildGraph(repo, registry, { types, q, limit }));

@@ -168,7 +168,7 @@ export const welinkAddMembers = tool({
 export const welinkSetMemberRole = tool({
   description:
     "把某攻关单里已登记的某成员角色改成「组长」或「组员」;若不在成员列表会返回 404。" +
-    "用于"把张三设为组长"这类对话指令。",
+    '用于"把张三设为组长"这类对话指令。',
   args: {
     ticketId: tool.schema.string().describe("攻关单节点 id"),
     name: tool.schema.string().describe("已在成员列表中的姓名"),

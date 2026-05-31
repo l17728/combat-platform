@@ -14,8 +14,9 @@ describe("知识图谱全图端点 /kg/graph", () => {
     const ids = res.body.nodes.map((n: any) => n.id);
     expect(ids).toContain(t1.id);
     expect(ids).toContain(p1.id);
-    expect(res.body.edges.some((e: any) =>
-      e.source === t1.id && e.target === p1.id && e.edgeType === "ASSIGNED_TO")).toBe(true);
+    expect(
+      res.body.edges.some((e: any) => e.source === t1.id && e.target === p1.id && e.edgeType === "ASSIGNED_TO")
+    ).toBe(true);
     // 节点带 label 供可视化展示
     expect(res.body.nodes.find((n: any) => n.id === t1.id).label).toBe("图测试单A");
   });

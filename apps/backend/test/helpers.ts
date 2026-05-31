@@ -77,7 +77,7 @@ function writeMinimalSchemas(cfgDir: string) {
           enumValues: ["待响应", "处理中", "进行中", "已解决", "已关闭"],
         },
       ],
-    }),
+    })
   );
   writeFileSync(
     join(cfgDir, "person.json"),
@@ -90,7 +90,7 @@ function writeMinimalSchemas(cfgDir: string) {
         { name: "name", type: "string", label: "姓名", required: true },
         { name: "employeeId", type: "string", label: "工号" },
       ],
-    }),
+    })
   );
 }
 

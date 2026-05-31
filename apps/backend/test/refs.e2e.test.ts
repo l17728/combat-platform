@@ -11,26 +11,47 @@ import { createApp } from "../src/app.js";
 
 async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-refs-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [
-      { name: "标题", type: "string", label: "标题", required: true },
-      { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" },
-    ],
-  }));
-  writeFileSync(join(cfg, "contribution.json"), JSON.stringify({
-    nodeType: "contribution", label: "贡献记录", identityKeys: [], derivedToKG: true,
-    fields: [
-      { name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true },
-      { name: "贡献类型", type: "string", label: "贡献类型" },
-    ],
-  }));
-  writeFileSync(join(cfg, "person.json"), JSON.stringify({
-    nodeType: "person", label: "人员", identityKeys: ["employeeId", "email"], derivedToKG: true,
-    fields: [{ name: "name", type: "string", label: "姓名", required: true },
-             { name: "employeeId", type: "string", label: "工号" }],
-  }));
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "contribution.json"),
+    JSON.stringify({
+      nodeType: "contribution",
+      label: "贡献记录",
+      identityKeys: [],
+      derivedToKG: true,
+      fields: [
+        { name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true },
+        { name: "贡献类型", type: "string", label: "贡献类型" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "person.json"),
+    JSON.stringify({
+      nodeType: "person",
+      label: "人员",
+      identityKeys: ["employeeId", "email"],
+      derivedToKG: true,
+      fields: [
+        { name: "name", type: "string", label: "姓名", required: true },
+        { name: "employeeId", type: "string", label: "工号" },
+      ],
+    })
+  );
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo };
 }
@@ -68,10 +89,10 @@ describe("refs e2e", () => {
     expect(await repo.queryNodes("person")).toHaveLength(1);
     await request(app).put(`/api/nodes/${c.body.id}`).send({ 当前处理人: "李四" });
     const persons = await repo.queryNodes("person");
-    expect(persons.map(p => p.properties["name"]).sort()).toEqual(["张三", "李四"].sort());
+    expect(persons.map((p) => p.properties["name"]).sort()).toEqual(["张三", "李四"].sort());
     const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
     expect(edges).toHaveLength(1);
-    const li = persons.find(p => p.properties["name"] === "李四")!;
+    const li = persons.find((p) => p.properties["name"] === "李四")!;
     expect(edges[0].targetId).toBe(li.id);
   });
   it("related unknown id -> 404", async () => {

@@ -19,12 +19,23 @@ async function makeApp() {
   const registry = new FileSchemaRegistry(CFG);
   const sent: { to: string[]; subject: string; body: string }[] = [];
   const fake: MailSender = {
-    send: async (_cfg, msg) => { sent.push(msg); return { messageId: "fake-1" }; },
+    send: async (_cfg, msg) => {
+      sent.push(msg);
+      return { messageId: "fake-1" };
+    },
   };
   return { app: createApp({ repo, registry, mailSender: fake }), repo, sent };
 }
 
-const SMTP = { host: "smtp.x.com", port: 465, secure: true, username: "u", password: "secret", fromEmail: "ops@x.com", fromName: "作战" };
+const SMTP = {
+  host: "smtp.x.com",
+  port: 465,
+  secure: true,
+  username: "u",
+  password: "secret",
+  fromEmail: "ops@x.com",
+  fromName: "作战",
+};
 
 describe("§45 email e2e", () => {
   it("config PUT→GET masks password (passwordSet) and empty password preserves old", async () => {
@@ -42,7 +53,9 @@ describe("§45 email e2e", () => {
     expect(get.body.fromName).toBe("作战");
 
     // PUT without password keeps old → test send still works (config present)
-    const put2 = await request(app).put("/api/email/config").send({ ...SMTP, password: "", fromName: "战" });
+    const put2 = await request(app)
+      .put("/api/email/config")
+      .send({ ...SMTP, password: "", fromName: "战" });
     expect(put2.body.passwordSet).toBe(true);
     expect(put2.body.fromName).toBe("战");
     const t = await request(app).post("/api/email/test").send({ to: "x@x.com" });
@@ -68,9 +81,15 @@ describe("§45 email e2e", () => {
     expect(gl.body.some((n: any) => n.properties["组名"] === "G")).toBe(true);
     await request(app).post("/api/nodes/person").send({ 姓名: "张三", 工号: "E1", 邮箱: "c@x.com" });
 
-    const send = await request(app).post("/api/email/send").send({
-      to: ["d@x.com", "a@x.com"], groupNames: ["G"], personNames: ["张三"], subject: "S", body: "B",
-    });
+    const send = await request(app)
+      .post("/api/email/send")
+      .send({
+        to: ["d@x.com", "a@x.com"],
+        groupNames: ["G"],
+        personNames: ["张三"],
+        subject: "S",
+        body: "B",
+      });
     expect(send.status).toBe(200);
     expect(send.body.ok).toBe(true);
     // a@x.com appears in both to and group → deduped
@@ -84,16 +103,23 @@ describe("§45 email e2e", () => {
     const { app } = await makeApp();
     await request(app).put("/api/email/config").send(SMTP);
     await request(app).post("/api/nodes/person").send({ 姓名: "李四", 工号: "E2", 邮箱: "li@x.com" });
-    const send = await request(app).post("/api/email/send").send({
-      to: ["bad-email", " ", "ok@x.com"], personNames: ["E2"], subject: "S", body: "B",
-    });
+    const send = await request(app)
+      .post("/api/email/send")
+      .send({
+        to: ["bad-email", " ", "ok@x.com"],
+        personNames: ["E2"],
+        subject: "S",
+        body: "B",
+      });
     expect(send.status).toBe(200);
     expect([...send.body.recipients].sort()).toEqual(["li@x.com", "ok@x.com"]);
   });
 
   it("no SMTP configured → /send 400", async () => {
     const { app } = await makeApp();
-    const send = await request(app).post("/api/email/send").send({ to: ["a@x.com"], subject: "S", body: "B" });
+    const send = await request(app)
+      .post("/api/email/send")
+      .send({ to: ["a@x.com"], subject: "S", body: "B" });
     expect(send.status).toBe(400);
   });
 
@@ -106,7 +132,9 @@ describe("§45 email e2e", () => {
   it("configured but no valid recipients → /send 400", async () => {
     const { app, sent } = await makeApp();
     await request(app).put("/api/email/config").send(SMTP);
-    const send = await request(app).post("/api/email/send").send({ to: ["nope", " "], subject: "S", body: "B" });
+    const send = await request(app)
+      .post("/api/email/send")
+      .send({ to: ["nope", " "], subject: "S", body: "B" });
     expect(send.status).toBe(400);
     expect(sent).toHaveLength(0);
   });
@@ -114,7 +142,11 @@ describe("§45 email e2e", () => {
   it("test send failure surfaces as ok:false in body with HTTP 200", async () => {
     const dir = mkdtempSync(join(tmpdir(), "combat-email-fail-"));
     const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
-    const failing: MailSender = { send: async () => { throw new Error("connreset"); } };
+    const failing: MailSender = {
+      send: async () => {
+        throw new Error("connreset");
+      },
+    };
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG), mailSender: failing });
     await request(app).put("/api/email/config").send(SMTP);
     const t = await request(app).post("/api/email/test").send({ to: "x@x.com" });

@@ -38,8 +38,15 @@ export interface WelinkMessageLite {
 
 function rowToExtraction(r: any): WelinkExtractionRow {
   let payload: any = {};
-  try { payload = JSON.parse(r.payload || "{}"); } catch { payload = { raw: r.payload }; }
-  const ids = String(r.source_msg_ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+  try {
+    payload = JSON.parse(r.payload || "{}");
+  } catch {
+    payload = { raw: r.payload };
+  }
+  const ids = String(r.source_msg_ids || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   return {
     id: r.id,
     ticketId: r.ticket_id,
@@ -54,12 +61,14 @@ function rowToExtraction(r: any): WelinkExtractionRow {
 }
 
 function fetchSelectedMessages(db: DB, ticketId: string): WelinkMessageLite[] {
-  const rows = db.prepare(
-    `SELECT id, message_id, sent_at, author, content, content_type
+  const rows = db
+    .prepare(
+      `SELECT id, message_id, sent_at, author, content, content_type
        FROM welink_messages
       WHERE ticket_id = ? AND deleted_at IS NULL AND selected = 1
-      ORDER BY sent_at ASC, created_at ASC`,
-  ).all(ticketId) as any[];
+      ORDER BY sent_at ASC, created_at ASC`
+    )
+    .all(ticketId) as any[];
   return rows.map((r) => ({
     id: r.id,
     messageId: r.message_id,
@@ -78,17 +87,26 @@ async function fetchTicketMembers(repo: Repository, ticketId: string): Promise<{
 
 function serializeForPrompt(msgs: WelinkMessageLite[], cap = 200): string {
   // 防 prompt 爆炸:超过 cap 时按时间分桶采样(前 30、中 30、后 30 + 全部首条)
-  const sample = msgs.length <= cap
-    ? msgs
-    : [
-        ...msgs.slice(0, Math.floor(cap / 3)),
-        ...msgs.slice(Math.floor(msgs.length / 2) - Math.floor(cap / 6), Math.floor(msgs.length / 2) + Math.floor(cap / 6)),
-        ...msgs.slice(-Math.floor(cap / 3)),
-      ];
+  const sample =
+    msgs.length <= cap
+      ? msgs
+      : [
+          ...msgs.slice(0, Math.floor(cap / 3)),
+          ...msgs.slice(
+            Math.floor(msgs.length / 2) - Math.floor(cap / 6),
+            Math.floor(msgs.length / 2) + Math.floor(cap / 6)
+          ),
+          ...msgs.slice(-Math.floor(cap / 3)),
+        ];
   return sample.map((m) => `[${m.sentAt}] ${m.author}: ${m.content}`).join("\n");
 }
 
-function buildExtractPrompt(ticketId: string, ticketTitle: string, msgs: WelinkMessageLite[], members: string[]): string {
+function buildExtractPrompt(
+  ticketId: string,
+  ticketTitle: string,
+  msgs: WelinkMessageLite[],
+  members: string[]
+): string {
   const body = serializeForPrompt(msgs);
   const memberLine = members.length ? members.join("、") : "(尚未登记)";
   return [
@@ -161,7 +179,10 @@ function normalizeAgentOutput(arr: any[], msgs: WelinkMessageLite[]): Normalized
 }
 
 /** 规则回退抽取:agent 不可用 / 解析失败时保底产出。 */
-export function heuristicExtract(msgs: WelinkMessageLite[], members: { 姓名: string; 角色: string }[]): NormalizedExtraction[] {
+export function heuristicExtract(
+  msgs: WelinkMessageLite[],
+  members: { 姓名: string; 角色: string }[]
+): NormalizedExtraction[] {
   if (msgs.length === 0) return [];
   // 1) entity = 所有发言人 + 出现次数
   const senderCount = new Map<string, number>();
@@ -219,11 +240,16 @@ export function heuristicExtract(msgs: WelinkMessageLite[], members: { 姓名: s
   return [...entities, ...events, ...gaps];
 }
 
-function insertExtractions(db: DB, ticketId: string, items: NormalizedExtraction[], createdBy: string): WelinkExtractionRow[] {
+function insertExtractions(
+  db: DB,
+  ticketId: string,
+  items: NormalizedExtraction[],
+  createdBy: string
+): WelinkExtractionRow[] {
   const now = new Date().toISOString();
   const stmt = db.prepare(
     `INSERT INTO welink_extractions (id, ticket_id, kind, label, payload, source_msg_ids, created_at, created_by, reviewed)
-     VALUES (@id, @ticket_id, @kind, @label, @payload, @source_msg_ids, @created_at, @created_by, 0)`,
+     VALUES (@id, @ticket_id, @kind, @label, @payload, @source_msg_ids, @created_at, @created_by, 0)`
   );
   const out: WelinkExtractionRow[] = [];
   const tx = db.transaction((arr: NormalizedExtraction[]) => {
@@ -273,7 +299,7 @@ export async function runWelinkExtraction(
   db: DB,
   repo: Repository,
   ticketId: string,
-  runner: AgentRunner | undefined,
+  runner: AgentRunner | undefined
 ): Promise<RunExtractionResult> {
   const msgs = fetchSelectedMessages(db, ticketId);
   if (msgs.length === 0) {
@@ -288,7 +314,12 @@ export async function runWelinkExtraction(
 
   if (runner) {
     try {
-      const prompt = buildExtractPrompt(ticketId, title, msgs, members.map((m) => m.姓名));
+      const prompt = buildExtractPrompt(
+        ticketId,
+        title,
+        msgs,
+        members.map((m) => m.姓名)
+      );
       const text = await runner.run(prompt);
       const parsed = tryParseAgentJson(text);
       if (parsed && parsed.length > 0) {
@@ -331,11 +362,21 @@ export async function runWelinkExtraction(
 }
 
 // CRUD on welink_extractions
-export function listExtractions(db: DB, ticketId: string, opts?: { kind?: string; reviewed?: boolean | null }): WelinkExtractionRow[] {
+export function listExtractions(
+  db: DB,
+  ticketId: string,
+  opts?: { kind?: string; reviewed?: boolean | null }
+): WelinkExtractionRow[] {
   let sql = "SELECT * FROM welink_extractions WHERE ticket_id = ?";
   const params: any[] = [ticketId];
-  if (opts?.kind) { sql += " AND kind = ?"; params.push(opts.kind); }
-  if (opts?.reviewed != null) { sql += " AND reviewed = ?"; params.push(opts.reviewed ? 1 : 0); }
+  if (opts?.kind) {
+    sql += " AND kind = ?";
+    params.push(opts.kind);
+  }
+  if (opts?.reviewed != null) {
+    sql += " AND reviewed = ?";
+    params.push(opts.reviewed ? 1 : 0);
+  }
   sql += " ORDER BY created_at DESC";
   return (db.prepare(sql).all(...params) as any[]).map(rowToExtraction);
 }
@@ -348,18 +389,21 @@ export function getExtraction(db: DB, id: string): WelinkExtractionRow | null {
 export function updateExtraction(
   db: DB,
   id: string,
-  patch: { reviewed?: boolean; label?: string; payload?: any },
+  patch: { reviewed?: boolean; label?: string; payload?: any }
 ): WelinkExtractionRow | null {
   const cur = getExtraction(db, id);
   if (!cur) return null;
   const next = {
-    reviewed: patch.reviewed != null ? (patch.reviewed ? 1 : 0) : (cur.reviewed ? 1 : 0),
+    reviewed: patch.reviewed != null ? (patch.reviewed ? 1 : 0) : cur.reviewed ? 1 : 0,
     label: patch.label != null ? patch.label : cur.label,
     payload: patch.payload != null ? JSON.stringify(patch.payload) : JSON.stringify(cur.payload),
   };
-  db.prepare(
-    "UPDATE welink_extractions SET reviewed = ?, label = ?, payload = ? WHERE id = ?",
-  ).run(next.reviewed, next.label, next.payload, id);
+  db.prepare("UPDATE welink_extractions SET reviewed = ?, label = ?, payload = ? WHERE id = ?").run(
+    next.reviewed,
+    next.label,
+    next.payload,
+    id
+  );
   return getExtraction(db, id);
 }
 

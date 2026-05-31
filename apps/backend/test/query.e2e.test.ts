@@ -11,16 +11,31 @@ import { createApp } from "../src/app.js";
 
 async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-query-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [{ name: "标题", type: "string", label: "标题", required: true },
-      { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" }],
-  }));
-  writeFileSync(join(cfg, "person.json"), JSON.stringify({
-    nodeType: "person", label: "人员", identityKeys: ["employeeId"], derivedToKG: true,
-    fields: [{ name: "name", type: "string", label: "姓名", required: true }],
-  }));
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "person.json"),
+    JSON.stringify({
+      nodeType: "person",
+      label: "人员",
+      identityKeys: ["employeeId"],
+      derivedToKG: true,
+      fields: [{ name: "name", type: "string", label: "姓名", required: true }],
+    })
+  );
   const db = openDb(join(dir, "t.sqlite"));
   const repo = new SqliteRepository(new SqliteAdapter(db));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, db };
@@ -62,7 +77,9 @@ describe("read-only query API e2e", () => {
   it("context: node + related(REF/coAnchored) + progress; 404 missing; matches /api/related", async () => {
     const { app } = await makeApp();
     const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "上下文单", 当前处理人: "钱七" })).body;
-    await request(app).post(`/api/nodes/${t.id}/progress`).send({ content: "进展X", statusSnapshot: "进行中", actor: "seed" });
+    await request(app)
+      .post(`/api/nodes/${t.id}/progress`)
+      .send({ content: "进展X", statusSnapshot: "进行中", actor: "seed" });
     const miss = await request(app).get("/api/query/context/nope");
     expect(miss.status).toBe(404);
     const ctx = await request(app).get(`/api/query/context/${t.id}`);

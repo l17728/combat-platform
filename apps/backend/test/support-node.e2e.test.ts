@@ -57,8 +57,9 @@ describe("求助网络 support-node e2e", () => {
 
   it("3. PUT /api/support-nodes/node/:nodeId → 更新 personName + status", async () => {
     const { app } = await makeApp();
-    const created = (await request(app).post("/api/support-nodes/ticket-003")
-      .send({ category: "资源", domain: "管控面" })).body;
+    const created = (
+      await request(app).post("/api/support-nodes/ticket-003").send({ category: "资源", domain: "管控面" })
+    ).body;
     const r = await request(app)
       .put(`/api/support-nodes/node/${created.id}`)
       .send({ personName: "李四", status: "支持中" });
@@ -70,10 +71,13 @@ describe("求助网络 support-node e2e", () => {
 
   it("4. 父子节点：创建父节点，创建子节点（parentId），GET 返回二者", async () => {
     const { app } = await makeApp();
-    const parent = (await request(app).post("/api/support-nodes/ticket-004")
-      .send({ category: "环境", domain: "调度" })).body;
-    const child = (await request(app).post("/api/support-nodes/ticket-004")
-      .send({ category: "领域专家", domain: "推理引擎", parentId: parent.id })).body;
+    const parent = (await request(app).post("/api/support-nodes/ticket-004").send({ category: "环境", domain: "调度" }))
+      .body;
+    const child = (
+      await request(app)
+        .post("/api/support-nodes/ticket-004")
+        .send({ category: "领域专家", domain: "推理引擎", parentId: parent.id })
+    ).body;
     expect(child.parentId).toBe(parent.id);
     const list = (await request(app).get("/api/support-nodes/ticket-004")).body;
     expect(list).toHaveLength(2);
@@ -86,9 +90,10 @@ describe("求助网络 support-node e2e", () => {
 
   it("5. DELETE /api/support-nodes/node/:nodeId → 删除父节点同时删子节点（子也消失）", async () => {
     const { app } = await makeApp();
-    const parent = (await request(app).post("/api/support-nodes/ticket-005")
-      .send({ category: "环境", domain: "调度" })).body;
-    await request(app).post("/api/support-nodes/ticket-005")
+    const parent = (await request(app).post("/api/support-nodes/ticket-005").send({ category: "环境", domain: "调度" }))
+      .body;
+    await request(app)
+      .post("/api/support-nodes/ticket-005")
       .send({ category: "领域专家", domain: "管控面", parentId: parent.id });
     // Verify both exist
     const before = (await request(app).get("/api/support-nodes/ticket-005")).body;
@@ -104,15 +109,17 @@ describe("求助网络 support-node e2e", () => {
 
   it("6. POST /api/support-templates → 创建模板（带 nodes 数组）", async () => {
     const { app } = await makeApp();
-    const r = await request(app).post("/api/support-templates").send({
-      name: "通用攻关模板",
-      description: "含环境+专家+协作三层",
-      nodes: [
-        { category: "环境", domain: "环境主持人" },
-        { category: "领域专家", domain: "推理引擎", parentIndex: 0 },
-        { category: "团队协作", domain: "调度", parentIndex: 0 },
-      ],
-    });
+    const r = await request(app)
+      .post("/api/support-templates")
+      .send({
+        name: "通用攻关模板",
+        description: "含环境+专家+协作三层",
+        nodes: [
+          { category: "环境", domain: "环境主持人" },
+          { category: "领域专家", domain: "推理引擎", parentIndex: 0 },
+          { category: "团队协作", domain: "调度", parentIndex: 0 },
+        ],
+      });
     expect(r.status).toBe(201);
     expect(r.body.template).toBeDefined();
     expect(r.body.template.id).toBeTruthy();
@@ -142,13 +149,17 @@ describe("求助网络 support-node e2e", () => {
   it("8. POST /api/support-templates/:id/apply/:ticketId → 克隆节点到 ticket，usage_count +1", async () => {
     const { app } = await makeApp();
     // Create template with 2 nodes (parent + child)
-    const tmplRes = (await request(app).post("/api/support-templates").send({
-      name: "标准模板",
-      nodes: [
-        { category: "环境", domain: "调度" },
-        { category: "领域专家", domain: "推理引擎", parentIndex: 0 },
-      ],
-    })).body;
+    const tmplRes = (
+      await request(app)
+        .post("/api/support-templates")
+        .send({
+          name: "标准模板",
+          nodes: [
+            { category: "环境", domain: "调度" },
+            { category: "领域专家", domain: "推理引擎", parentIndex: 0 },
+          ],
+        })
+    ).body;
     const templateId = tmplRes.template.id;
     // Apply to ticket
     const r = await request(app).post(`/api/support-templates/${templateId}/apply/ticket-apply-01`);
@@ -180,10 +191,14 @@ describe("求助网络 support-node e2e", () => {
 
   it("10. DELETE /api/support-templates/:templateId → 删除模板及模板节点", async () => {
     const { app } = await makeApp();
-    const tmpl = (await request(app).post("/api/support-templates").send({
-      name: "待删模板",
-      nodes: [{ category: "资源", domain: "管控面" }],
-    })).body;
+    const tmpl = (
+      await request(app)
+        .post("/api/support-templates")
+        .send({
+          name: "待删模板",
+          nodes: [{ category: "资源", domain: "管控面" }],
+        })
+    ).body;
     const templateId = tmpl.template.id;
     const del = await request(app).delete(`/api/support-templates/${templateId}`);
     expect(del.status).toBe(200);

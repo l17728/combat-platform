@@ -10,18 +10,42 @@ const ACTIVE_STATUSES = new Set(["待响应", "处理中", "进行中"]);
 function cacheKey(intent: string, q: string): string {
   return `${intent}:${q.toLowerCase().replace(/\s+/g, "")}`;
 }
-function tableSpec(title: string, columns: string[], nodes: GraphNode[], pick: (n: GraphNode) => Record<string, string | number | null>): UiSpec {
+function tableSpec(
+  title: string,
+  columns: string[],
+  nodes: GraphNode[],
+  pick: (n: GraphNode) => Record<string, string | number | null>
+): UiSpec {
   return { widget: "TABLE", params: { title, columns, rows: nodes.map(pick) }, cacheKey: "" };
 }
-function cardSpec(title: string, nodes: GraphNode[], buildCard: (n: GraphNode) => { title: string; description?: string; link?: string; tags?: string[] }): UiSpec {
+function cardSpec(
+  title: string,
+  nodes: GraphNode[],
+  buildCard: (n: GraphNode) => { title: string; description?: string; link?: string; tags?: string[] }
+): UiSpec {
   return { widget: "CARD_GRID", params: { title, cards: nodes.map(buildCard) }, cacheKey: "" };
 }
 
 function summarize(n: GraphNode): string {
   const p = n.properties;
-  return String(p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ?? p["贡献人"] ?? p["key"]
-    // §46 new view nodeTypes' title-ish fields
-    ?? p["经验"] ?? p["问题说明"] ?? p["告警问题"] ?? p["事件标题"] ?? p["事项描述"] ?? p["组名"] ?? p["name"] ?? n.id);
+  return String(
+    p["标题"] ??
+      p["攻关单号"] ??
+      p["版本号"] ??
+      p["名称"] ??
+      p["姓名"] ??
+      p["贡献人"] ??
+      p["key"] ??
+      // §46 new view nodeTypes' title-ish fields
+      p["经验"] ??
+      p["问题说明"] ??
+      p["告警问题"] ??
+      p["事件标题"] ??
+      p["事项描述"] ??
+      p["组名"] ??
+      p["name"] ??
+      n.id
+  );
 }
 function linkFor(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
@@ -31,12 +55,12 @@ function cite(n: GraphNode): HermesCitation {
 }
 
 async function findTicketsByPB(repo: Repository, pb: string): Promise<GraphNode[]> {
-  return (await repo.queryNodes("attackTicket")).filter(n => String(n.properties["问题单号"] ?? "").trim() === pb);
+  return (await repo.queryNodes("attackTicket")).filter((n) => String(n.properties["问题单号"] ?? "").trim() === pb);
 }
 async function fuzzyTicketsByTitle(repo: Repository, hint: string): Promise<GraphNode[]> {
   const needle = hint.trim().toLowerCase();
   if (!needle) return [];
-  return (await repo.queryNodes("attackTicket")).filter(n => {
+  return (await repo.queryNodes("attackTicket")).filter((n) => {
     const t = String(n.properties["标题"] ?? "").toLowerCase();
     return t.includes(needle);
   });
@@ -48,16 +72,14 @@ async function fuzzyTicketsByTitle(repo: Repository, hint: string): Promise<Grap
  * Chinese text + citation list. The intent classification order is
  * deliberate (most specific → fallback search).
  */
-export async function answerQuestion(
-  repo: Repository, registry: SchemaRegistry, raw: string,
-): Promise<HermesAnswer> {
+export async function answerQuestion(repo: Repository, registry: SchemaRegistry, raw: string): Promise<HermesAnswer> {
   const question = raw.trim();
   const lower = question.toLowerCase();
 
   // Helper: extract PB number from question (used by both ticket-by-pb and find-helpers)
   // Match PB-... (alphanumeric tail to support PB-FH-001 etc.) or explicit 问题单号 prefix
-  const pbMatch = question.match(/(PB[-_]?[A-Z0-9][A-Z0-9_-]*)/i)
-    ?? question.match(/问题单号\s*[：:]\s*([A-Za-z0-9_-]+)/);
+  const pbMatch =
+    question.match(/(PB[-_]?[A-Z0-9][A-Z0-9_-]*)/i) ?? question.match(/问题单号\s*[：:]\s*([A-Za-z0-9_-]+)/);
   const pb = pbMatch ? (pbMatch[1] ?? pbMatch[0]).toUpperCase().replace(/_/g, "-") : "";
 
   // 1) find-helpers: 找谁帮忙 / 找帮手 / 谁能帮 (check before ticket-by-pb so a PB
@@ -74,15 +96,21 @@ export async function answerQuestion(
       ticket = (await fuzzyTicketsByTitle(repo, stripped))[0];
     }
     if (!ticket) {
-      return { question, intent: "find-helpers",
+      return {
+        question,
+        intent: "find-helpers",
         answer: "未定位到具体攻关单。请补充问题单号（如 PB-123）或攻关单标题片段。",
-        citations: [] };
+        citations: [],
+      };
     }
     const helpers = await recommendHelpers(repo, ticket.id, 5);
     if (helpers.length === 0) {
-      return { question, intent: "find-helpers",
+      return {
+        question,
+        intent: "find-helpers",
         answer: `攻关单《${summarize(ticket)}》暂未找到合适帮手。可考虑补充共享问题单号或贡献记录后再问。`,
-        citations: [cite(ticket)] };
+        citations: [cite(ticket)],
+      };
     }
     const lines = helpers.map((h, i) => {
       const name = String(h.person.properties["姓名"] ?? h.person.properties["name"] ?? h.person.id);
@@ -90,15 +118,23 @@ export async function answerQuestion(
     });
     const ck = cacheKey("find-helpers", question);
     return {
-      question, intent: "find-helpers",
+      question,
+      intent: "find-helpers",
       answer: `《${summarize(ticket)}》推荐帮手 Top ${helpers.length}：\n${lines.join("\n")}`,
-      citations: helpers.slice(0, 5).map(h => cite(h.person)),
-      uiSpec: { ...cardSpec("推荐帮手", helpers.slice(0, 5).map(h => h.person), n => ({
-        title: String(n.properties["姓名"] ?? n.properties["name"] ?? n.id),
-        description: helpers.find(h => h.person.id === n.id)?.reasons.join("；"),
-        link: linkFor(n),
-        tags: [`分数 ${helpers.find(h => h.person.id === n.id)?.score ?? 0}`],
-      })), cacheKey: ck },
+      citations: helpers.slice(0, 5).map((h) => cite(h.person)),
+      uiSpec: {
+        ...cardSpec(
+          "推荐帮手",
+          helpers.slice(0, 5).map((h) => h.person),
+          (n) => ({
+            title: String(n.properties["姓名"] ?? n.properties["name"] ?? n.id),
+            description: helpers.find((h) => h.person.id === n.id)?.reasons.join("；"),
+            link: linkFor(n),
+            tags: [`分数 ${helpers.find((h) => h.person.id === n.id)?.score ?? 0}`],
+          })
+        ),
+        cacheKey: ck,
+      },
     };
   }
 
@@ -106,17 +142,24 @@ export async function answerQuestion(
   if (pb) {
     const tickets = (await findTicketsByPB(repo, pb)).slice(0, 10);
     if (tickets.length > 0) {
-      const lines = tickets.map(t => `· ${summarize(t)}（状态：${t.properties["状态"] ?? "未知"}，负责人：${t.properties["当前处理人"] ?? "未填"}）`);
+      const lines = tickets.map(
+        (t) =>
+          `· ${summarize(t)}（状态：${t.properties["状态"] ?? "未知"}，负责人：${t.properties["当前处理人"] ?? "未填"}）`
+      );
       const ck = cacheKey("ticket-by-pb", question);
       return {
-        question, intent: "ticket-by-pb",
+        question,
+        intent: "ticket-by-pb",
         answer: `问题单 ${pb} 下找到 ${tickets.length} 个攻关单：\n${lines.join("\n")}`,
         citations: tickets.slice(0, 5).map(cite),
-        uiSpec: { ...tableSpec("攻关单列表", ["标题", "状态", "当前处理人"], tickets.slice(0, 10), n => ({
-          标题: String(n.properties["标题"] ?? n.id),
-          状态: String(n.properties["状态"] ?? ""),
-          当前处理人: String(n.properties["当前处理人"] ?? ""),
-        })), cacheKey: ck },
+        uiSpec: {
+          ...tableSpec("攻关单列表", ["标题", "状态", "当前处理人"], tickets.slice(0, 10), (n) => ({
+            标题: String(n.properties["标题"] ?? n.id),
+            状态: String(n.properties["状态"] ?? ""),
+            当前处理人: String(n.properties["当前处理人"] ?? ""),
+          })),
+          cacheKey: ck,
+        },
       };
     }
   }
@@ -127,17 +170,24 @@ export async function answerQuestion(
     const stripped = question.replace(/[?？。，,!！谁负责在做的owner负责人是哪个]/gi, "").trim();
     const candidates = (await fuzzyTicketsByTitle(repo, stripped)).slice(0, 5);
     if (candidates.length > 0) {
-      const lines = candidates.map(t => `· 《${summarize(t)}》当前处理人：${t.properties["当前处理人"] ?? "未填"}（状态：${t.properties["状态"] ?? "未知"}）`);
+      const lines = candidates.map(
+        (t) =>
+          `· 《${summarize(t)}》当前处理人：${t.properties["当前处理人"] ?? "未填"}（状态：${t.properties["状态"] ?? "未知"}）`
+      );
       const ck = cacheKey("owner", question);
       return {
-        question, intent: "owner",
+        question,
+        intent: "owner",
         answer: `按标题匹配到 ${candidates.length} 个攻关单：\n${lines.join("\n")}`,
         citations: candidates.map(cite),
-        uiSpec: { ...tableSpec("负责人", ["标题", "当前处理人", "状态"], candidates, n => ({
-          标题: String(n.properties["标题"] ?? n.id),
-          当前处理人: String(n.properties["当前处理人"] ?? ""),
-          状态: String(n.properties["状态"] ?? ""),
-        })), cacheKey: ck },
+        uiSpec: {
+          ...tableSpec("负责人", ["标题", "当前处理人", "状态"], candidates, (n) => ({
+            标题: String(n.properties["标题"] ?? n.id),
+            当前处理人: String(n.properties["当前处理人"] ?? ""),
+            状态: String(n.properties["状态"] ?? ""),
+          })),
+          cacheKey: ck,
+        },
       };
     }
   }
@@ -150,7 +200,7 @@ export async function answerQuestion(
       // Pre-fetch progress for all candidates to avoid awaits in sync map callbacks
       const progressMap = new Map<string, Awaited<ReturnType<Repository["listProgress"]>>>();
       for (const t of candidates) progressMap.set(t.id, await repo.listProgress(t.id));
-      const blocks = candidates.map(t => {
+      const blocks = candidates.map((t) => {
         const seq = progressMap.get(t.id) ?? [];
         const latest = seq.length > 0 ? seq[seq.length - 1] : null;
         const tail = latest ? `最新进展（${latest.statusSnapshot}）：${latest.content}` : "暂无进展记录";
@@ -158,19 +208,23 @@ export async function answerQuestion(
       });
       const ck = cacheKey("status", question);
       return {
-        question, intent: "status",
+        question,
+        intent: "status",
         answer: blocks.join("\n"),
         citations: candidates.map(cite),
-        uiSpec: { ...cardSpec("进展状态", candidates, n => {
-          const seq = progressMap.get(n.id) ?? [];
-          const latest = seq.length > 0 ? seq[seq.length - 1] : null;
-          return {
-            title: summarize(n),
-            description: latest ? `${latest.statusSnapshot}：${latest.content}` : "暂无进展",
-            link: linkFor(n),
-            tags: [String(n.properties["状态"] ?? "未知")],
-          };
-        }), cacheKey: ck },
+        uiSpec: {
+          ...cardSpec("进展状态", candidates, (n) => {
+            const seq = progressMap.get(n.id) ?? [];
+            const latest = seq.length > 0 ? seq[seq.length - 1] : null;
+            return {
+              title: summarize(n),
+              description: latest ? `${latest.statusSnapshot}：${latest.content}` : "暂无进展",
+              link: linkFor(n),
+              tags: [String(n.properties["状态"] ?? "未知")],
+            };
+          }),
+          cacheKey: ck,
+        },
       };
     }
   }
@@ -181,13 +235,13 @@ export async function answerQuestion(
     const stripped = question.replace(/[?？。，,!！贡献了什么做的最近近期]/g, "").trim();
     // Try exact match first, fall back to substring on 贡献人
     const allC = await repo.queryNodes("contribution");
-    let matched = allC.filter(c => String(c.properties["贡献人"] ?? "") === stripped);
+    let matched = allC.filter((c) => String(c.properties["贡献人"] ?? "") === stripped);
     if (matched.length === 0 && stripped) {
-      matched = allC.filter(c => String(c.properties["贡献人"] ?? "").includes(stripped));
+      matched = allC.filter((c) => String(c.properties["贡献人"] ?? "").includes(stripped));
     }
     if (matched.length > 0) {
       const top = matched.slice(0, 5);
-      const lines = top.map(c => {
+      const lines = top.map((c) => {
         const lvl = c.properties["贡献等级"] ?? "普通";
         const ty = c.properties["贡献类型"] ?? "";
         const desc = c.properties["贡献描述"] ?? c.properties["描述"] ?? "";
@@ -196,14 +250,18 @@ export async function answerQuestion(
       const who = String(top[0].properties["贡献人"] ?? stripped);
       const ck = cacheKey("contribution-by-person", question);
       return {
-        question, intent: "contribution-by-person",
+        question,
+        intent: "contribution-by-person",
         answer: `${who} 贡献记录 ${matched.length} 条（取 Top ${top.length}）：\n${lines.join("\n")}`,
         citations: top.map(cite),
-        uiSpec: { ...tableSpec(`${who} 贡献`, ["贡献等级", "贡献类型", "贡献描述"], top, n => ({
-          贡献等级: String(n.properties["贡献等级"] ?? "普通"),
-          贡献类型: String(n.properties["贡献类型"] ?? ""),
-          贡献描述: String(n.properties["贡献描述"] ?? n.properties["描述"] ?? ""),
-        })), cacheKey: ck },
+        uiSpec: {
+          ...tableSpec(`${who} 贡献`, ["贡献等级", "贡献类型", "贡献描述"], top, (n) => ({
+            贡献等级: String(n.properties["贡献等级"] ?? "普通"),
+            贡献类型: String(n.properties["贡献类型"] ?? ""),
+            贡献描述: String(n.properties["贡献描述"] ?? n.properties["描述"] ?? ""),
+          })),
+          cacheKey: ck,
+        },
       };
     }
   }
@@ -226,7 +284,8 @@ export async function answerQuestion(
       const top = ranked[0]?.[1] ?? [];
       const ck = cacheKey("person-workload", question);
       return {
-        question, intent: "person-workload",
+        question,
+        intent: "person-workload",
         answer: `当前活跃工作量排名（Top ${ranked.length}）：\n${lines.join("\n")}`,
         citations: top.slice(0, 5).map(cite),
         uiSpec: {
@@ -241,7 +300,8 @@ export async function answerQuestion(
   // 4b) recent-changes: 今天 / 本周 / 最近 谁动了什么
   if (/今天|本周|最近|谁动|谁改/.test(question)) {
     const now = new Date();
-    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
     if (/本周/.test(question)) {
       // monday = 1 ... sunday = 0, normalize to monday
       const dow = (start.getDay() + 6) % 7; // 0..6 from monday
@@ -251,7 +311,7 @@ export async function answerQuestion(
     const touched = new Map<string, GraphNode>();
     // BUG-7: filter to recently-updated tickets first to avoid N+1 progress queries
     const allTickets = await repo.queryNodes("attackTicket");
-    const recentTickets = allTickets.filter(t => new Date(t.updatedAt) >= start);
+    const recentTickets = allTickets.filter((t) => new Date(t.updatedAt) >= start);
     for (const t of recentTickets) {
       touched.set(t.id, t);
     }
@@ -265,20 +325,23 @@ export async function answerQuestion(
       .slice(0, 5);
     const windowName = /本周/.test(question) ? "本周" : /今天/.test(question) ? "今天" : "最近";
     if (tickets.length === 0 && progressTotal === 0) {
-      return { question, intent: "recent-changes",
-        answer: `${windowName}暂无攻关单变动。`, citations: [] };
+      return { question, intent: "recent-changes", answer: `${windowName}暂无攻关单变动。`, citations: [] };
     }
-    const lines = tickets.map(t => `· ${summarize(t)}（${t.properties["状态"] ?? "未知"}）`);
+    const lines = tickets.map((t) => `· ${summarize(t)}（${t.properties["状态"] ?? "未知"}）`);
     const ck = cacheKey("recent-changes", question);
     return {
-      question, intent: "recent-changes",
+      question,
+      intent: "recent-changes",
       answer: `${windowName}共 ${progressTotal} 条进展、${touched.size} 个攻关单变动：\n${lines.join("\n")}`,
       citations: tickets.map(cite),
-      uiSpec: { ...tableSpec(`${windowName}变动`, ["标题", "状态", "最后更新"], tickets, n => ({
-        标题: String(n.properties["标题"] ?? n.id),
-        状态: String(n.properties["状态"] ?? ""),
-        最后更新: n.updatedAt.slice(0, 16).replace("T", " "),
-      })), cacheKey: ck },
+      uiSpec: {
+        ...tableSpec(`${windowName}变动`, ["标题", "状态", "最后更新"], tickets, (n) => ({
+          标题: String(n.properties["标题"] ?? n.id),
+          状态: String(n.properties["状态"] ?? ""),
+          最后更新: n.updatedAt.slice(0, 16).replace("T", " "),
+        })),
+        cacheKey: ck,
+      },
     };
   }
 
@@ -286,11 +349,18 @@ export async function answerQuestion(
   const needle = question.toLowerCase();
   const hits: { node: GraphNode; score: number }[] = [];
   if (needle) {
-    for (const nt of registry.getConfig().nodeTypes.map(n => n.nodeType)) {
+    for (const nt of registry.getConfig().nodeTypes.map((n) => n.nodeType)) {
       for (const n of await repo.queryNodes(nt)) {
-        const hay = Object.values(n.properties).map(v => String(v)).join(" ").toLowerCase();
-        let score = 0, i = hay.indexOf(needle);
-        while (i !== -1) { score++; i = hay.indexOf(needle, i + needle.length); }
+        const hay = Object.values(n.properties)
+          .map((v) => String(v))
+          .join(" ")
+          .toLowerCase();
+        let score = 0,
+          i = hay.indexOf(needle);
+        while (i !== -1) {
+          score++;
+          i = hay.indexOf(needle, i + needle.length);
+        }
         if (score > 0) hits.push({ node: n, score });
       }
     }
@@ -298,22 +368,32 @@ export async function answerQuestion(
   hits.sort((a, b) => b.score - a.score);
   const top = hits.slice(0, 5);
   if (top.length > 0) {
-    const lines = top.map(h => `· [${h.node.nodeType}] ${summarize(h.node)}`);
+    const lines = top.map((h) => `· [${h.node.nodeType}] ${summarize(h.node)}`);
     const ck = cacheKey("fallback-search", question);
     return {
-      question, intent: "fallback-search",
+      question,
+      intent: "fallback-search",
       answer: `按关键词检索到 ${top.length} 条相关记录：\n${lines.join("\n")}`,
-      citations: top.map(h => cite(h.node)),
-      uiSpec: { ...tableSpec("检索结果", ["类型", "摘要"], top.map(h => h.node), n => ({
-        类型: n.nodeType,
-        摘要: summarize(n),
-      })), cacheKey: ck },
+      citations: top.map((h) => cite(h.node)),
+      uiSpec: {
+        ...tableSpec(
+          "检索结果",
+          ["类型", "摘要"],
+          top.map((h) => h.node),
+          (n) => ({
+            类型: n.nodeType,
+            摘要: summarize(n),
+          })
+        ),
+        cacheKey: ck,
+      },
     };
   }
 
   log.warn("hermes.ask.no_results", { question });
   return {
-    question, intent: "fallback-search",
+    question,
+    intent: "fallback-search",
     answer: "暂未找到相关记录。可换关键词，或具体提及攻关单标题 / 问题单号 / 负责人。",
     citations: [],
   };
@@ -330,7 +410,8 @@ function extractTicketIdHint(context?: string): string | undefined {
 
 // 从 question 里提取若干"关键词"(去标点+停用词后剩下的中英文词)。最多 4 个,长度 >=2。
 function extractKeywords(question: string): string[] {
-  const stop = /^(的|了|和|是|在|有|谁|什么|怎么|为|啥|吗|呢|啊|哪|个|条|条目|消息|群里|聊天|提到|说过|最早|介入|时候|何时|哪天|第一|第一个|起|开始)$/;
+  const stop =
+    /^(的|了|和|是|在|有|谁|什么|怎么|为|啥|吗|呢|啊|哪|个|条|条目|消息|群里|聊天|提到|说过|最早|介入|时候|何时|哪天|第一|第一个|起|开始)$/;
   const tokens = question
     .replace(/[?？。，,!！;；:：'"`「」『』()（）\[\]【】<>《》]/g, " ")
     .split(/\s+/)
@@ -358,12 +439,14 @@ function welinkFallbackCitations(db: DB, question: string, ticketId: string): He
   const seen = new Set<string>();
   const out: HermesCitation[] = [];
   for (const kw of keywords) {
-    const rows = db.prepare(
-      `SELECT id, ticket_id, message_id, sent_at, author, content
+    const rows = db
+      .prepare(
+        `SELECT id, ticket_id, message_id, sent_at, author, content
          FROM welink_messages
         WHERE ticket_id = ? AND deleted_at IS NULL AND content LIKE ?
-        ORDER BY sent_at ASC LIMIT 5`,
-    ).all(ticketId, `%${kw}%`) as any[];
+        ORDER BY sent_at ASC LIMIT 5`
+      )
+      .all(ticketId, `%${kw}%`) as any[];
     for (const row of rows) {
       const key = String(row.message_id);
       if (seen.has(key)) continue;
@@ -386,36 +469,42 @@ function welinkFallbackCitations(db: DB, question: string, ticketId: string): He
 
 export function makeHermesRouter(repo: Repository, registry: SchemaRegistry, runner?: AgentRunner, db?: DB): Router {
   const r = Router();
-  r.post("/hermes/ask", asyncHandler(async (req, res) => {
-    const q = String(req.body?.question ?? "").trim();
-    if (!q) return res.status(400).json({ error: "question 必填" });
-    const context = String(req.body?.context ?? "").trim() || undefined; // 调用方上下文(如当前攻关单),仅 agent 使用
-    log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
-    const ticketIdHint = extractTicketIdHint(context);
-    // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
-    if (runner) {
-      try {
-        const answer = await answerWithAgent(repo, registry, q, runner, context, db);
-        // 场景 3 兜底:agent 没给 welink 引用但问题明显是群消息相关 → 补充关键词 hit
-        if (db && ticketIdHint && WELINK_KEYWORDS.test(q)
-            && !answer.citations.some((c) => c.kind === "welink")) {
-          const extra = welinkFallbackCitations(db, q, ticketIdHint);
-          if (extra.length > 0) answer.citations.push(...extra);
+  r.post(
+    "/hermes/ask",
+    asyncHandler(async (req, res) => {
+      const q = String(req.body?.question ?? "").trim();
+      if (!q) return res.status(400).json({ error: "question 必填" });
+      const context = String(req.body?.context ?? "").trim() || undefined; // 调用方上下文(如当前攻关单),仅 agent 使用
+      log.info("hermes.ask.start", { question: q, engine: runner ? "agent" : "rule" });
+      const ticketIdHint = extractTicketIdHint(context);
+      // agent(opencode)优先;任何失败/超时静默回退规则引擎,保证契约稳定、永不挂死。
+      if (runner) {
+        try {
+          const answer = await answerWithAgent(repo, registry, q, runner, context, db);
+          // 场景 3 兜底:agent 没给 welink 引用但问题明显是群消息相关 → 补充关键词 hit
+          if (db && ticketIdHint && WELINK_KEYWORDS.test(q) && !answer.citations.some((c) => c.kind === "welink")) {
+            const extra = welinkFallbackCitations(db, q, ticketIdHint);
+            if (extra.length > 0) answer.citations.push(...extra);
+          }
+          log.info("hermes.ask.done", {
+            intent: answer.intent,
+            citationCount: answer.citations.length,
+            engine: "agent",
+          });
+          return res.json(answer);
+        } catch (e) {
+          log.warn("hermes.ask.agent_fallback", { error: (e as Error).message });
         }
-        log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "agent" });
-        return res.json(answer);
-      } catch (e) {
-        log.warn("hermes.ask.agent_fallback", { error: (e as Error).message });
       }
-    }
-    const answer = await answerQuestion(repo, registry, q);
-    // 规则引擎本身不查 welink_messages,这里统一补 welink 兜底
-    if (db && ticketIdHint && WELINK_KEYWORDS.test(q)) {
-      const extra = welinkFallbackCitations(db, q, ticketIdHint);
-      if (extra.length > 0) answer.citations.push(...extra);
-    }
-    log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "rule" });
-    res.json(answer);
-  }));
+      const answer = await answerQuestion(repo, registry, q);
+      // 规则引擎本身不查 welink_messages,这里统一补 welink 兜底
+      if (db && ticketIdHint && WELINK_KEYWORDS.test(q)) {
+        const extra = welinkFallbackCitations(db, q, ticketIdHint);
+        if (extra.length > 0) answer.citations.push(...extra);
+      }
+      log.info("hermes.ask.done", { intent: answer.intent, citationCount: answer.citations.length, engine: "rule" });
+      res.json(answer);
+    })
+  );
   return r;
 }

@@ -7,7 +7,11 @@ import { log } from "./logger.js";
 async function readPinned(repo: Repository): Promise<PinnedUi[]> {
   const raw = await repo.getSetting("ui_pinned");
   if (!raw) return [];
-  try { return JSON.parse(raw) as PinnedUi[]; } catch { return []; }
+  try {
+    return JSON.parse(raw) as PinnedUi[];
+  } catch {
+    return [];
+  }
 }
 async function writePinned(repo: Repository, pins: PinnedUi[]): Promise<void> {
   await repo.setSetting("ui_pinned", JSON.stringify(pins), "api");
@@ -46,7 +50,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
 
   r.patch("/ui-cache/pinned/:id", async (req, res) => {
     const pins = await readPinned(repo);
-    const pin = pins.find(p => p.id === req.params.id);
+    const pin = pins.find((p) => p.id === req.params.id);
     if (!pin) return res.status(404).json({ error: "not found" });
     if (req.body?.label) pin.label = String(req.body.label);
     await writePinned(repo, pins);
@@ -55,7 +59,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
   });
 
   r.delete("/ui-cache/pinned/:id", async (req, res) => {
-    const pins = (await readPinned(repo)).filter(p => p.id !== req.params.id);
+    const pins = (await readPinned(repo)).filter((p) => p.id !== req.params.id);
     await writePinned(repo, pins);
     log.info("ui.unpin", { id: req.params.id });
     res.json({ ok: true });

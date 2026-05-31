@@ -11,9 +11,7 @@ export default defineConfig({
     // Vitest default: parallel files. Switch to sequential when we share PG.
     fileParallelism: !USE_PG,
     pool: USE_PG ? "forks" : undefined,
-    poolOptions: USE_PG
-      ? { forks: { singleFork: true } }
-      : undefined,
+    poolOptions: USE_PG ? { forks: { singleFork: true } } : undefined,
     // PG transactions are async; some suites involve large fixtures so the
     // SQLite-fast timeouts can flake on PG. Bump moderately for both paths.
     testTimeout: USE_PG ? 30000 : 10000,

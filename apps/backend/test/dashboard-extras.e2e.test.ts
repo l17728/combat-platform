@@ -42,8 +42,12 @@ describe("§36 dashboard 升级 e2e", () => {
     const t1 = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "早", 状态: "进行中" })).body;
     const t2 = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "晚", 状态: "进行中" })).body;
     // append 2 progress entries on t2 to bump its updatedAt and rotate it to top
-    await request(app).post(`/api/nodes/${t2.id}/progress`).send({ content: "进展1", statusSnapshot: "进行中", actor: "甲" });
-    await request(app).post(`/api/nodes/${t2.id}/progress`).send({ content: "进展2", statusSnapshot: "进行中", actor: "甲" });
+    await request(app)
+      .post(`/api/nodes/${t2.id}/progress`)
+      .send({ content: "进展1", statusSnapshot: "进行中", actor: "甲" });
+    await request(app)
+      .post(`/api/nodes/${t2.id}/progress`)
+      .send({ content: "进展2", statusSnapshot: "进行中", actor: "甲" });
     const r = await request(app).get("/api/dashboard");
     expect(r.body.today.progressEntries).toBeGreaterThanOrEqual(2);
     expect(r.body.today.ticketsTouched).toBeGreaterThanOrEqual(1);

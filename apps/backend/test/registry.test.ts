@@ -50,10 +50,16 @@ describe("FileSchemaRegistry", () => {
     // broken alongside a valid file → constructs successfully, valid is usable
     const mixed = mkdtempSync(join(tmpdir(), "combat-mix-"));
     writeFileSync(join(mixed, "broken.json"), "{ not json");
-    writeFileSync(join(mixed, "ok.json"), JSON.stringify({
-      nodeType: "ok", label: "OK", identityKeys: [], derivedToKG: true,
-      fields: [{ name: "x", type: "string", label: "x" }],
-    }));
+    writeFileSync(
+      join(mixed, "ok.json"),
+      JSON.stringify({
+        nodeType: "ok",
+        label: "OK",
+        identityKeys: [],
+        derivedToKG: true,
+        fields: [{ name: "x", type: "string", label: "x" }],
+      })
+    );
     const reg = new FileSchemaRegistry(mixed);
     expect(reg.getNodeSchema("ok")).toBeDefined();
     expect(warn).toHaveBeenCalled();

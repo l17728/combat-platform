@@ -22,7 +22,9 @@ describe("§48 SLA 上升 + 责任矩阵 e2e", () => {
     const { app } = make();
     const def = (await request(app).get("/api/escalation/config")).body;
     expect(def.rules.some((r: any) => r.事件级别 === "P4A")).toBe(true);
-    const put = await request(app).put("/api/escalation/config").send({ rules: [{ 事件级别: "P4A", slaHours: 1, 上升角色: "X" }] });
+    const put = await request(app)
+      .put("/api/escalation/config")
+      .send({ rules: [{ 事件级别: "P4A", slaHours: 1, 上升角色: "X" }] });
     expect(put.status).toBe(200);
     expect((await request(app).get("/api/escalation/config")).body.rules).toHaveLength(1);
     // 非法 → 400
@@ -32,9 +34,14 @@ describe("§48 SLA 上升 + 责任矩阵 e2e", () => {
   it("超期活跃单 → scan 上升（ESCALATE 审计 + ESCALATED_TO 边）；未超期不升；幂等", async () => {
     const { app, repo } = make();
     // P4A SLA 4h. Create a ticket then back-date its createdAt to 10h ago.
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "超期单", 状态: "进行中", 事件级别: "P4A", 当前处理人: "甲",
-    })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "超期单",
+        状态: "进行中",
+        事件级别: "P4A",
+        当前处理人: "甲",
+      })
+    ).body;
     const old = new Date(Date.now() - 10 * 3600 * 1000).toISOString();
     // back-date createdAt to simulate an aged ticket (test-only direct db write)
     await (repo as any).adapter.run("UPDATE nodes SET created_at = ? WHERE id = ?", [old, t.id]);

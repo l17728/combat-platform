@@ -10,9 +10,11 @@ const PROPOSERS = [new HeuristicRelationProposer()];
  *  triples (待审批/已拒绝 are "seen" so rejected ones aren't re-raised). Reused by the
  *  manual route and the periodic jobs tick. Returns the count of newly-created proposals. */
 export async function runProposalScan(repo: Repository, registry: SchemaRegistry): Promise<number> {
-  const seen = new Set((await repo.listProposals())
-    .filter(p => p.status === "待审批" || p.status === "已拒绝")
-    .map(p => `${p.sourceNodeId}|${p.targetNodeId}|${p.relationType}`));
+  const seen = new Set(
+    (await repo.listProposals())
+      .filter((p) => p.status === "待审批" || p.status === "已拒绝")
+      .map((p) => `${p.sourceNodeId}|${p.targetNodeId}|${p.relationType}`)
+  );
   let created = 0;
   for (const pr of PROPOSERS)
     for (const d of await pr.propose(repo, registry)) {
@@ -43,8 +45,7 @@ export function makeProposalsRouter(repo: Repository, registry: SchemaRegistry):
     if (!p) return res.status(404).json({ error: "proposal not found" });
     if (p.status !== "待审批") return res.status(409).json({ error: `已决策(${p.status})不可重复` });
     const { decision, decidedBy, patch } = req.body ?? {};
-    if (!decidedBy || typeof decidedBy !== "string")
-      return res.status(400).json({ error: "decidedBy 必填" });
+    if (!decidedBy || typeof decidedBy !== "string") return res.status(400).json({ error: "decidedBy 必填" });
     // H1 fix: accept both bare (通过/拒绝) and past-tense (已通过/已拒绝) so CLI/UI agree.
     const d = String(decision ?? "");
     if (d === "拒绝" || d === "已拒绝")
@@ -56,7 +57,8 @@ export function makeProposalsRouter(repo: Repository, registry: SchemaRegistry):
         return res.status(400).json({ error: `patch.targetNodeId 不存在: ${patch.targetNodeId}` });
       // M6 fix: SAME_AS merge only when both ends are person nodes.
       if (p.relationType === "SAME_AS") {
-        const s = await repo.getNode(p.sourceNodeId), t = await repo.getNode(target);
+        const s = await repo.getNode(p.sourceNodeId),
+          t = await repo.getNode(target);
         if (!s || !t) return res.status(400).json({ error: "合并节点不存在" });
         if (s.nodeType !== "person" || t.nodeType !== "person")
           return res.status(400).json({ error: "SAME_AS 仅支持 person 合并" });

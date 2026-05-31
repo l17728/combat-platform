@@ -12,11 +12,22 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 async function makeApp() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-views-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-views-")), "t.sqlite")))
+  );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
-const NEW_TYPES = ["incidentTracking", "changeIssue", "alarmGovernance", "p3Incident", "dailyTask", "issue400", "issue5xx", "experience"];
+const NEW_TYPES = [
+  "incidentTracking",
+  "changeIssue",
+  "alarmGovernance",
+  "p3Incident",
+  "dailyTask",
+  "issue400",
+  "issue5xx",
+  "experience",
+];
 
 describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
   it("8 个新 nodeType schema 全部加载，字段非空", async () => {
@@ -32,12 +43,20 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
   it("现网问题 ↔ 攻关单 共享问题单号 → coAnchored 跨 view 互见", async () => {
     const { app } = await makeApp();
     const PB = "PB-VIEW-001";
-    const inc = (await request(app).post("/api/nodes/incidentTracking").send({
-      问题说明: "断连现网问题", 状态: "进行中", 关联需求问题单: PB,
-    })).body;
-    const tk = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "断连攻关", 状态: "进行中", 问题单号: PB,
-    })).body;
+    const inc = (
+      await request(app).post("/api/nodes/incidentTracking").send({
+        问题说明: "断连现网问题",
+        状态: "进行中",
+        关联需求问题单: PB,
+      })
+    ).body;
+    const tk = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "断连攻关",
+        状态: "进行中",
+        问题单号: PB,
+      })
+    ).body;
     // related of the incident should co-anchor the attackTicket via shared 问题单号
     const r = await request(app).get(`/api/related/incidentTracking/${inc.id}`);
     expect(r.status).toBe(200);
@@ -47,11 +66,16 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
 
   it("ref 责任人写入即建 person + REF 边（concept 负责人）", async () => {
     const { app, repo } = await makeApp();
-    const inc = (await request(app).post("/api/nodes/incidentTracking").send({
-      问题说明: "x", 状态: "进行中", 运维责任人: "甲运维",
-    })).body;
-    const refs = (await repo.queryEdges({ sourceId: inc.id, edgeType: "REF" }))
-      .filter(e => String(e.properties["field"]) === "运维责任人");
+    const inc = (
+      await request(app).post("/api/nodes/incidentTracking").send({
+        问题说明: "x",
+        状态: "进行中",
+        运维责任人: "甲运维",
+      })
+    ).body;
+    const refs = (await repo.queryEdges({ sourceId: inc.id, edgeType: "REF" })).filter(
+      (e) => String(e.properties["field"]) === "运维责任人"
+    );
     expect(refs).toHaveLength(1);
     expect(String(refs[0].properties["concept"])).toBe("负责人");
     expect((await repo.getNode(refs[0].targetId))!.properties["姓名"]).toBe("甲运维");
@@ -60,12 +84,19 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
   it("§49 attackTicket 事件单号 ↔ p3Incident 共享 → coAnchored 互见", async () => {
     const { app } = await makeApp();
     const EV = "EV-VIEW-77";
-    const tk = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "带事件单号的攻关", 状态: "进行中", 事件单号: EV,
-    })).body;
-    const p3 = (await request(app).post("/api/nodes/p3Incident").send({
-      事件单号: EV, 事件标题: "P3 同事件单",
-    })).body;
+    const tk = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "带事件单号的攻关",
+        状态: "进行中",
+        事件单号: EV,
+      })
+    ).body;
+    const p3 = (
+      await request(app).post("/api/nodes/p3Incident").send({
+        事件单号: EV,
+        事件标题: "P3 同事件单",
+      })
+    ).body;
     const r = await request(app).get(`/api/related/attackTicket/${tk.id}`);
     expect((r.body.coAnchored ?? []).map((c: any) => c.node.id)).toContain(p3.id);
   });

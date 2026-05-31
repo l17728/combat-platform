@@ -35,7 +35,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       typeIdx: sqliteIndex("idx_nodes_type").on(t.nodeType),
-    }),
+    })
   ),
 
   edges: sqliteTable(
@@ -53,7 +53,7 @@ export const sqliteSchema = {
       sourceIdx: sqliteIndex("idx_edges_source").on(t.sourceId),
       targetIdx: sqliteIndex("idx_edges_target").on(t.targetId),
       typeIdx: sqliteIndex("idx_edges_type").on(t.edgeType),
-    }),
+    })
   ),
 
   progressLog: sqliteTable(
@@ -69,7 +69,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       ownerIdx: sqliteIndex("idx_progress_owner").on(t.ownerId, t.seqNo),
-    }),
+    })
   ),
 
   auditLog: sqliteTable("audit_log", {
@@ -99,7 +99,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       statusIdx: sqliteIndex("idx_proposals_status").on(t.status),
-    }),
+    })
   ),
 
   notifications: sqliteTable(
@@ -119,7 +119,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       statusIdx: sqliteIndex("idx_notifications_status").on(t.status),
-    }),
+    })
   ),
 
   appSettings: sqliteTable("app_settings", {
@@ -142,7 +142,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       ticketIdx: sqliteIndex("idx_dre_ticket").on(t.ticketId),
-    }),
+    })
   ),
 
   supportTemplate: sqliteTable("support_template", {
@@ -172,7 +172,7 @@ export const sqliteSchema = {
     (t) => ({
       ticketIdx: sqliteIndex("idx_support_node_ticket").on(t.ticketId),
       templateIdx: sqliteIndex("idx_support_node_template").on(t.templateId),
-    }),
+    })
   ),
 
   users: sqliteTable(
@@ -188,7 +188,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       usernameIdx: sqliteIndex("idx_users_username").on(t.username),
-    }),
+    })
   ),
 
   ticketTabs: sqliteTable(
@@ -207,7 +207,7 @@ export const sqliteSchema = {
     },
     (t) => ({
       ticketIdx: sqliteIndex("idx_ticket_tabs_ticket").on(t.ticketId),
-    }),
+    })
   ),
 };
 
@@ -228,7 +228,7 @@ export const postgresSchema = {
     },
     (t) => ({
       typeIdx: pgIndex("idx_nodes_type").on(t.nodeType),
-    }),
+    })
   ),
 
   edges: pgTable(
@@ -246,7 +246,7 @@ export const postgresSchema = {
       sourceIdx: pgIndex("idx_edges_source").on(t.sourceId),
       targetIdx: pgIndex("idx_edges_target").on(t.targetId),
       typeIdx: pgIndex("idx_edges_type").on(t.edgeType),
-    }),
+    })
   ),
 
   progressLog: pgTable(
@@ -262,7 +262,7 @@ export const postgresSchema = {
     },
     (t) => ({
       ownerIdx: pgIndex("idx_progress_owner").on(t.ownerId, t.seqNo),
-    }),
+    })
   ),
 
   auditLog: pgTable("audit_log", {
@@ -292,7 +292,7 @@ export const postgresSchema = {
     },
     (t) => ({
       statusIdx: pgIndex("idx_proposals_status").on(t.status),
-    }),
+    })
   ),
 
   notifications: pgTable(
@@ -312,7 +312,7 @@ export const postgresSchema = {
     },
     (t) => ({
       statusIdx: pgIndex("idx_notifications_status").on(t.status),
-    }),
+    })
   ),
 
   appSettings: pgTable("app_settings", {
@@ -335,7 +335,7 @@ export const postgresSchema = {
     },
     (t) => ({
       ticketIdx: pgIndex("idx_dre_ticket").on(t.ticketId),
-    }),
+    })
   ),
 
   supportTemplate: pgTable("support_template", {
@@ -365,7 +365,7 @@ export const postgresSchema = {
     (t) => ({
       ticketIdx: pgIndex("idx_support_node_ticket").on(t.ticketId),
       templateIdx: pgIndex("idx_support_node_template").on(t.templateId),
-    }),
+    })
   ),
 
   users: pgTable(
@@ -381,7 +381,7 @@ export const postgresSchema = {
     },
     (t) => ({
       usernameIdx: pgIndex("idx_users_username").on(t.username),
-    }),
+    })
   ),
 
   ticketTabs: pgTable(
@@ -400,7 +400,7 @@ export const postgresSchema = {
     },
     (t) => ({
       ticketIdx: pgIndex("idx_ticket_tabs_ticket").on(t.ticketId),
-    }),
+    })
   ),
 };
 

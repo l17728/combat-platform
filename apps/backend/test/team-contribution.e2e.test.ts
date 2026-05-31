@@ -26,7 +26,9 @@ function makeRealApp() {
 
 describe("teamContribution e2e", () => {
   let app: ReturnType<typeof makeRealApp>["app"];
-  beforeAll(async () => { app = makeRealApp().app; });
+  beforeAll(async () => {
+    app = makeRealApp().app;
+  });
 
   it("schema is registered with expected fields", async () => {
     const s = await request(app).get("/api/schema/teamContribution");
@@ -36,16 +38,18 @@ describe("teamContribution e2e", () => {
   });
 
   it("creates a team contribution and round-trips 组员 as an array", async () => {
-    const c = await request(app).post("/api/nodes/teamContribution").send({
-      团队名称: "攻坚突击队",
-      贡献等级: "核心",
-      贡献类型: "实施",
-      描述: "主导根因定位与修复",
-      组长: "张三",
-      组员: ["李四", "王五", "赵敏"],
-      关联攻关单: "PB202612345",
-      周期: "2026-Q2",
-    });
+    const c = await request(app)
+      .post("/api/nodes/teamContribution")
+      .send({
+        团队名称: "攻坚突击队",
+        贡献等级: "核心",
+        贡献类型: "实施",
+        描述: "主导根因定位与修复",
+        组长: "张三",
+        组员: ["李四", "王五", "赵敏"],
+        关联攻关单: "PB202612345",
+        周期: "2026-Q2",
+      });
     expect(c.status).toBe(201);
     const got = await request(app).get(`/api/nodes/${c.body.id}`);
     expect(got.status).toBe(200);

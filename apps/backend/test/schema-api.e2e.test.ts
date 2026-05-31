@@ -25,9 +25,9 @@ function cleanTestSchema() {
 }
 
 function make() {
-  const repo = new SqliteRepository(new SqliteAdapter(
-    openDb(join(mkdtempSync(join(tmpdir(), "combat-schema-")), "t.sqlite")),
-  ));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-schema-")), "t.sqlite")))
+  );
   const registry = new FileSchemaRegistry(SCHEMA_DIR);
   // Wrap the createApp with schema-api router added
   const baseApp = createApp({ repo, registry });
@@ -172,30 +172,32 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
 
   it("POST fields 为空数组 → 400", async () => {
     const { app } = make();
-    const r = await request(app).post("/api/schema/nodeType")
+    const r = await request(app)
+      .post("/api/schema/nodeType")
       .send({ nodeType: "EmptyFieldsType", label: "空字段", fields: [] });
     expect(r.status).toBe(400);
   });
 
   it("POST label 为空白 → 400", async () => {
     const { app } = make();
-    const r = await request(app).post("/api/schema/nodeType")
+    const r = await request(app)
+      .post("/api/schema/nodeType")
       .send({ nodeType: "ValidType", label: "   ", fields: [{ name: "f1", type: "string", label: "字段1" }] });
     expect(r.status).toBe(400);
   });
 
-  it.each([["123bad"], ["bad-type"], ["中文类型"]])(
-    "POST nodeType=%s 格式非法 → 400", async (nodeType) => {
-      const { app } = make();
-      const r = await request(app).post("/api/schema/nodeType")
-        .send({ nodeType, label: "测试", fields: [{ name: "f1", type: "string", label: "字段1" }] });
-      expect(r.status).toBe(400);
-    }
-  );
+  it.each([["123bad"], ["bad-type"], ["中文类型"]])("POST nodeType=%s 格式非法 → 400", async (nodeType) => {
+    const { app } = make();
+    const r = await request(app)
+      .post("/api/schema/nodeType")
+      .send({ nodeType, label: "测试", fields: [{ name: "f1", type: "string", label: "字段1" }] });
+    expect(r.status).toBe(400);
+  });
 
   it("POST 字段缺 name → 400", async () => {
     const { app } = make();
-    const r = await request(app).post("/api/schema/nodeType")
+    const r = await request(app)
+      .post("/api/schema/nodeType")
       .send({ nodeType: "ValidType2", label: "测试", fields: [{ type: "string", label: "字段1" }] });
     expect(r.status).toBe(400);
   });
@@ -216,10 +218,13 @@ describe("Schema API e2e (增量: 动态新增表)", () => {
   it("POST 字段不含 id 时 id 默认为 name", async () => {
     const { app } = make();
     cleanTestSchema();
-    const r = await request(app).post("/api/schema/nodeType").send({
-      nodeType: "IdDefaultTest", label: "默认id测试",
-      fields: [{ name: "fieldName", type: "string", label: "字段" }]
-    });
+    const r = await request(app)
+      .post("/api/schema/nodeType")
+      .send({
+        nodeType: "IdDefaultTest",
+        label: "默认id测试",
+        fields: [{ name: "fieldName", type: "string", label: "字段" }],
+      });
     // Cleanup regardless of result
     const idTestFile = join(SCHEMA_DIR, "IdDefaultTest.json");
     if (existsSync(idTestFile)) unlinkSync(idTestFile);

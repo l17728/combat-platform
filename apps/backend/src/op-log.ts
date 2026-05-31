@@ -26,18 +26,16 @@ export function makeOpLogRouter(adapter: DbAdapter): Router {
   }
 
   const getSetting = async (key: string): Promise<string | null> => {
-    const row = await adapter.queryOne<{ value: string }>(
-      "SELECT value FROM app_settings WHERE key = ?",
-      [key],
-    );
+    const row = await adapter.queryOne<{ value: string }>("SELECT value FROM app_settings WHERE key = ?", [key]);
     return row?.value ?? null;
   };
 
   const setSetting = async (key: string, value: string) => {
-    await adapter.run(
-      "INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?",
-      [key, value, value],
-    );
+    await adapter.run("INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?", [
+      key,
+      value,
+      value,
+    ]);
   };
 
   const isEnabled = async (): Promise<boolean> => {
@@ -45,91 +43,128 @@ export function makeOpLogRouter(adapter: DbAdapter): Router {
     return v === null || v === "true";
   };
 
-  router.get("/op-logs/settings", asyncHandler(async (_req, res) => {
-    res.json({ enabled: await isEnabled() });
-  }));
+  router.get(
+    "/op-logs/settings",
+    asyncHandler(async (_req, res) => {
+      res.json({ enabled: await isEnabled() });
+    })
+  );
 
-  router.put("/op-logs/settings", asyncHandler(async (req, res) => {
-    const { enabled } = req.body;
-    if (typeof enabled !== "boolean") {
-      res.status(400).json({ error: "enabled 必须为布尔值" });
-      return;
-    }
-    await setSetting("op_log_enabled", String(enabled));
-    res.json({ enabled });
-  }));
-
-  router.post("/op-logs", asyncHandler(async (req, res) => {
-    if (!(await isEnabled())) {
-      res.json({ inserted: 0, ids: [], disabled: true });
-      return;
-    }
-    const entries = req.body;
-    if (!Array.isArray(entries) || entries.length === 0) {
-      res.status(400).json({ error: "需要非空数组" });
-      return;
-    }
-    const now = new Date().toISOString();
-    const inserted: string[] = [];
-    const items = entries.slice(0, 200);
-    await adapter.transaction(async (tx) => {
-      for (const item of items) {
-        const id = randomUUID();
-        await tx.run(
-          `INSERT INTO op_logs (id, session_id, user_name, category, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
-          [
-            id,
-            item.session_id || "unknown",
-            item.user_name || "",
-            item.category || "action",
-            typeof item.detail === "string" ? item.detail : JSON.stringify(item.detail || {}),
-            item.timestamp || now,
-          ],
-        );
-        inserted.push(id);
+  router.put(
+    "/op-logs/settings",
+    asyncHandler(async (req, res) => {
+      const { enabled } = req.body;
+      if (typeof enabled !== "boolean") {
+        res.status(400).json({ error: "enabled 必须为布尔值" });
+        return;
       }
-    });
-    res.json({ inserted: inserted.length, ids: inserted });
-  }));
+      await setSetting("op_log_enabled", String(enabled));
+      res.json({ enabled });
+    })
+  );
 
-  router.get("/op-logs", asyncHandler(async (req, res) => {
-    const { sessionId, userName, category, from, to, limit, offset } = req.query as Record<string, string>;
-    const conditions: string[] = [];
-    const params: any[] = [];
-    if (sessionId) { conditions.push("session_id = ?"); params.push(sessionId); }
-    if (userName) { conditions.push("user_name = ?"); params.push(userName); }
-    if (category) { conditions.push("category = ?"); params.push(category); }
-    if (from) { conditions.push("timestamp >= ?"); params.push(from); }
-    if (to) { conditions.push("timestamp <= ?"); params.push(to); }
-    const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
-    const lim = Math.min(Number(limit) || 200, 1000);
-    const off = Number(offset) || 0;
-    const rows = await adapter.query(
-      `SELECT * FROM op_logs ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
-      [...params, lim, off],
-    );
-    const countRow = await adapter.queryOne<{ total: number | string }>(
-      `SELECT COUNT(*) as total FROM op_logs ${where}`,
-      params,
-    );
-    // Postgres returns BIGINT (COUNT) as string; SQLite returns number. Coerce.
-    res.json({ total: Number(countRow?.total ?? 0), rows });
-  }));
+  router.post(
+    "/op-logs",
+    asyncHandler(async (req, res) => {
+      if (!(await isEnabled())) {
+        res.json({ inserted: 0, ids: [], disabled: true });
+        return;
+      }
+      const entries = req.body;
+      if (!Array.isArray(entries) || entries.length === 0) {
+        res.status(400).json({ error: "需要非空数组" });
+        return;
+      }
+      const now = new Date().toISOString();
+      const inserted: string[] = [];
+      const items = entries.slice(0, 200);
+      await adapter.transaction(async (tx) => {
+        for (const item of items) {
+          const id = randomUUID();
+          await tx.run(
+            `INSERT INTO op_logs (id, session_id, user_name, category, detail, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              id,
+              item.session_id || "unknown",
+              item.user_name || "",
+              item.category || "action",
+              typeof item.detail === "string" ? item.detail : JSON.stringify(item.detail || {}),
+              item.timestamp || now,
+            ]
+          );
+          inserted.push(id);
+        }
+      });
+      res.json({ inserted: inserted.length, ids: inserted });
+    })
+  );
 
-  router.delete("/op-logs", asyncHandler(async (req, res) => {
-    const { before, sessionId } = req.query as Record<string, string>;
-    const conditions: string[] = [];
-    const params: any[] = [];
-    if (before) { conditions.push("timestamp < ?"); params.push(before); }
-    if (sessionId) { conditions.push("session_id = ?"); params.push(sessionId); }
-    if (conditions.length === 0) {
-      res.status(400).json({ error: "必须指定 before 或 sessionId" });
-      return;
-    }
-    const where = "WHERE " + conditions.join(" AND ");
-    const result = await adapter.run(`DELETE FROM op_logs ${where}`, params);
-    res.json({ deleted: result.changes });
-  }));
+  router.get(
+    "/op-logs",
+    asyncHandler(async (req, res) => {
+      const { sessionId, userName, category, from, to, limit, offset } = req.query as Record<string, string>;
+      const conditions: string[] = [];
+      const params: any[] = [];
+      if (sessionId) {
+        conditions.push("session_id = ?");
+        params.push(sessionId);
+      }
+      if (userName) {
+        conditions.push("user_name = ?");
+        params.push(userName);
+      }
+      if (category) {
+        conditions.push("category = ?");
+        params.push(category);
+      }
+      if (from) {
+        conditions.push("timestamp >= ?");
+        params.push(from);
+      }
+      if (to) {
+        conditions.push("timestamp <= ?");
+        params.push(to);
+      }
+      const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+      const lim = Math.min(Number(limit) || 200, 1000);
+      const off = Number(offset) || 0;
+      const rows = await adapter.query(`SELECT * FROM op_logs ${where} ORDER BY timestamp DESC LIMIT ? OFFSET ?`, [
+        ...params,
+        lim,
+        off,
+      ]);
+      const countRow = await adapter.queryOne<{ total: number | string }>(
+        `SELECT COUNT(*) as total FROM op_logs ${where}`,
+        params
+      );
+      // Postgres returns BIGINT (COUNT) as string; SQLite returns number. Coerce.
+      res.json({ total: Number(countRow?.total ?? 0), rows });
+    })
+  );
+
+  router.delete(
+    "/op-logs",
+    asyncHandler(async (req, res) => {
+      const { before, sessionId } = req.query as Record<string, string>;
+      const conditions: string[] = [];
+      const params: any[] = [];
+      if (before) {
+        conditions.push("timestamp < ?");
+        params.push(before);
+      }
+      if (sessionId) {
+        conditions.push("session_id = ?");
+        params.push(sessionId);
+      }
+      if (conditions.length === 0) {
+        res.status(400).json({ error: "必须指定 before 或 sessionId" });
+        return;
+      }
+      const where = "WHERE " + conditions.join(" AND ");
+      const result = await adapter.run(`DELETE FROM op_logs ${where}`, params);
+      res.json({ deleted: result.changes });
+    })
+  );
 
   return router;
 }

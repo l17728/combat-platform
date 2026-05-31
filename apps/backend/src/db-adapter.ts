@@ -78,7 +78,11 @@ export class SqliteAdapter implements DbAdapter {
       this.db.exec("COMMIT");
       return result;
     } catch (err) {
-      try { this.db.exec("ROLLBACK"); } catch { /* swallow rollback errors */ }
+      try {
+        this.db.exec("ROLLBACK");
+      } catch {
+        /* swallow rollback errors */
+      }
       throw err;
     }
   }
@@ -124,7 +128,10 @@ export function rewritePlaceholders(sql: string): string {
 export class PostgresAdapter implements DbAdapter {
   readonly kind = "postgres" as const;
   /** When set, all queries run on this client (transaction context). */
-  constructor(private pool: PgPool, private txClient?: PoolClient) {}
+  constructor(
+    private pool: PgPool,
+    private txClient?: PoolClient
+  ) {}
 
   private async exec_<T = any>(sql: string, params: any[]): Promise<T[]> {
     const text = rewritePlaceholders(sql);
@@ -178,7 +185,9 @@ export class PostgresAdapter implements DbAdapter {
       await client.query("COMMIT");
       return result;
     } catch (err) {
-      try { await client.query("ROLLBACK"); } catch (rbErr) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rbErr) {
         log.warn("db.tx.rollback_failed", { error: (rbErr as Error).message });
       }
       throw err;

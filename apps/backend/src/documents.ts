@@ -54,10 +54,13 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
   ensureTable(adapter);
   const r = Router();
 
-  r.get("/documents", asyncHandler(async (_req, res) => {
-    const rows = await adapter.query<any>("SELECT * FROM documents ORDER BY created_at DESC");
-    res.json(rows.map(toDoc));
-  }));
+  r.get(
+    "/documents",
+    asyncHandler(async (_req, res) => {
+      const rows = await adapter.query<any>("SELECT * FROM documents ORDER BY created_at DESC");
+      res.json(rows.map(toDoc));
+    })
+  );
 
   r.post(
     "/documents",
@@ -77,55 +80,67 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
       await adapter.run(
         `INSERT INTO documents (id, name, type, filename, original_name, mimetype, size, url, uploaded_by, created_at)
          VALUES (?, ?, 'file', ?, ?, ?, ?, NULL, ?, ?)`,
-        [
-          id, name, storedName, original,
-          req.file.mimetype, req.file.size,
-          req.body?.uploadedBy ?? null, now,
-        ],
+        [id, name, storedName, original, req.file.mimetype, req.file.size, req.body?.uploadedBy ?? null, now]
       );
       log.info("document.upload", { id, name, size: req.file.size });
       const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [id]);
       res.status(201).json(toDoc(row));
-    }),
+    })
   );
 
-  r.post("/documents/link", asyncHandler(async (req, res) => {
-    const { name, url, uploadedBy } = req.body ?? {};
-    if (!name || !url) return res.status(400).json({ error: "name, url 为必填项" });
-    const id = randomUUID();
-    const now = new Date().toISOString();
-    await adapter.run(
-      `INSERT INTO documents (id, name, type, url, uploaded_by, created_at)
+  r.post(
+    "/documents/link",
+    asyncHandler(async (req, res) => {
+      const { name, url, uploadedBy } = req.body ?? {};
+      if (!name || !url) return res.status(400).json({ error: "name, url 为必填项" });
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      await adapter.run(
+        `INSERT INTO documents (id, name, type, url, uploaded_by, created_at)
        VALUES (?, ?, 'link', ?, ?, ?)`,
-      [id, name, url, uploadedBy ?? null, now],
-    );
-    log.info("document.add_link", { id, name });
-    const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [id]);
-    res.status(201).json(toDoc(row));
-  }));
+        [id, name, url, uploadedBy ?? null, now]
+      );
+      log.info("document.add_link", { id, name });
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [id]);
+      res.status(201).json(toDoc(row));
+    })
+  );
 
   // Public (see auth.ts): clicked from MD-embedded links without a Bearer token.
-  r.get("/documents/:id/download", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
-    if (!row) return res.status(404).json({ error: "未找到文档" });
-    if (row.type === "link") return res.redirect(row.url);
-    const fp = join(uploadDir(), row.filename);
-    if (!existsSync(fp)) return res.status(404).json({ error: "文件不存在" });
-    res.setHeader("Content-Type", row.mimetype || "application/octet-stream");
-    res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(row.original_name || row.name)}`);
-    createReadStream(fp).pipe(res);
-  }));
+  r.get(
+    "/documents/:id/download",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
+      if (!row) return res.status(404).json({ error: "未找到文档" });
+      if (row.type === "link") return res.redirect(row.url);
+      const fp = join(uploadDir(), row.filename);
+      if (!existsSync(fp)) return res.status(404).json({ error: "文件不存在" });
+      res.setHeader("Content-Type", row.mimetype || "application/octet-stream");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encodeURIComponent(row.original_name || row.name)}`
+      );
+      createReadStream(fp).pipe(res);
+    })
+  );
 
-  r.delete("/documents/:id", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
-    if (!row) return res.status(404).json({ error: "未找到文档" });
-    if (row.type === "file" && row.filename) {
-      try { unlinkSync(join(uploadDir(), row.filename)); } catch { /* file may be gone */ }
-    }
-    await adapter.run("DELETE FROM documents WHERE id=?", [req.params.id]);
-    log.info("document.delete", { id: req.params.id });
-    res.json({ ok: true });
-  }));
+  r.delete(
+    "/documents/:id",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
+      if (!row) return res.status(404).json({ error: "未找到文档" });
+      if (row.type === "file" && row.filename) {
+        try {
+          unlinkSync(join(uploadDir(), row.filename));
+        } catch {
+          /* file may be gone */
+        }
+      }
+      await adapter.run("DELETE FROM documents WHERE id=?", [req.params.id]);
+      log.info("document.delete", { id: req.params.id });
+      res.json({ ok: true });
+    })
+  );
 
   return r;
 }

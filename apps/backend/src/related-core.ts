@@ -1,20 +1,35 @@
 import type { Repository, RelatedItem, CoAnchoredItem, ExpandedItem } from "@combat/shared";
 
-export async function buildRelated(repo: Repository, id: string): Promise<{
-  outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[];
+export async function buildRelated(
+  repo: Repository,
+  id: string
+): Promise<{
+  outgoing: RelatedItem[];
+  incoming: RelatedItem[];
+  coAnchored: CoAnchoredItem[];
 }> {
   const isRel = (t: string) => t === "REF" || t === "ANCHORED_TO";
-  const outgoingEdges = (await repo.queryEdges({ sourceId: id })).filter(e => isRel(e.edgeType));
+  const outgoingEdges = (await repo.queryEdges({ sourceId: id })).filter((e) => isRel(e.edgeType));
   const outgoing: RelatedItem[] = [];
   for (const e of outgoingEdges) {
     const node = await repo.getNode(e.targetId);
-    if (node) outgoing.push({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node });
+    if (node)
+      outgoing.push({
+        field: String(e.properties["field"] ?? ""),
+        concept: String(e.properties["concept"] ?? ""),
+        node,
+      });
   }
-  const incomingEdges = (await repo.queryEdges({ targetId: id })).filter(e => isRel(e.edgeType));
+  const incomingEdges = (await repo.queryEdges({ targetId: id })).filter((e) => isRel(e.edgeType));
   const incoming: RelatedItem[] = [];
   for (const e of incomingEdges) {
     const node = await repo.getNode(e.sourceId);
-    if (node) incoming.push({ field: String(e.properties["field"] ?? ""), concept: String(e.properties["concept"] ?? ""), node });
+    if (node)
+      incoming.push({
+        field: String(e.properties["field"] ?? ""),
+        concept: String(e.properties["concept"] ?? ""),
+        node,
+      });
   }
   const coAnchored: CoAnchoredItem[] = [];
   for (const e of await repo.queryEdges({ sourceId: id, edgeType: "ANCHORED_TO" })) {
@@ -23,8 +38,12 @@ export async function buildRelated(repo: Repository, id: string): Promise<{
     for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })) {
       if (back.sourceId === id) continue;
       const peer = await repo.getNode(back.sourceId);
-      if (peer) coAnchored.push({ anchorKind: String(e.properties["anchorKind"] ?? ""),
-        anchorKey: String(anchor.properties["key"] ?? ""), node: peer });
+      if (peer)
+        coAnchored.push({
+          anchorKind: String(e.properties["anchorKind"] ?? ""),
+          anchorKey: String(anchor.properties["key"] ?? ""),
+          node: peer,
+        });
     }
   }
   return { outgoing, incoming, coAnchored };
@@ -55,8 +74,13 @@ export async function buildExpanded(repo: Repository, rootId: string, maxDepth: 
       const nextDepth = cur.depth + 1;
       // anchors are transparent: traverse through them but do NOT emit
       if (e.edgeType !== "ANCHORED_TO") {
-        out.push({ node: target, depth: nextDepth, viaEdgeType: e.edgeType,
-          viaField: String(e.properties["field"] ?? ""), parentId: cur.id });
+        out.push({
+          node: target,
+          depth: nextDepth,
+          viaEdgeType: e.edgeType,
+          viaField: String(e.properties["field"] ?? ""),
+          parentId: cur.id,
+        });
       }
       // either way, queue for further expansion if depth budget remains
       if (nextDepth < maxDepth) queue.push({ id: target.id, depth: nextDepth });
@@ -69,8 +93,13 @@ export async function buildExpanded(repo: Repository, rootId: string, maxDepth: 
       if (!source) continue;
       visited.add(source.id);
       const nextDepth = cur.depth + 1;
-      out.push({ node: source, depth: nextDepth, viaEdgeType: e.edgeType,
-        viaField: String(e.properties["field"] ?? ""), parentId: cur.id });
+      out.push({
+        node: source,
+        depth: nextDepth,
+        viaEdgeType: e.edgeType,
+        viaField: String(e.properties["field"] ?? ""),
+        parentId: cur.id,
+      });
       if (nextDepth < maxDepth) queue.push({ id: source.id, depth: nextDepth });
     }
   }

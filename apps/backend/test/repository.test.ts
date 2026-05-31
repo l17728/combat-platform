@@ -30,7 +30,7 @@ describe("SqliteRepository", () => {
     await repo.appendProgress(n.id, "day1", "进行中", "alice");
     await repo.appendProgress(n.id, "day2", "进行中", "alice");
     const seq = await repo.listProgress(n.id);
-    expect(seq.map(p => p.seqNo)).toEqual([1, 2]);
+    expect(seq.map((p) => p.seqNo)).toEqual([1, 2]);
     expect(seq[0].content).toBe("day1");
     const audits = db.prepare("SELECT * FROM audit_log WHERE action='PROGRESS' AND entityId=?").all(n.id) as any[];
     expect(audits).toHaveLength(2);
@@ -54,8 +54,8 @@ describe("SqliteRepository", () => {
     const a = await repo.createNode("attackTicket", { 标题: "A" }, "t");
     const b = await repo.createNode("person", { name: "B" }, "t");
     const c = await repo.createNode("person", { name: "C" }, "t");
-    await repo.createEdge("BLOCKED_BY", b.id, a.id, {}, "t");   // a is TARGET (inbound)
-    await repo.createEdge("RELATES_TO", b.id, c.id, {}, "t");   // unrelated, must survive
+    await repo.createEdge("BLOCKED_BY", b.id, a.id, {}, "t"); // a is TARGET (inbound)
+    await repo.createEdge("RELATES_TO", b.id, c.id, {}, "t"); // unrelated, must survive
     await repo.deleteNode(a.id, "t");
     expect(await repo.queryEdges({ targetId: a.id })).toHaveLength(0);
     expect(await repo.queryEdges({ sourceId: b.id, targetId: c.id })).toHaveLength(1);
@@ -66,7 +66,13 @@ describe("SqliteRepository", () => {
     expect(after).toBe(before);
   });
   it("logAudit writes an arbitrary audit row", async () => {
-    await repo.logAudit({ action: "SCHEMA_addField", entityType: "schema", entityId: "attackTicket", changes: { x: 1 }, actor: "alice" });
+    await repo.logAudit({
+      action: "SCHEMA_addField",
+      entityType: "schema",
+      entityId: "attackTicket",
+      changes: { x: 1 },
+      actor: "alice",
+    });
     const a = db.prepare("SELECT * FROM audit_log WHERE action='SCHEMA_addField'").all() as any[];
     expect(a).toHaveLength(1);
     expect(a[0].performedBy).toBe("alice");

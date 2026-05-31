@@ -15,13 +15,30 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const REPO_METHODS = [
-  "createNode", "getNode", "updateNode", "queryNodes",
-  "createEdge", "queryEdges", "deleteEdges", "deleteEdgeById",
-  "appendProgress", "listProgress", "listAllProgress",
-  "deleteNode", "logAudit", "listAuditLog",
-  "getSetting", "setSetting",
-  "createProposal", "listProposals", "getProposal", "updateProposalStatus",
-  "createReminder", "listReminders", "getReminder", "updateReminderStatus",
+  "createNode",
+  "getNode",
+  "updateNode",
+  "queryNodes",
+  "createEdge",
+  "queryEdges",
+  "deleteEdges",
+  "deleteEdgeById",
+  "appendProgress",
+  "listProgress",
+  "listAllProgress",
+  "deleteNode",
+  "logAudit",
+  "listAuditLog",
+  "getSetting",
+  "setSetting",
+  "createProposal",
+  "listProposals",
+  "getProposal",
+  "updateProposalStatus",
+  "createReminder",
+  "listReminders",
+  "getReminder",
+  "updateReminderStatus",
 ];
 
 const files = process.argv.slice(2);
@@ -38,14 +55,24 @@ function matchEndParen(src, openIdx) {
   while (i < src.length) {
     const ch = src[i];
     if (inStr) {
-      if (ch === "\\") { i += 2; continue; }
+      if (ch === "\\") {
+        i += 2;
+        continue;
+      }
       if (ch === inStr) inStr = null;
       i++;
       continue;
     }
-    if (ch === '"' || ch === "'" || ch === "`") { inStr = ch; i++; continue; }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      inStr = ch;
+      i++;
+      continue;
+    }
     if (ch === "(") depth++;
-    else if (ch === ")") { depth--; if (depth === 0) return i; }
+    else if (ch === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
     i++;
   }
   return -1;
@@ -56,14 +83,14 @@ for (const f of files) {
   const path = resolve(f);
   let src = readFileSync(path, "utf8");
   const original = src;
-  let i = 0;
-  let out = "";
+  const i = 0;
+  const out = "";
   const re = new RegExp(`await\\s+repo\\.(${REPO_METHODS.join("|")})\\(`, "g");
   let m;
-  let last = 0;
-  const ops = [];  // collect {startAwait, endParen, openParen}
+  const last = 0;
+  const ops = []; // collect {startAwait, endParen, openParen}
   while ((m = re.exec(src)) !== null) {
-    const startAwait = m.index;       // start of "await"
+    const startAwait = m.index; // start of "await"
     const openParen = m.index + m[0].length - 1;
     const endParen = matchEndParen(src, openParen);
     if (endParen < 0) continue;
@@ -77,7 +104,7 @@ for (const f of files) {
     if (next === "[" || next === "." || next2 === "?." || next2 === "!.") {
       // Don't wrap if it's `.then(`, `.catch(`, `.finally(` (already a Promise chain)
       if (next === ".") {
-        const slice = src.slice(j+1, j+9);
+        const slice = src.slice(j + 1, j + 9);
         if (/^(then|catch|finally)\b/.test(slice)) continue;
       }
       ops.push({ startAwait, openParen, endParen });
@@ -90,7 +117,8 @@ for (const f of files) {
   // Apply edits in reverse order
   ops.sort((a, b) => b.startAwait - a.startAwait);
   for (const op of ops) {
-    src = src.slice(0, op.startAwait) + "(" + src.slice(op.startAwait, op.endParen + 1) + ")" + src.slice(op.endParen + 1);
+    src =
+      src.slice(0, op.startAwait) + "(" + src.slice(op.startAwait, op.endParen + 1) + ")" + src.slice(op.endParen + 1);
   }
   if (src !== original) {
     writeFileSync(path, src, "utf8");

@@ -5,7 +5,8 @@ import { log } from "./logger.js";
 // Read-only computation of what mergePerson(fromId → toId) would do: which
 // fields get unioned onto `to`, and how many edges migrate (excluding from↔to).
 export async function previewMerge(repo: Repository, fromId: string, toId: string): Promise<MergePreview> {
-  const from = await repo.getNode(fromId), to = await repo.getNode(toId);
+  const from = await repo.getNode(fromId),
+    to = await repo.getNode(toId);
   if (!from || !to) throw new Error("预览失败：节点不存在");
   const unionedFields: string[] = [];
   for (const [k, v] of Object.entries(from.properties)) {
@@ -24,7 +25,8 @@ export async function previewMerge(repo: Repository, fromId: string, toId: strin
 // atomic. Revisit (wrap in one tx) under async/multi-process.
 export async function mergePerson(repo: Repository, fromId: string, toId: string, actor: string): Promise<void> {
   if (fromId === toId) return;
-  const dup = await repo.getNode(fromId), canon = await repo.getNode(toId);
+  const dup = await repo.getNode(fromId),
+    canon = await repo.getNode(toId);
   if (!dup || !canon) throw new Error("合并失败：节点不存在");
   log.info("merge.start", { fromId, toId, actor });
   let migrated = 0;
@@ -39,8 +41,10 @@ export async function mergePerson(repo: Repository, fromId: string, toId: string
   // re-deriving would wrongly re-create the deleted person from stale name strings.)
   const sig = (edgeType: string, peer: string, field: unknown) => `${edgeType}|${peer}|${String(field ?? "")}`;
   const existing = new Set<string>();
-  for (const e of await repo.queryEdges({ sourceId: toId })) existing.add(sig(e.edgeType, e.targetId, e.properties["field"]));
-  for (const e of await repo.queryEdges({ targetId: toId })) existing.add(sig(e.edgeType, e.sourceId, e.properties["field"]));
+  for (const e of await repo.queryEdges({ sourceId: toId }))
+    existing.add(sig(e.edgeType, e.targetId, e.properties["field"]));
+  for (const e of await repo.queryEdges({ targetId: toId }))
+    existing.add(sig(e.edgeType, e.sourceId, e.properties["field"]));
   for (const e of await repo.queryEdges({ sourceId: fromId })) {
     if (e.targetId === toId) continue; // avoid self-loop
     const s = sig(e.edgeType, e.targetId, e.properties["field"]);
@@ -62,7 +66,12 @@ export async function mergePerson(repo: Repository, fromId: string, toId: string
   await syncConflicts(repo);
   // PRD §2.2: merge is a first-class audited business event (records the
   // actual surviving target — also the trace for a 修正-corrected target).
-  await repo.logAudit({ action: "MERGE", entityType: "node", entityId: toId,
-    changes: { fromId, toId, unioned }, actor });
+  await repo.logAudit({
+    action: "MERGE",
+    entityType: "node",
+    entityId: toId,
+    changes: { fromId, toId, unioned },
+    actor,
+  });
   log.info("merge.done", { fromId, toId, edgesMigrated: migrated, fieldsUnioned: Object.keys(unioned).length });
 }

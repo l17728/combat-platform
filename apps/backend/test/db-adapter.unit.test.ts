@@ -35,11 +35,8 @@ describe("SqliteAdapter", () => {
       db.prepare("INSERT INTO kv (k, v, n) VALUES (?, ?, ?)").run("x", "X", 10);
       db.prepare("INSERT INTO kv (k, v, n) VALUES (?, ?, ?)").run("y", "Y", 20);
       db.prepare("INSERT INTO kv (k, v, n) VALUES (?, ?, ?)").run("z", "Z", 30);
-      const rows = await adapter.query<{ k: string }>(
-        "SELECT k FROM kv WHERE n IN (?, ?, ?) ORDER BY n",
-        [10, 20, 30],
-      );
-      expect(rows.map(r => r.k)).toEqual(["x", "y", "z"]);
+      const rows = await adapter.query<{ k: string }>("SELECT k FROM kv WHERE n IN (?, ?, ?) ORDER BY n", [10, 20, 30]);
+      expect(rows.map((r) => r.k)).toEqual(["x", "y", "z"]);
     });
   });
 
@@ -47,9 +44,7 @@ describe("SqliteAdapter", () => {
     it("returns the first row when matches exist", async () => {
       db.prepare("INSERT INTO kv (k, v, n) VALUES (?, ?, ?)").run("a", "alpha", 1);
       db.prepare("INSERT INTO kv (k, v, n) VALUES (?, ?, ?)").run("b", "beta", 2);
-      const row = await adapter.queryOne<{ k: string; n: number }>(
-        "SELECT k, n FROM kv ORDER BY k",
-      );
+      const row = await adapter.queryOne<{ k: string; n: number }>("SELECT k, n FROM kv ORDER BY k");
       expect(row?.k).toBe("a");
       expect(row?.n).toBe(1);
     });
@@ -62,10 +57,7 @@ describe("SqliteAdapter", () => {
 
   describe("run()", () => {
     it("returns { changes, lastInsertRowid } for INSERT", async () => {
-      const r = await adapter.run(
-        "INSERT INTO items (name) VALUES (?)",
-        ["first"],
-      );
+      const r = await adapter.run("INSERT INTO items (name) VALUES (?)", ["first"]);
       expect(r.changes).toBe(1);
       expect(typeof r.lastInsertRowid === "number" || typeof r.lastInsertRowid === "bigint").toBe(true);
       // first row, autoincrement = 1
@@ -102,7 +94,7 @@ describe("SqliteAdapter", () => {
 
   describe("transaction()", () => {
     it("commits when the callback resolves", async () => {
-      await adapter.transaction(async tx => {
+      await adapter.transaction(async (tx) => {
         await tx.run("INSERT INTO items (name) VALUES (?)", ["committed"]);
       });
       const rows = await adapter.query<{ name: string }>("SELECT name FROM items");
@@ -111,10 +103,10 @@ describe("SqliteAdapter", () => {
 
     it("rolls back when the callback throws", async () => {
       await expect(
-        adapter.transaction(async tx => {
+        adapter.transaction(async (tx) => {
           await tx.run("INSERT INTO items (name) VALUES (?)", ["should-rollback"]);
           throw new Error("boom");
-        }),
+        })
       ).rejects.toThrow("boom");
       const rows = await adapter.query("SELECT * FROM items");
       expect(rows).toEqual([]);
@@ -122,7 +114,7 @@ describe("SqliteAdapter", () => {
 
     it("passes a DbAdapter to the callback (same kind)", async () => {
       let captured: any;
-      await adapter.transaction(async tx => {
+      await adapter.transaction(async (tx) => {
         captured = tx;
       });
       expect(captured.kind).toBe("sqlite");
@@ -135,7 +127,7 @@ describe("SqliteAdapter", () => {
       await expect(
         adapter.transaction(async () => {
           throw err;
-        }),
+        })
       ).rejects.toBe(err);
     });
   });

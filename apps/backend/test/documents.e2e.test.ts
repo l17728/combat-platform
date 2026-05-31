@@ -13,7 +13,8 @@ describe("documents e2e", () => {
   });
 
   it("uploads a file, lists it, downloads its content", async () => {
-    const up = await request(app).post("/api/documents")
+    const up = await request(app)
+      .post("/api/documents")
       .field("name", "测试文档")
       .attach("file", Buffer.from("HELLO-DOC-CONTENT"), "test.txt");
     expect(up.status).toBe(201);

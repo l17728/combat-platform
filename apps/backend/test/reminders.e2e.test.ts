@@ -23,7 +23,9 @@ const daysAhead = (n: number) => new Date(Date.now() + n * 86400000).toISOString
 describe("reminder engine e2e", () => {
   it("scan: 问题单跟催 fires for tickets with no progress in >= 3 days", async () => {
     const { app, db } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "停滞单", 状态: "进行中", 当前处理人: "甲" })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({ 标题: "停滞单", 状态: "进行中", 当前处理人: "甲" })
+    ).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     const s = await request(app).post("/api/reminders/scan").send({});
     expect(s.status).toBe(200);
@@ -37,10 +39,16 @@ describe("reminder engine e2e", () => {
 
   it("scan: FE Deadline 提醒 fires for deadlines within 3 days", async () => {
     const { app } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "临期单", 状态: "进行中", 当前处理人: "乙",
-      客户要求解决时间: daysAhead(2),
-    })).body;
+    const t = (
+      await request(app)
+        .post("/api/nodes/attackTicket")
+        .send({
+          标题: "临期单",
+          状态: "进行中",
+          当前处理人: "乙",
+          客户要求解决时间: daysAhead(2),
+        })
+    ).body;
     await request(app).post("/api/reminders/scan").send({});
     const list = (await request(app).get("/api/reminders?status=待发送")).body;
     const dl = list.find((r: any) => r.kind === "FE Deadline 提醒" && r.ticketId === t.id);
@@ -50,7 +58,9 @@ describe("reminder engine e2e", () => {
 
   it("scan is idempotent — same (kind,ticketId,recipient) within 7 days not duplicated", async () => {
     const { app, db } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "重复单", 状态: "进行中", 当前处理人: "丙" })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({ 标题: "重复单", 状态: "进行中", 当前处理人: "丙" })
+    ).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(5), t.id);
     const s1 = await request(app).post("/api/reminders/scan").send({});
     const c1 = s1.body.created;
@@ -61,7 +71,9 @@ describe("reminder engine e2e", () => {
 
   it("send (stub channel) → 已发送 + audit; non-待发送 → 409; unknown id → 404", async () => {
     const { app, db } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "发送单", 状态: "进行中", 当前处理人: "丁" })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({ 标题: "发送单", 状态: "进行中", 当前处理人: "丁" })
+    ).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});
     const pending = (await request(app).get("/api/reminders?status=待发送")).body[0];
@@ -80,7 +92,9 @@ describe("reminder engine e2e", () => {
 
   it("ignore → 已忽略; non-待发送 → 409", async () => {
     const { app, db } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "忽略单", 状态: "进行中", 当前处理人: "戊" })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({ 标题: "忽略单", 状态: "进行中", 当前处理人: "戊" })
+    ).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});
     const pending = (await request(app).get("/api/reminders?status=待发送")).body[0];
@@ -93,7 +107,11 @@ describe("reminder engine e2e", () => {
 
   it("tickets without 当前处理人 are skipped by both rules (no recipient → no reminder)", async () => {
     const { app, db } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "无处理人单", 状态: "进行中", 客户要求解决时间: daysAhead(1) })).body;
+    const t = (
+      await request(app)
+        .post("/api/nodes/attackTicket")
+        .send({ 标题: "无处理人单", 状态: "进行中", 客户要求解决时间: daysAhead(1) })
+    ).body;
     db.prepare(`UPDATE nodes SET updated_at=? WHERE id=?`).run(daysAgo(7), t.id);
     await request(app).post("/api/reminders/scan").send({});
     const list = (await request(app).get("/api/reminders")).body;

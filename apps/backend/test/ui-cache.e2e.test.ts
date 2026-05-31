@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-uicache-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-uicache-")), "t.sqlite")))
+  );
   const registry = new FileSchemaRegistry(CFG);
   return { app: createApp({ repo, registry }), repo };
 }
@@ -53,9 +55,14 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
 
   it("固定后 GET 返回该 pin；DELETE 后消失", async () => {
     const { app } = make();
-    const pin = (await request(app).post("/api/ui-cache/pin").send({
-      label: "测试固定", question: "谁负责", intent: "owner", uiSpec: SAMPLE_UI_SPEC,
-    })).body;
+    const pin = (
+      await request(app).post("/api/ui-cache/pin").send({
+        label: "测试固定",
+        question: "谁负责",
+        intent: "owner",
+        uiSpec: SAMPLE_UI_SPEC,
+      })
+    ).body;
     const list = (await request(app).get("/api/ui-cache/pinned")).body;
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(pin.id);
@@ -66,9 +73,14 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
 
   it("PATCH /api/ui-cache/pinned/:id — 修改 label", async () => {
     const { app } = make();
-    const pin = (await request(app).post("/api/ui-cache/pin").send({
-      label: "旧标题", question: "q", intent: "owner", uiSpec: SAMPLE_UI_SPEC,
-    })).body;
+    const pin = (
+      await request(app).post("/api/ui-cache/pin").send({
+        label: "旧标题",
+        question: "q",
+        intent: "owner",
+        uiSpec: SAMPLE_UI_SPEC,
+      })
+    ).body;
     const r = await request(app).patch(`/api/ui-cache/pinned/${pin.id}`).send({ label: "新标题" });
     expect(r.status).toBe(200);
     expect(r.body.label).toBe("新标题");
@@ -106,10 +118,14 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
     const ans = (await request(app).post("/api/hermes/ask").send({ question: "PB-2025 涉及哪些单" })).body;
     expect(ans.uiSpec).toBeDefined();
     // 2. 固定该 UI
-    const pin = (await request(app).post("/api/ui-cache/pin").send({
-      label: "告警风暴追踪",
-      question: ans.question, intent: ans.intent, uiSpec: ans.uiSpec,
-    })).body;
+    const pin = (
+      await request(app).post("/api/ui-cache/pin").send({
+        label: "告警风暴追踪",
+        question: ans.question,
+        intent: ans.intent,
+        uiSpec: ans.uiSpec,
+      })
+    ).body;
     // 3. 下次重进页面可以读到该固定项
     const list = (await request(app).get("/api/ui-cache/pinned")).body;
     expect(list[0].id).toBe(pin.id);
@@ -120,9 +136,14 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
     const { app } = make();
     const spec = { widget: "TABLE", params: { columns: ["标题"], rows: [] }, cacheKey: "limit-test" };
     for (let i = 0; i < 51; i++) {
-      await request(app).post("/api/ui-cache/pin").send({
-        label: `pin-${i}`, question: `q${i}`, intent: "owner", uiSpec: { ...spec, cacheKey: `key-${i}` },
-      });
+      await request(app)
+        .post("/api/ui-cache/pin")
+        .send({
+          label: `pin-${i}`,
+          question: `q${i}`,
+          intent: "owner",
+          uiSpec: { ...spec, cacheKey: `key-${i}` },
+        });
     }
     const list = (await request(app).get("/api/ui-cache/pinned")).body;
     expect(list).toHaveLength(50);
@@ -143,10 +164,14 @@ describe("增量57 动态 UI 固定（ui-cache）", () => {
 
   it("POST uiSpec 缺少 widget → 400", async () => {
     const { app } = make();
-    const r = await request(app).post("/api/ui-cache/pin").send({
-      label: "坏spec", question: "q", intent: "owner",
-      uiSpec: { params: { columns: [], rows: [] }, cacheKey: "k" },
-    });
+    const r = await request(app)
+      .post("/api/ui-cache/pin")
+      .send({
+        label: "坏spec",
+        question: "q",
+        intent: "owner",
+        uiSpec: { params: { columns: [], rows: [] }, cacheKey: "k" },
+      });
     expect(r.status).toBe(400);
   });
 });

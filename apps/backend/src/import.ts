@@ -11,8 +11,8 @@ const upload = multer({ storage: multer.memoryStorage() });
 function mapColumns(row: Record<string, unknown>, schema: NodeSchema): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of schema.fields) {
-    const aliases = (f.aliases ?? []).map(a => a.trim());
-    const hit = Object.keys(row).find(k => {
+    const aliases = (f.aliases ?? []).map((a) => a.trim());
+    const hit = Object.keys(row).find((k) => {
       const kt = k.trim();
       return kt === f.name || kt === f.label || aliases.includes(kt);
     });
@@ -28,7 +28,7 @@ export function detectNewColumns(rows: Record<string, unknown>[], schema: NodeSc
   for (const f of schema.fields) {
     known.add(f.name.trim());
     known.add(f.label.trim());
-    for (const a of (f.aliases ?? [])) known.add(a.trim());
+    for (const a of f.aliases ?? []) known.add(a.trim());
   }
   const out = new Set<string>();
   for (const row of rows) {
@@ -40,24 +40,37 @@ export function detectNewColumns(rows: Record<string, unknown>[], schema: NodeSc
   return [...out];
 }
 
-async function resolvePerson(repo: Repository, registry: SchemaRegistry, name?: string, employeeId?: string): Promise<string | null> {
-  const nameField = registry.getNodeSchema("person")?.fields.find(pf => pf.required && pf.type === "string");
+async function resolvePerson(
+  repo: Repository,
+  registry: SchemaRegistry,
+  name?: string,
+  employeeId?: string
+): Promise<string | null> {
+  const nameField = registry.getNodeSchema("person")?.fields.find((pf) => pf.required && pf.type === "string");
   const nameKey = nameField?.id ?? "name";
-  const empField = registry.getNodeSchema("person")?.fields.find(pf => pf.label === "工号");
+  const empField = registry.getNodeSchema("person")?.fields.find((pf) => pf.label === "工号");
   const empKey = empField?.id ?? "employeeId";
   if (!name && !employeeId) return null;
   if (employeeId) {
-    const hit = (await repo.queryNodes("person")).find(n => String(n.properties[empKey] ?? n.properties["employeeId"] ?? "") === employeeId);
+    const hit = (await repo.queryNodes("person")).find(
+      (n) => String(n.properties[empKey] ?? n.properties["employeeId"] ?? "") === employeeId
+    );
     if (hit) return hit.id;
   }
   if (name) {
-    const byName = (await repo.queryNodes("person")).find(n => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === name);
+    const byName = (await repo.queryNodes("person")).find(
+      (n) => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === name
+    );
     if (byName) return byName.id;
   }
   return (await repo.createNode("person", { [nameKey]: name ?? employeeId, [empKey]: employeeId }, "import")).id;
 }
 
-async function findByIdentity(repo: Repository, schema: NodeSchema, props: Record<string, unknown>): Promise<GraphNode | undefined> {
+async function findByIdentity(
+  repo: Repository,
+  schema: NodeSchema,
+  props: Record<string, unknown>
+): Promise<GraphNode | undefined> {
   for (const k of schema.identityKeys) {
     const v = props[k];
     const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
@@ -69,18 +82,31 @@ async function findByIdentity(repo: Repository, schema: NodeSchema, props: Recor
 }
 
 function rowSummary(props: Record<string, unknown>, raw: Record<string, unknown>): string {
-  return String(props["标题"] ?? props["攻关单号"] ?? props["版本号"] ?? props["名称"]
-    ?? props["姓名"] ?? props["贡献人"] ?? raw["标题"] ?? "(空)");
+  return String(
+    props["标题"] ??
+      props["攻关单号"] ??
+      props["版本号"] ??
+      props["名称"] ??
+      props["姓名"] ??
+      props["贡献人"] ??
+      raw["标题"] ??
+      "(空)"
+  );
 }
 
 // §42: read-only per-row plan (create/update/skip) — no DB writes. Shared by the
 // dry-run preview and the commit path so the two never diverge.
 export async function analyzeImport(
-  repo: Repository, registry: SchemaRegistry, nodeType: string, rows: Record<string, unknown>[],
+  repo: Repository,
+  registry: SchemaRegistry,
+  nodeType: string,
+  rows: Record<string, unknown>[]
 ): Promise<ImportPreview> {
   const schema = registry.getNodeSchema(nodeType)!;
   const out: ImportRowResult[] = [];
-  let willCreate = 0, willUpdate = 0, skipped = 0;
+  let willCreate = 0,
+    willUpdate = 0,
+    skipped = 0;
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
     const raw = rows[rowIndex];
     const props = mapColumns(raw, schema);
@@ -92,8 +118,13 @@ export async function analyzeImport(
       continue;
     }
     const existing = await findByIdentity(repo, schema, props);
-    if (existing) { out.push({ rowIndex, action: "update", summary }); willUpdate++; }
-    else { out.push({ rowIndex, action: "create", summary }); willCreate++; }
+    if (existing) {
+      out.push({ rowIndex, action: "update", summary });
+      willUpdate++;
+    } else {
+      out.push({ rowIndex, action: "create", summary });
+      willCreate++;
+    }
   }
   return { nodeType, willCreate, willUpdate, skipped, rows: out, newColumns: detectNewColumns(rows, schema) };
 }
@@ -137,7 +168,8 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
     }
     const effectiveSchema = registry.getNodeSchema(nodeType) ?? schema;
 
-    let created = 0, updated = 0;
+    let created = 0,
+      updated = 0;
     for (const rr of plan.rows) {
       if (rr.action === "skip") continue;
       const raw = rows[rr.rowIndex];
@@ -146,17 +178,22 @@ export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Ro
       const node = existing
         ? await repo.updateNode(existing.id, props, "import")
         : await repo.createNode(nodeType, props, "import");
-      if (existing) updated++; else created++;
+      if (existing) updated++;
+      else created++;
       await syncRefEdges(repo, registry, node, props, "import");
       await syncAnchorEdges(repo, registry, node, props, "import");
       if (nodeType === "attackTicket") {
         await repo.deleteEdges({ sourceId: node.id, edgeType: "ASSIGNED_TO" }, "import");
-        const personId = await resolvePerson(repo, registry,
-          raw["攻关申请人"] as string, raw["攻关申请人工号"] as string);
+        const personId = await resolvePerson(
+          repo,
+          registry,
+          raw["攻关申请人"] as string,
+          raw["攻关申请人工号"] as string
+        );
         if (personId) await repo.createEdge("ASSIGNED_TO", node.id, personId, { role: "攻关申请人" }, "import");
       }
     }
-    const skippedRows = plan.rows.filter(r => r.action === "skip");
+    const skippedRows = plan.rows.filter((r) => r.action === "skip");
     for (const sr of skippedRows) log.warn("import.skip", { nodeType, rowIndex: sr.rowIndex, reason: sr.reason });
     log.info("import.done", { nodeType, created, updated, skipped: plan.skipped, total: rows.length, createdFields });
     res.json({ created, updated, skipped: plan.skipped, skippedRows, createdFields });

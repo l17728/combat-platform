@@ -7,7 +7,20 @@ import type { RelationProposal, RelationProposalStatus, RelationProposer } from 
 import type { DashboardSummary } from "./index.js";
 import type { DailyReport, DailyReportSection, DailyReportEntry } from "./index.js";
 import type { Reminder, ReminderStatus, ReminderKind, ChannelAdapter } from "./index.js";
-import type { ExpandedItem, ConflictItem, ConflictRow, ScanConflictsResult, RebuildKGResult, HermesAnswer, HermesCitation, HermesIntent, GraphSnapshot, AuditLogEntry, MergePreview, TransitionResult } from "./index.js";
+import type {
+  ExpandedItem,
+  ConflictItem,
+  ConflictRow,
+  ScanConflictsResult,
+  RebuildKGResult,
+  HermesAnswer,
+  HermesCitation,
+  HermesIntent,
+  GraphSnapshot,
+  AuditLogEntry,
+  MergePreview,
+  TransitionResult,
+} from "./index.js";
 import { ATTACK_STATUSES } from "./index.js";
 import type { ImportPreview, SmtpConfig, SmtpConfigMasked, EmailSendRequest, EmailSendResult } from "./index.js";
 
@@ -15,18 +28,36 @@ describe("shared types", () => {
   it("EntitySchemaConfig shape compiles and is usable", () => {
     const cfg: EntitySchemaConfig = {
       version: 1,
-      nodeTypes: [{
-        nodeType: "attackTicket", label: "攻关单",
-        identityKeys: ["攻关单号"], derivedToKG: true,
-        fields: [{ id: "标题", name: "标题", type: "string", label: "标题", required: true }],
-      }],
+      nodeTypes: [
+        {
+          nodeType: "attackTicket",
+          label: "攻关单",
+          identityKeys: ["攻关单号"],
+          derivedToKG: true,
+          fields: [{ id: "标题", name: "标题", type: "string", label: "标题", required: true }],
+        },
+      ],
       edgeTypes: [{ edgeType: "ASSIGNED_TO", from: "attackTicket", to: "person" }],
     };
     expect(cfg.nodeTypes[0].fields[0].required).toBe(true);
   });
   it("GraphNode and ProgressLog carry JSON properties / sequence", () => {
-    const n: GraphNode = { id: "1", nodeType: "attackTicket", properties: { 标题: "x" }, createdAt: "t", updatedAt: "t" };
-    const p: ProgressLog = { id: "p1", ownerId: "1", seqNo: 1, content: "c", statusSnapshot: "进行中", updatedBy: "u", updatedAt: "t" };
+    const n: GraphNode = {
+      id: "1",
+      nodeType: "attackTicket",
+      properties: { 标题: "x" },
+      createdAt: "t",
+      updatedAt: "t",
+    };
+    const p: ProgressLog = {
+      id: "p1",
+      ownerId: "1",
+      seqNo: 1,
+      content: "c",
+      statusSnapshot: "进行中",
+      updatedBy: "u",
+      updatedAt: "t",
+    };
     expect(n.properties["标题"]).toBe("x");
     expect(p.seqNo).toBe(1);
   });
@@ -60,7 +91,15 @@ describe("increment-1 contracts", () => {
 describe("honor contracts", () => {
   it("LeaderboardEntry and PersonHonor shapes", () => {
     const l: LeaderboardEntry = { 贡献人: "张三", score: 11, 贡献数: 3, byLevel: { 核心: 1 }, byType: { 实施: 2 } };
-    const p: PersonHonor = { 贡献人: "张三", contributions: [{ contribution: { id: "c1", nodeType: "contribution", properties: {}, createdAt: "t", updatedAt: "t" }, attackTicketId: "a1" }] };
+    const p: PersonHonor = {
+      贡献人: "张三",
+      contributions: [
+        {
+          contribution: { id: "c1", nodeType: "contribution", properties: {}, createdAt: "t", updatedAt: "t" },
+          attackTicketId: "a1",
+        },
+      ],
+    };
     expect(l.score).toBe(11);
     expect(p.contributions[0].attackTicketId).toBe("a1");
   });
@@ -85,7 +124,14 @@ describe("ref-edge contracts", () => {
 
 describe("concept contracts", () => {
   it("FieldSchema has optional concept and FieldOp has setConcept", () => {
-    const f: FieldSchema = { id: "当前处理人", name: "当前处理人", type: "ref", label: "当前处理人", refType: "person", concept: "负责人" };
+    const f: FieldSchema = {
+      id: "当前处理人",
+      name: "当前处理人",
+      type: "ref",
+      label: "当前处理人",
+      refType: "person",
+      concept: "负责人",
+    };
     const ops: FieldOp[] = [{ op: "setConcept", id: "当前处理人", concept: "负责人" }];
     expect(f.concept).toBe("负责人");
     expect(ops[0].op).toBe("setConcept");
@@ -96,9 +142,15 @@ describe("concept contracts", () => {
 describe("relation-proposal contracts", () => {
   it("RelationProposal shape + Chinese status literals", () => {
     const p: RelationProposal = {
-      id: "p1", sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
-      confidence: 0.8, proposerSource: "heuristic-v1", rationale: "张伟≈张玮 dist=1",
-      status: "待审批", createdAt: new Date().toISOString(),
+      id: "p1",
+      sourceNodeId: "a",
+      targetNodeId: "b",
+      relationType: "SAME_AS",
+      confidence: 0.8,
+      proposerSource: "heuristic-v1",
+      rationale: "张伟≈张玮 dist=1",
+      status: "待审批",
+      createdAt: new Date().toISOString(),
     };
     const decided: RelationProposalStatus[] = ["待审批", "已通过", "已拒绝"];
     expect(decided).toContain(p.status);
@@ -107,8 +159,16 @@ describe("relation-proposal contracts", () => {
   });
   it("RelationProposer.propose returns proposal drafts (no id/status)", async () => {
     const proposer: RelationProposer = {
-      propose: async () => [{ sourceNodeId: "a", targetNodeId: "b", relationType: "SAME_AS",
-        confidence: 0.9, proposerSource: "heuristic-v1", rationale: "r" }],
+      propose: async () => [
+        {
+          sourceNodeId: "a",
+          targetNodeId: "b",
+          relationType: "SAME_AS",
+          confidence: 0.9,
+          proposerSource: "heuristic-v1",
+          rationale: "r",
+        },
+      ],
     };
     const out = await proposer.propose({} as Repository, {} as SchemaRegistry);
     expect(out[0].relationType).toBe("SAME_AS");
@@ -141,7 +201,8 @@ describe("helper-recommendation contract", () => {
   it("HelperRecommendation shape", () => {
     const r: HelperRecommendation = {
       person: { id: "p1", nodeType: "person", properties: { name: "张三" }, createdAt: "t", updatedAt: "t" },
-      score: 6, reasons: ["曾处理共享问题单「PB-1」的攻关单「断网」"],
+      score: 6,
+      reasons: ["曾处理共享问题单「PB-1」的攻关单「断网」"],
     };
     expect(r.score).toBe(6);
     expect(r.reasons[0]).toContain("PB-1");
@@ -168,7 +229,13 @@ describe("dashboard contract", () => {
 
 describe("daily-report contracts", () => {
   it("DailyReport shape", () => {
-    const e: DailyReportEntry = { seqNo: 1, statusSnapshot: "进行中", content: "进展X", updatedBy: "甲", at: "2026-05-20T01:02:03Z" };
+    const e: DailyReportEntry = {
+      seqNo: 1,
+      statusSnapshot: "进行中",
+      content: "进展X",
+      updatedBy: "甲",
+      at: "2026-05-20T01:02:03Z",
+    };
     const s: DailyReportSection = { ticketId: "t1", 标题: "T1", latestStatus: "进行中", entries: [e] };
     const r: DailyReport = {
       date: "2026-05-20",
@@ -183,10 +250,15 @@ describe("daily-report contracts", () => {
 describe("reminder contracts", () => {
   it("Reminder shape + status enum + ChannelAdapter interface", () => {
     const r: Reminder = {
-      id: "r1", kind: "问题单跟催", ticketId: "t1",
-      recipientPersonId: "p1", recipientName: "甲",
-      subject: "跟催: T1", body: "已停滞 5 天",
-      status: "待发送", createdAt: new Date().toISOString(),
+      id: "r1",
+      kind: "问题单跟催",
+      ticketId: "t1",
+      recipientPersonId: "p1",
+      recipientName: "甲",
+      subject: "跟催: T1",
+      body: "已停滞 5 天",
+      status: "待发送",
+      createdAt: new Date().toISOString(),
     };
     const all: ReminderStatus[] = ["待发送", "已发送", "已忽略"];
     expect(all).toContain(r.status);
@@ -196,8 +268,13 @@ describe("reminder contracts", () => {
   it("ReminderKind extended with 'CCB 提醒' (李嘉②)", () => {
     const kinds: ReminderKind[] = ["问题单跟催", "FE Deadline 提醒", "CCB 提醒"];
     const ccb: Reminder = {
-      id: "r2", kind: "CCB 提醒", ticketId: "t1", recipientName: "甲",
-      subject: "[CCB] T1", body: "需上 CCB", status: "待发送",
+      id: "r2",
+      kind: "CCB 提醒",
+      ticketId: "t1",
+      recipientName: "甲",
+      subject: "[CCB] T1",
+      body: "需上 CCB",
+      status: "待发送",
       createdAt: new Date().toISOString(),
     };
     expect(kinds).toContain(ccb.kind);
@@ -208,7 +285,10 @@ describe("depth-N expansion contract (§32)", () => {
   it("ExpandedItem shape", () => {
     const e: ExpandedItem = {
       node: { id: "n2", nodeType: "person", properties: { name: "甲" }, createdAt: "t", updatedAt: "t" },
-      depth: 2, viaEdgeType: "REF", viaField: "当前处理人", parentId: "root",
+      depth: 2,
+      viaEdgeType: "REF",
+      viaField: "当前处理人",
+      parentId: "root",
     };
     expect(e.depth).toBe(2);
     expect(e.viaEdgeType).toBe("REF");
@@ -221,8 +301,10 @@ describe("conflict / overlap contract (§33)", () => {
     const c: ConflictItem = { edgeType: "CONFLICTS_WITH", reason: "同负责人多并发：甲", node };
     expect(c.edgeType).toBe("CONFLICTS_WITH");
     const r: ConflictRow = {
-      edgeType: "OVERLAPS_WITH", reason: "同问题单：PB-1",
-      source: node, target: { ...node, id: "n2" },
+      edgeType: "OVERLAPS_WITH",
+      reason: "同问题单：PB-1",
+      source: node,
+      target: { ...node, id: "n2" },
     };
     expect(r.edgeType).toBe("OVERLAPS_WITH");
     const s: ScanConflictsResult = { conflicts: 2, overlaps: 1 };
@@ -240,11 +322,33 @@ describe("KG rebuild contract (§34)", () => {
 
 describe("Email contract (§45)", () => {
   it("SmtpConfig / masked / send req+result shapes", () => {
-    const cfg: SmtpConfig = { host: "smtp.x.com", port: 465, secure: true, username: "u", password: "p", fromEmail: "a@x.com", fromName: "作战" };
-    const masked: SmtpConfigMasked = { host: cfg.host, port: cfg.port, secure: cfg.secure, username: cfg.username, fromEmail: cfg.fromEmail, fromName: cfg.fromName, passwordSet: true };
+    const cfg: SmtpConfig = {
+      host: "smtp.x.com",
+      port: 465,
+      secure: true,
+      username: "u",
+      password: "p",
+      fromEmail: "a@x.com",
+      fromName: "作战",
+    };
+    const masked: SmtpConfigMasked = {
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+      username: cfg.username,
+      fromEmail: cfg.fromEmail,
+      fromName: cfg.fromName,
+      passwordSet: true,
+    };
     expect(masked.passwordSet).toBe(true);
     expect("password" in masked).toBe(false);
-    const req: EmailSendRequest = { to: ["a@x.com"], groupNames: ["G"], personNames: ["张三"], subject: "S", body: "B" };
+    const req: EmailSendRequest = {
+      to: ["a@x.com"],
+      groupNames: ["G"],
+      personNames: ["张三"],
+      subject: "S",
+      body: "B",
+    };
     const res: EmailSendResult = { recipients: ["a@x.com"], ok: true, messageId: "m1" };
     expect(req.subject).toBe("S");
     expect(res.ok).toBe(true);
@@ -254,14 +358,17 @@ describe("Email contract (§45)", () => {
 describe("Import preview contract (§42)", () => {
   it("ImportPreview + ImportRowResult shape", () => {
     const p: ImportPreview = {
-      nodeType: "attackTicket", willCreate: 1, willUpdate: 0, skipped: 1,
+      nodeType: "attackTicket",
+      willCreate: 1,
+      willUpdate: 0,
+      skipped: 1,
       rows: [
         { rowIndex: 0, action: "create", summary: "新单" },
         { rowIndex: 1, action: "skip", reason: "标题: 必填", summary: "(空)" },
       ],
     };
     expect(p.skipped).toBe(1);
-    expect(p.rows.find(r => r.action === "skip")?.reason).toContain("标题");
+    expect(p.rows.find((r) => r.action === "skip")?.reason).toContain("标题");
   });
 });
 
@@ -271,7 +378,15 @@ describe("Status transition contract (§41)", () => {
     expect(ATTACK_STATUSES.length).toBe(5);
     const tr: TransitionResult = {
       node: { id: "t1", nodeType: "attackTicket", properties: { 状态: "已解决" }, createdAt: "t", updatedAt: "t" },
-      progress: { id: "p1", ownerId: "t1", seqNo: 1, content: "状态变更：进行中→已解决", statusSnapshot: "已解决", updatedBy: "api", updatedAt: "t" },
+      progress: {
+        id: "p1",
+        ownerId: "t1",
+        seqNo: 1,
+        content: "状态变更：进行中→已解决",
+        statusSnapshot: "已解决",
+        updatedBy: "api",
+        updatedAt: "t",
+      },
     };
     expect(tr.progress.statusSnapshot).toBe("已解决");
   });
@@ -289,8 +404,13 @@ describe("Merge preview contract (§40)", () => {
 describe("Audit log contract (§39)", () => {
   it("AuditLogEntry shape", () => {
     const e: AuditLogEntry = {
-      id: "a1", action: "UPDATE", entityType: "node", entityId: "n1",
-      changes: { 状态: "进行中" }, performedBy: "甲", performedAt: "2026-05-21T01:02:03Z",
+      id: "a1",
+      action: "UPDATE",
+      entityType: "node",
+      entityId: "n1",
+      changes: { 状态: "进行中" },
+      performedBy: "甲",
+      performedAt: "2026-05-21T01:02:03Z",
     };
     expect(e.action).toBe("UPDATE");
     expect((e.changes as Record<string, string>).状态).toBe("进行中");
@@ -315,8 +435,16 @@ describe("Graph snapshot contract (§38)", () => {
 describe("Hermes contract (§35)", () => {
   it("HermesAnswer + HermesCitation + HermesIntent shapes", () => {
     const c: HermesCitation = { nodeId: "t1", nodeType: "attackTicket", summary: "断网攻关", link: "/attack/t1" };
-    const intents: HermesIntent[] = ["status", "owner", "ticket-by-pb", "person-workload", "fallback-search",
-      "contribution-by-person", "recent-changes", "find-helpers"];
+    const intents: HermesIntent[] = [
+      "status",
+      "owner",
+      "ticket-by-pb",
+      "person-workload",
+      "fallback-search",
+      "contribution-by-person",
+      "recent-changes",
+      "find-helpers",
+    ];
     const a: HermesAnswer = { question: "X 谁负责", intent: "owner", answer: "甲负责。", citations: [c] };
     expect(a.citations[0].summary).toBe("断网攻关");
     expect(intents.length).toBe(8);

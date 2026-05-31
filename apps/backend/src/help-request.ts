@@ -70,7 +70,12 @@ function ensureTable(adapter: DbAdapter) {
   `);
 }
 
-export function makeHelpRequestRouter(adapter: DbAdapter, repo: Repository, mailSender: MailSender, baseUrl?: string): Router {
+export function makeHelpRequestRouter(
+  adapter: DbAdapter,
+  repo: Repository,
+  mailSender: MailSender,
+  baseUrl?: string
+): Router {
   ensureTable(adapter);
   const r = Router();
   const BASE = baseUrl ?? process.env.HELP_BASE_URL ?? "http://124.156.193.122:3001";
@@ -78,8 +83,7 @@ export function makeHelpRequestRouter(adapter: DbAdapter, repo: Repository, mail
   r.post(
     "/help-requests",
     asyncHandler(async (req, res) => {
-      const { ticketId, requesterName, targetName, targetEmail, category, question, extraNote } =
-        req.body ?? {};
+      const { ticketId, requesterName, targetName, targetEmail, category, question, extraNote } = req.body ?? {};
       if (!ticketId || !requesterName || !targetEmail || !category || !question) {
         return res.status(400).json({
           error: "ticketId, requesterName, targetEmail, category, question 为必填项",
@@ -91,9 +95,7 @@ export function makeHelpRequestRouter(adapter: DbAdapter, repo: Repository, mail
       const feedbackToken = randomUUID();
 
       const ticket = await repo.getNode(ticketId);
-      const ticketTitle = ticket
-        ? String(ticket.properties["标题"] ?? ticketId.slice(0, 8))
-        : ticketId.slice(0, 8);
+      const ticketTitle = ticket ? String(ticket.properties["标题"] ?? ticketId.slice(0, 8)) : ticketId.slice(0, 8);
 
       await adapter.run(
         `INSERT INTO help_requests (id, ticket_id, requester_name, target_name, target_email, category, question, extra_note, feedback_token, status, created_at, updated_at)
@@ -111,7 +113,7 @@ export function makeHelpRequestRouter(adapter: DbAdapter, repo: Repository, mail
           "待回复",
           now,
           now,
-        ],
+        ]
       );
 
       // Link points at the FRONTEND feedback form route (renders a form), not the
@@ -150,79 +152,81 @@ export function makeHelpRequestRouter(adapter: DbAdapter, repo: Repository, mail
       log.info("help_request.create", { id, ticketId, emailSent });
       const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [id]);
       res.status(201).json({ ...toHelpRequest(row), emailSent, emailNote, feedbackLink });
-    }),
+    })
   );
 
-  r.get("/help-requests", asyncHandler(async (req, res) => {
-    const { ticketId, status } = req.query ?? {};
-    let sql = "SELECT * FROM help_requests WHERE 1=1";
-    const params: any[] = [];
-    if (ticketId) {
-      sql += " AND ticket_id=?";
-      params.push(ticketId);
-    }
-    if (status) {
-      sql += " AND status=?";
-      params.push(status);
-    }
-    sql += " ORDER BY created_at DESC";
-    const rows = await adapter.query<any>(sql, params);
-    res.json(rows.map(toHelpRequest));
-  }));
-
-  r.get("/help/feedback/:token", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>(
-      "SELECT * FROM help_requests WHERE feedback_token=?",
-      [req.params.token],
-    );
-    if (!row) return res.status(404).json({ error: "未找到该求助记录" });
-    const ticket = await repo.getNode(row.ticket_id);
-    res.json({
-      ticketTitle: ticket
-        ? String(ticket.properties["标题"] ?? row.ticket_id.slice(0, 8))
-        : row.ticket_id.slice(0, 8),
-      requesterName: row.requester_name,
-      question: row.question,
-      category: row.category,
-      status: row.status,
-    });
-  }));
-
-  r.post("/help/feedback/:token", asyncHandler(async (req, res) => {
-    const row = await adapter.queryOne<any>(
-      "SELECT * FROM help_requests WHERE feedback_token=?",
-      [req.params.token],
-    );
-    if (!row) return res.status(404).json({ error: "未找到该求助记录" });
-    if (row.status === "已回复")
-      return res.status(400).json({ error: "该求助已回复" });
-
-    const { feedback, name } = req.body ?? {};
-    if (!feedback) return res.status(400).json({ error: "反馈内容不能为空" });
-
-    const now = new Date().toISOString();
-    await adapter.run(
-      `UPDATE help_requests SET feedback=?, feedback_by=?, feedback_at=?, status='已回复', updated_at=? WHERE id=?`,
-      [feedback, name ?? null, now, now, row.id],
-    );
-
-    if (row.ticket_id) {
-      try {
-        await repo.appendProgress(
-          row.ticket_id,
-          `【求助回复】${row.target_name ?? row.target_email} 回复了「${row.question.slice(0, 40)}...」：${feedback}`,
-          "处理中",
-          "system",
-        );
-      } catch {
-        log.warn("help_request.progress_append_fail", { id: row.id });
+  r.get(
+    "/help-requests",
+    asyncHandler(async (req, res) => {
+      const { ticketId, status } = req.query ?? {};
+      let sql = "SELECT * FROM help_requests WHERE 1=1";
+      const params: any[] = [];
+      if (ticketId) {
+        sql += " AND ticket_id=?";
+        params.push(ticketId);
       }
-    }
+      if (status) {
+        sql += " AND status=?";
+        params.push(status);
+      }
+      sql += " ORDER BY created_at DESC";
+      const rows = await adapter.query<any>(sql, params);
+      res.json(rows.map(toHelpRequest));
+    })
+  );
 
-    log.info("help_request.feedback", { id: row.id });
-    const updated = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [row.id]);
-    res.json(toHelpRequest(updated));
-  }));
+  r.get(
+    "/help/feedback/:token",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=?", [req.params.token]);
+      if (!row) return res.status(404).json({ error: "未找到该求助记录" });
+      const ticket = await repo.getNode(row.ticket_id);
+      res.json({
+        ticketTitle: ticket
+          ? String(ticket.properties["标题"] ?? row.ticket_id.slice(0, 8))
+          : row.ticket_id.slice(0, 8),
+        requesterName: row.requester_name,
+        question: row.question,
+        category: row.category,
+        status: row.status,
+      });
+    })
+  );
+
+  r.post(
+    "/help/feedback/:token",
+    asyncHandler(async (req, res) => {
+      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=?", [req.params.token]);
+      if (!row) return res.status(404).json({ error: "未找到该求助记录" });
+      if (row.status === "已回复") return res.status(400).json({ error: "该求助已回复" });
+
+      const { feedback, name } = req.body ?? {};
+      if (!feedback) return res.status(400).json({ error: "反馈内容不能为空" });
+
+      const now = new Date().toISOString();
+      await adapter.run(
+        `UPDATE help_requests SET feedback=?, feedback_by=?, feedback_at=?, status='已回复', updated_at=? WHERE id=?`,
+        [feedback, name ?? null, now, now, row.id]
+      );
+
+      if (row.ticket_id) {
+        try {
+          await repo.appendProgress(
+            row.ticket_id,
+            `【求助回复】${row.target_name ?? row.target_email} 回复了「${row.question.slice(0, 40)}...」：${feedback}`,
+            "处理中",
+            "system"
+          );
+        } catch {
+          log.warn("help_request.progress_append_fail", { id: row.id });
+        }
+      }
+
+      log.info("help_request.feedback", { id: row.id });
+      const updated = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [row.id]);
+      res.json(toHelpRequest(updated));
+    })
+  );
 
   return r;
 }

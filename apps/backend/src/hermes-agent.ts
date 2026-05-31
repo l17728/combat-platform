@@ -15,8 +15,7 @@ export interface AgentRunner {
 function summarize(n: GraphNode): string {
   const p = n.properties;
   return String(
-    p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ??
-    p["贡献人"] ?? p["组名"] ?? p["name"] ?? n.id,
+    p["标题"] ?? p["攻关单号"] ?? p["版本号"] ?? p["名称"] ?? p["姓名"] ?? p["贡献人"] ?? p["组名"] ?? p["name"] ?? n.id
   );
 }
 
@@ -27,12 +26,15 @@ function linkFor(n: GraphNode): string {
 /** 数据字典 + a2 引用约定 + 问题。给 agent 一张"地图",数据由只读工具按需取。
  *  context: 调用方提供的上下文(如当前攻关单),让"本组/本单"等指代可解析。 */
 export function buildHermesPrompt(registry: SchemaRegistry, question: string, context?: string): string {
-  const dict = registry.getConfig().nodeTypes.map((ns) => {
-    const fields = ns.fields
-      .map((f) => (f.enumValues && f.enumValues.length ? `${f.name}(枚举:${f.enumValues.join("/")})` : f.name))
-      .join(", ");
-    return `- ${ns.nodeType}「${ns.label}」: ${fields}`;
-  }).join("\n");
+  const dict = registry
+    .getConfig()
+    .nodeTypes.map((ns) => {
+      const fields = ns.fields
+        .map((f) => (f.enumValues && f.enumValues.length ? `${f.name}(枚举:${f.enumValues.join("/")})` : f.name))
+        .join(", ");
+      return `- ${ns.nodeType}「${ns.label}」: ${fields}`;
+    })
+    .join("\n");
 
   return [
     "你是作战管理系统的只读问答助手 Hermes。",
@@ -50,7 +52,7 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string, co
     "   CITATIONS: <id1>, <id2>   (没有可引用记录时输出 CITATIONS: 空)",
     "6. 若答案是从 hermes_welinkSearch / hermes_welinkTimeline 的群消息里得到的(场景 3),",
     "   除 CITATIONS 行之外再追加一行 JSON 数组,标记每条群消息引用,格式:",
-    "   WELINK_CITATIONS: [{\"messageId\":\"<welink 原 id>\",\"brief\":\"前 30 字摘要\"}]",
+    '   WELINK_CITATIONS: [{"messageId":"<welink 原 id>","brief":"前 30 字摘要"}]',
     "   答案正文里也要用 [YYYY-MM-DD HH:MM] 格式标注每条引用消息发生时间。",
     ...(context ? ["", `当前上下文:${context}`] : []),
     "",
@@ -61,7 +63,10 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string, co
 const CITE_RE = /CITATIONS\s*[:：]\s*(.*)$/im;
 const WELINK_CITE_RE = /WELINK_CITATIONS\s*[:：]\s*(\[[\s\S]*?\])/i;
 
-export interface WelinkCiteHint { messageId: string; brief?: string }
+export interface WelinkCiteHint {
+  messageId: string;
+  brief?: string;
+}
 
 /** 从 agent 文本里拆出答案正文 / 节点 ID 引用 / Welink 消息引用提示(场景 3)。 */
 export function parseAgentOutput(text: string): {
@@ -82,7 +87,9 @@ export function parseAgentOutput(text: string): {
           if (mid) welinkHints.push({ messageId: mid, brief: it?.brief ? String(it.brief) : undefined });
         }
       }
-    } catch { /* 解析失败,welinkHints 保持空 */ }
+    } catch {
+      /* 解析失败,welinkHints 保持空 */
+    }
     body = body.slice(0, wm.index) + body.slice(wm.index + wm[0].length);
   }
   // 2) 再抽 CITATIONS
@@ -90,9 +97,13 @@ export function parseAgentOutput(text: string): {
   if (!m || m.index === undefined) return { answer: body.trim(), citedIds: [], welinkHints };
   const answer = body.slice(0, m.index).trim();
   const raw = m[1].trim();
-  const citedIds = (raw === "" || raw === "空" || raw === "无")
-    ? []
-    : raw.split(/[,，\s]+/).map((s) => s.trim()).filter(Boolean);
+  const citedIds =
+    raw === "" || raw === "空" || raw === "无"
+      ? []
+      : raw
+          .split(/[,，\s]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
   return { answer, citedIds, welinkHints };
 }
 
@@ -122,16 +133,16 @@ export async function buildCitations(repo: Repository, citedIds: string[]): Prom
 export function buildWelinkCitations(
   db: DB | undefined,
   hints: WelinkCiteHint[],
-  ticketIdHint?: string,
+  ticketIdHint?: string
 ): HermesCitation[] {
   if (!db || hints.length === 0) return [];
   const seen = new Set<string>();
   const out: HermesCitation[] = [];
   const stmtByTicket = db.prepare(
-    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE ticket_id = ? AND message_id = ? AND deleted_at IS NULL LIMIT 1",
+    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE ticket_id = ? AND message_id = ? AND deleted_at IS NULL LIMIT 1"
   );
   const stmtAny = db.prepare(
-    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE message_id = ? AND deleted_at IS NULL LIMIT 1",
+    "SELECT id, ticket_id, message_id, sent_at, author, content FROM welink_messages WHERE message_id = ? AND deleted_at IS NULL LIMIT 1"
   );
   for (const h of hints) {
     const key = `${ticketIdHint || "*"}:${h.messageId}`;
@@ -170,7 +181,7 @@ export async function answerWithAgent(
   question: string,
   runner: AgentRunner,
   context?: string,
-  db?: DB,
+  db?: DB
 ): Promise<HermesAnswer> {
   const prompt = buildHermesPrompt(registry, question, context);
   const text = await runner.run(prompt);

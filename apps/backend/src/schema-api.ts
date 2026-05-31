@@ -24,18 +24,22 @@ export async function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repo
         const key = `config:${f.name}`;
         const existing = await repo.getSetting(key);
         if (!existing) {
-          await repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${ns.label}.${f.label}` }), "schema-seed");
+          await repo.setSetting(
+            key,
+            JSON.stringify({ values: f.enumValues, label: `${ns.label}.${f.label}` }),
+            "schema-seed"
+          );
         }
       }
     }
   }
   // Non-schema config keys used by the frontend
   const uiDefaults: Record<string, { values: string[]; label: string }> = {
-    "求助分类": { values: ["环境", "领域专家", "团队协作", "资源"], label: "求助网络分类" },
-    "求助状态": { values: ["待确认", "支持中", "已完成", "已撤销"], label: "求助节点状态" },
-    "求助中心状态": { values: ["待回复", "已回复"], label: "求助中心筛选状态" },
-    "日报类型": { values: ["进展通报", "风险通报"], label: "攻关日报类型" },
-    "事件级别": { values: ["P1", "P2", "P3", "P4", "P4A", "P4B"], label: "事件级别" },
+    求助分类: { values: ["环境", "领域专家", "团队协作", "资源"], label: "求助网络分类" },
+    求助状态: { values: ["待确认", "支持中", "已完成", "已撤销"], label: "求助节点状态" },
+    求助中心状态: { values: ["待回复", "已回复"], label: "求助中心筛选状态" },
+    日报类型: { values: ["进展通报", "风险通报"], label: "攻关日报类型" },
+    事件级别: { values: ["P1", "P2", "P3", "P4", "P4A", "P4B"], label: "事件级别" },
   };
   for (const [key, cfg] of Object.entries(uiDefaults)) {
     const existing = await repo.getSetting(`config:${key}`);
@@ -45,11 +49,7 @@ export async function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repo
   }
 }
 
-export function makeSchemaApiRouter(
-  registry: SchemaRegistry,
-  schemaDir: string,
-  repo: Repository,
-): Router {
+export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string, repo: Repository): Router {
   const r = Router();
 
   // GET /api/schema/list — returns all NodeSchema[]
@@ -60,7 +60,9 @@ export function makeSchemaApiRouter(
 
   // GET /api/schema/suggest?q=<keyword>
   r.get("/schema/suggest", (req, res) => {
-    const q = String(req.query.q ?? "").trim().toLowerCase();
+    const q = String(req.query.q ?? "")
+      .trim()
+      .toLowerCase();
     if (!q) return res.json([]);
 
     const results: SchemaSuggestion[] = [];
@@ -72,7 +74,7 @@ export function makeSchemaApiRouter(
           matchReason = "名称匹配";
         } else if (f.label.toLowerCase().includes(q)) {
           matchReason = "标签匹配";
-        } else if (f.aliases?.some(a => a.toLowerCase().includes(q))) {
+        } else if (f.aliases?.some((a) => a.toLowerCase().includes(q))) {
           matchReason = "别名匹配";
         } else if (f.concept?.toLowerCase().includes(q)) {
           matchReason = "概念匹配";
@@ -110,9 +112,7 @@ export function makeSchemaApiRouter(
       // Validate nodeType format
       if (!nodeType || !NODE_TYPE_RE.test(nodeType)) {
         log.warn("schema.create.validation_fail", { nodeType, error: "nodeType 格式非法" });
-        return res
-          .status(400)
-          .json({ error: "nodeType 必须以字母开头，只能包含字母和数字（camelCase）" });
+        return res.status(400).json({ error: "nodeType 必须以字母开头，只能包含字母和数字（camelCase）" });
       }
 
       // Validate label
@@ -129,22 +129,18 @@ export function makeSchemaApiRouter(
       for (const f of fields) {
         if (!f.name || !f.type || !f.label) {
           log.warn("schema.create.validation_fail", { nodeType, error: "字段缺少必填项" });
-          return res
-            .status(400)
-            .json({ error: "每个字段必须包含 name、type 和 label" });
+          return res.status(400).json({ error: "每个字段必须包含 name、type 和 label" });
         }
       }
 
       // Check for duplicate nodeType
       const existing = registry.getNodeSchema(nodeType);
       if (existing) {
-        return res
-          .status(409)
-          .json({ error: `nodeType "${nodeType}" 已存在` });
+        return res.status(409).json({ error: `nodeType "${nodeType}" 已存在` });
       }
 
       // Assign id = name if not set
-      const normalizedFields: FieldSchema[] = fields.map(f => ({
+      const normalizedFields: FieldSchema[] = fields.map((f) => ({
         ...f,
         id: f.id ?? f.name,
       }));
@@ -162,7 +158,9 @@ export function makeSchemaApiRouter(
       try {
         registry.reload();
       } catch (e) {
-        try { unlinkSync(filePath); } catch {}
+        try {
+          unlinkSync(filePath);
+        } catch {}
         throw e;
       }
 
@@ -174,7 +172,11 @@ export function makeSchemaApiRouter(
           const key = `config:${f.name}`;
           const existing = await repo.getSetting(key);
           if (!existing) {
-            await repo.setSetting(key, JSON.stringify({ values: f.enumValues, label: `${label}.${f.label}` }), "schema-seed");
+            await repo.setSetting(
+              key,
+              JSON.stringify({ values: f.enumValues, label: `${label}.${f.label}` }),
+              "schema-seed"
+            );
           }
           if (!f.optionsKey) {
             f.optionsKey = f.name;
@@ -184,7 +186,7 @@ export function makeSchemaApiRouter(
 
       const created = registry.getNodeSchema(nodeType);
       return res.status(201).json(created);
-    }),
+    })
   );
 
   // DELETE /api/schema/nodeType/:nodeType
@@ -208,9 +210,7 @@ export function makeSchemaApiRouter(
       const nodes = await repo.queryNodes(nodeType);
       if (nodes.length > 0) {
         log.warn("schema.delete.blocked", { nodeType, nodeCount: nodes.length });
-        return res
-          .status(409)
-          .json({ error: "该类型下有数据，无法删除" });
+        return res.status(409).json({ error: "该类型下有数据，无法删除" });
       }
 
       const filePath = join(schemaDir, `${nodeType}.json`);
@@ -225,7 +225,7 @@ export function makeSchemaApiRouter(
 
       log.info("schema.delete", { nodeType });
       return res.json({ ok: true, nodeType });
-    }),
+    })
   );
 
   return r;

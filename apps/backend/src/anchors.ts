@@ -1,8 +1,11 @@
 import type { Repository, SchemaRegistry, GraphNode } from "@combat/shared";
 
 export async function syncAnchorEdges(
-  repo: Repository, registry: SchemaRegistry, node: GraphNode,
-  body: Record<string, unknown>, actor: string,
+  repo: Repository,
+  registry: SchemaRegistry,
+  node: GraphNode,
+  body: Record<string, unknown>,
+  actor: string
 ): Promise<void> {
   const schema = registry.getNodeSchema(node.nodeType);
   if (!schema) return;
@@ -18,8 +21,8 @@ export async function syncAnchorEdges(
     resolved.set(f.anchor, { value: v, field: f.id });
   }
   for (const [kind, { value, field }] of resolved) {
-    const existing = (await repo.queryNodes(kind)).find(n => String(n.properties["key"] ?? "") === value);
-    const anchor = existing ?? await repo.createNode(kind, { key: value }, actor);
+    const existing = (await repo.queryNodes(kind)).find((n) => String(n.properties["key"] ?? "") === value);
+    const anchor = existing ?? (await repo.createNode(kind, { key: value }, actor));
     await repo.createEdge("ANCHORED_TO", node.id, anchor.id, { anchorKind: kind, field }, actor);
   }
 }

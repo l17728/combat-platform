@@ -20,9 +20,12 @@ async function makeApp() {
 describe("§39 audit log read API e2e", () => {
   it("creating a node leaves a CREATE entry; entityId filter narrows", async () => {
     const { app } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "审计单", 状态: "进行中",
-    })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "审计单",
+        状态: "进行中",
+      })
+    ).body;
     const r = await request(app).get("/api/audit");
     expect(r.status).toBe(200);
     expect(Array.isArray(r.body)).toBe(true);
@@ -35,9 +38,12 @@ describe("§39 audit log read API e2e", () => {
 
   it("update yields UPDATE entry; action filter narrows", async () => {
     const { app } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "原标题", 状态: "进行中",
-    })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "原标题",
+        状态: "进行中",
+      })
+    ).body;
     await request(app).put(`/api/nodes/${t.id}`).send({ 标题: "改后标题", 状态: "已解决" });
     const all = (await request(app).get(`/api/audit?entityId=${t.id}`)).body;
     const actions = new Set(all.map((e: any) => e.action));
@@ -53,7 +59,9 @@ describe("§39 audit log read API e2e", () => {
     const { app } = await makeApp();
     // create 5 entries quickly
     for (let i = 0; i < 5; i++)
-      await request(app).post("/api/nodes/attackTicket").send({ 标题: `单${i}`, 状态: "进行中" });
+      await request(app)
+        .post("/api/nodes/attackTicket")
+        .send({ 标题: `单${i}`, 状态: "进行中" });
     const def = (await request(app).get("/api/audit")).body;
     expect(def.length).toBeLessThanOrEqual(100);
     expect(def.length).toBeGreaterThanOrEqual(5);

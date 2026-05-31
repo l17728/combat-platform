@@ -1,8 +1,52 @@
 const HELP: Record<string, { title: string; content: string }> = {
   releaseNotes: {
-    title: 'Release Notes - 版本发布说明',
+    title: "Release Notes - 版本发布说明",
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
+
+## v2.1.0 — 2026-05-31 (Roadmap 4 桶整合 — 安全/性能/UX/质量)
+
+依 5 位专家评审产出的 5 P0 安全 + 5 性能 quick wins + 5 UX 改进 + 5 代码质量,四桶并行落地后整合入 master。**全部为本机改动,所有桶均在合并前独立 push 并 CI 通过**。
+
+### 🔒 安全(P0 全清)
+- **JWT_SECRET 生产环境必填**:启动期校验,缺失或等于默认值直接退出进程(防默认弱密钥)
+- **gradeGate 从 JWT 取 role**:不再信任 \`X-Role\` HTTP 头(localStorage 写入 + curl 可伪造),前端去掉所有 \`X-Role\` 发送
+- **/auth/register 强制 role=normal**:公开自注册接口强制规整角色,提权必须由已登录 admin 创建
+- **adminMiddleware + leaderMiddleware 统一守卫**:audit/merge/op-logs/backup/proposals/reminders/email 全部限 admin;tickets/:id/tabs + documents 写操作限 leader+
+- **DynamicCustomTab / ManualCenter 关 rehypeRaw**:防 markdown 注入存储型 XSS
+
+### ⚡ 性能(5 项 quick wins)
+- **useSettings 真缓存**(module-level singleton + 5min TTL + 并发去重):13 个 callsite 重复 fetch → 1 次/5min,首屏少 12 个请求
+- **GET /api/health**:无需鉴权,返回 \`{status,uptime,version,db:{kind,connected}}\`,systemd/反代/监控可探活
+- **conflicts.syncConflicts 30s 防抖**:连续 10 次保存 = 1 次全量重建,audit 写放大降低 10-100×
+- **backend.log 自动 rotation**:防爆盘,部署脚本 logrotate 自动注册
+- **dashboard 单次扫表**:5 次 attackTicket 全表扫 → 1 次内存聚合;top-5 用末位替换法省一次 N·logN 排序
+
+### 🎨 UX(全站 5 项升级)
+- **AI 助手浮窗挂到全站 AppLayout**:所有页面右下角可问 AI(原仅攻关详情可见)
+- **Dashboard 以我为中心**:首屏增加「我的攻关」「我的提醒」「我的草稿」三块卡片,跨页跳转直达
+- **AttackList 批量操作**:多选 + 批量删除 + 批量加关注;列表底部固定 Action Bar
+- **Cmd+K 命令面板**:全局快捷跳转(各列表/详情) + 新建(攻关单/贡献/求助等)
+- **菜单瘦身**:文档/搜索/KG/问题反馈/帮助中心收纳到「工具」分组;系统管理保留管理类入口
+
+### 🏗️ 代码质量(基础设施)
+- **ESLint + Prettier 仓库根配置**:统一规则,husky pre-commit + lint-staged 自动 fix
+- **GitHub Actions CI**:backend + shared 测试 + tsc 全过(双端)
+- **Husky pre-commit hook**:lint-staged 拦截不合规提交
+- **Repository Row 类型化**:消除 14 处 \`as any\`(注:postgres async 整合后,DbAdapter 路径采用 unknown 泛型替代)
+- **README 新人 5 分钟 quick start + 必读文档清单**
+
+### ✅ 测试覆盖
+- 后端 vitest **463/463**(原 348 + welink 21 + health 2 + RBAC 5 + 各 router async 覆盖)
+- 前端 e2e 在整合分支再次验证(各桶独立分支已分别 401+ 全绿)
+
+### ⚠️ 整合策略说明
+- 4 桶依赖顺序合(quality 基础设施 → performance → security → ux),冲突均按"两边都要"原则手工合
+- 再合 master(welink + postgres + UI 配置化):repository.ts 选择 master 的 async DbAdapter(因 postgres 必须异步,quality 的 Row 类型化让位)
+- app.ts/auth.ts/routes.ts/dashboard.ts/conflicts.ts 全部为 async + 安全守卫 + 性能优化 的 union
+- AppLayout 菜单为 UX 的「工具」分组 + master 的 \`/db-migration\` 的 union
+
+---
 
 ## v2.0.0 — 2026-05-30 (Welink + Postgres + UI 配置化大整合)
 
@@ -233,7 +277,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 `,
   },
   dashboard: {
-    title: '作战态势 - 使用帮助',
+    title: "作战态势 - 使用帮助",
     content: `## 作战态势面板
 
 ### 功能概述
@@ -258,6 +302,12 @@ const HELP: Record<string, { title: string; content: string }> = {
 **浏览最近动态**
 底部列表展示最近更新的攻关单，每条显示标题、当前状态标签、更新时间（如"2小时前"）。点击任意条目直接跳转至该攻关单的详情页。
 
+**「以我为中心」三卡**(2026-05-31 新增)
+四个 Statistic 之后的一行展示三张小卡片，让你登录后立刻看到与自己相关的任务:
+- **分配给我**: 当前处理人 == 你 且 状态属于 进行中/处理中/待响应 的攻关单（最近 5 条）。点击「查看全部」会自动用「当前处理人」筛选跳到攻关作战台。
+- **我的关注**: 你在 AttackList 用 ★ 标注的攻关单（按用户名隔离的本地存储，换账号互不串扰），最近 5 条。点击「查看全部」跳 \`/attack?tab=favorites\`。
+- **SLA 风险**: 状态=进行中/处理中/待响应 且 创建时间超过 3 天的攻关单，按"越早越靠前"排序，提示「超 N 天」橙色标签。无超期时显示 ✓ 友好空态。
+
 **快速跳转**
 - 点击「进行中」统计卡片 → 跳转到攻关作战台，自动筛选出活跃状态的攻关单
 - 点击右下角「查看全部」链接 → 跳转到完整的攻关作战台列表
@@ -276,7 +326,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   attackList: {
-    title: '攻关作战台 - 使用帮助',
+    title: "攻关作战台 - 使用帮助",
     content: `## 攻关作战台
 
 ### 功能概述
@@ -315,6 +365,19 @@ const HELP: Record<string, { title: string; content: string }> = {
 - 点击行尾「删除」→ **仅创建人本人可见**；其他人显示占位符 \`—\`
 - 点击「导出」→ 将当前筛选结果导出为 xlsx 文件下载
 
+**批量操作**(2026-05-31 新增)
+- 每行前的复选框 / 表头「全选」可一次选中多行
+- 选中 ≥1 行后,Tabs 下方出现蓝色工具条:
+  - **批量加关注 ★**: 一次把选中的所有攻关单加入「我的关注」
+  - **批量删除(仅创建人)**: 循环删除选中的攻关单;非本人创建的会**静默跳过**(不报错、提示中标注跳过数量),避免越权
+  - **取消选择**: 清空选中状态
+- 点选 checkbox 不会触发整行跳转
+
+**全局快捷键 Cmd+K**(2026-05-31 新增)
+- 按 \`Ctrl + K\`(Windows) / \`Cmd + K\`(Mac) 任何页面调出命令面板
+- 输入页面名(如「攻关」「人员」「图谱」)直接跳;输入「新建」可触发「新建攻关单」直接打开抽屉
+- 输入任意关键词后 Enter,跳转 \`/search?q=xxx\` 全局搜索
+
 ### 实际场景示例
 > 客户报告新问题后，值班人员点击「新建攻关」，标题填写「阿里云 RDS 主备切换失败」，事件级别选「高」，客户名称输入「阿里巴巴」，攻关组长选「张三」，攻关成员多选「李四、王五」。提交后跳转详情页，发现已自动创建「信息广场」标签页。点击 ★ 关注该单，后续在「我的关注」Tab 中能快速定位。
 
@@ -331,7 +394,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   attackDetail: {
-    title: '攻关详情 - 使用帮助',
+    title: "攻关详情 - 使用帮助",
     content: `## 攻关详情页
 
 ### 功能概述
@@ -396,7 +459,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   peopleList: {
-    title: '全员名单 - 使用帮助',
+    title: "全员名单 - 使用帮助",
     content: `## 全员名单
 
 ### 功能概述
@@ -451,7 +514,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   contributions: {
-    title: '贡献录入 - 使用帮助',
+    title: "贡献录入 - 使用帮助",
     content: `## 贡献录入
 
 ### 功能概述
@@ -503,7 +566,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   honor: {
-    title: '荣誉殿堂 - 使用帮助',
+    title: "荣誉殿堂 - 使用帮助",
     content: `## 荣誉殿堂
 
 ### 功能概述
@@ -549,7 +612,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   personHonor: {
-    title: '个人荣誉 - 使用帮助',
+    title: "个人荣誉 - 使用帮助",
     content: `## 个人荣誉详情
 
 ### 功能概述
@@ -588,7 +651,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   helpCenter: {
-    title: '求助中心 - 使用帮助',
+    title: "求助中心 - 使用帮助",
     content: `## 求助中心
 
 ### 功能概述
@@ -627,7 +690,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   helpFeedback: {
-    title: '求助反馈 - 使用帮助',
+    title: "求助反馈 - 使用帮助",
     content: `## 求助反馈页
 
 ### 功能概述
@@ -664,7 +727,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   search: {
-    title: '全局搜索 - 使用帮助',
+    title: "全局搜索 - 使用帮助",
     content: `## 全局搜索
 
 ### 功能概述
@@ -704,7 +767,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   proposals: {
-    title: '关系审批 - 使用帮助',
+    title: "关系审批 - 使用帮助",
     content: `## 关系审批
 
 > **菜单位置**：系统管理 → 审核管理 → 关系审批（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -747,7 +810,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   reminders: {
-    title: '跟催提醒 - 使用帮助',
+    title: "跟催提醒 - 使用帮助",
     content: `## 跟催提醒
 
 > **菜单位置**：系统管理 → 审核管理 → 跟催提醒（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -791,7 +854,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   dailyReport: {
-    title: '攻关日报 - 使用帮助',
+    title: "攻关日报 - 使用帮助",
     content: `## 攻关日报
 
 ### 功能概述
@@ -833,7 +896,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   relatedPage: {
-    title: '关联全景 - 使用帮助',
+    title: "关联全景 - 使用帮助",
     content: `## 关联全景
 
 ### 功能概述
@@ -879,7 +942,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   mergePage: {
-    title: '人员合并 - 使用帮助',
+    title: "人员合并 - 使用帮助",
     content: `## 人员合并
 
 > **菜单位置**：系统管理 → 人员合并（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -902,7 +965,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   importExport: {
-    title: '数据导入/导出 - 使用帮助',
+    title: "数据导入/导出 - 使用帮助",
     content: `## 数据导入/导出
 
 ### 功能概述
@@ -947,7 +1010,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   emailSettings: {
-    title: '邮件设置 - 使用帮助',
+    title: "邮件设置 - 使用帮助",
     content: `## 邮件设置
 
 ### 功能概述
@@ -968,7 +1031,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   auditLog: {
-    title: '审计日志 - 使用帮助',
+    title: "审计日志 - 使用帮助",
     content: `## 审计日志
 
 ### 功能概述
@@ -998,7 +1061,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   schemaWizard: {
-    title: '表结构管理 - 使用帮助',
+    title: "表结构管理 - 使用帮助",
     content: `## 表结构管理
 
 ### 功能概述
@@ -1033,7 +1096,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   configCenter: {
-    title: '配置中心 - 使用帮助',
+    title: "配置中心 - 使用帮助",
     content: `## 配置中心
 
 ### 功能概述
@@ -1080,7 +1143,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   bugReport: {
-    title: '问题反馈 - 使用帮助',
+    title: "问题反馈 - 使用帮助",
     content: `## 问题反馈
 
 ### 功能概述
@@ -1122,7 +1185,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。`,
   },
   userManagement: {
-    title: '用户管理 - 使用帮助',
+    title: "用户管理 - 使用帮助",
     content: `## 用户管理
 
 ### 功能概述
@@ -1143,7 +1206,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - 请在首次登录后及时修改默认密码`,
   },
   documentCenter: {
-    title: '文档中心 - 使用帮助',
+    title: "文档中心 - 使用帮助",
     content: `## 文档中心
 
 ### 功能概述
@@ -1183,7 +1246,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - 外部资料（如官方文档、内部 wiki）用「添加链接」收纳，避免文件冗余`,
   },
   backupRestore: {
-    title: '备份恢复 - 使用帮助',
+    title: "备份恢复 - 使用帮助",
     content: `## 数据库备份与恢复
 
 ### 功能概述

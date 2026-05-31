@@ -40,12 +40,14 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
   it("自定义升级配置 — 图中包含对应 SLA 标签和角色节点", async () => {
     const { app } = make();
     // Set a custom escalation config with unique role name
-    await request(app).put("/api/escalation/config").send({
-      rules: [
-        { 事件级别: "P1", slaHours: 1, 上升角色: "超级值班员" },
-        { 事件级别: "P2", slaHours: 6, 上升角色: "超级值班员" },
-      ],
-    });
+    await request(app)
+      .put("/api/escalation/config")
+      .send({
+        rules: [
+          { 事件级别: "P1", slaHours: 1, 上升角色: "超级值班员" },
+          { 事件级别: "P2", slaHours: 6, 上升角色: "超级值班员" },
+        ],
+      });
 
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
@@ -90,7 +92,7 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     expect(res.status).toBe(200);
     const mermaid: string = res.body.mermaid;
     // Dashed line syntax
-    expect(mermaid).toContain("-.->|\"冲突\"|");
+    expect(mermaid).toContain('-.->|"冲突"|');
     // Both ticket titles should appear
     expect(mermaid).toContain("冲突单A");
     expect(mermaid).toContain("冲突单B");

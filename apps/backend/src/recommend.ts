@@ -5,11 +5,15 @@ const LEVEL: Record<string, number> = { 核心: 3, 关键: 2, 普通: 1 };
 
 async function refPersons(repo: Repository, srcId: string, field: string): Promise<string[]> {
   return (await repo.queryEdges({ sourceId: srcId, edgeType: "REF" }))
-    .filter(e => String(e.properties["field"] ?? "") === field)
-    .map(e => e.targetId);
+    .filter((e) => String(e.properties["field"] ?? "") === field)
+    .map((e) => e.targetId);
 }
 
-export async function recommendHelpers(repo: Repository, ticketId: string, limit = 10): Promise<HelperRecommendation[]> {
+export async function recommendHelpers(
+  repo: Repository,
+  ticketId: string,
+  limit = 10
+): Promise<HelperRecommendation[]> {
   const T = await repo.getNode(ticketId);
   if (!T) return [];
   const self = new Set(await refPersons(repo, T.id, "当前处理人"));
@@ -17,7 +21,9 @@ export async function recommendHelpers(repo: Repository, ticketId: string, limit
   const add = (pid: string, s: number, reason: string) => {
     if (self.has(pid)) return;
     const e = acc.get(pid) ?? { score: 0, reasons: [] };
-    e.score += s; e.reasons.push(reason); acc.set(pid, e);
+    e.score += s;
+    e.reasons.push(reason);
+    acc.set(pid, e);
   };
 
   for (const ae of await repo.queryEdges({ sourceId: T.id, edgeType: "ANCHORED_TO" })) {
@@ -53,7 +59,9 @@ export async function recommendHelpers(repo: Repository, ticketId: string, limit
   }
   for (const [pid, n] of fbCount) {
     const e = acc.get(pid) ?? { score: 0, reasons: [] };
-    e.score += Math.min(n, 3); e.reasons.push(`历史核心/关键贡献 ${n} 次`); acc.set(pid, e);
+    e.score += Math.min(n, 3);
+    e.reasons.push(`历史核心/关键贡献 ${n} 次`);
+    acc.set(pid, e);
   }
 
   const name = (n: GraphNode) => String(n.properties["姓名"] ?? n.properties["name"] ?? n.id);
@@ -65,7 +73,8 @@ export async function recommendHelpers(repo: Repository, ticketId: string, limit
     resolved.push({ person, score: e.score, reasons: e.reasons });
   }
   resolved.sort((a, b) => {
-    const na = name(a.person), nb = name(b.person);
+    const na = name(a.person),
+      nb = name(b.person);
     return b.score - a.score || (na < nb ? -1 : na > nb ? 1 : a.person.id < b.person.id ? -1 : 1);
   });
   return resolved.slice(0, Math.max(1, Math.min(50, limit)));

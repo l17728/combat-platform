@@ -27,7 +27,7 @@ export async function rebuildKG(repo: Repository, registry: SchemaRegistry): Pro
   // syncRefEdges/syncAnchorEdges iterating only "real" nodeTypes is enough —
   // the anchor nodes' own properties never carry ref/anchor fields, so they're
   // a no-op even if visited.
-  const nodeTypes = registry.getConfig().nodeTypes.map(n => n.nodeType);
+  const nodeTypes = registry.getConfig().nodeTypes.map((n) => n.nodeType);
   for (const nt of nodeTypes) {
     for (const node of await repo.queryNodes(nt)) {
       await syncRefEdges(repo, registry, node, node.properties, actor);
@@ -41,8 +41,7 @@ export async function rebuildKG(repo: Repository, registry: SchemaRegistry): Pro
   // after rebuild any anchor with no ANCHORED_TO inbound edge is garbage that would
   // otherwise pollute queries / full-text search / dashboard.
   const anchorKinds = new Set<string>();
-  for (const ns of registry.getConfig().nodeTypes)
-    for (const f of ns.fields) if (f.anchor) anchorKinds.add(f.anchor);
+  for (const ns of registry.getConfig().nodeTypes) for (const f of ns.fields) if (f.anchor) anchorKinds.add(f.anchor);
   for (const kind of anchorKinds)
     for (const anchor of await repo.queryNodes(kind))
       if ((await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })).length === 0)

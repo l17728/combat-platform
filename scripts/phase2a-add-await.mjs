@@ -10,13 +10,30 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const REPO_METHODS = [
-  "createNode", "getNode", "updateNode", "queryNodes",
-  "createEdge", "queryEdges", "deleteEdges", "deleteEdgeById",
-  "appendProgress", "listProgress", "listAllProgress",
-  "deleteNode", "logAudit", "listAuditLog",
-  "getSetting", "setSetting",
-  "createProposal", "listProposals", "getProposal", "updateProposalStatus",
-  "createReminder", "listReminders", "getReminder", "updateReminderStatus",
+  "createNode",
+  "getNode",
+  "updateNode",
+  "queryNodes",
+  "createEdge",
+  "queryEdges",
+  "deleteEdges",
+  "deleteEdgeById",
+  "appendProgress",
+  "listProgress",
+  "listAllProgress",
+  "deleteNode",
+  "logAudit",
+  "listAuditLog",
+  "getSetting",
+  "setSetting",
+  "createProposal",
+  "listProposals",
+  "getProposal",
+  "updateProposalStatus",
+  "createReminder",
+  "listReminders",
+  "getReminder",
+  "updateReminderStatus",
 ];
 
 const files = process.argv.slice(2);
@@ -55,12 +72,16 @@ for (const file of files) {
   //    look ahead for matching `})` and check if body has `await `.
   //    Simpler heuristic with high recall: replace `, () => {` and `, async () => {`
   //    inside it()/beforeEach() — we know tests use these patterns.
-  src = src.replace(/\b(it|beforeEach|beforeAll|afterEach|afterAll)\((["'`])([^"'`]*)\2,\s*\(\)\s*=>\s*\{/g,
-    (m, fn, q, label) => `${fn}(${q}${label}${q}, async () => {`);
+  src = src.replace(
+    /\b(it|beforeEach|beforeAll|afterEach|afterAll)\((["'`])([^"'`]*)\2,\s*\(\)\s*=>\s*\{/g,
+    (m, fn, q, label) => `${fn}(${q}${label}${q}, async () => {`
+  );
 
   // beforeEach/it with no string (beforeEach only)
-  src = src.replace(/\b(beforeEach|beforeAll|afterEach|afterAll)\(\s*\(\)\s*=>\s*\{/g,
-    (m, fn) => `${fn}(async () => {`);
+  src = src.replace(
+    /\b(beforeEach|beforeAll|afterEach|afterAll)\(\s*\(\)\s*=>\s*\{/g,
+    (m, fn) => `${fn}(async () => {`
+  );
 
   // top-level test arrow handler with arg, e.g. it("xxx", async/sync () => fn)
   // (rare, skip)

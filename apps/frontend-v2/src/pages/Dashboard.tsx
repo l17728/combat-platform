@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Row, Col, Card, Statistic, Typography, List, Tag, Skeleton, Empty, Tooltip, theme, Tabs } from 'antd';
 import {
   ThunderboltOutlined,
@@ -7,15 +7,19 @@ import {
   ClockCircleOutlined,
   DashboardOutlined,
   NotificationOutlined,
+  UserOutlined,
+  StarFilled,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { STATUS_COLOR, STATUS_BAR_COLOR } from '../constants.js';
 import StatusTag from '../components/StatusTag.js';
-import type { DashboardSummary } from '@combat/shared';
+import type { DashboardSummary, GraphNode } from '@combat/shared';
 import HelpButton from '../components/HelpButton.js';
 import HELP from '../help-content.js';
 import InfoSquare from './InfoSquare.js';
+import { useAuth } from '../hooks/useAuth.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
@@ -25,20 +29,67 @@ dayjs.locale('zh-cn');
 
 const { Title } = Typography;
 
+// 状态=处理中/进行中 + 创建超过 N 天 即视为有 SLA 风险(可后续接 SLA 配置;此处先取 3 天)
+const SLA_DAYS = 3;
+const ACTIVE_STATUSES = new Set(['处理中', '进行中', '待响应']);
+const favKey = (username?: string) => `combat-attack-favorites:${username || 'guest'}`;
+
 function DashboardContent() {
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [ticketNodes, setTicketNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const { user } = useAuth();
 
   useEffect(() => {
-    api
-      .getDashboard()
-      .then(setData)
+    Promise.all([api.getDashboard(), api.listNodes('attackTicket').catch(() => [] as GraphNode[])])
+      .then(([summary, list]) => { setData(summary); setTicketNodes(list as GraphNode[]); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  // "我的关注":从 localStorage 取本人 favorites,过滤出仍存在的 ticket
+  const favorites = useMemo<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(favKey(user?.username)) || '[]')); }
+    catch { return new Set(); }
+  }, [user?.username]);
+
+  const me = (user?.displayName || user?.username || '').trim();
+
+  const myTickets = useMemo(() => {
+    if (!me) return [];
+    return ticketNodes
+      .filter((t) => {
+        const handler = String(t.properties['当前处理人'] ?? '').trim();
+        const status = String(t.properties['状态'] ?? '');
+        return handler === me && ACTIVE_STATUSES.has(status);
+      })
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+  }, [ticketNodes, me]);
+
+  const favoriteTickets = useMemo(() => {
+    if (favorites.size === 0) return [];
+    return ticketNodes
+      .filter((t) => favorites.has(t.id))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+  }, [ticketNodes, favorites]);
+
+  const slaRiskTickets = useMemo(() => {
+    const now = Date.now();
+    return ticketNodes
+      .filter((t) => {
+        const status = String(t.properties['状态'] ?? '');
+        if (!ACTIVE_STATUSES.has(status)) return false;
+        const created = new Date(t.createdAt).getTime();
+        return now - created > SLA_DAYS * 24 * 3600 * 1000;
+      })
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .slice(0, 5);
+  }, [ticketNodes]);
 
   if (loading) return <Skeleton active paragraph={{ rows: 8 }} />;
 
@@ -97,6 +148,90 @@ function DashboardContent() {
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#d48806' }}
             />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24} md={8}>
+          <Card
+            size="small"
+            title={<span><UserOutlined style={{ color: token.colorPrimary }} /> 分配给我</span>}
+            extra={<a onClick={() => navigate(`/attack?field=${encodeURIComponent('当前处理人')}&val=${encodeURIComponent(me)}`)}>查看全部</a>}
+          >
+            {myTickets.length === 0 ? (
+              <Empty description={me ? '当前无分配给你的进行中攻关' : '未登录'} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <List
+                size="small"
+                dataSource={myTickets}
+                renderItem={(t) => (
+                  <List.Item style={{ cursor: 'pointer', padding: '6px 0' }} onClick={() => navigate(`/attack/${t.id}`)}>
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {String(t.properties['标题'] ?? t.id.slice(0, 8))}
+                      </span>
+                      <StatusTag status={String(t.properties['状态'] ?? '-')} />
+                    </div>
+                  </List.Item>
+                )}
+              />
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card
+            size="small"
+            title={<span><StarFilled style={{ color: '#fadb14' }} /> 我的关注</span>}
+            extra={<a onClick={() => navigate('/attack?tab=favorites')}>查看全部</a>}
+          >
+            {favoriteTickets.length === 0 ? (
+              <Empty description="尚无关注 ★ 攻关单" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <List
+                size="small"
+                dataSource={favoriteTickets}
+                renderItem={(t) => (
+                  <List.Item style={{ cursor: 'pointer', padding: '6px 0' }} onClick={() => navigate(`/attack/${t.id}`)}>
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {String(t.properties['标题'] ?? t.id.slice(0, 8))}
+                      </span>
+                      <StatusTag status={String(t.properties['状态'] ?? '-')} />
+                    </div>
+                  </List.Item>
+                )}
+              />
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card
+            size="small"
+            title={<span><WarningOutlined style={{ color: '#fa541c' }} /> SLA 风险</span>}
+            extra={<Tooltip title={`进行中且创建超过 ${SLA_DAYS} 天`}><a>规则</a></Tooltip>}
+          >
+            {slaRiskTickets.length === 0 ? (
+              <Empty description="无超期攻关 ✓" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            ) : (
+              <List
+                size="small"
+                dataSource={slaRiskTickets}
+                renderItem={(t) => {
+                  const ageDays = Math.floor((Date.now() - new Date(t.createdAt).getTime()) / (24 * 3600 * 1000));
+                  return (
+                    <List.Item style={{ cursor: 'pointer', padding: '6px 0' }} onClick={() => navigate(`/attack/${t.id}`)}>
+                      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          {String(t.properties['标题'] ?? t.id.slice(0, 8))}
+                        </span>
+                        <Tag color="orange">超 {ageDays} 天</Tag>
+                      </div>
+                    </List.Item>
+                  );
+                }}
+              />
+            )}
           </Card>
         </Col>
       </Row>

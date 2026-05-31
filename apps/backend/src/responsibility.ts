@@ -61,7 +61,9 @@ export async function buildResponsibilityDiagram(repo: Repository): Promise<Resp
     const levelId = safeId(rule.事件级别);
     const roleId = safeId(rule.上升角色);
     const label = mermaidLabel(`SLA ${rule.slaHours}h → ${rule.上升角色}`);
-    lines.push(`  ${levelId}["${mermaidLabel(rule.事件级别)} 事件"] -->|"${label}"| ${roleId}["${mermaidLabel(rule.上升角色)}"]`);
+    lines.push(
+      `  ${levelId}["${mermaidLabel(rule.事件级别)} 事件"] -->|"${label}"| ${roleId}["${mermaidLabel(rule.上升角色)}"]`
+    );
     nodeIds.add(levelId);
     nodeIds.add(roleId);
     edgeCount++;
@@ -129,8 +131,14 @@ export async function buildResponsibilityDiagram(repo: Repository): Promise<Resp
     const tgtTicket = nodeMap.get(edge.targetId);
     if (!srcTicket || !tgtTicket) continue;
 
-    const srcTitle = truncate(String(srcTicket.properties["标题"] ?? srcTicket.properties["名称"] ?? edge.sourceId), 20);
-    const tgtTitle = truncate(String(tgtTicket.properties["标题"] ?? tgtTicket.properties["名称"] ?? edge.targetId), 20);
+    const srcTitle = truncate(
+      String(srcTicket.properties["标题"] ?? srcTicket.properties["名称"] ?? edge.sourceId),
+      20
+    );
+    const tgtTitle = truncate(
+      String(tgtTicket.properties["标题"] ?? tgtTicket.properties["名称"] ?? edge.targetId),
+      20
+    );
 
     const srcId = safeId("ticket_" + edge.sourceId);
     const tgtId = safeId("ticket_" + edge.targetId);

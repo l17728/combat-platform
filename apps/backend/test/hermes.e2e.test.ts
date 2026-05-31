@@ -21,13 +21,25 @@ describe("§35 Hermes 问答 MVP e2e", () => {
   it("ticket-by-pb intent: 列出共问题单号的所有攻关单", async () => {
     const { app } = await makeApp();
     const PB = "PB-12345";
-    const t1 = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "断网攻关甲", 状态: "进行中", 问题单号: PB, 当前处理人: "甲",
-    })).body;
-    const t2 = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "断网攻关乙", 状态: "处理中", 问题单号: PB, 当前处理人: "乙",
-    })).body;
-    const r = await request(app).post("/api/hermes/ask").send({ question: `${PB} 涉及哪些单？` });
+    const t1 = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "断网攻关甲",
+        状态: "进行中",
+        问题单号: PB,
+        当前处理人: "甲",
+      })
+    ).body;
+    const t2 = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "断网攻关乙",
+        状态: "处理中",
+        问题单号: PB,
+        当前处理人: "乙",
+      })
+    ).body;
+    const r = await request(app)
+      .post("/api/hermes/ask")
+      .send({ question: `${PB} 涉及哪些单？` });
     expect(r.status).toBe(200);
     expect(r.body.intent).toBe("ticket-by-pb");
     expect(r.body.answer).toContain("断网攻关甲");
@@ -40,7 +52,9 @@ describe("§35 Hermes 问答 MVP e2e", () => {
   it("owner intent: 标题模糊匹配 + 当前处理人", async () => {
     const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({
-      标题: "GPU 性能优化攻关", 状态: "进行中", 当前处理人: "丙",
+      标题: "GPU 性能优化攻关",
+      状态: "进行中",
+      当前处理人: "丙",
     });
     const r = await request(app).post("/api/hermes/ask").send({ question: "GPU 性能优化 谁负责？" });
     expect(r.status).toBe(200);
@@ -50,11 +64,17 @@ describe("§35 Hermes 问答 MVP e2e", () => {
 
   it("status intent: 含 latest progress.content", async () => {
     const { app } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "数据迁移攻关", 状态: "处理中", 当前处理人: "丁",
-    })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "数据迁移攻关",
+        状态: "处理中",
+        当前处理人: "丁",
+      })
+    ).body;
     await request(app).post(`/api/nodes/${t.id}/progress`).send({
-      content: "已完成第一批表迁移", statusSnapshot: "处理中", actor: "丁",
+      content: "已完成第一批表迁移",
+      statusSnapshot: "处理中",
+      actor: "丁",
     });
     const r = await request(app).post("/api/hermes/ask").send({ question: "数据迁移攻关 现在状态" });
     expect(r.status).toBe(200);
@@ -115,8 +135,7 @@ describe("§35 Hermes 问答 MVP e2e", () => {
 
   it("ticket-by-pb intent uiSpec.cacheKey 非空", async () => {
     const { app } = await makeApp();
-    await request(app).post("/api/nodes/attackTicket")
-      .send({ 标题: "断网", 状态: "处理中", 问题单号: "PB-CK1" });
+    await request(app).post("/api/nodes/attackTicket").send({ 标题: "断网", 状态: "处理中", 问题单号: "PB-CK1" });
     const r = await request(app).post("/api/hermes/ask").send({ question: "PB-CK1 涉及哪些单" });
     expect(r.body.uiSpec?.cacheKey).toBeTruthy();
   });

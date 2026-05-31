@@ -5,7 +5,8 @@ import { mergePerson, previewMerge } from "./merge.js";
 async function assertPersons(repo: Repository, fromId: string, toId: string): Promise<string | null> {
   if (!fromId || !toId) return "fromId 与 toId 必填";
   if (fromId === toId) return "不能与自身合并";
-  const from = await repo.getNode(fromId), to = await repo.getNode(toId);
+  const from = await repo.getNode(fromId),
+    to = await repo.getNode(toId);
   if (!from || !to) return "节点不存在";
   if (from.nodeType !== "person" || to.nodeType !== "person") return "仅支持 person 合并";
   return null;

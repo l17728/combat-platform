@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Avatar, Button, DatePicker, Empty, Image, Select, Skeleton, Space, Typography, message,
-} from 'antd';
-import { VerticalAlignTopOutlined, VerticalAlignBottomOutlined, ReloadOutlined } from '@ant-design/icons';
-import dayjs, { type Dayjs } from 'dayjs';
-import { api, type WelinkMessage, type WelinkImage } from '../api.js';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Avatar, Button, DatePicker, Empty, Image, Select, Skeleton, Space, Typography, message } from "antd";
+import { VerticalAlignTopOutlined, VerticalAlignBottomOutlined, ReloadOutlined } from "@ant-design/icons";
+import dayjs, { type Dayjs } from "dayjs";
+import { api, type WelinkMessage, type WelinkImage } from "../api.js";
 
 const { Text } = Typography;
 
@@ -30,12 +28,12 @@ function avatarStyle(s: string): React.CSSProperties {
   const hue = senderHue(s);
   return {
     backgroundColor: `hsl(${hue}, 55%, 55%)`,
-    verticalAlign: 'middle',
+    verticalAlign: "middle",
   };
 }
 
 function shortLabel(name: string): string {
-  if (!name) return '?';
+  if (!name) return "?";
   // 中文姓名取首字;工号取末两位
   const cn = name.match(/[一-龥]/);
   if (cn) return cn[0];
@@ -63,10 +61,10 @@ function renderRichText(text: string): React.ReactNode[] {
           href={part}
           target="_blank"
           rel="noreferrer noopener"
-          style={{ color: '#1677ff', wordBreak: 'break-all' }}
+          style={{ color: "#1677ff", wordBreak: "break-all" }}
         >
           {part}
-        </a>,
+        </a>
       );
     } else {
       // 在非链接段里再切 @提及
@@ -77,9 +75,9 @@ function renderRichText(text: string): React.ReactNode[] {
         if (MENTION_REGEX.test(sub)) {
           MENTION_REGEX.lastIndex = 0;
           out.push(
-            <span key={`mention-${i}-${j}`} style={{ color: '#1677ff', fontWeight: 500 }}>
+            <span key={`mention-${i}-${j}`} style={{ color: "#1677ff", fontWeight: 500 }}>
               {sub}
-            </span>,
+            </span>
           );
         } else {
           out.push(<span key={`txt-${i}-${j}`}>{sub}</span>);
@@ -102,10 +100,11 @@ function groupMessages(list: WelinkMessage[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
   for (const m of list) {
     const last = groups[groups.length - 1];
-    const within5min = last && last.sender === m.author && (
-      Math.abs(new Date(m.sentAt).getTime() - new Date(last.messages[last.messages.length - 1].sentAt).getTime())
-      <= 5 * 60 * 1000
-    );
+    const within5min =
+      last &&
+      last.sender === m.author &&
+      Math.abs(new Date(m.sentAt).getTime() - new Date(last.messages[last.messages.length - 1].sentAt).getTime()) <=
+        5 * 60 * 1000;
     if (within5min) {
       last.messages.push(m);
     } else {
@@ -124,7 +123,7 @@ interface DaySection {
 function sectionByDate(groups: MessageGroup[]): DaySection[] {
   const sections: DaySection[] = [];
   for (const g of groups) {
-    const day = dayjs(g.firstAt).isValid() ? dayjs(g.firstAt).format('YYYY-MM-DD') : g.firstAt;
+    const day = dayjs(g.firstAt).isValid() ? dayjs(g.firstAt).format("YYYY-MM-DD") : g.firstAt;
     const last = sections[sections.length - 1];
     if (last && last.date === day) {
       last.groups.push(g);
@@ -135,12 +134,16 @@ function sectionByDate(groups: MessageGroup[]): DaySection[] {
   return sections;
 }
 
-function MessageBubble({ msg, nameMap, highlighted }: {
+function MessageBubble({
+  msg,
+  nameMap,
+  highlighted,
+}: {
   msg: WelinkMessage;
   nameMap: Map<string, string>;
   highlighted?: boolean;
 }) {
-  const card = msg.contentType === 'CARD_MSG' ? msg.contentJson?.cardContext : null;
+  const card = msg.contentType === "CARD_MSG" ? msg.contentJson?.cardContext : null;
   const preMsg = card?.preMsg;
   const replyMsg = card?.replyMsg;
 
@@ -149,46 +152,44 @@ function MessageBubble({ msg, nameMap, highlighted }: {
       data-testid="welink-bubble"
       data-content-type={msg.contentType}
       data-welink-msg-id={msg.messageId}
-      className={highlighted ? 'welink-msg-highlight' : undefined}
+      className={highlighted ? "welink-msg-highlight" : undefined}
       style={{
-        background: highlighted ? '#fffbe6' : '#f5f5f5',
-        border: highlighted ? '1px solid #ffe58f' : undefined,
-        boxShadow: highlighted ? '0 0 0 2px rgba(255, 197, 61, 0.4)' : undefined,
-        transition: 'background 0.3s, box-shadow 0.3s',
+        background: highlighted ? "#fffbe6" : "#f5f5f5",
+        border: highlighted ? "1px solid #ffe58f" : undefined,
+        boxShadow: highlighted ? "0 0 0 2px rgba(255, 197, 61, 0.4)" : undefined,
+        transition: "background 0.3s, box-shadow 0.3s",
         borderRadius: 8,
-        padding: '8px 12px',
-        maxWidth: '70%',
+        padding: "8px 12px",
+        maxWidth: "70%",
         marginBottom: 6,
-        wordBreak: 'break-word',
+        wordBreak: "break-word",
       }}
     >
-      {msg.contentType === 'CARD_MSG' && card ? (
+      {msg.contentType === "CARD_MSG" && card ? (
         <>
           {preMsg?.content && (
             <div
               style={{
-                background: '#ececec',
-                borderLeft: '3px solid #bbb',
-                padding: '6px 10px',
+                background: "#ececec",
+                borderLeft: "3px solid #bbb",
+                padding: "6px 10px",
                 borderRadius: 4,
                 marginBottom: 6,
                 fontSize: 12,
-                color: '#666',
+                color: "#666",
               }}
             >
               <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                引用 {preMsg.nameZH || nameMap.get(preMsg.sender || '') || preMsg.sender || '匿名'}:
+                引用 {preMsg.nameZH || nameMap.get(preMsg.sender || "") || preMsg.sender || "匿名"}:
               </div>
               <div>{renderRichText(String(preMsg.content))}</div>
             </div>
           )}
-          <div style={{ whiteSpace: 'pre-wrap' }}>
-            {renderRichText(String(replyMsg?.content ?? msg.content ?? ''))}
-          </div>
+          <div style={{ whiteSpace: "pre-wrap" }}>{renderRichText(String(replyMsg?.content ?? msg.content ?? ""))}</div>
         </>
-      ) : msg.contentType === 'PICTURE_MSG' ? (
+      ) : msg.contentType === "PICTURE_MSG" ? (
         <>
-          <div style={{ color: '#888', fontSize: 12, marginBottom: 4 }}>{msg.content || '[图片]'}</div>
+          <div style={{ color: "#888", fontSize: 12, marginBottom: 4 }}>{msg.content || "[图片]"}</div>
           <Space wrap>
             {(msg.images || []).map((img: WelinkImage, i) => (
               <Image
@@ -200,12 +201,14 @@ function MessageBubble({ msg, nameMap, highlighted }: {
               />
             ))}
             {(msg.images || []).length === 0 && (
-              <Text type="secondary" style={{ fontSize: 12 }}>(无图片附件)</Text>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                (无图片附件)
+              </Text>
             )}
           </Space>
         </>
       ) : (
-        <div style={{ whiteSpace: 'pre-wrap' }}>{renderRichText(msg.content)}</div>
+        <div style={{ whiteSpace: "pre-wrap" }}>{renderRichText(msg.content)}</div>
       )}
     </div>
   );
@@ -220,12 +223,12 @@ async function loadPersonMap(): Promise<Map<string, string>> {
   }
   const map = new Map<string, string>();
   try {
-    const people = await api.listNodes('person');
+    const people = await api.listNodes("person");
     for (const p of people) {
       const props = p.properties as Record<string, unknown>;
-      const name = String(props.姓名 ?? props.name ?? '').trim();
-      const empNo = String(props.工号 ?? props.employeeId ?? props.empNo ?? '').trim();
-      const email = String(props.邮箱 ?? props.email ?? '').trim();
+      const name = String(props.姓名 ?? props.name ?? "").trim();
+      const empNo = String(props.工号 ?? props.employeeId ?? props.empNo ?? "").trim();
+      const email = String(props.邮箱 ?? props.email ?? "").trim();
       if (name && empNo) map.set(empNo, name);
       if (name && email) map.set(email, name);
       if (name) map.set(name, name);
@@ -251,8 +254,14 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
 
   useEffect(() => {
     let cancelled = false;
-    loadPersonMap().then((m) => { if (!cancelled) setNameMap(m); }).catch(() => {});
-    return () => { cancelled = true; };
+    loadPersonMap()
+      .then((m) => {
+        if (!cancelled) setNameMap(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filtered = useMemo(() => {
@@ -319,7 +328,7 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
       const root = containerRef.current;
       if (!root) return;
       const el = root.querySelector<HTMLElement>(`[data-welink-msg-id="${CSS.escape(activeHighlight)}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 80);
     return () => clearTimeout(id);
   }, [activeHighlight, loading, sections.length]);
@@ -330,7 +339,7 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
       const m = await loadPersonMap();
       setNameMap(m);
       await reload();
-      message.success('已刷新');
+      message.success("已刷新");
     } catch (e: any) {
       message.error(`刷新失败: ${e.message || e}`);
     }
@@ -343,15 +352,21 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
   return (
     <div data-testid="welink-chat-view">
       <Space wrap style={{ marginBottom: 12 }}>
-        <Button size="small" icon={<VerticalAlignTopOutlined />} onClick={scrollToTop}>跳到最早</Button>
-        <Button size="small" icon={<VerticalAlignBottomOutlined />} onClick={scrollToBottom}>跳到最新</Button>
-        <Button size="small" icon={<ReloadOutlined />} onClick={handleReload}>刷新</Button>
+        <Button size="small" icon={<VerticalAlignTopOutlined />} onClick={scrollToTop}>
+          跳到最早
+        </Button>
+        <Button size="small" icon={<VerticalAlignBottomOutlined />} onClick={scrollToBottom}>
+          跳到最新
+        </Button>
+        <Button size="small" icon={<ReloadOutlined />} onClick={handleReload}>
+          刷新
+        </Button>
         <DatePicker.RangePicker
           showTime
           size="small"
           value={timeRange as any}
           onChange={(v) => setTimeRange(v as any)}
-          placeholder={['起始时间', '截止时间']}
+          placeholder={["起始时间", "截止时间"]}
         />
         <Select
           mode="multiple"
@@ -364,20 +379,24 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
           onChange={setAuthorFilter}
           options={authorOptions}
           filterOption={(input, option) =>
-            String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+            String(option?.label || "")
+              .toLowerCase()
+              .includes(input.toLowerCase())
           }
         />
-        <Text type="secondary">{filtered.length} / {messages.length} 条</Text>
+        <Text type="secondary">
+          {filtered.length} / {messages.length} 条
+        </Text>
       </Space>
 
       <div
         ref={containerRef}
         style={{
-          maxHeight: 'calc(100vh - 320px)',
+          maxHeight: "calc(100vh - 320px)",
           minHeight: 320,
-          overflowY: 'auto',
-          padding: '12px 4px',
-          background: '#fafafa',
+          overflowY: "auto",
+          padding: "12px 4px",
+          background: "#fafafa",
           borderRadius: 6,
         }}
       >
@@ -388,15 +407,18 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
             <div key={section.date}>
               <div
                 style={{
-                  textAlign: 'center',
-                  margin: '12px 0',
+                  textAlign: "center",
+                  margin: "12px 0",
                   fontSize: 12,
-                  color: '#999',
+                  color: "#999",
                 }}
                 data-testid="welink-date-divider"
               >
-                <span style={{ background: '#fafafa', padding: '0 10px' }}>
-                  {section.date} {dayjs(section.date).isValid() ? `· ${['周日', '周一', '周二', '周三', '周四', '周五', '周六'][dayjs(section.date).day()]}` : ''}
+                <span style={{ background: "#fafafa", padding: "0 10px" }}>
+                  {section.date}{" "}
+                  {dayjs(section.date).isValid()
+                    ? `· ${["周日", "周一", "周二", "周三", "周四", "周五", "周六"][dayjs(section.date).day()]}`
+                    : ""}
                 </span>
               </div>
 
@@ -404,13 +426,15 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
                 const info = getName(g.sender);
                 const label = info.name ? `${info.name} · ${info.raw}` : info.raw;
                 return (
-                  <div key={g.key} style={{ display: 'flex', marginBottom: 14, gap: 10 }}>
+                  <div key={g.key} style={{ display: "flex", marginBottom: 14, gap: 10 }}>
                     <Avatar style={avatarStyle(g.sender)}>{shortLabel(info.name || info.raw)}</Avatar>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }} data-testid="welink-sender-line">
-                        <Text strong style={{ fontSize: 12 }}>{label}</Text>
+                      <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }} data-testid="welink-sender-line">
+                        <Text strong style={{ fontSize: 12 }}>
+                          {label}
+                        </Text>
                         <Text type="secondary" style={{ marginLeft: 8 }}>
-                          {dayjs(g.firstAt).isValid() ? dayjs(g.firstAt).format('HH:mm:ss') : g.firstAt}
+                          {dayjs(g.firstAt).isValid() ? dayjs(g.firstAt).format("HH:mm:ss") : g.firstAt}
                         </Text>
                       </div>
                       {g.messages.map((m) => (

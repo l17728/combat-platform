@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-rel-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-rel-")), "t.sqlite")))
+  );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 
@@ -23,7 +25,10 @@ describe("§52 手工备注关联线（ad-hoc KG link, 并集呈现）", () => {
     const exp = (await request(app).post("/api/nodes/experience").send({ 经验: "断连排查经验" })).body;
     // manager draws a line: this attackTicket's 标题 relates to that experience, with a note
     const link = await request(app).post("/api/relations/manual").send({
-      sourceId: tk.id, targetId: exp.id, sourceField: "标题", reason: "同一断连问题的历史经验",
+      sourceId: tk.id,
+      targetId: exp.id,
+      sourceField: "标题",
+      reason: "同一断连问题的历史经验",
     });
     expect(link.status).toBe(201);
     expect(link.body.edgeId).toBeTruthy();
@@ -45,7 +50,9 @@ describe("§52 手工备注关联线（ad-hoc KG link, 并集呈现）", () => {
     const { app } = make();
     const a = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" })).body;
     const b = (await request(app).post("/api/nodes/experience").send({ 经验: "B" })).body;
-    const link = (await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: b.id, reason: "x" })).body;
+    const link = (
+      await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: b.id, reason: "x" })
+    ).body;
     expect((await request(app).get(`/api/relations/manual?nodeId=${a.id}`)).body.length).toBe(1);
     expect((await request(app).delete(`/api/relations/manual/${link.edgeId}`)).status).toBe(200);
     expect((await request(app).get(`/api/relations/manual?nodeId=${a.id}`)).body.length).toBe(0);
@@ -56,8 +63,12 @@ describe("§52 手工备注关联线（ad-hoc KG link, 并集呈现）", () => {
   it("校验：自身/不存在节点 → 400/404", async () => {
     const { app } = make();
     const a = (await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" })).body;
-    expect((await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: a.id, reason: "x" })).status).toBe(400);
-    expect((await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: "nope", reason: "x" })).status).toBe(404);
+    expect(
+      (await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: a.id, reason: "x" })).status
+    ).toBe(400);
+    expect(
+      (await request(app).post("/api/relations/manual").send({ sourceId: a.id, targetId: "nope", reason: "x" })).status
+    ).toBe(404);
     expect((await request(app).post("/api/relations/manual").send({ targetId: a.id, reason: "x" })).status).toBe(400);
   });
 });

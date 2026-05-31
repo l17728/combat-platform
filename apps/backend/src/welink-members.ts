@@ -25,7 +25,9 @@ export function parseMembers(properties: Record<string, unknown> | undefined | n
           }))
           .filter((m) => m.姓名);
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   } else if (Array.isArray(raw)) {
     return (raw as any[])
       .map((m) => ({
@@ -40,7 +42,10 @@ export function parseMembers(properties: Record<string, unknown> | undefined | n
   if (leader) result.push({ 姓名: leader, 角色: "组长" });
   const teamStr = (properties["攻关成员"] as string)?.trim();
   if (teamStr) {
-    for (const n of teamStr.split(/[,，;；、\s]+/).map((s) => s.trim()).filter(Boolean)) {
+    for (const n of teamStr
+      .split(/[,，;；、\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean)) {
       if (n !== leader) result.push({ 姓名: n, 角色: "组员" });
     }
   }

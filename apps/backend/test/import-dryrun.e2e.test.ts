@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 // Use the real config (has 攻关单号 identity field) so update-detection is exercisable.
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 async function makeTestApp() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-dry-")), "t.sqlite"))));
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-dry-")), "t.sqlite")))
+  );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
 function xlsxBuffer(rows: Record<string, string>[]): Buffer {
@@ -44,10 +46,12 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
   it("dryRun detects update on identity hit", async () => {
     const { app } = await makeTestApp();
     // seed one with identity 攻关单号
-    await request(app).post("/api/import").attach("file",
-      xlsxBuffer([{ 攻关单号: "GK-1", 标题: "原单", 状态: "进行中" }]), "s.xlsx");
-    const r = await request(app).post("/api/import?dryRun=1").attach("file",
-      xlsxBuffer([{ 攻关单号: "GK-1", 标题: "改单", 状态: "已解决" }]), "s.xlsx");
+    await request(app)
+      .post("/api/import")
+      .attach("file", xlsxBuffer([{ 攻关单号: "GK-1", 标题: "原单", 状态: "进行中" }]), "s.xlsx");
+    const r = await request(app)
+      .post("/api/import?dryRun=1")
+      .attach("file", xlsxBuffer([{ 攻关单号: "GK-1", 标题: "改单", 状态: "已解决" }]), "s.xlsx");
     expect(r.body.willUpdate).toBe(1);
     expect(r.body.willCreate).toBe(0);
   });

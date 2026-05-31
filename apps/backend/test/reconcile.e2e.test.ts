@@ -13,8 +13,14 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 function make() {
-  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-rec-")), "t.sqlite"))));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo, registry: new FileSchemaRegistry(CFG) };
+  const repo = new SqliteRepository(
+    new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-rec-")), "t.sqlite")))
+  );
+  return {
+    app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }),
+    repo,
+    registry: new FileSchemaRegistry(CFG),
+  };
 }
 
 describe("增量41 跨 view 记录对账分析（§55）", () => {
@@ -62,7 +68,9 @@ describe("增量41 跨 view 记录对账分析（§55）", () => {
     const prop = (await request(app).get("/api/proposals?status=待审批")).body[0];
     expect(prop.relationType).toBe("SAME_AS");
     // 管理者确认通过 → 合并
-    const d = await request(app).post(`/api/proposals/${prop.id}/decide`).send({ decision: "通过", decidedBy: "管理员" });
+    const d = await request(app)
+      .post(`/api/proposals/${prop.id}/decide`)
+      .send({ decision: "通过", decidedBy: "管理员" });
     expect(d.status).toBe(200);
     expect((await repo.queryNodes("person")).length).toBe(before - 1);
     // 合并后存活的人被两个 view 的记录共同引用（跨 view 关联统一）

@@ -25,6 +25,6 @@ describe("import e2e", () => {
     const edges = await repo.queryEdges({ edgeType: "ASSIGNED_TO" });
     expect(edges).toHaveLength(2);
     const personId = (await repo.queryNodes("person"))[0].id;
-    expect(edges.every(e => e.targetId === personId)).toBe(true);
+    expect(edges.every((e) => e.targetId === personId)).toBe(true);
   });
 });

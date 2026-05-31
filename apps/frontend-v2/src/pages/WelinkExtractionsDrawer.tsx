@@ -1,29 +1,37 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
-  Drawer, Tabs, Empty, Button, Space, Tag, Popconfirm, Tooltip, Typography,
-  Skeleton, message, Alert,
-} from 'antd';
-import {
-  UserAddOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined,
-} from '@ant-design/icons';
-import { api, type WelinkExtraction, type WelinkExtractionKind } from '../api.js';
+  Drawer,
+  Tabs,
+  Empty,
+  Button,
+  Space,
+  Tag,
+  Popconfirm,
+  Tooltip,
+  Typography,
+  Skeleton,
+  message,
+  Alert,
+} from "antd";
+import { UserAddOutlined, CheckCircleOutlined, DeleteOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { api, type WelinkExtraction, type WelinkExtractionKind } from "../api.js";
 
 const { Text, Paragraph } = Typography;
 
 const KIND_LABEL: Record<WelinkExtractionKind, string> = {
-  entity: '人物',
-  event: '时间线',
-  decision: '决策',
-  dispute: '争议',
-  gap: '缺口',
+  entity: "人物",
+  event: "时间线",
+  decision: "决策",
+  dispute: "争议",
+  gap: "缺口",
 };
 
 const KIND_COLOR: Record<WelinkExtractionKind, string> = {
-  entity: 'blue',
-  event: 'cyan',
-  decision: 'green',
-  dispute: 'orange',
-  gap: 'gold',
+  entity: "blue",
+  event: "cyan",
+  decision: "green",
+  dispute: "orange",
+  gap: "gold",
 };
 
 interface Props {
@@ -35,9 +43,19 @@ interface Props {
 
 function renderPayload(payload: any): React.ReactNode {
   if (payload == null) return <Text type="secondary">(无详情)</Text>;
-  if (typeof payload === 'string') return <span>{payload}</span>;
+  if (typeof payload === "string") return <span>{payload}</span>;
   return (
-    <pre style={{ background: '#fafafa', padding: 8, borderRadius: 4, fontSize: 12, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+    <pre
+      style={{
+        background: "#fafafa",
+        padding: 8,
+        borderRadius: 4,
+        fontSize: 12,
+        margin: 0,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-all",
+      }}
+    >
       {JSON.stringify(payload, null, 2)}
     </pre>
   );
@@ -46,7 +64,7 @@ function renderPayload(payload: any): React.ReactNode {
 export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMembersChanged }: Props) {
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState<WelinkExtraction[]>([]);
-  const [activeKind, setActiveKind] = useState<WelinkExtractionKind>('entity');
+  const [activeKind, setActiveKind] = useState<WelinkExtractionKind>("entity");
   const [addingName, setAddingName] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -62,11 +80,17 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
     }
   }, [ticketId, open]);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const grouped = useMemo(() => {
     const g: Record<WelinkExtractionKind, WelinkExtraction[]> = {
-      entity: [], event: [], decision: [], dispute: [], gap: [],
+      entity: [],
+      event: [],
+      decision: [],
+      dispute: [],
+      gap: [],
     };
     for (const it of items) {
       if (it.kind in g) g[it.kind as WelinkExtractionKind].push(it);
@@ -78,7 +102,7 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
     try {
       await api.updateWelinkExtraction(ticketId, id, { reviewed: true });
       setItems((arr) => arr.map((it) => (it.id === id ? { ...it, reviewed: true } : it)));
-      message.success('已标记为已查阅');
+      message.success("已标记为已查阅");
     } catch (e: any) {
       message.error(`标记失败: ${e.message || e}`);
     }
@@ -88,7 +112,7 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
     try {
       await api.deleteWelinkExtraction(ticketId, id);
       setItems((arr) => arr.filter((it) => it.id !== id));
-      message.success('已删除');
+      message.success("已删除");
     } catch (e: any) {
       message.error(`删除失败: ${e.message || e}`);
     }
@@ -114,8 +138,8 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
 
   const renderItem = (it: WelinkExtraction) => {
     const name = it.payload?.name || it.label;
-    const isGap = it.kind === 'gap';
-    const isEntityWithName = it.kind === 'entity' && !!name;
+    const isGap = it.kind === "gap";
+    const isEntityWithName = it.kind === "entity" && !!name;
     return (
       <div
         key={it.id}
@@ -124,20 +148,22 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
         style={{
           padding: 12,
           marginBottom: 8,
-          border: '1px solid #f0f0f0',
+          border: "1px solid #f0f0f0",
           borderRadius: 6,
-          background: it.reviewed ? '#fafafa' : '#fff',
+          background: it.reviewed ? "#fafafa" : "#fff",
           opacity: it.reviewed ? 0.65 : 1,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
           <Space size={6}>
             <Tag color={KIND_COLOR[it.kind as WelinkExtractionKind]}>{KIND_LABEL[it.kind as WelinkExtractionKind]}</Tag>
             <Text strong>{it.label}</Text>
             {it.reviewed && <Tag color="green">已查阅</Tag>}
           </Space>
           <Tooltip title={new Date(it.createdAt).toLocaleString()}>
-            <Text type="secondary" style={{ fontSize: 11 }}>{new Date(it.createdAt).toLocaleString().slice(5)}</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {new Date(it.createdAt).toLocaleString().slice(5)}
+            </Text>
           </Tooltip>
         </div>
         <div style={{ marginBottom: 8 }}>{renderPayload(it.payload)}</div>
@@ -160,7 +186,9 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
             </Button>
           )}
           <Popconfirm title="确认删除该条抽取?" onConfirm={() => handleDelete(it.id)}>
-            <Button size="small" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
           </Popconfirm>
         </Space>
       </div>
@@ -169,7 +197,14 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
 
   const tabItems = (Object.keys(KIND_LABEL) as WelinkExtractionKind[]).map((k) => ({
     key: k,
-    label: <span>{KIND_LABEL[k]} <Tag style={{ marginLeft: 4 }} color={KIND_COLOR[k]}>{grouped[k].length}</Tag></span>,
+    label: (
+      <span>
+        {KIND_LABEL[k]}{" "}
+        <Tag style={{ marginLeft: 4 }} color={KIND_COLOR[k]}>
+          {grouped[k].length}
+        </Tag>
+      </span>
+    ),
     children: (
       <div data-testid={`welink-extraction-tab-${k}`}>
         {grouped[k].length === 0 ? (
@@ -185,7 +220,7 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
     <Drawer
       title={
         <Space>
-          <ThunderboltOutlined style={{ color: '#faad14' }} />
+          <ThunderboltOutlined style={{ color: "#faad14" }} />
           <span>AI 抽取结果</span>
           <Tag color="blue">{items.length}</Tag>
         </Space>
@@ -196,7 +231,9 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
       destroyOnClose
       maskClosable={false}
       extra={
-        <Button onClick={refresh} loading={loading} size="small">刷新</Button>
+        <Button onClick={refresh} loading={loading} size="small">
+          刷新
+        </Button>
       }
     >
       <Alert
@@ -216,11 +253,7 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
           }
         />
       ) : (
-        <Tabs
-          activeKey={activeKind}
-          onChange={(k) => setActiveKind(k as WelinkExtractionKind)}
-          items={tabItems}
-        />
+        <Tabs activeKey={activeKind} onChange={(k) => setActiveKind(k as WelinkExtractionKind)} items={tabItems} />
       )}
     </Drawer>
   );

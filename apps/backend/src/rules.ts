@@ -5,21 +5,29 @@ const DEADLINE_WARN_DAYS = 3;
 const OPEN = new Set(["待响应", "处理中", "进行中"]);
 
 export interface ReminderDraft {
-  kind: ReminderKind; ticketId: string;
-  recipientPersonId?: string; recipientName: string;
-  subject: string; body: string;
+  kind: ReminderKind;
+  ticketId: string;
+  recipientPersonId?: string;
+  recipientName: string;
+  subject: string;
+  body: string;
 }
 
 async function currentHandler(repo: Repository, ticketId: string): Promise<{ id: string; name: string } | undefined> {
-  const e = (await repo.queryEdges({ sourceId: ticketId, edgeType: "REF" }))
-    .find(e => String(e.properties["field"] ?? "") === "当前处理人");
+  const e = (await repo.queryEdges({ sourceId: ticketId, edgeType: "REF" })).find(
+    (e) => String(e.properties["field"] ?? "") === "当前处理人"
+  );
   if (!e) return undefined;
   const p = await repo.getNode(e.targetId);
   if (!p) return undefined;
   return { id: p.id, name: String(p.properties["姓名"] ?? p.properties["name"] ?? p.id) };
 }
 
-export async function scanReminders(repo: Repository, _registry: SchemaRegistry, nowMs: number = Date.now()): Promise<ReminderDraft[]> {
+export async function scanReminders(
+  repo: Repository,
+  _registry: SchemaRegistry,
+  nowMs: number = Date.now()
+): Promise<ReminderDraft[]> {
   const drafts: ReminderDraft[] = [];
   for (const t of await repo.queryNodes("attackTicket")) {
     const status = String(t.properties["状态"] ?? "").trim();
@@ -29,15 +37,15 @@ export async function scanReminders(repo: Repository, _registry: SchemaRegistry,
     const title = String(t.properties["标题"] ?? t.id);
 
     const progresses = await repo.listProgress(t.id);
-    const lastAt = progresses.length
-      ? progresses[progresses.length - 1].updatedAt
-      : t.updatedAt;
+    const lastAt = progresses.length ? progresses[progresses.length - 1].updatedAt : t.updatedAt;
     const lastMs = Date.parse(lastAt);
-    if (Number.isFinite(lastMs) && (nowMs - lastMs) >= STALE_DAYS * 86400000) {
+    if (Number.isFinite(lastMs) && nowMs - lastMs >= STALE_DAYS * 86400000) {
       const days = Math.floor((nowMs - lastMs) / 86400000);
       drafts.push({
-        kind: "问题单跟催", ticketId: t.id,
-        recipientPersonId: handler.id, recipientName: handler.name,
+        kind: "问题单跟催",
+        ticketId: t.id,
+        recipientPersonId: handler.id,
+        recipientName: handler.name,
         subject: `[跟催] 攻关单「${title}」已停滞 ${days} 天`,
         body: `攻关单「${title}」（${t.properties["攻关单号"] ?? t.id}）状态「${status}」自 ${lastAt} 起停滞 ${days} 天，请关注。`,
       });
@@ -46,8 +54,10 @@ export async function scanReminders(repo: Repository, _registry: SchemaRegistry,
     // ② CCB 提醒 (李嘉②): ticket flagged 是否需CCB=是 + status open + handler exists
     if (String(t.properties["是否需CCB"] ?? "").trim() === "是") {
       drafts.push({
-        kind: "CCB 提醒", ticketId: t.id,
-        recipientPersonId: handler.id, recipientName: handler.name,
+        kind: "CCB 提醒",
+        ticketId: t.id,
+        recipientPersonId: handler.id,
+        recipientName: handler.name,
         subject: `[CCB] 攻关单「${title}」需上 CCB 评审`,
         body: `攻关单「${title}」（${t.properties["攻关单号"] ?? t.id}）状态「${status}」标记为需要 CCB 评审，请安排上会。`,
       });
@@ -61,8 +71,10 @@ export async function scanReminders(repo: Repository, _registry: SchemaRegistry,
         if (delta >= 0 && delta <= DEADLINE_WARN_DAYS * 86400000) {
           const left = Math.ceil(delta / 86400000);
           drafts.push({
-            kind: "FE Deadline 提醒", ticketId: t.id,
-            recipientPersonId: handler.id, recipientName: handler.name,
+            kind: "FE Deadline 提醒",
+            ticketId: t.id,
+            recipientPersonId: handler.id,
+            recipientName: handler.name,
             subject: `[Deadline] 攻关单「${title}」客户期限 ${left} 天内`,
             body: `攻关单「${title}」状态「${status}」客户要求解决时间 ${dl}，剩余约 ${left} 天，请尽快推进。`,
           });

@@ -2,27 +2,27 @@
 
 > 状态(2026-05-30 更新): **Phase 1 + Phase 2 + Phase 3 CLI + Phase 3.5 UI + Phase 4 全部完成**。Postgres 路径已具备生产可用形态。
 >
-> | 阶段 | 状态 |
-> |------|------|
-> | Phase 1 — 驱动工厂 + Drizzle schema + DB_URL 解析 | ✅ 完成 |
-> | Phase 2 — Repository async 化 + 所有 router 改造 + DbAdapter 方言中立 | ✅ 完成 (Phase 2a/2b/2c) |
-> | Phase 3 — CLI 迁移工具 `scripts/migrate/sqlite-to-postgres.mjs` | ✅ 完成 |
-> | Phase 3.5 — 一键迁移 UI (系统管理菜单) | ✅ 前端 + 后端 API 脚手架完成 |
-> | Phase 4 — JSONB 优化 + GIN 索引 + migrate JSONB 适配 | ✅ 完成 |
+> | 阶段                                                                  | 状态                          |
+> | --------------------------------------------------------------------- | ----------------------------- |
+> | Phase 1 — 驱动工厂 + Drizzle schema + DB_URL 解析                     | ✅ 完成                       |
+> | Phase 2 — Repository async 化 + 所有 router 改造 + DbAdapter 方言中立 | ✅ 完成 (Phase 2a/2b/2c)      |
+> | Phase 3 — CLI 迁移工具 `scripts/migrate/sqlite-to-postgres.mjs`       | ✅ 完成                       |
+> | Phase 3.5 — 一键迁移 UI (系统管理菜单)                                | ✅ 前端 + 后端 API 脚手架完成 |
+> | Phase 4 — JSONB 优化 + GIN 索引 + migrate JSONB 适配                  | ✅ 完成                       |
 >
 > SQLite 路径回归测试 353/353 全绿;本地 PG 18 实跑 CRUD/Audit/migrate 全部通过。
 
 ## 当前能力 (Phase 1)
 
-| 能力 | 状态 |
-|------|------|
-| `drizzle-orm` + `pg` + `drizzle-kit` 依赖 | 已装 |
-| `apps/backend/src/schema.ts` 双方言 (sqliteSchema + postgresSchema) | 已写 |
-| `parseDbUrl()` 协议解析 (sqlite:// / postgres:// / postgresql://) | 已实现 |
-| `openDbFromUrl()` 工厂返回 tagged `DbHandle` | 已实现 |
-| Postgres 连接池 + 自动 `CREATE TABLE IF NOT EXISTS` | 已实现 |
-| Repository 调用 Postgres | **未实现** (Phase 2) |
-| 后端测试 (347/347) 在 SQLite 下全绿 | 通过 |
+| 能力                                                                | 状态                 |
+| ------------------------------------------------------------------- | -------------------- |
+| `drizzle-orm` + `pg` + `drizzle-kit` 依赖                           | 已装                 |
+| `apps/backend/src/schema.ts` 双方言 (sqliteSchema + postgresSchema) | 已写                 |
+| `parseDbUrl()` 协议解析 (sqlite:// / postgres:// / postgresql://)   | 已实现               |
+| `openDbFromUrl()` 工厂返回 tagged `DbHandle`                        | 已实现               |
+| Postgres 连接池 + 自动 `CREATE TABLE IF NOT EXISTS`                 | 已实现               |
+| Repository 调用 Postgres                                            | **未实现** (Phase 2) |
+| 后端测试 (347/347) 在 SQLite 下全绿                                 | 通过                 |
 
 ## 当前限制
 
@@ -78,14 +78,14 @@ export COMBAT_POSTGRES_PHASE2=1
 
 让 Postgres 真正可用,核心工作:
 
-| 文件 | 改动 |
-|------|------|
+| 文件                             | 改动                                                                                                       |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `apps/backend/src/repository.ts` | 拆出 `interface Repository`,实现 `SqliteRepository` (sync 同步包装) 和 `PostgresRepository` (drizzle 异步) |
-| `apps/backend/src/db.ts` | `DbHandle` 加 Repository 工厂 |
-| `apps/backend/src/server.ts` | 用 `DbHandle.kind` 决定 Repository 实现 |
-| 所有路由文件 | `repo.create(...)` 等方法签名改为 `Promise<>`,handler 加 `await` |
-| `apps/backend/test/helpers.ts` | `makeTestApp()` 暴露同步 + 异步两套 |
-| 所有 `test/*.e2e.test.ts` | 视情况加 `await`,Supertest 调用本来就是 async,影响较小 |
+| `apps/backend/src/db.ts`         | `DbHandle` 加 Repository 工厂                                                                              |
+| `apps/backend/src/server.ts`     | 用 `DbHandle.kind` 决定 Repository 实现                                                                    |
+| 所有路由文件                     | `repo.create(...)` 等方法签名改为 `Promise<>`,handler 加 `await`                                           |
+| `apps/backend/test/helpers.ts`   | `makeTestApp()` 暴露同步 + 异步两套                                                                        |
+| 所有 `test/*.e2e.test.ts`        | 视情况加 `await`,Supertest 调用本来就是 async,影响较小                                                     |
 
 主要 callsite (Phase 2 直接对接的几个文件):
 
@@ -127,21 +127,25 @@ export COMBAT_POSTGRES_PHASE2=1
 PG 端把 `properties` / `changes` 改成原生 `JSONB`,加 GIN 索引。SQLite 路径完全不动。
 
 **收益**:
+
 - **JSONB 列**(`nodes.properties` / `edges.properties` / `audit_log.changes`):pg 二进制存储,比 TEXT 快 + 支持原生 JSON 操作符(`@>` / `->>`/`->`)
 - **GIN 索引**:`idx_nodes_properties_gin` / `idx_edges_properties_gin` — `WHERE properties @> '{"标题":"xxx"}'::jsonb` 自动走索引
 - **全文搜索 GIN**:`idx_nodes_search_tsv ON nodes USING GIN (to_tsvector('simple', coalesce(search_text, '')))`,后续若把搜索接口切到 PG 路径可零改动启用
 - pg 驱动自动将 jsonb 列序列化/反序列化为 JS 对象,**Repository 通过 `encodeJsonForAdapter` / `decodeJsonFromAdapter` adapter.kind 分支**避免 SQLite 端的双重 JSON.parse/stringify
 
 **改动文件**:
+
 - `apps/backend/src/db.ts` — Postgres DDL JSONB 列 + GIN 索引
 - `apps/backend/src/repository.ts` — encode/decode helper + 替换所有 properties/changes 读写
 - `scripts/migrate/sqlite-to-postgres.mjs` — 新增 `JSONB_COLUMNS` 列表;INSERT 前对 JSONB 列做 `JSON.parse` 让 pg 驱动用 jsonb 协议写入
 
 **实测 EXPLAIN 结果**(50k 行 attackTicket,`WHERE properties @> '{"标题": "BIG12345"}'`):
+
 - 强制走 GIN 时:`Bitmap Index Scan on idx_nodes_properties_gin` + `Bitmap Heap Scan`,缓冲块从 1516(seq scan)降到 800
 - 小数据集时 planner 仍会选 seq scan(成本对比合理),数据量增加后自动切到 GIN
 
 **未做(过早优化,等真实压测瓶颈再开)**:
+
 - Repository.queryNodes 的 filter 仍走应用层过滤,而不是构造 `WHERE properties @> ?::jsonb`
 
 ## 相关文件

@@ -40,24 +40,46 @@ export function makeRelatedRouter(repo: Repository): Router {
     const mlRaw = await listManualLinks(repo, id);
     const manualLinks = mlRaw.length > 0 ? mlRaw : undefined;
     if (req.query.includeCandidates) {
-      const proposals = (await repo.listProposals({ status: "待审批" }))
-        .filter(p => p.sourceNodeId === id || p.targetNodeId === id);
-      const cand: { proposalId: string; relationType: string; confidence: number; rationale: string; node: NonNullable<Awaited<ReturnType<Repository["getNode"]>>> }[] = [];
+      const proposals = (await repo.listProposals({ status: "待审批" })).filter(
+        (p) => p.sourceNodeId === id || p.targetNodeId === id
+      );
+      const cand: {
+        proposalId: string;
+        relationType: string;
+        confidence: number;
+        rationale: string;
+        node: NonNullable<Awaited<ReturnType<Repository["getNode"]>>>;
+      }[] = [];
       for (const p of proposals) {
         const otherId = p.sourceNodeId === id ? p.targetNodeId : p.sourceNodeId;
         const peer = await repo.getNode(otherId);
-        if (peer) cand.push({ proposalId: p.id, relationType: p.relationType,
-          confidence: p.confidence, rationale: p.rationale, node: peer });
+        if (peer)
+          cand.push({
+            proposalId: p.id,
+            relationType: p.relationType,
+            confidence: p.confidence,
+            rationale: p.rationale,
+            node: peer,
+          });
       }
-      return res.json({ outgoing, incoming, candidates: cand, coAnchored,
+      return res.json({
+        outgoing,
+        incoming,
+        candidates: cand,
+        coAnchored,
         ...(expanded ? { expanded } : {}),
         ...(conflicts ? { conflicts } : {}),
-        ...(manualLinks ? { manualLinks } : {}) });
+        ...(manualLinks ? { manualLinks } : {}),
+      });
     }
-    res.json({ outgoing, incoming, coAnchored,
+    res.json({
+      outgoing,
+      incoming,
+      coAnchored,
       ...(expanded ? { expanded } : {}),
       ...(conflicts ? { conflicts } : {}),
-      ...(manualLinks ? { manualLinks } : {}) });
+      ...(manualLinks ? { manualLinks } : {}),
+    });
   });
   return r;
 }

@@ -20,9 +20,13 @@ async function makeApp() {
 describe("§32 depth-N traversal e2e", () => {
   it("depth=1 / default → response byte-identical with prior 1-hop (no 'expanded' key)", async () => {
     const { app } = await makeApp();
-    const t = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "深度根", 状态: "进行中", 当前处理人: "甲",
-    })).body;
+    const t = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "深度根",
+        状态: "进行中",
+        当前处理人: "甲",
+      })
+    ).body;
     const r1 = await request(app).get(`/api/related/attackTicket/${t.id}`);
     expect(r1.body.expanded).toBeUndefined();
     const r1d = await request(app).get(`/api/related/attackTicket/${t.id}?depth=1`);
@@ -34,12 +38,22 @@ describe("§32 depth-N traversal e2e", () => {
   it("depth=2 reaches cross-anchor peers (透明锚点不在 expanded)", async () => {
     const { app } = await makeApp();
     const PB = "DEEP-PB-" + Date.now();
-    const A = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "A单", 状态: "进行中", 当前处理人: "甲", 问题单号: PB,
-    })).body;
-    const B = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "B单", 状态: "进行中", 当前处理人: "乙", 问题单号: PB,
-    })).body;
+    const A = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "A单",
+        状态: "进行中",
+        当前处理人: "甲",
+        问题单号: PB,
+      })
+    ).body;
+    const B = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "B单",
+        状态: "进行中",
+        当前处理人: "乙",
+        问题单号: PB,
+      })
+    ).body;
     const r = await request(app).get(`/api/related/attackTicket/${A.id}?depth=2`);
     expect(r.status).toBe(200);
     expect(Array.isArray(r.body.expanded)).toBe(true);
@@ -55,13 +69,22 @@ describe("§32 depth-N traversal e2e", () => {
     const { app, repo } = await makeApp();
     // build: T1 当前处理人=人X; T2 当前处理人=人X (so anchor-less but shared via REF→same person)
     // depth=3 should not re-visit T1 (the root) or duplicate 人X.
-    const T1 = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "环路A", 状态: "进行中", 当前处理人: "环路人",
-    })).body;
-    const T2 = (await request(app).post("/api/nodes/attackTicket").send({
-      标题: "环路B", 状态: "进行中", 当前处理人: "环路人",
-    })).body;
-    void T2; void repo;
+    const T1 = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "环路A",
+        状态: "进行中",
+        当前处理人: "环路人",
+      })
+    ).body;
+    const T2 = (
+      await request(app).post("/api/nodes/attackTicket").send({
+        标题: "环路B",
+        状态: "进行中",
+        当前处理人: "环路人",
+      })
+    ).body;
+    void T2;
+    void repo;
     const r = await request(app).get(`/api/related/attackTicket/${T1.id}?depth=3`);
     const ids = r.body.expanded.map((x: any) => x.node.id);
     const dup = ids.filter((v: string, i: number) => ids.indexOf(v) !== i);
