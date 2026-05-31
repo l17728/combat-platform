@@ -4,6 +4,48 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.2.0 — 2026-05-31 (Roadmap P1 三桶整合 — 安全/性能/质量)
+
+继 v2.1.0 的 P0 清零后,本版处理 5 位专家评审中所有的 **P1 重要项**,分 3 桶并行落地:**7 P1 安全 + 7 P1 性能 + 4 P1 质量**。各桶在独立分支验证后整合入 master。
+
+### 🔒 安全(7 P1 全清)
+- **helmet 安全响应头**:CSP / HSTS / X-Frame-Options / X-Content-Type-Options 等浏览器侧防御一次性开
+- **全局 + 登录 rate-limit**:全局 1000 req/15min/IP,登录 5 次/15min/IP,挡暴破和爬虫
+- **CSRF 同源 Referer 校验**:写操作强校验 \`Referer\` / \`Origin\` 同源,挡跨站伪造
+- **私密攻关单"全集过滤"**:list/audit/export/dashboard 等任何返回 attackTicket 的入口都走 \`filterAccessibleTickets\`,防越权读元信息
+- **SMTP 凭证 AES-256-GCM 加密**:数据库静态字段加密 + 启动期 \`SMTP_ENC_KEY\` 校验
+- **默认 admin/admin123 强制首登改密**:登录后端返回 \`passwordMustChange\`,前端 ForcePasswordChange 全屏拦截
+- **multer 1.x → 2.x + express ≥4.21.2**:消除 multer/express 已知 CVE
+- **audit log actor 强制 req.user.username**:不再信任 body.actor / 硬编码 "api",新增 \`actorOf(req)\` helper 统一收口
+
+### ⚡ 性能(7 P1 全清 + 可观测性)
+- **queryNodesByProperty SQL 下推**:json_extract + 表达式索引,emailGroup/person 等值查找从全表扫降为索引点查;消除 routes/dashboard 多处 N×M 内存过滤
+- **conflicts 30s 防抖 + 增量算法**:窗口内单 ticket 多次保存合并为 1 次 \`syncConflictsForOne\`,>50 ticket 兜底降级到全量,audit 写放大降 10-100×
+- **recommend 推荐找帮手消除 N+1**:历史贡献按 personId 批量预聚合,N+1 query 降为 2 次
+- **proposer Levenshtein 长度差预筛**:|len(a)-len(b)| > threshold 直接 reject,N² → ~N log N 估
+- **appendProgress 原子 seqNo**:UNIQUE(targetId,seqNo) + WAL 内事务,防竞态丢序
+- **EXPLAIN + benchmark 实测**:scripts/bench-queryNodes.mjs + bench-explain.mjs 给出实测口径
+- **Prometheus /api/metrics 端点**:Histogram(http 时延)+ Counter(请求数 by status)+ Node.js 默认 process 指标,公开免鉴权,供采集器拉
+
+### 🏗️ 代码质量(4 P1)
+- **AttackDetail 1823 行 → 327 行**:拆 6 子组件(Header/Sidebar/4 个 Tab/Drawers) + 2 hook(useAttackDetailData/Handlers) + 1 builder(buildTabItems)
+- **frontend vitest 单测起手**:7 文件 / 54 用例 / 100% 通过 — utils(auditFilter/handleApiError/nodeLabel/teamMembers) + hooks(useSettings) + components(StatusTag) + api(ApiError)
+- **ApiError 类型化 + 401 自动跳登录**:消除前端 100+ 处 \`(e: any)\`,handleApiError helper 统一收口
+- **makeTestApp 单源**:去除 3 处副本,所有 backend test 共用同一 helper
+
+### ✅ 测试覆盖(整合分支验证)
+- 后端 vitest: **507/507 全绿**(基线 463 + sec 23 + perf 14 + quality 7 = 44 新增)
+- 前端 vitest: **54/54 全绿**(全新增)
+- TypeScript: backend + frontend-v2 + shared 三端 \`tsc --noEmit\` 全 0 错
+
+### ⚠️ 整合策略说明
+- 按依赖顺序合:perf(基础数据通路) → quality(重构 + 测试) → sec(收尾守卫)
+- 冲突解决原则:**特性 union**(perf 的 nodeId 参数 + sec 的 actorOf actor,quality 的 handleApiError + sec 的 passwordMustChange 同时保留)
+- \`private-tickets.ts\` 由 sec 桶从 routes.ts inline 拆出来,再套上 perf 的 \`queryNodesByProperty\` SQL 下推
+- master 当前 8b3f223(v2.1.0),与三桶共同祖先一致,无需 master 二次合
+
+---
+
 ## v2.1.0 — 2026-05-31 (Roadmap 4 桶整合 — 安全/性能/UX/质量)
 
 依 5 位专家评审产出的 5 P0 安全 + 5 性能 quick wins + 5 UX 改进 + 5 代码质量,四桶并行落地后整合入 master。**全部为本机改动,所有桶均在合并前独立 push 并 CI 通过**。

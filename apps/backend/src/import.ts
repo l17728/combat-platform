@@ -51,13 +51,20 @@ async function resolvePerson(
   const empField = registry.getNodeSchema("person")?.fields.find((pf) => pf.label === "工号");
   const empKey = empField?.id ?? "employeeId";
   if (!name && !employeeId) return null;
+  // v2.2 P1 §2: SQL 下推主键(empKey / nameKey)等值匹配,fallback 兼容字段仍内存扫
   if (employeeId) {
+    const primary = await repo.queryNodesByProperty("person", empKey, employeeId);
+    if (primary.length > 0) return primary[0].id;
+    // fallback: 老数据 employeeId 字段名兼容
     const hit = (await repo.queryNodes("person")).find(
       (n) => String(n.properties[empKey] ?? n.properties["employeeId"] ?? "") === employeeId
     );
     if (hit) return hit.id;
   }
   if (name) {
+    const primary = await repo.queryNodesByProperty("person", nameKey, name);
+    if (primary.length > 0) return primary[0].id;
+    // fallback: 老数据 姓名/name 字段名兼容
     const byName = (await repo.queryNodes("person")).find(
       (n) => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === name
     );
@@ -75,7 +82,14 @@ async function findByIdentity(
     const v = props[k];
     const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v).trim();
     if (!s) continue;
-    const hit = (await repo.queryNodes(schema.nodeType, { [k]: s })).at(0);
+    // v2.2 P1 §2: SQL 下推 identityKey 等值匹配 — 这是 import 路径上每行调用一次的热点;
+    // identityKey 是 schema 定义,确定是 JSON path safe 字符。其他键名走 queryNodes 兜底。
+    let hit: GraphNode | undefined;
+    try {
+      hit = (await repo.queryNodesByProperty(schema.nodeType, k, s)).at(0);
+    } catch {
+      hit = (await repo.queryNodes(schema.nodeType, { [k]: s })).at(0);
+    }
     if (hit) return hit;
   }
   return undefined;

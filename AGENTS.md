@@ -868,7 +868,53 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
+### 当前测试状态(2026-05-31 v2.2.0 整合 — roadmap P1 三桶合并到 expert-roadmap-v2.2 后)
+
+**v2.2.0 = 7 P1 安全 + 7 P1 性能 + Prometheus + 4 P1 质量(AttackDetail 拆 + frontend vitest 起手 + ApiError + makeTestApp 去重)**
+
+- 后端 vitest **507/507 全绿** (基线 463 → 各桶整合后 +44:sec 23 + perf 14 + quality 7)
+- 前端 vitest **54/54 全绿** (全新增 7 文件:auditFilter/handleApiError/nodeLabel/teamMembers/useSettings/StatusTag/apiError)
+- 三端 `npx tsc --noEmit` 全 0 错 (backend + shared + frontend-v2)
+- 前端 e2e 未跑 (端口被占,集成机共用 5174/3001;各桶分支独立验证 401+ 全绿)
+- 文档:`apps/frontend-v2/src/help-content.ts` 顶部追加 v2.2.0 release notes;各桶 `docs/REVIEWS/REVIEW_*.md` 已含"v2.2 P1 已实施"段
+
+**整合策略(本次成功路径):**
+
+- 按依赖顺序合:perf(基础数据通路) → quality(重构 + 测试) → sec(收尾守卫)
+- perf / quality 干净合入无冲突
+- sec 合时冲突在 routes.ts(4 处) / LoginPage.tsx(2 处) / package-lock.json
+  - routes.ts: 保留 perf 桶 `triggerPostSaveJobs(repo, registry, nodeId)` 签名 + sec 桶 `actorOf(req)` actor 来源
+  - private-tickets.ts: 用 sec 桶拆分版本(从 routes.ts inline 移出) + perf 桶 `queryNodesByProperty` SQL 下推
+  - LoginPage.tsx: union(sec 的 `passwordMustChange` 提示 + quality 的 `handleApiError` helper)
+  - package-lock.json: theirs + `npm install` regenerate
+- master 当前 8b3f223 与三桶共同祖先一致,master 合是 no-op
+
+---
+
+### 历史测试状态(2026-05-31 v2.2 安全 P1 — feature/roadmap-sec-p1 分支)
+
+**v2.2 P1 = 私密单全集过滤 + SMTP 加密 + 强制改默认密 + helmet/rate-limit + CSRF + multer/express 升级 + audit actor 强制:**
+
+- 后端 vitest **493/493 全绿** (基线 463 → 新增 30 个 P1 用例,分布在 7 个 commit)
+- 双端 `npx tsc --noEmit` 通过 (backend + shared + frontend-v2)
+- 前端 e2e 未跑 (本次仅安全后端 + 强制改密 Modal 接入,业务流无破坏)
+- 文档: `docs/REVIEWS/REVIEW_security.md` 已追加 v2.2 P1 实施记录;`docs/SECURITY_RUNBOOK.md` 新增运营手册
+
+**安全 P1 commit 列表 (feature/roadmap-sec-p1):**
+
+1. `2410744` fix(sec/P1): 私密 ticket 全集过滤 list/export/audit/dashboard
+2. `0c6f584` feat(sec/P1): SMTP 密码 AES-256-GCM 加密 + 自动迁移
+3. `7bfe0ec` feat(sec/P1): 默认密强制首登改密
+4. `98188d9` feat(sec/P1): helmet + 全局 rate-limit + 登录 rate-limit 加固
+5. `403fddc` feat(sec/P1): CSRF 同源 Referer 校验
+6. `4f8d762` fix(deps/sec): 升级 multer 1.x→2.x + express ≥4.21.2 修 CVE
+7. (本 commit) fix(sec/P1): audit actor 强制取自 req.user 防伪造
+
+详细安全运营 / 事故响应见 [docs/SECURITY_RUNBOOK.md](./docs/SECURITY_RUNBOOK.md)。
+
+---
+
+### 历史测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
 
 **v2.1.0 整合 = quality + performance + security + ux + 已含 master 的 welink + postgres + UI 配置化:**
 
@@ -925,6 +971,48 @@ Postgres 支持全阶段完成:
 ### 历史测试状态（2026-05-30 主干验证）
 
 **前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **349/349**（60 文件，新增 health.e2e.test.ts 2 用例）。
+
+### 性能 P1（2026-05-31 实施，分支 `feature/roadmap-perf-p1`）
+
+依 `docs/REVIEWS/REVIEW_performance.md` (4.0/10) 落地 7 项 P1,主攻**算法/架构热点**:
+
+| #   | 项                                                                                                    | commit    | 关键收益                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `Repository.queryNodesByProperty` SQL 下推 + 9 个热点 key 表达式索引                                  | `cc9d915` | 单键等值过滤从 O(N) 全表 + N·JSON.parse 降到 O(log N) 索引 + k·parse。bench 实测 10k 节点 4.9× speedup,EXPLAIN 验证 `SEARCH nodes USING INDEX idx_nodes_prop_status` 走索引 |
+| 2   | 5 处 callsite 改用下推:emailGroup.组名/person.邮箱(2)、attackTicket.问题单号、anchor.key、import 主键 | `8b22423` | 私密授权组授权 + 邮件发送 + Hermes find-helpers + anchor 创建 + import 行级查找全部消除应用层 N 次扫表 + filter                                                             |
+| 3   | `conflicts.syncConflictsForOne` 增量 O(N²) → O(N) + post-save 防抖累计 ticketId 集                    | `6548942` | 单 ticket 保存的 audit 写从 ~Σk²(全量) 降到 ~k(单 ticket 同组大小);兜底 >50 ticket 累计降级到全量(避免逐个增量也 O(N²))                                                     |
+| 4   | `recommend.recommendHelpers` 消除 N+1                                                                 | `b69bbac` | 5k contributions × queryEdges 从 O(N)·SQL roundtrip 降到 1 次 queryEdges + 内存 join                                                                                        |
+| 5   | `proposer.HeuristicRelationProposer` levenshtein 长度差预筛                                           | `28bc9a9` | `Δlen > threshold` 直接跳过 O(L²) leven 调用,中文 1k 人样本约 99% 候选对被筛掉;dist=0 路径(完全同名)不受影响                                                                |
+| 6   | `appendProgress` 原子 seqNo:INSERT...SELECT COALESCE(MAX+1)                                           | `93fd37a` | 单条 SQL 取号+插入,SQLite/PG 兼容;消除 select-then-insert race(异步驱动下经典问题)                                                                                          |
+| 7   | Prometheus metrics `/api/metrics`(无 auth)+ 默认 Node 指标                                            | `d383a89` | combat_http_requests_total/duration_ms/in_flight + combat_db_queries_total + nodejs/process 默认 metrics;支撑 Grafana p99/error-rate 监控                                   |
+
+**EXPLAIN 实测**(`scripts/bench-explain.mjs`):
+
+```
+EXPLAIN QUERY PLAN — queryNodesByProperty equivalent:
+  {"detail":"SEARCH nodes USING INDEX idx_nodes_prop_status (nodeType=? AND <expr>=?)"}
+
+EXPLAIN QUERY PLAN — queryNodes 全表扫:
+  {"detail":"SCAN nodes"}
+```
+
+**Benchmark 实测**(`scripts/bench-queryNodes.mjs`,SQLite,本机):
+
+| N      | queryNodes (filter) median | queryNodesByProperty median | speedup |
+| ------ | -------------------------- | --------------------------- | ------- |
+| 100    | 0.72 ms                    | 0.24 ms                     | 3.0×    |
+| 1 000  | 3.53 ms                    | 0.69 ms                     | 5.1×    |
+| 5 000  | 19.41 ms                   | 3.43 ms                     | 5.7×    |
+| 10 000 | 39.53 ms                   | 7.99 ms                     | 4.9×    |
+
+**实施纪律**:
+
+- 7 个独立 commit + 每个 commit 立刻 push origin。
+- baseline 463 backend tests → 477 全绿(+5 queryNodesByProperty +5 conflicts-incremental +4 metrics,无回归)。
+- typecheck 双端均通过(backend + shared)。
+- 新增 1 个 npm 依赖:`prom-client@15`(零 native binding,纯 JS)。
+- 新增文档:`docs/PERFORMANCE_TUNING.md`(何时用哪个 API、metrics 解读)。
+- SQLite 同步语义不动(better-sqlite3 单进程串行是 design),仅增加优化兼容。
 
 ### 性能 quick wins（2026-05-31 实施，分支 `feature/roadmap-performance`）
 
@@ -1203,3 +1291,29 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 2. 旋转 secret 同时所有现存 token 失效,通知现役账号重新登录
 3. 前端 `localStorage.removeItem('combat-role')` (已无用,但避免缓存残留),
    清理后端日志中遗留的 X-Role 痕迹(`grep "x-role" /opt/combat-v2/backend.log`)
+
+## 代码质量 P1 已实施 (v2.2)
+
+`feature/roadmap-quality-p1` 分支完成 4 项质量重构(已 PR 入 master):
+
+1. **AttackDetail.tsx 拆 6 子组件**(1823 → 327 行,目录 `apps/frontend-v2/src/pages/attackDetail/`):
+   - 子组件:Header / BasicInfoTab / MembersTab / ProgressTimelineTab / DailyReportTab / SupportNetworkTab / Sidebar / Drawers
+   - 自定义 hook:`useAttackDetailData`(数据)、`useAttackDetailHandlers`(交互)
+   - builder:`buildTabItems.tsx`(tab 配置)
+   - 新增 tab/字段类型应改子组件,不应触碰 page 文件
+2. **ApiError 类型化 + 401 自动跳登录**:`api.ts` 抛 `ApiError`,`main.tsx` 注册 `onUnauthorized` 钩子,`utils/handleApiError.ts` 集中处理。新代码推荐 `catch (e) { handleApiError(e, '操作失败') }`。
+3. **`makeRealSchemaTestApp` 单源**:merge/rbac/automation 测试不再各自重复 makeApp。
+4. **前端 vitest 单测落地**:`apps/frontend-v2/src/__tests__/` 7 文件 54 tests,`test:frontend:unit` script,CI 已挂。
+
+## 前端单测开发模式
+
+- 测试文件位置:`apps/frontend-v2/src/__tests__/{api,components,hooks,utils}/*.test.{ts,tsx}`
+- 跑测试:
+  ```bash
+  npm run test:frontend:unit          # 一次性运行
+  cd apps/frontend-v2 && npm run test:watch  # 监听模式
+  ```
+- 框架:vitest + jsdom + @testing-library/react,jest-dom matcher 已在 `setup.ts` 全局注入
+- mock 模块:`vi.mock('../../api.js', () => ({ ... }))` — 注意 vi.mock 会 hoist 到文件顶,如需引用外部变量用 `vi.hoisted({ ... })`
+- 涉及 module-level 缓存的 hook(如 useSettings):用 `vi.resetModules()` + 动态 `import()` 在每个 test 拿到干净 module
+- 跑前端 vitest 单测不需要后端启动,与 Playwright e2e 完全独立

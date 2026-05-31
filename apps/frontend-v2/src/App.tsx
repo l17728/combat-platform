@@ -32,6 +32,7 @@ import DocumentCenter from "./pages/DocumentCenter.js";
 import ManualCenter from "./pages/ManualCenter.js";
 import NotFound from "./components/NotFound.js";
 import ErrorBoundary from "./components/ErrorBoundary.js";
+import { ForcePasswordChange } from "./components/ForcePasswordChange.js";
 import { AuthProvider, useAuth } from "./hooks/useAuth.js";
 import { initOpLog, logNavigate, setupGlobalErrorHandler } from "./utils/op-logger.js";
 import { Spin } from "antd";
@@ -46,7 +47,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <ForcePasswordChange />
+    </>
+  );
 }
 
 function AdminGuard({ children }: { children: React.ReactNode }) {

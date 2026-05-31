@@ -167,6 +167,19 @@ const SQLITE_SCHEMA_DDL = `
     CREATE INDEX IF NOT EXISTS idx_progress_owner ON progress_log(ownerId, seqNo);
     CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
     CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status);
+    /* v2.2 P1 §1: SQLite expression indexes for queryNodesByProperty hot keys.
+       配合 Repository.queryNodesByProperty 的 json_extract WHERE 子句使用。
+       覆盖热点过滤:状态/问题单号/创建人/客户名称/邮箱/组名/姓名/当前处理人/贡献人。
+       SQLite 3.9+ 支持 expression index;每个索引大小约 8 byte/row,5k 节点 < 50 KB。 */
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_status ON nodes(nodeType, json_extract(properties, '$.状态'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_pb ON nodes(nodeType, json_extract(properties, '$.问题单号'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_creator ON nodes(nodeType, json_extract(properties, '$.创建人'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_customer ON nodes(nodeType, json_extract(properties, '$.客户名称'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_email ON nodes(nodeType, json_extract(properties, '$.邮箱'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_group ON nodes(nodeType, json_extract(properties, '$.组名'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_name ON nodes(nodeType, json_extract(properties, '$.姓名'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_handler ON nodes(nodeType, json_extract(properties, '$.当前处理人'));
+    CREATE INDEX IF NOT EXISTS idx_nodes_prop_contributor ON nodes(nodeType, json_extract(properties, '$.贡献人'));
     CREATE TABLE IF NOT EXISTS daily_report_entry (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,

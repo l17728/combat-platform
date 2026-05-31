@@ -48,3 +48,6 @@ jobs:
         run: npm run test:backend
         env:
           COMBAT_NO_AUTH: "1"
+
+      - name: Test frontend (vitest unit)
+        run: npm run test:frontend:unit

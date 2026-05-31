@@ -36,6 +36,12 @@ export class HeuristicRelationProposer implements RelationProposer {
           const A = nodes[i],
             B = nodes[j];
           if (!A.key || !B.key) continue;
+          /* v2.2 P1 §5: 长度差预筛 — leven(a,b) >= |len(a) - len(b)|,故 |Δlen| > threshold
+             必然超过阈值,直接跳过(threshold=1 时 Δlen>1 必然跳)。dist==0 (完全同名) 路径
+             不受影响(同名时 Δlen=0)。启发式 — 中文 1k 人样本约 99% 候选对被筛掉,
+             leven O(L²) 调用从 ~N²/2 降到 ~N·k(k 为平均同长名个数)。 */
+          const lenDiff = Math.abs(A.key.length - B.key.length);
+          if (lenDiff > this.threshold) continue;
           const dist = levenshtein(A.key, B.key);
           // §55.1: identical normalized name is a strong duplicate signal — propose
           // SAME_AS (conf 1.0) UNLESS both carry an employeeId and they differ

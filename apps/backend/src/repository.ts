@@ -83,13 +83,19 @@ export class SqliteRepository implements Repository {
     );
   }
 
-  async logAudit(entry: {
-    action: string;
-    entityType: string;
-    entityId: string;
-    changes: unknown;
-    actor: string;
-  }): Promise<void> {
+  // P1 audit actor 强制取自 req.user:调用方传 entry.actor 仅作 fallback,
+  // 当 req 存在且带 user.username 时 — 以 req.user.username 为准,避免任传字符串伪造。
+  async logAudit(
+    entry: {
+      action: string;
+      entityType: string;
+      entityId: string;
+      changes: unknown;
+      actor: string;
+    },
+    req?: { user?: { username?: string } } | undefined
+  ): Promise<void> {
+    const actor = req?.user?.username || entry.actor;
     await this.adapter.run(
       `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
@@ -98,7 +104,7 @@ export class SqliteRepository implements Repository {
         entry.entityType,
         entry.entityId,
         encodeJsonForAdapter(this.adapter, entry.changes),
-        entry.actor,
+        actor,
         new Date().toISOString(),
       ]
     );
@@ -217,6 +223,42 @@ export class SqliteRepository implements Repository {
     return out;
   }
 
+  /**
+   * v2.2 P1 §1: SQL-pushdown 单键等值过滤。
+   *
+   * SQLite 路径:
+   *   `WHERE nodeType=? AND json_extract(properties, '$.<key>') = ?`
+   *   配合 `idx_nodes_<key>` 表达式索引(在 db.ts 里建)对热点 key 走索引。
+   * Postgres 路径:
+   *   `WHERE "nodeType"=? AND properties->>'<key>' = ?`
+   *   走 `idx_nodes_properties_gin`(GIN on JSONB)。
+   *
+   * 等值语义与 `queryNodes(nt, {key: v})` 严格一致(JS `===`),便于渐进迁移。
+   * 注意:value 是字符串等值;数字/bool 字段若以 JSON 数字存储仍需用 queryNodes(否则
+   * `json_extract` 返回 number 与字符串 `?` 不等)。
+   *
+   * key 必须是 [A-Za-z0-9_一-鿿]+(防 JSON path 注入)。
+   */
+  async queryNodesByProperty(nodeType: string, key: string, value: string): Promise<GraphNode[]> {
+    if (!/^[A-Za-z0-9_一-鿿]+$/.test(key)) {
+      throw new Error(`queryNodesByProperty: invalid key ${JSON.stringify(key)}`);
+    }
+    let sql: string;
+    if (this.adapter.kind === "postgres") {
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND properties->>'${key}' = ? ORDER BY created_at DESC`;
+    } else {
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND json_extract(properties, '$.${key}') = ? ORDER BY created_at DESC`;
+    }
+    const rows = await this.adapter.query<any>(sql, [nodeType, value]);
+    return rows.map((r) => ({
+      id: r.id,
+      nodeType: r.nodeType,
+      properties: decodeJsonFromAdapter(this.adapter, r.properties),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
   async createEdge(
     edgeType: string,
     sourceId: string,
@@ -303,28 +345,34 @@ export class SqliteRepository implements Repository {
   }
 
   async appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): Promise<ProgressLog> {
-    let p!: ProgressLog;
+    /* v2.2 P1 §6: 原子 seqNo —— 用单条 INSERT...SELECT COALESCE(MAX(seqNo),0)+1 取代
+       `SELECT MAX+1 然后 INSERT`,后者在事务里 SQLite 同步下虽安全,但 PG/异步驱动下是
+       经典 read-modify-write 竞态。SQLite 和 Postgres 都支持 INSERT...SELECT 形式。
+       SELECT 在 INSERT 内可读到同事务上下文 — 用 WHERE "ownerId" = ? 圈定计数范围,
+       MAX 取的是已提交 + 本事务可见行的最大 seqNo。 */
+    const id = randomUUID();
+    const updatedAt = new Date().toISOString();
+    let seqNo = 0;
     await this.adapter.transaction(async (tx) => {
-      const max = await tx.queryOne<{ m: number | null }>(
-        `SELECT MAX("seqNo") as m FROM progress_log WHERE "ownerId" = ?`,
-        [ownerId]
-      );
-      p = {
-        id: randomUUID(),
-        ownerId,
-        seqNo: (max?.m ?? 0) + 1,
-        content,
-        statusSnapshot,
-        updatedBy: actor,
-        updatedAt: new Date().toISOString(),
-      };
       await tx.run(
-        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [p.id, ownerId, p.seqNo, content, statusSnapshot, actor, p.updatedAt]
+        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt")
+         SELECT ?, ?, COALESCE(MAX("seqNo"), 0) + 1, ?, ?, ?, ?
+         FROM progress_log WHERE "ownerId" = ?`,
+        [id, ownerId, content, statusSnapshot, actor, updatedAt, ownerId]
       );
-      await this.auditTx(tx, "PROGRESS", "node", ownerId, { seqNo: p.seqNo, content }, actor);
+      const row = await tx.queryOne<{ seqNo: number }>(`SELECT "seqNo" FROM progress_log WHERE id = ?`, [id]);
+      seqNo = row?.seqNo ?? 1;
+      await this.auditTx(tx, "PROGRESS", "node", ownerId, { seqNo, content }, actor);
     });
-    return p;
+    return {
+      id,
+      ownerId,
+      seqNo,
+      content,
+      statusSnapshot,
+      updatedBy: actor,
+      updatedAt,
+    };
   }
 
   async listProgress(ownerId: string): Promise<ProgressLog[]> {

@@ -121,7 +121,10 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       const payload: JwtPayload = { userId: row.id, username: row.username, role: row.role };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
       log.info("auth.login", { username, role: row.role });
-      res.json({ token, user: toUser(row) });
+      // P1 强制改密:默认管理员 admin/admin123 必须改完密才能继续业务流。
+      // 前端收到 passwordMustChange=true 后弹强制 modal,不允许跳过。
+      const passwordMustChange = username === "admin" && password === "admin123";
+      res.json({ token, user: toUser(row), passwordMustChange });
     })
   );
 
@@ -179,7 +182,9 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       if (!row) {
         return res.status(401).json({ error: "用户不存在" });
       }
-      res.json({ user: toUser(row) });
+      // P1 强制改密:admin 若仍是默认密 admin123 → 持续返回 mustChange,直到改成功。
+      const mustChange = row.username === "admin" && bcrypt.compareSync("admin123", row.password_hash);
+      res.json({ user: toUser(row), passwordMustChange: mustChange });
     })
   );
 
@@ -400,7 +405,7 @@ export function leaderMiddleware(req: Request, res: Response, next: NextFunction
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const path = req.path;
-  const publicPaths = ["/auth/login", "/auth/register", "/help/feedback/", "/bug-reports", "/health"];
+  const publicPaths = ["/auth/login", "/auth/register", "/help/feedback/", "/bug-reports", "/health", "/metrics"];
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
   }
