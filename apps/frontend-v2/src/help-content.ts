@@ -4,6 +4,25 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.4.1 — 2026-05-31 (Hot-fix)
+
+线上紧急修复,仅含两条修补,无新特性。
+
+### 修复
+
+- **攻关单详情打不开(React #310)**: \`apps/frontend-v2/src/pages/AttackDetail.tsx\` 中 \`useAttackDetailHandlers\` hook 调用位置位于 \`if (data.initialLoading || !data.node) return <Spin/>\` 之后,触发 React Hooks 调用顺序违规 → ErrorBoundary 兜底"页面出了点问题/重试"。修法:把 hook 调用搬到 early return 之前,destructure / 派生值 / early return 全部后移。
+- **HermesChat 思考时滚动条上下抖动**(bug \`de1bf88e\`,/contributions 等所有挂载 AI 助手的页面):autoscroll \`useEffect\` 把 \`loading\` 列入依赖且无视用户手动上滑;新增 \`stickToBottomRef\` + \`onScroll\` 仅贴底时自动滚 + \`requestAnimationFrame\` 包裹 + 容器 CSS \`overflow-anchor: none; contain: layout\`。
+
+### 验证
+
+- Playwright 现网 e2e 校验 \`/attack/<id>\` 完整渲染、0 console error
+- 新增回归测试 \`e2e/hermes-chat-no-oscillation.spec.ts\`
+- backend tests 575/575 / shared 28/28 / frontend tsc 0 错
+
+### 经验沉淀
+
+> Hooks 规则不可妥协:任何 hook(useState/useEffect/自定义 hook)必须在组件 render 路径的所有 early return 之前调用。重构 hook 抽取(把 useState 收到子 hook)时尤其要复核调用顺序——子 hook 内部新增/删除 useState 等价于父组件的 hooks 数量变化,一旦在 conditional 分支下调用就会触发 #310。
+
 ## v2.4.0 — 2026-05-31 (三桶 — 现网加固 + 架构韧性 + 升级 UI 真实化)
 
 本版聚焦"长期可运营":修末位 CVE、把 KG 派生改为可重放 outbox、给审计加完整性链、让升级 UI 能拉 GitHub Release 并校验 PGP 签名,真正具备生产可用性。
@@ -583,7 +602,10 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 快捷操作
 - 追加进展是最常用操作，进入详情页后直接切换到「进展同步」标签即可
 - 历史记录标签可快速查看某人是否修改过关键字段，利用变更详情定位问题
-- 求助网络支持模板一键应用，比逐个创建支撑节点更高效`,
+- 求助网络支持模板一键应用，比逐个创建支撑节点更高效
+
+### v2.4.1 修复
+- 修复:打开攻关单详情页直接显示"页面出了点问题/重试"(React #310 hooks 调用顺序违规),原因为 \`useAttackDetailHandlers\` hook 调用位于 early return 之后,已搬到 hooks 之前固定调用顺序`,
   },
 
   peopleList: {
@@ -690,7 +712,10 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 快捷操作
 - 利用等级筛选快速查看所有「核心」级别贡献，评估团队高价值产出
 - 点击贡献人姓名跳转比去荣誉殿堂搜索更快
-- 先在攻关作战台确认攻关单标题，再到贡献录入关联，避免选错`,
+- 先在攻关作战台确认攻关单标题，再到贡献录入关联，避免选错
+
+### v2.4.1 修复
+- 修复:嵌入页面的 AI 助手在思考阶段(Hermes 流式返回时)滚动条上下抖动(bug \`de1bf88e\`),用户上滑离开底部后不会再被强制拖回底部`,
   },
 
   honor: {

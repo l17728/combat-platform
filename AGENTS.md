@@ -879,6 +879,21 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-05-31 v2.4.1 hot-fix — React #310 + AI 抖动)
+
+**v2.4.1 = v2.4.0(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
+
+- 后端 vitest **575/575 全绿**(86 文件:v2.3 baseline 536 + harden 12 + resilience 17 + upgrade-real 8 + Sentry 2)
+- shared vitest **28/28 全绿**
+- 前端 vitest **54/54 继承全绿**
+- 三端 `npx tsc --noEmit` 0 错
+- Playwright 现网 e2e probe `/attack/<id>` 完整渲染、0 console error
+- 现网部署 `124.156.193.122:3001` active running、`f4af74f` 落地
+- 文档:`help-content.ts` 顶部追加 v2.4.1 release notes + 受影响页面(attackDetail / contributions)末尾追加修复说明;`docs/OBSERVABILITY.md` 已交付(Sentry);`docs/UPGRADE.md` 追加 v2.4+ JWT_SECRET drop-in 修复步骤;`docs/V2.5_DESIGN.md` 已起草(14 工具 / 4 桶 / 15 题评测 golden set)
+- 在线 bug 关闭:`de1bf88e` AI 抖动 status=已解决
+
+**v2.4 → v2.4.1 关键教训**:Hooks 规则不可妥协。子 hook(useAttackDetailHandlers)内新增/删除 useState 等价于父组件 hooks 数量变化;**任何 hook 必须固定调用在所有 early return 之前**。重构 hook 抽取时尤其要复核——把 useState 收到子 hook 不意味着可以放到 conditional 分支后。回归防护:Playwright probe `/attack/<id>` 加入 e2e baseline。
+
 ### 当前测试状态(2026-05-31 v2.3.0 整合 — v2.2.0 master 合并到 upgrade-ui 分支)
 
 **v2.3.0 = v2.2.0(sec+perf+quality 三桶 P1)+ 一键升级 UI(schema overlay + upgrade router + SystemUpgrade page)**
