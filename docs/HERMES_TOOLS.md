@@ -1,8 +1,9 @@
-# Hermes 通用工具集 (v2.5)
+# Hermes 通用工具集 (v2.5/v2.6)
 
 > Hermes 从 v2.4 的「intent 路由器」升级为「Tool-using Agent」。LLM 自决调哪个工具,而不是开发者硬编码 intent 正则。
+> v2.6 起,LLM 通信走纯 fetch OpenAI 兼容协议,配置全部从 DB(UI 可改)读取,不再依赖 opencode SDK / 子进程。
 
-## 架构
+## 架构 (v2.6)
 
 ```
 用户问句
@@ -15,13 +16,22 @@ tool: 强制走 tool agent
 intent: 强制走 intent 路由
    ↓
 [tool agent]
-   LLM (opencode + glm) 看 TOOL_SCHEMAS
+   OpenAICompatibleRunner (纯 fetch) → POST {baseURL}/chat/completions
+     baseURL/apiKey/model/thinking 全部从 DB llm_settings 表实时读
+     (admin 在前端 /llm-settings 改保存即生效,后端无需重启)
+   ↓
+   LLM 看 TOOL_SCHEMAS (OpenAI 兼容 tools)
    ↓
    返回 tool_calls → 本地调 callToolUnwrap(name, input, ctx) → 结果回填 messages
-   ↓ (最多 MAX_TOOL_HOPS=6 轮)
+   ↓ (最多 MAX_TOOL_HOPS=6 轮,maxHops 也可在 UI 调)
    返回 content → 返回给前端 (含 trace 用于 UI 展示)
    失败 / 超 hop → 自动 fallback 到 intent 路由 (trace 标 fallback_reason)
 ```
+
+> v2.6 起 backend **不再 spawn opencode 子进程**,也不再依赖 `@opencode-ai/sdk`。
+> 全部走 OpenAI 兼容协议直接打 `POST {baseURL}/chat/completions`。这让切换 provider
+> (智谱/华为云/自部 vLLM)只需在前端 UI 改 baseURL+model,不动代码、不重启服务。
+> 旧的 `OpencodeAgentRunner`(SDK 路径)保留为 `HERMES_AGENT=1` 时的可选 fallback。
 
 ## 14 个工具
 
@@ -97,15 +107,35 @@ npm run cli -- hermes:tools              # 列工具
 npm run cli -- hermes:tool count_nodes --input '{"nodeType":"person"}'
 ```
 
-## env 配置
+## LLM 配置 (v2.6 — UI 优先)
 
-| 变量                           | 默认    | 用途                                           |
-| ------------------------------ | ------- | ---------------------------------------------- |
-| `HERMES_MODE`                  | `auto`  | `tool` / `intent` / `auto` 三模式              |
-| `HERMES_MAX_TOOL_HOPS`         | `6`     | 单次问答最多串多少工具调用                     |
-| `HERMES_TOOL_RESULT_MAX_BYTES` | `32768` | 单工具出参上限                                 |
-| `HERMES_CONTEXT_MAX_BYTES`     | `81920` | LLM messages 累积上限,超则折叠早期 tool result |
-| `HERMES_ENABLE_WRITE`          | `0`     | 写工具(create/update/delete)开关,默认禁用      |
+LLM 的 baseURL / apiKey / defaultModel / smallModel / thinking / maxHops / timeoutMs
+**全部** 在前端「系统管理 → LLM 设置」(`/llm-settings`, admin only)配置,
+保存到 DB `llm_settings` 表(apiKey AES-256-GCM 加密)。OpenAICompatibleRunner 通过
+`getConfig` 钩子每次调用前重读,**保存即生效,无需重启 backend**。详见 [`./LLM_SETTINGS.md`](./LLM_SETTINGS.md)。
+
+CLI 等价命令:
+
+```bash
+npm run cli -- llm:get
+npm run cli -- llm:set --provider zhipuai-coding-plan --base-url https://open.bigmodel.cn/api/paas/v4 --api-key sk-... --model glm-4.6
+npm run cli -- llm:test
+```
+
+下表的 env 仅用作 fallback(DB 无配置时回退使用),仍可用于初始部署引导:
+
+| 变量                           | 默认                                   | 用途                                               |
+| ------------------------------ | -------------------------------------- | -------------------------------------------------- |
+| `HERMES_MODE`                  | `auto`                                 | `tool` / `intent` / `auto` 三模式                  |
+| `HERMES_MAX_TOOL_HOPS`         | `6`                                    | 单次问答最多串多少工具调用(UI 也可调 maxHops)      |
+| `HERMES_TOOL_RESULT_MAX_BYTES` | `32768`                                | 单工具出参上限                                     |
+| `HERMES_CONTEXT_MAX_BYTES`     | `81920`                                | LLM messages 累积上限,超则折叠早期 tool result     |
+| `HERMES_ENABLE_WRITE`          | `0`                                    | 写工具(create/update/delete)开关,默认禁用          |
+| `HERMES_LLM_BASE_URL`          | `https://open.bigmodel.cn/api/paas/v4` | DB 未配时的 baseURL fallback                       |
+| `HERMES_LLM_API_KEY`           | (无)                                   | DB 未配时的 apiKey fallback;**生产建议走 UI 配置** |
+| `HERMES_MODEL`                 | `glm-4.6`                              | DB 未配时的 model fallback                         |
+| `HERMES_AGENT`                 | `0`                                    | `1` 时启用旧 `OpencodeAgentRunner` SDK 路径(可选)  |
+| `COMBAT_CRYPTO_KEY`            | (派生于 JWT_SECRET)                    | AES-256-GCM 加密 apiKey 用的根密钥                 |
 
 ## 评测 golden set (15 题)
 

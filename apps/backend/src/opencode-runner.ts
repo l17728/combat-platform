@@ -14,12 +14,12 @@ import { log } from "./logger.js";
  * call the backend's read endpoints on localhost.
  */
 export interface OpencodeRunnerOptions {
-  directory: string;                 // workspace containing .opencode (agents + tools)
-  serverUrl?: string;                // HERMES_OPENCODE_URL — connect instead of spawn
-  model?: string;                    // "huawei_cloud/glm-5"
-  agent?: string;                    // "hermes"
-  apiBase?: string;                  // backend base url the tools call (default http://localhost:3001)
-  timeoutMs?: number;                // per-question hard cap
+  directory: string; // workspace containing .opencode (agents + tools)
+  serverUrl?: string; // HERMES_OPENCODE_URL — connect instead of spawn
+  model?: string; // "huawei_cloud/glm-5"
+  agent?: string; // "hermes"
+  apiBase?: string; // backend base url the tools call (default http://localhost:3001)
+  timeoutMs?: number; // per-question hard cap
 }
 
 export class OpencodeAgentRunner implements AgentRunner {
@@ -76,7 +76,12 @@ export class OpencodeAgentRunner implements AgentRunner {
           parts: [{ type: "text", text: prompt }],
         },
       });
-      const parts = (res?.data?.parts ?? []) as Array<{ type: string; text?: string; synthetic?: boolean; ignored?: boolean }>;
+      const parts = (res?.data?.parts ?? []) as Array<{
+        type: string;
+        text?: string;
+        synthetic?: boolean;
+        ignored?: boolean;
+      }>;
       return parts
         .filter((p) => p.type === "text" && !p.synthetic && !p.ignored && typeof p.text === "string")
         .map((p) => p.text as string)
@@ -101,6 +106,24 @@ export class OpencodeAgentRunner implements AgentRunner {
   }
 
   dispose(): void {
-    try { this.closeServer?.(); } catch { /* ignore */ }
+    try {
+      this.closeServer?.();
+    } catch {
+      /* ignore */
+    }
   }
 }
+
+// ===================================================================
+// §v2.6 deprecation note
+// -------------------------------------------------------------------
+// The historical `OpencodeToolCallingRunner` lived here and called the
+// OpenAI-compatible /chat/completions endpoint while still reading
+// ~/.config/opencode/opencode.json for credentials. It has been replaced
+// by `OpenAICompatibleRunner` in `./openai-compatible-runner.ts`, which
+// pulls config from the DB-backed `llm_settings` table (managed via the
+// `/api/llm-settings` admin UI) instead of any opencode workspace file.
+//
+// `OpencodeAgentRunner` above (SDK-driven, only when HERMES_AGENT=1) is
+// retained as a legacy fallback for the very rare prompt-only path.
+// ===================================================================

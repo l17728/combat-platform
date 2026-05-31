@@ -24,6 +24,44 @@ import type {
   ConflictItem,
 } from "@combat/shared";
 
+// §v2.6 LLM settings DTOs
+export type LlmThinkingMode = "disabled" | "enabled" | "auto";
+export interface LlmSettingsMaskedDTO {
+  provider: string;
+  baseUrl: string;
+  defaultModel: string;
+  smallModel: string;
+  thinking: LlmThinkingMode;
+  maxHops: number;
+  timeoutMs: number;
+  apiKeyMasked: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+export interface LlmSettingsPutBody {
+  provider: string;
+  baseUrl: string;
+  defaultModel: string;
+  smallModel?: string;
+  apiKey?: string;
+  thinking?: LlmThinkingMode;
+  maxHops?: number;
+  timeoutMs?: number;
+}
+export interface LlmSettingsTestBody {
+  model?: string;
+  thinking?: LlmThinkingMode;
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutMs?: number;
+}
+export interface LlmTestResult {
+  ok: boolean;
+  error?: string;
+  latencyMs?: number;
+  modelEcho?: string;
+}
+
 export interface RelatedResult {
   outgoing: RelatedItem[];
   incoming: RelatedItem[];
@@ -509,6 +547,25 @@ export class Api {
 
   getEmailConfig(): Promise<SmtpConfigMasked> {
     return this.req<SmtpConfigMasked>("/api/email/config");
+  }
+
+  // §v2.6 LLM settings
+  getLlmSettings(): Promise<LlmSettingsMaskedDTO> {
+    return this.req<LlmSettingsMaskedDTO>("/api/llm-settings");
+  }
+  putLlmSettings(body: LlmSettingsPutBody): Promise<LlmSettingsMaskedDTO> {
+    return this.req<LlmSettingsMaskedDTO>("/api/llm-settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+  testLlmSettings(body: LlmSettingsTestBody): Promise<LlmTestResult> {
+    return this.req<LlmTestResult>("/api/llm-settings/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
   }
 
   putEmailConfig(cfg: Partial<SmtpConfig>): Promise<SmtpConfigMasked> {

@@ -13,6 +13,7 @@ import HelpCenter from "./pages/HelpCenter.js";
 import HelpFeedback from "./pages/HelpFeedback.js";
 import ImportExport from "./pages/ImportExport.js";
 import EmailSettings from "./pages/EmailSettings.js";
+import LlmSettings from "./pages/LlmSettings.js";
 import AuditLog from "./pages/AuditLog.js";
 import DailyReportPage from "./pages/DailyReport.js";
 import RelatedPage from "./pages/RelatedPage.js";
@@ -119,6 +120,14 @@ function AppInner() {
         <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
         <Route path="/import" element={<ImportExport />} />
         <Route path="/email" element={<EmailSettings />} />
+        <Route
+          path="/llm-settings"
+          element={
+            <AdminGuard>
+              <LlmSettings />
+            </AdminGuard>
+          }
+        />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/schema" element={<SchemaWizard />} />
         <Route path="/config" element={<ConfigCenter />} />
