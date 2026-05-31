@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Repository, EscalationConfig, EscalationScanResult } from "@combat/shared";
 import { log } from "./logger.js";
+import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
 
 const ACTIVE = new Set(["待响应", "处理中", "进行中"]);
 const DEFAULT_CONFIG: EscalationConfig = {
@@ -28,7 +29,10 @@ async function readConfig(repo: Repository): Promise<EscalationConfig> {
  * audit + an ESCALATED_TO edge to the current owner (if resolvable). Idempotent
  * via the audit check — re-scanning does not double-escalate.
  */
-export async function scanEscalation(repo: Repository): Promise<EscalationScanResult> {
+export async function scanEscalation(
+  repo: Repository,
+  notifications?: NotificationsRepo
+): Promise<EscalationScanResult> {
   const cfg = await readConfig(repo);
   const byLevel = new Map(cfg.rules.map((r) => [r.事件级别, r]));
   const now = Date.now();
@@ -73,13 +77,33 @@ export async function scanEscalation(repo: Repository): Promise<EscalationScanRe
       actor: "system",
     });
     log.warn("escalation.triggered", { ticketId: t.id, 上升角色: rule.上升角色 });
+    if (notifications) {
+      const title = String(t.properties["标题"] ?? t.id.slice(0, 8));
+      const owner = String(t.properties["当前处理人"] ?? "").trim();
+      const creator = String(t.properties["创建人"] ?? "").trim();
+      const recipients = new Set<string>();
+      if (owner) recipients.add(owner);
+      if (creator) recipients.add(creator);
+      // 兜底:无可识别接收人时,推送给 admin 收件箱(避免逾期通知静默丢失)
+      if (recipients.size === 0) recipients.add("admin");
+      for (const userId of recipients) {
+        await createNotificationSafe(notifications, {
+          userId,
+          kind: "escalation",
+          title: `攻关单已超期升级 (${lvl})`,
+          body: `「${title}」已超过 ${rule.slaHours}h SLA,升级至「${rule.上升角色}」`,
+          link: `/attack/${t.id}`,
+          sourceEntityId: t.id,
+        });
+      }
+    }
     escalated++;
   }
   log.info("escalation.scan.done", { escalated });
   return { overdue, escalated };
 }
 
-export function makeEscalationRouter(repo: Repository): Router {
+export function makeEscalationRouter(repo: Repository, notifications?: NotificationsRepo): Router {
   const r = Router();
   r.get("/escalation/config", async (_req, res) => res.json(await readConfig(repo)));
   r.put("/escalation/config", async (req, res) => {
@@ -88,6 +112,6 @@ export function makeEscalationRouter(repo: Repository): Router {
     await repo.setSetting("escalation", JSON.stringify({ rules }), (req as any).user?.username ?? "api");
     res.json(await readConfig(repo));
   });
-  r.post("/escalation/scan", async (_req, res) => res.json(await scanEscalation(repo)));
+  r.post("/escalation/scan", async (_req, res) => res.json(await scanEscalation(repo, notifications)));
   return r;
 }

@@ -4,6 +4,7 @@ import type { Repository, SmtpConfig } from "@combat/shared";
 import type { MailSender } from "./mailer.js";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
+import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
 
 export interface HelpRequest {
   id: string;
@@ -74,7 +75,8 @@ export function makeHelpRequestRouter(
   adapter: DbAdapter,
   repo: Repository,
   mailSender: MailSender,
-  baseUrl?: string
+  baseUrl?: string,
+  notifications?: NotificationsRepo
 ): Router {
   ensureTable(adapter);
   const r = Router();
@@ -149,6 +151,18 @@ export function makeHelpRequestRouter(
         log.warn("help_request.email_fail", { id, error: (e as Error).message });
       }
 
+      // 邮件发送失败时给求助人产出"邮件失败"收件箱通知,提示走线下兜底
+      if (!emailSent && notifications && requesterName) {
+        await createNotificationSafe(notifications, {
+          userId: requesterName,
+          kind: "help_request",
+          title: `求助邮件发送失败`,
+          body: `「${ticketTitle}」对 ${targetEmail} 的求助邮件未送达:${emailNote}`,
+          link: `/attack/${ticketId}`,
+          sourceEntityId: id,
+        });
+      }
+
       log.info("help_request.create", { id, ticketId, emailSent });
       const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [id]);
       res.status(201).json({ ...toHelpRequest(row), emailSent, emailNote, feedbackLink });
@@ -220,6 +234,22 @@ export function makeHelpRequestRouter(
         } catch {
           log.warn("help_request.progress_append_fail", { id: row.id });
         }
+      }
+
+      // 反馈收到 → 给求助人投递收件箱通知
+      if (notifications && row.requester_name) {
+        const ticketNode = await repo.getNode(row.ticket_id).catch(() => null);
+        const ticketTitle2 = ticketNode
+          ? String(ticketNode.properties["标题"] ?? row.ticket_id.slice(0, 8))
+          : row.ticket_id.slice(0, 8);
+        await createNotificationSafe(notifications, {
+          userId: row.requester_name,
+          kind: "help_request",
+          title: `求助有回复了`,
+          body: `「${ticketTitle2}」上 ${row.target_name ?? row.target_email} 已回复:${String(feedback).slice(0, 60)}`,
+          link: `/attack/${row.ticket_id}`,
+          sourceEntityId: row.id,
+        });
       }
 
       log.info("help_request.feedback", { id: row.id });

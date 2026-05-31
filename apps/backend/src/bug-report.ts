@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { DbAdapter } from "./db-adapter.js";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
+import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
 
 export interface BugReport {
   id: string;
@@ -67,7 +68,7 @@ function ensureTable(adapter: DbAdapter) {
   `);
 }
 
-export function makeBugReportRouter(adapter: DbAdapter): Router {
+export function makeBugReportRouter(adapter: DbAdapter, notifications?: NotificationsRepo): Router {
   ensureTable(adapter);
   const r = Router();
 
@@ -187,6 +188,21 @@ export function makeBugReportRouter(adapter: DbAdapter): Router {
 
       log.info("bug_report.update", { id: req.params.id, status });
       const updated = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+
+      // 状态变更且提报人非空 → 给提报人投递收件箱通知
+      if (notifications && status !== undefined && status !== row.status && updated.reporter) {
+        await createNotificationSafe(notifications, {
+          userId: updated.reporter,
+          kind: "bug_update",
+          title: `问题反馈状态变更:${status}`,
+          body: `「${updated.title}」从「${row.status}」变更为「${status}」${
+            updated.resolution ? "\n备注:" + String(updated.resolution).slice(0, 80) : ""
+          }`,
+          link: `/bug-report`,
+          sourceEntityId: updated.id,
+        });
+      }
+
       res.json(toBugReport(updated));
     })
   );

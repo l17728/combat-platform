@@ -3,11 +3,16 @@ import type { Repository, SchemaRegistry, ChannelAdapter } from "@combat/shared"
 import { scanReminders } from "./rules.js";
 import { StubChannelAdapter } from "./channel.js";
 import { log } from "./logger.js";
+import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
 
 const WINDOW_MS = 7 * 86400000;
 
 /** Scan + create reminders with 7-day dedup window. Returns count created. Reused by jobs:tick. */
-export async function scanAndCreateReminders(repo: Repository, registry: SchemaRegistry): Promise<number> {
+export async function scanAndCreateReminders(
+  repo: Repository,
+  registry: SchemaRegistry,
+  notifications?: NotificationsRepo
+): Promise<number> {
   const now = Date.now();
   const recent = new Set(
     (await repo.listReminders())
@@ -19,8 +24,19 @@ export async function scanAndCreateReminders(repo: Repository, registry: SchemaR
     const k = `${d.kind}|${d.ticketId}|${d.recipientPersonId ?? ""}`;
     if (recent.has(k)) continue;
     recent.add(k);
-    await repo.createReminder(d, "scan");
+    const reminder = await repo.createReminder(d, "scan");
     created++;
+    if (notifications) {
+      const userId = (d.recipientName || "").trim() || "admin";
+      await createNotificationSafe(notifications, {
+        userId,
+        kind: "reminder",
+        title: d.subject || `跟催提醒(${d.kind})`,
+        body: d.body || "",
+        link: `/attack/${d.ticketId}`,
+        sourceEntityId: reminder.id,
+      });
+    }
   }
   log.info("reminders.scan.done", { created });
   return created;
@@ -29,12 +45,13 @@ export async function scanAndCreateReminders(repo: Repository, registry: SchemaR
 export function makeRemindersRouter(
   repo: Repository,
   registry: SchemaRegistry,
-  channel: ChannelAdapter = new StubChannelAdapter()
+  channel: ChannelAdapter = new StubChannelAdapter(),
+  notifications?: NotificationsRepo
 ): Router {
   const r = Router();
 
   r.post("/reminders/scan", async (_req, res) => {
-    res.json({ created: await scanAndCreateReminders(repo, registry) });
+    res.json({ created: await scanAndCreateReminders(repo, registry, notifications) });
   });
 
   r.get("/reminders", async (req, res) => {
