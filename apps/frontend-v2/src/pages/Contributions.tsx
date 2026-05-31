@@ -47,8 +47,9 @@ export default function Contributions() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
   const { getValues } = useSettings();
-  // CONTRIB_LEVELS still used for the level filter; CONTRIB_TYPES now driven by schema
+  // CONTRIB_LEVELS used for level filter; CONTRIB_TYPES used by Pivot view (form 内由 schema 驱动)
   const CONTRIB_LEVELS = getValues("贡献等级", ["核心", "关键", "普通"]);
+  const CONTRIB_TYPES = getValues("贡献类型", ["问题定位", "代码实现", "测试验证", "文档", "协调"]);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [teamNodes, setTeamNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
