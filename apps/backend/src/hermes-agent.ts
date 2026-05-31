@@ -489,7 +489,7 @@ export async function runToolCalling(opts: RunToolCallingOptions): Promise<RunTo
       let raw: unknown;
       let error: string | undefined;
       try {
-        raw = await executor(tc.name, tc.arguments ?? {}, opts.ctx ?? {});
+        raw = await executor(tc.name, tc.arguments ?? {}, opts.ctx ?? ({} as ToolCtx));
       } catch (e) {
         error = (e as Error).message;
         raw = { error };

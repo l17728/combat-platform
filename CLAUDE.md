@@ -37,7 +37,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
 4. **本机冒烟验证** — `npm run dev:backend` + `npm run dev:frontend-v2`，Playwright 脚本模拟真实用户操作，确认功能正常
 5. **git commit** — 所有改动必须先提交
-6. **部署到现网** — `cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>`
+6. **部署到现网** — `./dev-deploy.sh`（同机 rsync + systemctl restart）
 7. **现网验证** — Playwright 跑现网确认功能正常
 8. **关闭 issue** — 更新问题反馈状态为"已关闭"
 
@@ -86,7 +86,8 @@ vim apps/backend/src/xxx.ts
 ./dev-e2e.sh
 ```
 
-**部署到生产仍走本地** `D:\fighting\scripts\deploy-v2\deploy-direct.mjs`,**绝不在服务器 `/fighting` 上自跑 deploy-direct.mjs**(会绕回自部署)。
+**部署到生产使用 `./dev-deploy.sh`**(同机 rsync `/fighting` → `/opt/combat-v2`,无需 SSH/密码)。
+用法: `./dev-deploy.sh` (全流程) / `--skip-test` / `--skip-build` / `--dry-run`。详见 `dev-deploy.sh` 头部注释。
 
 **`bash -lc` / interactive shell 自动加载 nvm**;非交互式 `ssh root@host 'cmd'` 不读 `.bashrc`,需显式 `export NVM_DIR=...; . "$NVM_DIR/nvm.sh"`。所有 `dev-*.sh` 已含 nvm load,直接 `./dev.sh` 即可。
 
@@ -95,9 +96,7 @@ vim apps/backend/src/xxx.ts
 详细说明见 `/fighting/DEV_README.md`(已落地,git-tracked)。
 
 ### 8. Deploy After Green
-**After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle.
-
-Deploy target host/user/password are stored **out of version control** — in the gitignored `.env.deploy` at repo root. **Never hardcode the server password in any committed file** (CLAUDE.md, scripts, code); read it from `.env.deploy` at deploy time.
+**After every milestone reaches all-green (`npm run test:all` fully passing), deploy using `./dev-deploy.sh`.** The user does hands-on testing on `http://124.156.193.122:3001` each cycle.
 
 ### 9. Domain Language: Chinese Only
 Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
@@ -314,30 +313,35 @@ npx tsc --noEmit --workspace=@combat/shared
 ## Deployment
 
 ### Production Server (生产环境 — 唯一部署目标)
-- **服务器**: `124.156.193.122`（直连 SSH，用户 `root`，密码见 `.env.deploy`）
+- **服务器**: `124.156.193.122`（同机开发+部署）
+- **开发目录**: `/fighting/`（完整 git 工作树，与生产隔离）
 - **部署路径**: `/opt/combat-v2/`
 - **访问地址**: `http://124.156.193.122:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
 - **systemd 服务**: `combat-v2.service`（自动重启，开机自启）
-- **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
+- **部署脚本**: `./dev-deploy.sh`（同机 rsync，无需 SSH/密码）
 
-> **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
-
-#### 部署命令（从 repo 根目录执行）
+#### 部署命令（在 /fighting 目录执行）
 ```bash
-# 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
-git add -A && git commit -m "your message"
+# 全流程：测试 → build → 备份 DB → rsync → systemctl restart → verify
+./dev-deploy.sh
 
-# 一键部署（直连 SSH → 目标机）
-cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
+# 跳过测试（紧急部署）
+./dev-deploy.sh --skip-test
+
+# 仅 rsync + restart（小改动）
+./dev-deploy.sh --skip-test --skip-build
+
+# 预览不真执行
+./dev-deploy.sh --dry-run
 
 # 查看日志
-ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
+tail -f /opt/combat-v2/backend.log
 ```
 
-#### 部署架构（2026-05-28 更新）
+#### 部署架构（2026-06-01 更新）
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
-- **直连部署**：`deploy-direct.mjs` 直连 SSH 到 124.156.193.122，无需跳板机
+- **同机部署**：`dev-deploy.sh` rsync `/fighting/` → `/opt/combat-v2/`，不需要 SSH
 
 #### 日志体系与文件路径
 

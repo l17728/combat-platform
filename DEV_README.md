@@ -55,15 +55,16 @@ systemctl status combat-v2    # 看生产状态
 tail -f /opt/combat-v2/backend.log
 ```
 
-## 部署(从本地推送,不在服务器跑)
+## 部署(同机 rsync,不需要本地推送)
 
-**绝不在服务器 /fighting 上跑 deploy-direct.mjs**(会绕回自部署)。
+```bash
+./dev-deploy.sh                  # 全流程: test → build → backup → rsync → restart → verify
+./dev-deploy.sh --skip-test      # 跳过测试
+./dev-deploy.sh --dry-run        # 预览
+```
 
-部署仍走本地 `D:\fighting\scripts\deploy-v2\deploy-direct.mjs`:
-1. 本地 `git archive HEAD` 打 tar
-2. SFTP 上传到生产 `/opt/combat-v2/`
-3. SSH 跑 `npm install + npm run build + systemctl restart`
-4. 健康检查
+部署流程: `/fighting/` 源码 → build → rsync 到 `/opt/combat-v2/` → systemctl restart combat-v2 → 健康检查。
+自动备份生产 DB 到 `/opt/combat-v2/data/combat.sqlite.pre-deploy-<timestamp>`。
 
 ## Git safe.directory
 

@@ -57,7 +57,7 @@ export async function verifyDetachedSignature(
   } catch (e) {
     return { valid: false, error: `payload 加载失败: ${(e as Error).message}` };
   }
-  let verification: openpgp.VerificationResult[];
+  let verification: Awaited<ReturnType<typeof openpgp.verify>>["signatures"];
   try {
     const result = await openpgp.verify({
       message,
