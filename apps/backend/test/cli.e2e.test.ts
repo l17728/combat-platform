@@ -133,6 +133,63 @@ describe("§43 CLI core", () => {
     });
   });
 
+  it("llm:get/set/test builds correctly (§v2.6)", async () => {
+    const { http, calls } = recorder();
+    await runCli(["llm:get"], http);
+    expect(calls[0]).toEqual({ method: "GET", path: "/api/llm-settings" });
+    await runCli(
+      [
+        "llm:set",
+        "--provider",
+        "zhipuai-coding-plan",
+        "--base-url",
+        "https://open.bigmodel.cn/api/paas/v4",
+        "--api-key",
+        "k-1234",
+        "--model",
+        "glm-4.6",
+        "--small-model",
+        "glm-4.5-air",
+        "--thinking",
+        "disabled",
+        "--max-hops",
+        "6",
+        "--timeout-ms",
+        "60000",
+      ],
+      http
+    );
+    expect(calls[1]).toEqual({
+      method: "PUT",
+      path: "/api/llm-settings",
+      body: {
+        provider: "zhipuai-coding-plan",
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+        defaultModel: "glm-4.6",
+        apiKey: "k-1234",
+        smallModel: "glm-4.5-air",
+        thinking: "disabled",
+        maxHops: 6,
+        timeoutMs: 60000,
+      },
+    });
+    // llm:set 不传 api-key → body 不含 apiKey 字段(后端保留旧值)
+    await runCli(["llm:set", "--provider", "x", "--base-url", "https://x/v4", "--model", "m"], http);
+    expect(calls[2]).toEqual({
+      method: "PUT",
+      path: "/api/llm-settings",
+      body: { provider: "x", baseUrl: "https://x/v4", defaultModel: "m" },
+    });
+    await runCli(["llm:test", "--model", "glm-4.5-air", "--thinking", "auto"], http);
+    expect(calls[3]).toEqual({
+      method: "POST",
+      path: "/api/llm-settings/test",
+      body: { model: "glm-4.5-air", thinking: "auto" },
+    });
+    await runCli(["llm:test"], http);
+    expect(calls[4]).toEqual({ method: "POST", path: "/api/llm-settings/test", body: {} });
+  });
+
   it("escalation:scan + config-set build correctly (§48)", async () => {
     const { http, calls } = recorder();
     await runCli(["escalation:scan"], http);

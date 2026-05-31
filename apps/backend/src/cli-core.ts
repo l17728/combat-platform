@@ -568,6 +568,48 @@ export const COMMANDS: CliCommand[] = [
     }),
   },
 
+  // ---- LLM 配置 (§v2.6) — admin only ----
+  {
+    name: "llm:get",
+    summary: "查看 LLM 配置(apiKey 掩码)",
+    usage: "llm:get",
+    build: () => ({ method: "GET", path: "/api/llm-settings" }),
+  },
+  {
+    name: "llm:set",
+    summary: "保存 LLM 配置(apiKey 留空保留旧值)",
+    usage:
+      "llm:set --provider <p> --base-url <u> [--api-key <k>] --model <m> [--small-model <m>] [--thinking <disabled|enabled|auto>] [--max-hops <n>] [--timeout-ms <n>]",
+    build: (_pos, opts) => {
+      const body: Record<string, unknown> = {
+        provider: str(opts.provider),
+        baseUrl: str(opts["base-url"]),
+        defaultModel: str(opts.model),
+      };
+      if (str(opts["api-key"]) !== undefined) body.apiKey = str(opts["api-key"]);
+      if (str(opts["small-model"]) !== undefined) body.smallModel = str(opts["small-model"]);
+      if (str(opts.thinking) !== undefined) body.thinking = str(opts.thinking);
+      if (str(opts["max-hops"]) !== undefined) body.maxHops = Number(str(opts["max-hops"]));
+      if (str(opts["timeout-ms"]) !== undefined) body.timeoutMs = Number(str(opts["timeout-ms"]));
+      return { method: "PUT", path: "/api/llm-settings", body };
+    },
+  },
+  {
+    name: "llm:test",
+    summary: "测试 LLM 连接(可临时覆盖 model/thinking/baseUrl/apiKey)",
+    usage:
+      "llm:test [--model <m>] [--thinking <disabled|enabled|auto>] [--base-url <u>] [--api-key <k>] [--timeout-ms <n>]",
+    build: (_pos, opts) => {
+      const body: Record<string, unknown> = {};
+      if (str(opts.model) !== undefined) body.model = str(opts.model);
+      if (str(opts.thinking) !== undefined) body.thinking = str(opts.thinking);
+      if (str(opts["base-url"]) !== undefined) body.baseUrl = str(opts["base-url"]);
+      if (str(opts["api-key"]) !== undefined) body.apiKey = str(opts["api-key"]);
+      if (str(opts["timeout-ms"]) !== undefined) body.timeoutMs = Number(str(opts["timeout-ms"]));
+      return { method: "POST", path: "/api/llm-settings/test", body };
+    },
+  },
+
   // ---- file I/O (§44) ----
   {
     name: "import",
