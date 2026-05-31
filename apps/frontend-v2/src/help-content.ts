@@ -880,7 +880,10 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 
 ### 快捷操作
 - 表格默认按时间倒序排列，最新的求助在最前面
-- 通过状态筛选「待回复」可快速找到还未获得反馈的求助，及时跟催`,
+- 通过状态筛选「待回复」可快速找到还未获得反馈的求助，及时跟催
+
+### v2.6 更新
+LLM 全部 UI 配置，无需后台手工部署。详见左侧「系统管理 → LLM 设置」（仅 admin 可见）。`,
   },
 
   helpFeedback: {
@@ -1468,6 +1471,82 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 2. 上传之前下载的 .db 备份文件
 3. 系统将替换当前数据库并自动重启
 4. ⚠️ 此操作不可撤销，请谨慎操作！`,
+  },
+
+  llmSettings: {
+    title: "LLM 设置 - 使用帮助",
+    content: `## LLM 设置（admin 专属）
+
+v2.6 起，Hermes 智能问答所用的 LLM 全部由本页面在 UI 内配置，无需登录服务器改 env 或重启后端。**保存即生效**，下一次 \`hermes:ask\` 调用就用新配置。
+
+### 字段说明
+
+**Provider 提供商**
+预设三个 provider，选中后会自动填默认 baseURL / model：
+- \`zhipuai-coding-plan\`（智谱 AI）：baseURL = \`https://open.bigmodel.cn/api/paas/v4\`，defaultModel = \`glm-4.6\`，smallModel = \`glm-4.5-air\`
+- \`huawei_cloud\`（华为云 ModelArts）：baseURL = \`https://api.modelarts-maas.com/openai/v1\`，defaultModel = \`glm-5\`
+- \`custom\`（自定义 OpenAI 兼容）：自己填，凡是 OpenAI ChatCompletions 兼容协议（包括 vLLM、TGI、OneAPI 中转等）都可对接
+
+**baseURL**
+OpenAI 兼容的根路径。不要带 \`/chat/completions\` 后缀——后端会自动拼。改成自有反代/中转域名时直接覆盖即可。
+
+**apiKey**
+- 输入框 placeholder 显示当前已存的掩码（如 \`****cdef\`），表示 DB 内已有 key
+- **留空 = 保留旧值，不修改**；只有粘贴新值才覆盖
+- 后端用 **AES-256-GCM** 加密存储到 \`llm_settings\` 表的 \`api_key_encrypted\` 列
+- 前端 GET 返回永远只含掩码，**不会返回明文**；浏览器、日志、审计均无明文泄露
+- 仅 admin 角色可读写
+
+**defaultModel / smallModel**
+- defaultModel：所有 Hermes 问答主要走这个 model
+- smallModel：留作未来轻量任务备用（当前未使用，安全填即可）
+
+**thinking 思考模式**
+- \`disabled\`：禁用 chain-of-thought（最快，适合简单查询）
+- \`enabled\`：强制开启思考（更准，慢一些）
+- \`auto\`：交由 provider 默认策略
+- 调用时会在请求 body 里加 \`thinking: { type: 'disabled' | 'enabled' }\`；\`auto\` 时不发字段
+
+**maxHops 工具最大轮数**
+LLM 多轮工具调用的硬上限（1–12）。Hermes 一次问答中 LLM 调工具 → 看结果 → 再调工具，直到拿到最终答案或触顶。**建议 6** 已能覆盖 95% 场景；提高会拖慢响应。
+
+**timeoutMs 单次超时**
+单次 LLM 请求的硬超时（毫秒）。默认 60000（60s）。慢推理场景可调到 120000 以上。
+
+### 操作流程
+
+1. 选 provider，UI 自动填 baseURL / model 默认
+2. 粘贴 apiKey（首次配置必填）
+3. 点右上「测试连接」→ 直接打 \`POST {baseURL}/chat/completions\`，body = \`{ messages: [{role:'user',content:'ping'}], max_tokens: 16 }\`，成功会显示 latencyMs + modelEcho
+4. 测试通过后点「保存」→ DB 写入 + 全站立即生效
+
+### 常见 provider 速查表
+
+| provider | baseURL | 主流 model |
+|----------|---------|-----------|
+| 智谱 AI | \`https://open.bigmodel.cn/api/paas/v4\` | \`glm-4.6\`、\`glm-4.5-air\` |
+| 华为云 ModelArts | \`https://api.modelarts-maas.com/openai/v1\` | \`glm-5\` |
+| OpenAI 官方 | \`https://api.openai.com/v1\` | \`gpt-4o\`、\`gpt-4o-mini\` |
+| Anthropic via OneAPI | \`https://your-onapi.example.com/v1\` | \`claude-sonnet-4-5\` |
+| 自部 vLLM | \`http://your-vllm:8000/v1\` | 自己的 model id |
+
+### 安全模型
+
+- apiKey 永远不写日志（请求 \`Authorization\` header 之外的任何地方都见不到明文）
+- 数据库内 apiKey 用 AES-256-GCM 加密（key 由 \`COMBAT_CRYPTO_KEY\` env 派生）
+- 前端 \`GET /api/llm-settings\` 响应剥离 apiKey，只留 \`apiKeyMasked\`
+- 非 admin 用户访问 \`/llm-settings\` 路由会被 AdminGuard 重定向到首页
+- 审计：每次保存写入 \`llm_settings.put\` 结构化日志（不含 key）
+
+### CLI 等价命令
+
+\`\`\`bash
+npm run cli -- llm:get
+npm run cli -- llm:set --provider zhipuai-coding-plan --base-url https://open.bigmodel.cn/api/paas/v4 --api-key sk-... --model glm-4.6 --thinking disabled
+npm run cli -- llm:test --model glm-4.6
+\`\`\`
+
+agent 自动化部署、批量改 model 时直接走 CLI，避免人工 UI 操作。`,
   },
 };
 

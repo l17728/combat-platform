@@ -55,6 +55,7 @@ function getSelectedKey(path: string): string {
     [
       "/import",
       "/email",
+      "/llm-settings",
       "/audit",
       "/schema",
       "/config",
@@ -78,6 +79,7 @@ function getOpenKeysForPath(path: string): string[] {
     [
       "/import",
       "/email",
+      "/llm-settings",
       "/audit",
       "/schema",
       "/config",
@@ -175,6 +177,7 @@ export function AppLayout() {
         { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
         { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
         { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
+        ...(isAdmin ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
         { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
         { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
         ...(isAdmin ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
