@@ -61,6 +61,14 @@ export interface LlmTestResult {
   latencyMs?: number;
   modelEcho?: string;
 }
+export interface LlmModelEntry {
+  id: string;
+  owned_by?: string;
+}
+export interface LlmModelsResult {
+  models?: LlmModelEntry[];
+  error?: string;
+}
 
 export interface RelatedResult {
   outgoing: RelatedItem[];
@@ -580,6 +588,10 @@ export class Api {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+  /** §v2.7 透传 provider /models 真实可用列表;失败返 {error}。 */
+  listLlmModels(): Promise<LlmModelsResult> {
+    return this.req<LlmModelsResult>("/api/llm-settings/models");
   }
 
   putEmailConfig(cfg: Partial<SmtpConfig>): Promise<SmtpConfigMasked> {
