@@ -41,6 +41,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 7. **现网验证** — Playwright 跑现网确认功能正常
 8. **关闭 issue** — 更新问题反馈状态为"已关闭"
 
+#### 7.1 服务器侧 dev 环境(`/fighting` 目录,与生产 `/opt/combat-v2` 完全隔离)
+
+服务器 `124.156.193.122:/fighting/` 是**完整 git 工作树**(自 v2.7 起部署),供 Claude agent 或人工 SSH 后直接开发/测试,**不影响生产**。
+
+**5 个一键脚本(放在 `/fighting/` 根目录)**:
+
+| 脚本 | 用途 | DB 路径 | 端口 |
+|---|---|---|---|
+| `./dev.sh` | 启 dev backend(空 db) | `/fighting/data/dev-combat.sqlite` | 3500 |
+| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend | 同上(覆盖为生产快照) | 3500 |
+| `./dev-frontend.sh` | 启 vite dev(proxy `/api` → :3500) | — | 5174 |
+| `./dev-test.sh` | 跑 vitest backend(739/739,in-memory db) | 临时 | — |
+| `./dev-e2e.sh` | 跑 Playwright(自启 webServer) | 临时 | — |
+
+**DB 隔离矩阵(铁律,绝不可破)**:
+
+| | 生产 db | dev 副本 | 测试 db |
+|---|---|---|---|
+| 路径 | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite` | tmpdir/in-memory |
+| 谁写 | 生产 systemd combat-v2.service | `./dev.sh` / `./dev-with-snapshot.sh` | vitest |
+| 互相影响 | ❌ 完全独立 | ❌ 完全独立 | ❌ 完全独立 |
+
+**端口约定**:
+- `:3001` — 生产 backend(`/opt/combat-v2/`,systemd) — **绝不动**
+- `:3500` — `/fighting` dev backend
+- `:5174` — `/fighting` dev frontend(vite)
+
+**典型工作流(在服务器上)**:
+```bash
+ssh root@124.156.193.122
+cd /fighting
+
+# 改代码 + 跑单测
+vim apps/backend/src/xxx.ts
+./dev-test.sh                # 跑 vitest 739 测试,确认无回归
+
+# 起 dev 环境调试
+./dev-with-snapshot.sh &     # term 1: dev backend :3500(含生产快照)
+./dev-frontend.sh &          # term 2: vite :5174 → /api 走 :3500
+# 浏览器 http://124.156.193.122:5174
+
+# 跑 e2e
+./dev-e2e.sh
+```
+
+**部署到生产仍走本地** `D:\fighting\scripts\deploy-v2\deploy-direct.mjs`,**绝不在服务器 `/fighting` 上自跑 deploy-direct.mjs**(会绕回自部署)。
+
+**`bash -lc` / interactive shell 自动加载 nvm**;非交互式 `ssh root@host 'cmd'` 不读 `.bashrc`,需显式 `export NVM_DIR=...; . "$NVM_DIR/nvm.sh"`。所有 `dev-*.sh` 已含 nvm load,直接 `./dev.sh` 即可。
+
+**Git safe.directory**:Linux 上 `cd /fighting && git <cmd>` 第一次可能报 dubious ownership,已 `git config --global --add safe.directory /fighting` 配过,新 agent 进入若仍报需重跑此命令。
+
+详细说明见 `/fighting/DEV_README.md`(已落地,git-tracked)。
+
 ### 8. Deploy After Green
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy the app to the user's test server so they can manually verify.** The user does hands-on testing there each cycle.
 
