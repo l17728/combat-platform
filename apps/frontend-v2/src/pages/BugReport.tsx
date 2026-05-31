@@ -1,73 +1,102 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Typography, Table, Tag, Space, Select, Button, Drawer, Form, Input, message,
-  Popconfirm, Empty, Tooltip, Image, Alert, Descriptions, Divider, Upload,
-} from 'antd';
-import { BugOutlined, CameraOutlined, PlusOutlined, DeleteOutlined, EditOutlined, InboxOutlined } from '@ant-design/icons';
-import type { UploadProps } from 'antd';
-import { api } from '../api.js';
-import { BUG_SEVERITY_COLOR, BUG_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
-import { getCapturedLogs, clearCapturedLogs } from '../utils/console-capture.js';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
-import { useSettings } from '../hooks/useSettings.js';
-import dayjs from 'dayjs';
+  Typography,
+  Table,
+  Tag,
+  Space,
+  Select,
+  Button,
+  Drawer,
+  Form,
+  Input,
+  message,
+  Popconfirm,
+  Empty,
+  Tooltip,
+  Image,
+  Alert,
+  Descriptions,
+  Divider,
+  Upload,
+} from "antd";
+import {
+  BugOutlined,
+  CameraOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  InboxOutlined,
+} from "@ant-design/icons";
+import type { UploadProps } from "antd";
+import { api } from "../api.js";
+import { BUG_SEVERITY_COLOR, BUG_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from "../constants.js";
+import { getCapturedLogs, clearCapturedLogs } from "../utils/console-capture.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { useSettings } from "../hooks/useSettings.js";
+import { handleApiError } from "../utils/handleApiError.js";
+import dayjs from "dayjs";
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
 export default function BugReport() {
   const { getValues } = useSettings();
-  const BUG_STATUSES = getValues('Bug 状态', ['待处理', '处理中', '已解决', '已关闭']);
-  const BUG_SEVERITIES = getValues('Bug 严重程度', ['严重', '较高', '一般', '建议']);
+  const BUG_STATUSES = getValues("Bug 状态", ["待处理", "处理中", "已解决", "已关闭"]);
+  const BUG_SEVERITIES = getValues("Bug 严重程度", ["严重", "较高", "一般", "建议"]);
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>('待处理');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>("待处理");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingBug, setEditingBug] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<any>(null);
   const [screenshot, setScreenshot] = useState<string | null>(null);
-  const [consoleLogs, setConsoleLogs] = useState<string>('');
+  const [consoleLogs, setConsoleLogs] = useState<string>("");
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
 
-  const fetchData = useCallback(async (silent?: boolean) => {
-    if (!silent) setLoading(true);
-    try {
-      const list = await api.listBugReports(statusFilter);
-      setData(list);
-    } catch (e: any) {
-      message.error(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
+  const fetchData = useCallback(
+    async (silent?: boolean) => {
+      if (!silent) setLoading(true);
+      try {
+        const list = await api.listBugReports(statusFilter);
+        setData(list);
+      } catch (e) {
+        handleApiError(e, "加载问题反馈列表失败");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [statusFilter]
+  );
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // 监听全局「截图反馈悬浮按钮」提交事件,实时刷新列表(用 silent 不闪 Skeleton)
   useEffect(() => {
     const onCreated = () => fetchData(true);
-    window.addEventListener('bug-report:created', onCreated);
-    return () => window.removeEventListener('bug-report:created', onCreated);
+    window.addEventListener("bug-report:created", onCreated);
+    return () => window.removeEventListener("bug-report:created", onCreated);
   }, [fetchData]);
 
   // 共享的截图处理函数
   const processScreenshotFile = useCallback((file: File) => {
-    if (!file.type.startsWith('image/')) {
-      message.warning('只支持图片文件');
+    if (!file.type.startsWith("image/")) {
+      message.warning("只支持图片文件");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      message.warning('截图不能超过 5MB');
+      message.warning("截图不能超过 5MB");
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       setScreenshot(reader.result as string);
-      message.success('截图已加载');
+      message.success("截图已加载");
     };
     reader.readAsDataURL(file);
   }, []);
@@ -76,12 +105,12 @@ export default function BugReport() {
     const file = e.target.files?.[0];
     if (!file) return;
     processScreenshotFile(file);
-    e.target.value = ''; // 允许重复选择同一文件
+    e.target.value = ""; // 允许重复选择同一文件
   };
 
   // 拖拽上传配置
   const screenshotUploadProps: UploadProps = {
-    accept: 'image/*',
+    accept: "image/*",
     showUploadList: false,
     beforeUpload: (file) => {
       processScreenshotFile(file);
@@ -97,7 +126,7 @@ export default function BugReport() {
       if (!items) return;
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (item.type.startsWith('image/')) {
+        if (item.type.startsWith("image/")) {
           const file = item.getAsFile();
           if (file) {
             processScreenshotFile(file);
@@ -109,8 +138,8 @@ export default function BugReport() {
     };
     const area = pasteAreaRef.current;
     if (area && drawerOpen) {
-      area.addEventListener('paste', handlePaste as any);
-      return () => area.removeEventListener('paste', handlePaste as any);
+      area.addEventListener("paste", handlePaste as any);
+      return () => area.removeEventListener("paste", handlePaste as any);
     }
   }, [drawerOpen, processScreenshotFile]);
 
@@ -119,45 +148,45 @@ export default function BugReport() {
     try {
       await api.createBugReport({
         title: values.title,
-        description: values.description ?? '',
-        severity: values.severity ?? '一般',
+        description: values.description ?? "",
+        severity: values.severity ?? "一般",
         pageUrl: values.pageUrl ?? window.location.href,
-        reporter: values.reporter ?? '',
+        reporter: values.reporter ?? "",
         screenshot: screenshot ?? undefined,
         consoleLogs: logs || values.manualLogs || undefined,
         userAgent: navigator.userAgent,
       });
-      message.success('问题已提交');
+      message.success("问题已提交");
       setDrawerOpen(false);
       setScreenshot(null);
-      setConsoleLogs('');
+      setConsoleLogs("");
       form.resetFields();
       fetchData();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e, "提交问题反馈失败");
     }
   };
 
   const handleUpdate = async (id: string, status: string, resolution?: string) => {
     try {
-      await api.updateBugReport(id, { status, resolution, resolvedBy: 'ui' });
-      message.success('状态已更新');
+      await api.updateBugReport(id, { status, resolution, resolvedBy: "ui" });
+      message.success("状态已更新");
       fetchData(true);
       if (detail?.id === id) {
         setDetail(await api.getBugReport(id));
       }
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e, "更新状态失败");
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
       await api.deleteBugReport(id);
-      message.success('已删除');
+      message.success("已删除");
       fetchData();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e, "删除失败");
     }
   };
 
@@ -171,12 +200,12 @@ export default function BugReport() {
         pageUrl: values.pageUrl,
         reporter: values.reporter,
       });
-      message.success('更新成功');
+      message.success("更新成功");
       setEditOpen(false);
       setEditingBug(null);
       fetchData(true);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e, "更新失败");
     }
   };
 
@@ -184,48 +213,79 @@ export default function BugReport() {
     try {
       const canvas = await (window as any).__html2canvas?.(document.body);
       if (canvas) {
-        setScreenshot(canvas.toDataURL('image/png'));
-        message.success('页面截图完成');
+        setScreenshot(canvas.toDataURL("image/png"));
+        message.success("页面截图完成");
       } else {
-        message.info('请使用截图工具或点击下方上传截图');
+        message.info("请使用截图工具或点击下方上传截图");
       }
     } catch {
-      message.info('请使用截图工具或点击下方上传截图');
+      message.info("请使用截图工具或点击下方上传截图");
     }
   };
 
   const loadConsoleLogs = () => {
     const logs = getCapturedLogs();
     setConsoleLogs(logs);
-    if (!logs) message.info('暂无捕获的 console 日志');
+    if (!logs) message.info("暂无捕获的 console 日志");
   };
 
   const columns = [
     {
-      title: '标题', dataIndex: 'title', key: 'title', ellipsis: true,
+      title: "标题",
+      dataIndex: "title",
+      key: "title",
+      ellipsis: true,
       render: (text: string, record: any) => (
-        <a onClick={() => { setDetail(record); setDetailOpen(true); }}>{text}</a>
+        <a
+          onClick={() => {
+            setDetail(record);
+            setDetailOpen(true);
+          }}
+        >
+          {text}
+        </a>
       ),
     },
     {
-      title: '严重程度', dataIndex: 'severity', key: 'severity', width: 90,
+      title: "严重程度",
+      dataIndex: "severity",
+      key: "severity",
+      width: 90,
       render: (s: string) => <Tag color={BUG_SEVERITY_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '状态', dataIndex: 'status', key: 'status', width: 80,
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
+      width: 80,
       render: (s: string) => <Tag color={BUG_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '报告人', dataIndex: 'reporter', key: 'reporter', width: 80, ellipsis: true,
+      title: "报告人",
+      dataIndex: "reporter",
+      key: "reporter",
+      width: 80,
+      ellipsis: true,
     },
     {
-      title: '页面', dataIndex: 'pageUrl', key: 'pageUrl', width: 120, ellipsis: true,
-      render: (u: string) => <Tooltip title={u}><Text style={{ fontSize: 12 }}>{u}</Text></Tooltip>,
+      title: "页面",
+      dataIndex: "pageUrl",
+      key: "pageUrl",
+      width: 120,
+      ellipsis: true,
+      render: (u: string) => (
+        <Tooltip title={u}>
+          <Text style={{ fontSize: 12 }}>{u}</Text>
+        </Tooltip>
+      ),
     },
     {
-      title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 100,
+      title: "时间",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      width: 100,
       sorter: (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      defaultSortOrder: 'descend' as const,
+      defaultSortOrder: "descend" as const,
       render: (t: string) => (
         <Tooltip title={dayjs(t).format(DATE_FORMAT)}>
           <Text style={{ fontSize: 12 }}>{dayjs(t).fromNow()}</Text>
@@ -233,22 +293,46 @@ export default function BugReport() {
       ),
     },
     {
-      title: '操作', key: 'actions', width: 200, fixed: 'right' as const,
+      title: "操作",
+      key: "actions",
+      width: 200,
+      fixed: "right" as const,
       render: (_: unknown, record: any) => (
         <Space>
-          <a onClick={() => { setDetail(record); setDetailOpen(true); }}>详情</a>
-          <a onClick={() => { setEditingBug(record); editForm.setFieldsValue({ title: record.title, description: record.description, severity: record.severity, pageUrl: record.pageUrl, reporter: record.reporter }); setEditOpen(true); }}>编辑</a>
-          {record.status === '待处理' && (
-            <a onClick={() => handleUpdate(record.id, '处理中')}>开始处理</a>
+          <a
+            onClick={() => {
+              setDetail(record);
+              setDetailOpen(true);
+            }}
+          >
+            详情
+          </a>
+          <a
+            onClick={() => {
+              setEditingBug(record);
+              editForm.setFieldsValue({
+                title: record.title,
+                description: record.description,
+                severity: record.severity,
+                pageUrl: record.pageUrl,
+                reporter: record.reporter,
+              });
+              setEditOpen(true);
+            }}
+          >
+            编辑
+          </a>
+          {record.status === "待处理" && <a onClick={() => handleUpdate(record.id, "处理中")}>开始处理</a>}
+          {record.status === "处理中" && (
+            <a style={{ color: "#52c41a" }} onClick={() => handleUpdate(record.id, "已解决")}>
+              已解决
+            </a>
           )}
-          {record.status === '处理中' && (
-            <a style={{ color: '#52c41a' }} onClick={() => handleUpdate(record.id, '已解决')}>已解决</a>
-          )}
-          {(record.status === '已解决') && (
-            <a onClick={() => handleUpdate(record.id, '已关闭')}>关闭</a>
-          )}
+          {record.status === "已解决" && <a onClick={() => handleUpdate(record.id, "已关闭")}>关闭</a>}
           <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
-            <a style={{ color: '#ff4d4f' }}><DeleteOutlined /> 删除</a>
+            <a style={{ color: "#ff4d4f" }}>
+              <DeleteOutlined /> 删除
+            </a>
           </Popconfirm>
         </Space>
       ),
@@ -257,9 +341,11 @@ export default function BugReport() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Title level={4} style={{ margin: 0 }}>问题反馈</Title>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            问题反馈
+          </Title>
           <HelpButton title={HELP.bugReport.title} content={HELP.bugReport.content} />
         </div>
         <Space>
@@ -296,14 +382,23 @@ export default function BugReport() {
       <Drawer
         title="提交问题反馈"
         open={drawerOpen}
-        onClose={() => { setDrawerOpen(false); setScreenshot(null); setConsoleLogs(''); form.resetFields(); }}
+        onClose={() => {
+          setDrawerOpen(false);
+          setScreenshot(null);
+          setConsoleLogs("");
+          form.resetFields();
+        }}
         width={480}
         destroyOnClose
         maskClosable={false}
-        extra={<Button type="primary" onClick={() => form.submit()}>提交</Button>}
+        extra={
+          <Button type="primary" onClick={() => form.submit()}>
+            提交
+          </Button>
+        }
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: '请输入问题标题' }]}>
+          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: "请输入问题标题" }]}>
             <Input placeholder="简要描述发现的问题" />
           </Form.Item>
           <Form.Item name="severity" label="严重程度" initialValue="一般">
@@ -315,7 +410,11 @@ export default function BugReport() {
           <Form.Item name="reporter" label="报告人">
             <Input placeholder="您的姓名（可选）" />
           </Form.Item>
-          <Form.Item name="pageUrl" label="问题页面" initialValue={typeof window !== 'undefined' ? window.location.href : ''}>
+          <Form.Item
+            name="pageUrl"
+            label="问题页面"
+            initialValue={typeof window !== "undefined" ? window.location.href : ""}
+          >
             <Input placeholder="问题发生时的页面地址" />
           </Form.Item>
 
@@ -325,14 +424,22 @@ export default function BugReport() {
             </div>
             {screenshot && (
               <div style={{ marginBottom: 8 }}>
-                <Image src={screenshot} alt="screenshot" style={{ maxHeight: 200, border: '1px solid #d9d9d9', borderRadius: 4 }} />
+                <Image
+                  src={screenshot}
+                  alt="screenshot"
+                  style={{ maxHeight: 200, border: "1px solid #d9d9d9", borderRadius: 4 }}
+                />
                 <div style={{ marginTop: 4 }}>
-                  <Button size="small" danger onClick={() => setScreenshot(null)}>移除截图</Button>
+                  <Button size="small" danger onClick={() => setScreenshot(null)}>
+                    移除截图
+                  </Button>
                 </div>
               </div>
             )}
             <Upload.Dragger {...screenshotUploadProps} style={{ marginBottom: 8 }}>
-              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
               <p className="ant-upload-text">拖拽图片到此处，或点击选择</p>
               <p className="ant-upload-hint">支持 Ctrl+V 粘贴截图，最大 5MB</p>
             </Upload.Dragger>
@@ -351,16 +458,29 @@ export default function BugReport() {
               预览已捕获的日志
             </Button>
             {consoleLogs && (
-              <div style={{
-                maxHeight: 200, overflow: 'auto', background: '#1e1e1e', color: '#d4d4d4',
-                padding: 8, borderRadius: 4, fontSize: 11, fontFamily: 'monospace',
-                whiteSpace: 'pre-wrap', marginBottom: 8,
-              }}>
+              <div
+                style={{
+                  maxHeight: 200,
+                  overflow: "auto",
+                  background: "#1e1e1e",
+                  color: "#d4d4d4",
+                  padding: 8,
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
+                  marginBottom: 8,
+                }}
+              >
                 {consoleLogs}
               </div>
             )}
             <Form.Item name="manualLogs" style={{ marginBottom: 0 }}>
-              <TextArea rows={3} placeholder="或手动粘贴 console 日志（可选）" style={{ fontFamily: 'monospace', fontSize: 12 }} />
+              <TextArea
+                rows={3}
+                placeholder="或手动粘贴 console 日志（可选）"
+                style={{ fontFamily: "monospace", fontSize: 12 }}
+              />
             </Form.Item>
           </div>
         </Form>
@@ -384,26 +504,24 @@ export default function BugReport() {
               <Descriptions.Item label="状态">
                 <Tag color={BUG_STATUS_COLOR[detail.status]}>{detail.status}</Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="报告人">{detail.reporter || '—'}</Descriptions.Item>
-              <Descriptions.Item label="页面">{detail.pageUrl || '—'}</Descriptions.Item>
+              <Descriptions.Item label="报告人">{detail.reporter || "—"}</Descriptions.Item>
+              <Descriptions.Item label="页面">{detail.pageUrl || "—"}</Descriptions.Item>
               <Descriptions.Item label="问题描述">
-                <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{detail.description || '—'}</Paragraph>
+                <Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{detail.description || "—"}</Paragraph>
               </Descriptions.Item>
               {detail.resolution && (
                 <Descriptions.Item label="解决方案">
-                  <Paragraph style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{detail.resolution}</Paragraph>
+                  <Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{detail.resolution}</Paragraph>
                 </Descriptions.Item>
               )}
-              {detail.resolvedBy && (
-                <Descriptions.Item label="处理人">{detail.resolvedBy}</Descriptions.Item>
-              )}
+              {detail.resolvedBy && <Descriptions.Item label="处理人">{detail.resolvedBy}</Descriptions.Item>}
               {detail.resolvedAt && (
                 <Descriptions.Item label="处理时间">{dayjs(detail.resolvedAt).format(DATE_FORMAT)}</Descriptions.Item>
               )}
               <Descriptions.Item label="提交时间">{dayjs(detail.createdAt).format(DATE_FORMAT)}</Descriptions.Item>
               {detail.userAgent && (
                 <Descriptions.Item label="浏览器">
-                  <Text style={{ fontSize: 11, wordBreak: 'break-all' }}>{detail.userAgent}</Text>
+                  <Text style={{ fontSize: 11, wordBreak: "break-all" }}>{detail.userAgent}</Text>
                 </Descriptions.Item>
               )}
             </Descriptions>
@@ -411,48 +529,94 @@ export default function BugReport() {
             {detail.screenshot && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontWeight: 500, marginBottom: 8 }}>截图</div>
-                <Image src={detail.screenshot} alt="bug screenshot" style={{ maxWidth: '100%', border: '1px solid #d9d9d9', borderRadius: 4 }} />
+                <Image
+                  src={detail.screenshot}
+                  alt="bug screenshot"
+                  style={{ maxWidth: "100%", border: "1px solid #d9d9d9", borderRadius: 4 }}
+                />
               </div>
             )}
 
             {detail.consoleLogs && (
               <div style={{ marginTop: 16 }}>
                 <div style={{ fontWeight: 500, marginBottom: 8 }}>Console 日志</div>
-                <div style={{
-                  maxHeight: 300, overflow: 'auto', background: '#1e1e1e', color: '#d4d4d4',
-                  padding: 8, borderRadius: 4, fontSize: 11, fontFamily: 'monospace',
-                  whiteSpace: 'pre-wrap',
-                }}>
+                <div
+                  style={{
+                    maxHeight: 300,
+                    overflow: "auto",
+                    background: "#1e1e1e",
+                    color: "#d4d4d4",
+                    padding: 8,
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
                   {detail.consoleLogs}
                 </div>
               </div>
             )}
 
-            <div style={{ marginTop: 16, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+            <div style={{ marginTop: 16, borderTop: "1px solid #f0f0f0", paddingTop: 16 }}>
               <Space>
-                <Button icon={<EditOutlined />} onClick={() => {
-                  if (!detail) return;
-                  setDetailOpen(false);
-                  setEditingBug(detail);
-                  editForm.setFieldsValue({ title: detail.title, description: detail.description, severity: detail.severity, pageUrl: detail.pageUrl, reporter: detail.reporter });
-                  setEditOpen(true);
-                }}>编辑</Button>
-                {detail.status === '待处理' && (
-                  <Button type="primary" onClick={() => { handleUpdate(detail.id, '处理中'); setDetailOpen(false); }}>
+                <Button
+                  icon={<EditOutlined />}
+                  onClick={() => {
+                    if (!detail) return;
+                    setDetailOpen(false);
+                    setEditingBug(detail);
+                    editForm.setFieldsValue({
+                      title: detail.title,
+                      description: detail.description,
+                      severity: detail.severity,
+                      pageUrl: detail.pageUrl,
+                      reporter: detail.reporter,
+                    });
+                    setEditOpen(true);
+                  }}
+                >
+                  编辑
+                </Button>
+                {detail.status === "待处理" && (
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      handleUpdate(detail.id, "处理中");
+                      setDetailOpen(false);
+                    }}
+                  >
                     开始处理
                   </Button>
                 )}
-                {detail.status === '处理中' && (
-                  <Button type="primary" onClick={() => { handleUpdate(detail.id, '已解决'); setDetailOpen(false); }}>
+                {detail.status === "处理中" && (
+                  <Button
+                    type="primary"
+                    onClick={() => {
+                      handleUpdate(detail.id, "已解决");
+                      setDetailOpen(false);
+                    }}
+                  >
                     标记已解决
                   </Button>
                 )}
-                {detail.status === '已解决' && (
-                  <Button onClick={() => { handleUpdate(detail.id, '已关闭'); setDetailOpen(false); }}>
+                {detail.status === "已解决" && (
+                  <Button
+                    onClick={() => {
+                      handleUpdate(detail.id, "已关闭");
+                      setDetailOpen(false);
+                    }}
+                  >
                     关闭问题
                   </Button>
                 )}
-                <Popconfirm title="确认删除？" onConfirm={() => { handleDelete(detail.id); setDetailOpen(false); }}>
+                <Popconfirm
+                  title="确认删除？"
+                  onConfirm={() => {
+                    handleDelete(detail.id);
+                    setDetailOpen(false);
+                  }}
+                >
                   <Button danger>删除</Button>
                 </Popconfirm>
               </Space>
@@ -464,14 +628,22 @@ export default function BugReport() {
       <Drawer
         title="编辑问题反馈"
         open={editOpen}
-        onClose={() => { setEditOpen(false); setEditingBug(null); editForm.resetFields(); }}
+        onClose={() => {
+          setEditOpen(false);
+          setEditingBug(null);
+          editForm.resetFields();
+        }}
         width={480}
         destroyOnClose
         maskClosable={false}
-        extra={<Button type="primary" onClick={() => editForm.submit()}>保存</Button>}
+        extra={
+          <Button type="primary" onClick={() => editForm.submit()}>
+            保存
+          </Button>
+        }
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: '请输入问题标题' }]}>
+          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: "请输入问题标题" }]}>
             <Input placeholder="简要描述发现的问题" />
           </Form.Item>
           <Form.Item name="severity" label="严重程度">

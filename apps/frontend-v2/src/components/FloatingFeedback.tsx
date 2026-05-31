@@ -1,42 +1,46 @@
-import { useState } from 'react';
-import { FloatButton, Drawer, Form, Input, Select, Button, message, Image } from 'antd';
-import { CameraOutlined } from '@ant-design/icons';
-import { api } from '../api.js';
-import { useAuth } from '../hooks/useAuth.js';
-import { useSettings } from '../hooks/useSettings.js';
-import { getCapturedLogs } from '../utils/console-capture.js';
+import { useState } from "react";
+import { FloatButton, Drawer, Form, Input, Select, Button, message, Image } from "antd";
+import { CameraOutlined } from "@ant-design/icons";
+import { api } from "../api.js";
+import { useAuth } from "../hooks/useAuth.js";
+import { useSettings } from "../hooks/useSettings.js";
+import { getCapturedLogs } from "../utils/console-capture.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { TextArea } = Input;
 
 export default function FloatingFeedback() {
   const { user } = useAuth();
   const { getValues } = useSettings();
-  const SEVERITY_OPTIONS = getValues('Bug 严重程度', ['严重', '较高', '一般', '建议']).map((v) => ({ value: v, label: v }));
+  const SEVERITY_OPTIONS = getValues("Bug 严重程度", ["严重", "较高", "一般", "建议"]).map((v) => ({
+    value: v,
+    label: v,
+  }));
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
-  const [capturedUrl, setCapturedUrl] = useState('');
+  const [capturedUrl, setCapturedUrl] = useState("");
   const [form] = Form.useForm();
 
   const captureAndOpen = async () => {
     const url = window.location.href;
-    const hide = message.loading('正在截取当前页面…', 0);
+    const hide = message.loading("正在截取当前页面…", 0);
     let shot: string | null = null;
     try {
-      const html2canvas = (await import('html2canvas')).default;
+      const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(document.body, {
         logging: false,
         useCORS: true,
-        backgroundColor: '#ffffff',
+        backgroundColor: "#ffffff",
         scale: 1,
         width: window.innerWidth,
         height: window.innerHeight,
         x: window.scrollX,
         y: window.scrollY,
-        ignoreElements: (el) => !!el.classList?.contains?.('feedback-float-ignore'),
+        ignoreElements: (el) => !!el.classList?.contains?.("feedback-float-ignore"),
       });
       // JPEG 0.7 体积通常仅 PNG 的 1/3 ~ 1/5,避免后端 body 超限(20mb)被拒。
-      shot = canvas.toDataURL('image/jpeg', 0.7);
+      shot = canvas.toDataURL("image/jpeg", 0.7);
     } catch {
       // Capture can fail (e.g. tainted canvas from cross-origin images);
       // still open the form so the user can submit text-only feedback.
@@ -54,21 +58,21 @@ export default function FloatingFeedback() {
       await api.createBugReport({
         title: values.title,
         description: values.description,
-        severity: values.severity || '一般',
+        severity: values.severity || "一般",
         pageUrl: values.pageUrl || capturedUrl || window.location.href,
-        reporter: user?.displayName || user?.username || '',
+        reporter: user?.displayName || user?.username || "",
         screenshot: screenshot ?? undefined,
         consoleLogs: getCapturedLogs() || undefined,
         userAgent: navigator.userAgent,
       });
-      message.success('反馈已提交');
+      message.success("反馈已提交");
       // 通知问题反馈列表页(如果同时打开)立即拉取最新条目;CustomEvent 比 storage event 更精准。
-      window.dispatchEvent(new CustomEvent('bug-report:created'));
+      window.dispatchEvent(new CustomEvent("bug-report:created"));
       setOpen(false);
       setScreenshot(null);
       form.resetFields();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e, "提交反馈失败");
     } finally {
       setSubmitting(false);
     }
@@ -97,10 +101,19 @@ export default function FloatingFeedback() {
         onClose={close}
         destroyOnClose
         maskClosable={false}
-        extra={<Button type="primary" loading={submitting} onClick={() => form.submit()}>提交反馈</Button>}
+        extra={
+          <Button type="primary" loading={submitting} onClick={() => form.submit()}>
+            提交反馈
+          </Button>
+        }
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ severity: '一般', pageUrl: capturedUrl }}>
-          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: '请输入问题标题' }]}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+          initialValues={{ severity: "一般", pageUrl: capturedUrl }}
+        >
+          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: "请输入问题标题" }]}>
             <Input placeholder="一句话描述问题" />
           </Form.Item>
           <Form.Item name="pageUrl" label="问题页面链接">
@@ -117,10 +130,10 @@ export default function FloatingFeedback() {
               <Image
                 src={screenshot}
                 alt="screenshot"
-                style={{ maxHeight: 220, border: '1px solid #d9d9d9', borderRadius: 4 }}
+                style={{ maxHeight: 220, border: "1px solid #d9d9d9", borderRadius: 4 }}
               />
             ) : (
-              <span style={{ color: '#999' }}>未能自动截取页面，可直接提交文字反馈</span>
+              <span style={{ color: "#999" }}>未能自动截取页面，可直接提交文字反馈</span>
             )}
           </Form.Item>
         </Form>
