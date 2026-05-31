@@ -525,6 +525,16 @@ const severities = getValues('Bug 严重程度', ['严重', '较高', '一般', 
 3. 配置项一览见 `docs/UI_CONFIG_AUDIT.md` 和 `help-content.ts` 的 `configCenter` 条目。
 4. **排除项**(允许硬编码):角色码 admin/leader/normal、分页 `[10,20,50,100]`、`constants.ts` enum→颜色映射、文件类型、技术参数(KG 布局/Radio link-custom 等)、nodeType 代码。
 
+### UX 改进(2026-05-31 引入,见 `docs/REVIEWS/REVIEW_ux.md`)
+
+针对 review 7.0/10 总评 五项 quick wins,合并后均挂在全站 `AppLayout`:
+
+1. **AI 助手全站浮窗** — `<HermesChat title="AI 问答" bottom={156} />` 挂到 `AppLayout`,所有页面右下机器人可拖拽问答,不再局限知识图谱页。FloatingFeedback(bottom:24)→HermesChat(bottom:156)间距 132px,避免碰撞。
+2. **Dashboard 三卡** — `Dashboard.tsx` 在 4 个 Statistic 之后加 size=small 卡片:**分配给我** / **我的关注** / **SLA 风险**(进行中 + 超 3 天)。复用 AttackList 的 favorites localStorage 隔离。
+3. **AttackList 批量操作** — Table 加 `rowSelection`,选中 ≥1 行后蓝色工具条暴露「批量删除(仅创建人)」「批量加关注 ★」「取消选择」;深链 `?new=1` 自动打开新建抽屉(供 CommandPalette 调用)。
+4. **Cmd+K 命令面板** — `components/CommandPalette.tsx`,Modal 形态,触发 `Ctrl/Cmd + K`,12 个导航命令 + 1 个"新建攻关单" + 输入非空时的"搜索"命令。↑↓ Enter Esc 键盘流。挂在 `AppLayout`。
+5. **菜单瘦身** — 一级菜单从 10 项 → 6 项。文档中心/全局搜索/知识图谱/问题反馈/帮助中心 5 个零散工具收纳到新建二级组「工具」(ToolOutlined)。系统管理图标改 SettingOutlined。
+
 ## E2E Test Hard-Won Discoveries (Frontend-v2)
 
 ### Ant Design 5 自动在2字符中文按钮文本间插入空格

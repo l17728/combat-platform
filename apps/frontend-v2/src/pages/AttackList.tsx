@@ -59,6 +59,8 @@ export default function AttackList() {
   const [submitting, setSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -88,6 +90,16 @@ export default function AttackList() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { api.listNodes('person').then(setPeople).catch(() => {}); }, []);
+
+  // CommandPalette / 深链 ?new=1 一键打开新建抽屉
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setDrawerOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('new');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const fieldOptions = useMemo(() => {
     if (!schema) return [];
@@ -176,6 +188,43 @@ export default function AttackList() {
   const handleDelete = async (id: string) => {
     try { await api.deleteNode(id); message.success('删除成功'); fetchData(); }
     catch (e: any) { message.error(e.message); }
+  };
+
+  // 批量删除:仅删除当前用户为「创建人」的行,其它行静默跳过(避免悄悄越权)
+  const handleBatchDelete = async () => {
+    const ids = new Set(selectedRowKeys.map(String));
+    const targets = nodes.filter((n) => ids.has(n.id));
+    const me = (user?.username || '').trim();
+    const deletable = targets.filter((n) => {
+      const creator = String(n.properties['创建人'] ?? '').trim();
+      return creator && me && creator === me;
+    });
+    const skipped = targets.length - deletable.length;
+    if (deletable.length === 0) {
+      message.warning(skipped > 0 ? `选中的 ${skipped} 条均非本人创建,无法删除` : '请先选择需要删除的攻关单');
+      return;
+    }
+    setBatchDeleting(true);
+    let ok = 0; let fail = 0;
+    for (const n of deletable) {
+      try { await api.deleteNode(n.id); ok++; } catch { fail++; }
+    }
+    setBatchDeleting(false);
+    setSelectedRowKeys([]);
+    if (ok > 0) message.success(`已删除 ${ok} 条${fail ? ',失败 ' + fail : ''}${skipped ? ',跳过非本人创建 ' + skipped : ''}`);
+    else message.error('批量删除失败');
+    fetchData();
+  };
+
+  const handleBatchFavorite = () => {
+    if (selectedRowKeys.length === 0) { message.warning('请先选择需要关注的攻关单'); return; }
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      selectedRowKeys.forEach((k) => next.add(String(k)));
+      return next;
+    });
+    message.success(`已加入关注 ${selectedRowKeys.length} 条`);
+    setSelectedRowKeys([]);
   };
 
   const handleExport = async () => {
@@ -367,15 +416,53 @@ export default function AttackList() {
         </Popover>
       </Space>
 
+      {selectedRowKeys.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: '#e6f4ff',
+            border: '1px solid #91caff',
+            borderRadius: 6,
+            padding: '6px 12px',
+            marginBottom: 12,
+          }}
+        >
+          <Text>已选 <b>{selectedRowKeys.length}</b> 条</Text>
+          <Space>
+            <Button size="small" icon={<StarOutlined />} onClick={handleBatchFavorite}>批量加关注</Button>
+            <Popconfirm
+              title={`确认删除选中的 ${selectedRowKeys.length} 条?仅本人创建的会被删除`}
+              onConfirm={handleBatchDelete}
+            >
+              <Button size="small" danger loading={batchDeleting}>批量删除(仅创建人)</Button>
+            </Popconfirm>
+            <Button size="small" type="link" onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+          </Space>
+        </div>
+      )}
+
       {loading ? <Skeleton active paragraph={{ rows: 6 }} /> : (
         <FlexWrapper>
           <Table rowKey="id" dataSource={filteredNodes} columns={flexCols}
             components={tableComponents}
             scroll={{ x: true }}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys),
+              columnWidth: 40,
+              fixed: true,
+            }}
             pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
             size="middle"
             onRow={(r) => ({
-              onClick: (e) => { if ((e.target as HTMLElement).tagName !== 'A') navigate(`/attack/${r.id}`); },
+              onClick: (e) => {
+                const tag = (e.target as HTMLElement).tagName;
+                // 选择 checkbox 时不要触发跳转
+                if (tag === 'A' || tag === 'INPUT' || (e.target as HTMLElement).closest('.ant-checkbox-wrapper')) return;
+                navigate(`/attack/${r.id}`);
+              },
               // 已关注的行整行底色淡黄 + 左侧金色细条,在「全部」里一眼可辨;不删除、仅标记。
               style: { cursor: 'pointer', ...(favorites.has(r.id) ? { background: '#fffbe6', boxShadow: 'inset 3px 0 0 #fadb14' } : {}) },
             })}
