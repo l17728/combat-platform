@@ -4,6 +4,39 @@
 
 线上地址：http://124.156.193.122:3001/ （默认登录 `admin` / `admin123`）
 
+## 🚀 新人 5 分钟跑起来
+
+```bash
+# 1. clone + 装依赖（npm workspaces，会拉所有 workspace 包）
+git clone https://github.com/l17728/combat-platform.git
+cd combat-platform
+npm install
+
+# 2. 开两个 terminal 各跑一个
+npm run dev:backend       # 后端 :3001 (tsx watch)
+npm run dev:frontend-v2   # 前端 :5174 (vite dev,代理 /api 到 3001)
+
+# 3. 浏览器打开 http://localhost:5174,默认账号 admin/admin123
+```
+
+第一次跑：后端在 `apps/backend/combat.sqlite` 自动建库 + seed 默认 admin；前端 vite 自动热更新。
+
+### 进阶
+
+- **后端测试**：`npm run test:backend`（vitest e2e）
+- **前端 e2e**：`npx playwright test --config=apps/frontend-v2/playwright.config.ts`（~14min 全套）
+- **CLI 工具**：`npm run cli -- help`（每个 HTTP API 都有对应 CLI 命令）
+- **配置 schema**：`config/schemas/*.json`（加字段是配置改动，不是 DDL 迁移）
+- **切 Postgres**：设 `DB_URL=postgres://...`，详见 [docs/POSTGRES_SUPPORT.md](docs/POSTGRES_SUPPORT.md)
+
+### 必读文档（按上手优先级）
+
+1. [CLAUDE.md](CLAUDE.md) — 13 条核心原则 + 项目宪法
+2. [AGENTS.md](AGENTS.md) — 累积 hard-won 经验
+3. [docs/POSTGRES_SUPPORT.md](docs/POSTGRES_SUPPORT.md) — Postgres 切换路线图
+4. [docs/REVIEWS/](docs/REVIEWS/) — 5 位顶级专家盲审报告
+5. [docs/BLOG*技术评审*作战平台.md](docs/BLOG_技术评审_作战平台.md) — 5 篇 review 重写的深度科普博客
+
 ## 架构概览
 
 ```
@@ -17,18 +50,19 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 
 ## 技术栈
 
-| 层 | 技术 |
-|---|------|
-| 后端 | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM) |
-| 前端 | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 |
-| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽） |
-| 认证 | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin） |
-| 测试 | Vitest (后端 315 个 e2e 测试) + Playwright (前端 e2e) |
-| 部署 | 直连 SSH → Ubuntu 目标服务器 (systemd 管理) |
+| 层       | 技术                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| 后端     | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM)           |
+| 前端     | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 |
+| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽）                  |
+| 认证     | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin）   |
+| 测试     | Vitest (后端 315 个 e2e 测试) + Playwright (前端 e2e)                |
+| 部署     | 直连 SSH → Ubuntu 目标服务器 (systemd 管理)                          |
 
 ## 核心功能
 
 ### 攻关作战台
+
 - 攻关单 CRUD，30+ 字段，状态流转（待响应→处理中→进行中→已解决→已关闭）
 - 进展时间线，实时追加，自动快照状态
 - 找帮手智能推荐（基于历史贡献相似度匹配）
@@ -36,21 +70,25 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 - 字段筛选（多选 OR 逻辑）+ 表格列宽拖拽 + 列顺序拖拽
 
 ### 全员名单
+
 - 人员 CRUD + Excel 批量导入导出
 - 同名人员合并（实体解析，不可逆，审计记录）
 - 部门筛选、搜索
 
 ### 贡献与荣誉
+
 - 贡献录入（核心/关键/普通，加权 8/3/1）
 - 荣誉殿堂排行榜（个人 + 团队），个人贡献档案
 - 周期筛选
 
 ### 求助系统
+
 - 发起求助 → 自动发送邮件 → 对方点击链接填写反馈 → 自动录入攻关单进展
 - `help_requests` 表，4 个 API，公开反馈页（无需登录）
 - 依赖 SMTP 配置
 
 ### 系统管理
+
 - 数据导入/导出（多实体类型，dryRun 预览）
 - 邮件 SMTP 配置 + 测试发送
 - 完整审计日志（所有变更操作可追溯）
@@ -64,6 +102,7 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 ## 快速开始
 
 ### 环境要求
+
 - Node.js >= 22（better-sqlite3 兼容性要求）
 - npm >= 10
 
@@ -129,6 +168,7 @@ ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 ```
 
 部署内容：
+
 - 后端：`tsx src/server.ts`，监听 `0.0.0.0:3001`
 - 前端：Vite 构建产物由 Express 托管在 3001 端口
 - systemd 服务：`combat-v2.service`，自动重启，开机自启
@@ -145,27 +185,27 @@ npm run cli -- help                        # 列出所有命令
 
 ## API 概览
 
-| 类别 | 示例端点 | 说明 |
-|------|----------|------|
-| 认证 | `POST /api/auth/login` / `POST /api/auth/register` | JWT 登录注册 |
-| 通用 CRUD | `GET/POST /api/nodes/:nodeType` | 配置驱动，16+ 实体类型 |
-| 单条操作 | `GET/PUT/DELETE /api/nodes/:id` | 读取/更新/删除 |
-| 进展时间线 | `GET/POST /api/nodes/:id/progress` | 追加进展 |
-| 状态流转 | `POST /api/nodes/:id/transition` | 状态机转换 |
-| 找帮手 | `GET /api/recommend/helpers/:id` | 智能推荐 |
-| 荣誉排行 | `GET /api/honor/leaderboard` | 加权排行榜 |
-| 仪表盘 | `GET /api/dashboard` | 态势概览 |
-| 求助系统 | `POST /api/help-requests` | 创建求助+发邮件 |
-| 反馈提交 | `POST /api/help/feedback/:token` | 公开反馈（无需登录） |
-| 导入导出 | `POST /api/import` / `GET /api/export/:type` | Excel 导入导出 |
-| Schema | `GET/PATCH /api/schema/:nodeType` | 动态字段管理 |
-| 审计日志 | `GET /api/audit` | 全量操作审计 |
-| 操作日志 | `GET /api/op-logs` | 前端操作追踪 |
-| 邮件 | `PUT /api/email/config` / `POST /api/email/send` | SMTP 配置与发送 |
-| 问题反馈 | `GET/POST /api/bug-reports` | Bug 报告（POST 无需登录） |
-| 用户管理 | `GET/POST /api/auth/users` | 管理员用户 CRUD |
-| 备份 | `GET /api/backup` / `POST /api/backup/restore` | 数据库备份恢复 |
-| 配置中心 | `GET/PUT /api/settings` | 运行时配置管理 |
+| 类别       | 示例端点                                           | 说明                      |
+| ---------- | -------------------------------------------------- | ------------------------- |
+| 认证       | `POST /api/auth/login` / `POST /api/auth/register` | JWT 登录注册              |
+| 通用 CRUD  | `GET/POST /api/nodes/:nodeType`                    | 配置驱动，16+ 实体类型    |
+| 单条操作   | `GET/PUT/DELETE /api/nodes/:id`                    | 读取/更新/删除            |
+| 进展时间线 | `GET/POST /api/nodes/:id/progress`                 | 追加进展                  |
+| 状态流转   | `POST /api/nodes/:id/transition`                   | 状态机转换                |
+| 找帮手     | `GET /api/recommend/helpers/:id`                   | 智能推荐                  |
+| 荣誉排行   | `GET /api/honor/leaderboard`                       | 加权排行榜                |
+| 仪表盘     | `GET /api/dashboard`                               | 态势概览                  |
+| 求助系统   | `POST /api/help-requests`                          | 创建求助+发邮件           |
+| 反馈提交   | `POST /api/help/feedback/:token`                   | 公开反馈（无需登录）      |
+| 导入导出   | `POST /api/import` / `GET /api/export/:type`       | Excel 导入导出            |
+| Schema     | `GET/PATCH /api/schema/:nodeType`                  | 动态字段管理              |
+| 审计日志   | `GET /api/audit`                                   | 全量操作审计              |
+| 操作日志   | `GET /api/op-logs`                                 | 前端操作追踪              |
+| 邮件       | `PUT /api/email/config` / `POST /api/email/send`   | SMTP 配置与发送           |
+| 问题反馈   | `GET/POST /api/bug-reports`                        | Bug 报告（POST 无需登录） |
+| 用户管理   | `GET/POST /api/auth/users`                         | 管理员用户 CRUD           |
+| 备份       | `GET /api/backup` / `POST /api/backup/restore`     | 数据库备份恢复            |
+| 配置中心   | `GET/PUT /api/settings`                            | 运行时配置管理            |
 
 完整 API 文档见 `docs/API_REFERENCE.md`。
 
@@ -189,25 +229,25 @@ npm run cli -- help                        # 列出所有命令
 
 ## 前端页面清单（25+）
 
-| 页面 | 路由 | 说明 |
-|------|------|------|
-| 仪表盘 | `/` | 作战态势概览 |
-| 攻关列表 | `/attack` | 攻关单 CRUD + 筛选 + 导出 |
-| 攻关详情 | `/attack/:id` | 进展时间线 + 求助 + 找帮手 |
-| 全员名单 | `/people` | 人员管理 + 导入导出 |
-| 贡献录入 | `/contributions` | 贡献 CRUD |
-| 荣誉殿堂 | `/honor` | 排行榜 + 个人档案 |
-| 求助中心 | `/help` | 求助记录管理 |
-| 求助反馈 | `/help/feedback/:token` | 公开反馈页（无需登录） |
-| 导入导出 | `/import` | Excel 批量导入导出 |
-| 邮件设置 | `/email` | SMTP 配置 |
-| 审计日志 | `/audit` | 全量操作审计 |
-| 操作日志 | `/op-log` | 前端操作追踪 |
-| 配置中心 | `/config` | 运行时配置管理 |
-| 用户管理 | `/users` | 管理员用户 CRUD |
-| 问题反馈 | `/bug-report` | Bug 提交 + 截图 |
-| 攻关日报 | `/daily-report` | 当日进展日报 |
-| 登录页 | `/login` | JWT 登录 |
+| 页面     | 路由                    | 说明                       |
+| -------- | ----------------------- | -------------------------- |
+| 仪表盘   | `/`                     | 作战态势概览               |
+| 攻关列表 | `/attack`               | 攻关单 CRUD + 筛选 + 导出  |
+| 攻关详情 | `/attack/:id`           | 进展时间线 + 求助 + 找帮手 |
+| 全员名单 | `/people`               | 人员管理 + 导入导出        |
+| 贡献录入 | `/contributions`        | 贡献 CRUD                  |
+| 荣誉殿堂 | `/honor`                | 排行榜 + 个人档案          |
+| 求助中心 | `/help`                 | 求助记录管理               |
+| 求助反馈 | `/help/feedback/:token` | 公开反馈页（无需登录）     |
+| 导入导出 | `/import`               | Excel 批量导入导出         |
+| 邮件设置 | `/email`                | SMTP 配置                  |
+| 审计日志 | `/audit`                | 全量操作审计               |
+| 操作日志 | `/op-log`               | 前端操作追踪               |
+| 配置中心 | `/config`               | 运行时配置管理             |
+| 用户管理 | `/users`                | 管理员用户 CRUD            |
+| 问题反馈 | `/bug-report`           | Bug 提交 + 截图            |
+| 攻关日报 | `/daily-report`         | 当日进展日报               |
+| 登录页   | `/login`                | JWT 登录                   |
 
 ## 项目结构
 
