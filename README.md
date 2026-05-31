@@ -295,12 +295,32 @@ npm run cli -- help                        # 列出所有命令
 └── SYSTEM_REFERENCE.md    # 系统参考文档
 ```
 
-## 测试状态（2026-05-28）
+## 测试状态(2026-06-01,v2.7.0)
 
-- **315/315** 后端 Vitest 测试通过（51 test files）
-- **13/13** 攻关页面 Playwright 测试通过
-- **8/8** 人员页面 Playwright 测试通过
-- 全量 368 e2e 套件因资源超时偶现 worker 崩溃（非代码问题）
+- **739/739** 后端 Vitest 通过(98 test files)
+- **28/28** shared vitest 通过
+- Frontend tsc 0 错
+- Frontend e2e:多视图 12 + schema-driven 25 + 抽屉/详情回归 47+ 全绿
+- **Hermes LLM 端到端 golden set 15/15 通过**(模型 glm-4-flash + thinking disabled)
+
+## 当前版本
+
+- **v2.7.0** — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图(Kanban/Calendar/Pivot)
+- 完整版本历史见 [docs/V2.7_RELEASE.md](docs/V2.7_RELEASE.md) 与 [docs/ROADMAP.md](docs/ROADMAP.md)
+
+### 已交付里程碑
+
+| 版本 | 主题 |
+|---|---|
+| v2.0 | Welink + Postgres + UI 配置化 |
+| v2.1 | Roadmap 4 桶整合(安全/性能/UX/质量) |
+| v2.2 | P1 三桶(sec/perf/quality) |
+| v2.3 | 一键升级 UI + Schema overlay |
+| v2.4 | harden + resilience + upgrade-real |
+| v2.4.1 | hot-fix React #310 + AI 抖动 |
+| v2.5 | Hermes Tool-using Agent + 14 通用工具 |
+| v2.6 | LLM 端到端 + Inbox + 面包屑 + Schema-as-UI(attackTicket) |
+| **v2.7** | **Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图** |
 
 ## License
 

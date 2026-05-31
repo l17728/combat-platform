@@ -445,3 +445,67 @@ BFS 图谱快照（沿 REF/ANCHORED_TO/CONFLICTS_WITH/OVERLAPS_WITH 边遍历）
 ## 配置驱动元注
 
 `POST /api/nodes/:type` 接收**任意** properties，不在 schema 的属性也存（schema 是渲染/校验/派生用，不是存储用）。前端 EntityTable 按 schema 渲染列。新加 nodeType = `config/schemas/<type>.json` + 一个 `<Route element={<EntityTable nodeType="..." />}>` 即可（增量7 案例：releasePackage/weightFile 零后端代码）。
+
+## v2.5+ Hermes 工具集 (14 工具)
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/api/hermes/tools` | 列出 14 工具(name+schema) |
+| POST | `/api/hermes/tool/:name` | 调用单个工具 — body `{input:{...}}` |
+| POST | `/api/hermes/ask` | LLM agent 问答 — body `{question, mode?:auto\|tool\|intent}`,返回 `{answer, citations, trace, engine, fallback_reason?}` |
+
+工具: list_node_types / describe_node_type / count_nodes / query_nodes / get_node / search_text / traverse_graph / get_progress / get_audit / aggregate / dashboard_metric / recommend_helpers / ticket_tabs / welink_*。详见 `docs/HERMES_TOOLS.md`。
+
+## v2.6+ LLM 设置 (admin only)
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/api/llm-settings` | 当前配置(apiKey 掩码) |
+| PUT | `/api/llm-settings` | 更新配置(可选 apiKey,AES-256-GCM 加密入库) |
+| POST | `/api/llm-settings/test` | 测试连接(v2.7 加 env-fallback) |
+| **GET** | **`/api/llm-settings/models`** (**v2.7**) | 走 provider 的 `/v1/models` 列出实际可用 model |
+
+## v2.6+ 通知 Inbox
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/api/notifications?unread=&limit=` | 当前用户通知列表 |
+| GET | `/api/notifications/stream` | SSE 推送 |
+| POST | `/api/notifications/:id/read` | 标记已读 |
+| POST | `/api/notifications/read-all` | 全部标已读 |
+
+## v2.6+ Schema 字段操作
+
+`PATCH /api/schema/:nodeType` body:
+- `{op:'addField', field:{...}}`
+- `{op:'retireField', id:'<name>'}`
+- `{op:'setAlias', id, aliases:[]}`
+- **`{op:'updateField', fieldId, group?, order?, visible?, defaultValue?, validation?}`** (**v2.6**)
+
+## v2.4+ 一键升级
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/api/upgrade/current` | 当前版本 |
+| POST | `/api/upgrade/upload` | multipart `file` → stagingId |
+| POST | `/api/upgrade/upload-from-url` | GitHub Release URL 下载 |
+| POST | `/api/upgrade/upload-signature` | multipart `file=.asc` PGP 签名 |
+| POST | `/api/upgrade/analyze` | diff + 签名校验 |
+| POST | `/api/upgrade/apply` | spawn detached worker |
+| GET | `/api/upgrade/status` | 升级状态 |
+| GET | `/api/upgrade/history` | 历史 |
+| GET | `/api/upgrade/log/:jobId` | worker 日志 |
+| POST | `/api/upgrade/rollback` | 回滚 |
+| GET | `/api/upgrade/releases` | GitHub Releases |
+
+详见 `docs/UPGRADE.md`。
+
+## v2.4+ 韧性 + 监控
+
+| Method | Path | 用途 |
+|---|---|---|
+| GET | `/api/audit/verify` | 校验 Merkle 链 |
+| GET | `/api/kg-outbox/status` | KG 派生队列状态 |
+| POST | `/api/kg-outbox/replay` | 重放 failed |
+| POST | `/api/backup/offsite` | 异地备份(SFTP) |
+| GET | `/api/metrics` | Prometheus metrics |
