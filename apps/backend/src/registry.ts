@@ -142,6 +142,8 @@ export class FileSchemaRegistry implements SchemaRegistry {
         label: op.field.label,
         required: op.field.required,
         enumValues: op.field.enumValues,
+        group: op.field.group,
+        order: op.field.order,
       });
       this.writeOverlay(overlayFile, overlay);
     } else {
@@ -188,7 +190,38 @@ export class FileSchemaRegistry implements SchemaRegistry {
         label,
         required: op.field.required,
         enumValues: op.field.enumValues,
+        group: op.field.group,
+        order: op.field.order,
       });
+    } else if (op.op === "updateField") {
+      // v2.6: 更新字段的 schema-as-UI 元数据(group/order/visible/defaultValue/validation)。
+      // null = 显式清除该属性;undefined = 保持不变。
+      const f = find(op.id);
+      if (op.group !== undefined) {
+        if (op.group === null) delete f.group;
+        else if (typeof op.group !== "string") throw new Error("updateField.group 需要字符串或 null");
+        else f.group = op.group;
+      }
+      if (op.order !== undefined) {
+        if (op.order === null) delete f.order;
+        else if (typeof op.order !== "number" || !Number.isFinite(op.order))
+          throw new Error("updateField.order 需要数字或 null");
+        else f.order = op.order;
+      }
+      if (op.visible !== undefined) {
+        if (op.visible === null) delete f.visible;
+        else if (typeof op.visible !== "string") throw new Error("updateField.visible 需要字符串或 null");
+        else f.visible = op.visible;
+      }
+      if (op.defaultValue !== undefined) {
+        if (op.defaultValue === null) delete f.defaultValue;
+        else f.defaultValue = op.defaultValue;
+      }
+      if (op.validation !== undefined) {
+        if (op.validation === null) delete f.validation;
+        else if (typeof op.validation !== "object") throw new Error("updateField.validation 需要对象或 null");
+        else f.validation = op.validation;
+      }
     } else if (op.op === "renameLabel") {
       if (!op.label) throw new Error("renameLabel 需要非空 label");
       find(op.id).label = op.label;

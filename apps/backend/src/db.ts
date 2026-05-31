@@ -161,6 +161,21 @@ const SQLITE_SCHEMA_DDL = `
       subject TEXT, body TEXT,
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
+    /* v2.6 §1: 用户收件箱通知。与既有 notifications 表(实为 reminder 决策队列)分离,
+       避免语义混淆。每条 inbox_notification 对应"某用户应被告知的某事件";
+       read_at 为 null 即未读。 */
+    CREATE TABLE IF NOT EXISTS inbox_notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      link TEXT,
+      source_entity_id TEXT,
+      read_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_inbox_user_unread ON inbox_notifications(user_id, read_at, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(nodeType);
     CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(sourceId);
     CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(targetId);
@@ -299,6 +314,18 @@ const POSTGRES_SCHEMA_DDL = `
       subject TEXT, body TEXT,
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS inbox_notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT,
+      link TEXT,
+      source_entity_id TEXT,
+      read_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_inbox_user_unread ON inbox_notifications(user_id, read_at, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes("nodeType");
     CREATE INDEX IF NOT EXISTS idx_edges_source ON edges("sourceId");
     CREATE INDEX IF NOT EXISTS idx_edges_target ON edges("targetId");

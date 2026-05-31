@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar } from "antd";
-import PageBreadcrumb from "../components/PageBreadcrumb.js";
+import BreadcrumbBar from "../components/BreadcrumbBar.js";
+import NotificationBell from "../components/NotificationBell.js";
 import {
   DashboardOutlined,
   ThunderboltOutlined,
@@ -55,6 +56,7 @@ function getSelectedKey(path: string): string {
     [
       "/import",
       "/email",
+      "/llm-settings",
       "/audit",
       "/schema",
       "/config",
@@ -78,6 +80,7 @@ function getOpenKeysForPath(path: string): string[] {
     [
       "/import",
       "/email",
+      "/llm-settings",
       "/audit",
       "/schema",
       "/config",
@@ -175,6 +178,7 @@ export function AppLayout() {
         { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
         { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
         { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
+        ...(isAdmin ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
         { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
         { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
         ...(isAdmin ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
@@ -276,40 +280,43 @@ export function AppLayout() {
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </span>
           </Space>
-          <Dropdown
-            menu={{
-              items: [
-                {
-                  key: "role",
-                  label: (
-                    <span>
-                      角色: {user?.role === "admin" ? "管理员" : user?.role === "leader" ? "Leader" : "普通成员"}
-                    </span>
-                  ),
-                  disabled: true,
+          <Space size="middle">
+            <NotificationBell />
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "role",
+                    label: (
+                      <span>
+                        角色: {user?.role === "admin" ? "管理员" : user?.role === "leader" ? "Leader" : "普通成员"}
+                      </span>
+                    ),
+                    disabled: true,
+                  },
+                  { type: "divider" },
+                  ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
+                ],
+                onClick: ({ key }) => {
+                  if (key === "logout") {
+                    logout();
+                    navigate("/login");
+                  } else if (key.startsWith("/")) navigate(key);
                 },
-                { type: "divider" },
-                ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-                { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
-              ],
-              onClick: ({ key }) => {
-                if (key === "logout") {
-                  logout();
-                  navigate("/login");
-                } else if (key.startsWith("/")) navigate(key);
-              },
-            }}
-          >
-            <Space style={{ cursor: "pointer" }}>
-              <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
-              <Text>{user?.displayName || user?.username || "-"}</Text>
-              <DownOutlined style={{ fontSize: 10 }} />
-            </Space>
-          </Dropdown>
+              }}
+            >
+              <Space style={{ cursor: "pointer" }}>
+                <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: token.colorPrimary }} />
+                <Text>{user?.displayName || user?.username || "-"}</Text>
+                <DownOutlined style={{ fontSize: 10 }} />
+              </Space>
+            </Dropdown>
+          </Space>
         </Header>
 
         <Content style={{ padding: 24, maxWidth: 1400, margin: "0 auto", width: "100%" }}>
-          <PageBreadcrumb />
+          <BreadcrumbBar />
           <Outlet />
         </Content>
         <FloatingFeedback />

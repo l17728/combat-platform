@@ -1,0 +1,52 @@
+import { test, expect } from "@playwright/test";
+import { API, selectOption } from "./helpers";
+
+test.describe("LLM 设置 - v2.6", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/llm-settings");
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("页面渲染所有关键字段", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: /LLM 设置/ })).toBeVisible();
+    await expect(page.getByText("Provider 提供商")).toBeVisible();
+    await expect(page.getByText("baseURL")).toBeVisible();
+    await expect(page.getByText(/apiKey/).first()).toBeVisible();
+    await expect(page.getByText("defaultModel 主模型")).toBeVisible();
+    await expect(page.getByText("thinking 思考模式")).toBeVisible();
+    await expect(page.getByText("maxHops 工具最大轮数")).toBeVisible();
+    await expect(page.getByText("timeoutMs 单次超时(ms)")).toBeVisible();
+    await expect(page.getByRole("button", { name: /测试连接/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /保\s?存/ })).toBeVisible();
+  });
+
+  test("切换 provider 自动回填 baseURL + model 默认", async ({ page }) => {
+    const providerSelect = page.locator(".ant-select").nth(0);
+    await selectOption(page, providerSelect, "华为云");
+    const baseUrl = page.getByLabel("baseURL");
+    await expect(baseUrl).toHaveValue(/modelarts/);
+  });
+
+  test("修改 defaultModel + 保存 + GET 返回新值", async ({ page }) => {
+    const model = page.getByLabel("defaultModel 主模型");
+    await model.fill("glm-4.6-e2e-test");
+    await page.getByRole("button", { name: /保\s?存/ }).click();
+    await expect(page.getByText("保存成功").first()).toBeVisible({ timeout: 10000 });
+    // 直接打 API 校验 round-trip
+    const resp = await page.request.get(`${API}/api/llm-settings`);
+    expect(resp.ok()).toBe(true);
+    const body = await resp.json();
+    expect(body.defaultModel).toBe("glm-4.6-e2e-test");
+  });
+
+  test("测试连接按钮可点击 + 触发 message(成功或失败均可)", async ({ page }) => {
+    // 先填一个伪 apiKey 让测试有路径走完
+    await page.getByLabel("baseURL").fill("https://example-not-exist.test/v4");
+    const apiKey = page.getByLabel(/apiKey/);
+    await apiKey.fill("dummy-key-for-test");
+    await page.getByRole("button", { name: /测试连接/ }).click();
+    // 不假定网络可达,只验证 UI 出现了反馈 message
+    const feedback = page.getByText(/连接成功|连接失败|HTTP|缺少|未知错误|测试失败/).first();
+    await expect(feedback).toBeVisible({ timeout: 15000 });
+  });
+});

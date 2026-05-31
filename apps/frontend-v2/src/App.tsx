@@ -13,6 +13,7 @@ import HelpCenter from "./pages/HelpCenter.js";
 import HelpFeedback from "./pages/HelpFeedback.js";
 import ImportExport from "./pages/ImportExport.js";
 import EmailSettings from "./pages/EmailSettings.js";
+import LlmSettings from "./pages/LlmSettings.js";
 import AuditLog from "./pages/AuditLog.js";
 import DailyReportPage from "./pages/DailyReport.js";
 import RelatedPage from "./pages/RelatedPage.js";
@@ -28,6 +29,7 @@ import UserManagement from "./pages/UserManagement.js";
 import DbMigration from "./pages/DbMigration.js";
 import SystemUpgrade from "./pages/SystemUpgrade.js";
 import OperationLog from "./pages/OperationLog.js";
+import NotificationsPage from "./pages/NotificationsPage.js";
 import BackupRestore from "./pages/BackupRestore.js";
 import DocumentCenter from "./pages/DocumentCenter.js";
 import ManualCenter from "./pages/ManualCenter.js";
@@ -119,6 +121,14 @@ function AppInner() {
         <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
         <Route path="/import" element={<ImportExport />} />
         <Route path="/email" element={<EmailSettings />} />
+        <Route
+          path="/llm-settings"
+          element={
+            <AdminGuard>
+              <LlmSettings />
+            </AdminGuard>
+          }
+        />
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/schema" element={<SchemaWizard />} />
         <Route path="/config" element={<ConfigCenter />} />
@@ -141,6 +151,7 @@ function AppInner() {
           }
         />
         <Route path="/bug-report" element={<BugReport />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/users" element={<UserManagement />} />
         <Route path="/op-log" element={<OperationLog />} />
         <Route path="/backup" element={<BackupRestore />} />

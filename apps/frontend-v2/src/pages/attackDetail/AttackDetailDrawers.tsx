@@ -18,6 +18,7 @@ import StatusTag from "../../components/StatusTag.js";
 import AddTabModal from "../../components/AddTabModal.js";
 import { DATE_FORMAT } from "../../constants.js";
 import { STATUS_STEPS, STATUS_STEP_ICON, getStatusStepIndex } from "./AttackDetailHeader.js";
+import { SchemaFieldInput, buildFormRules, groupAndSortFields } from "../../components/SchemaField.js";
 import type { FormInstance } from "antd";
 import type { FieldSchema, GraphNode } from "@combat/shared";
 import type { TeamRole } from "../../utils/teamMembers.js";
@@ -32,7 +33,12 @@ export interface AttackDetailDrawersProps {
   isPrivate: boolean;
   emailGroups: GraphNode[];
   personOptions: { value: string; label: string }[];
-  extraEditFields: FieldSchema[];
+  /**
+   * v2.6: 编辑抽屉的字段全部 schema 驱动。
+   * 这里收到的是「可在通用编辑抽屉里渲染的字段」(已剔除 specialControl/system/retired)。
+   * 攻关组长/攻关成员/成员列表/私密 等 specialControl 字段不在此列表里 — 它们由专用 UI 维护。
+   */
+  editableFields: FieldSchema[];
   STATUS_OPTIONS: string[];
   ROLE_OPTIONS: TeamRole[];
   DR_TYPES: string[];
@@ -118,101 +124,62 @@ export default function AttackDetailDrawers(p: AttackDetailDrawersProps) {
         }
       >
         <Form form={p.editForm} layout="vertical" onFinish={p.onEditSubmit}>
-          <Divider orientation="left" orientationMargin={0}>
-            基本信息
-          </Divider>
-          <Form.Item name="标题" label="标题" rules={[{ required: true, message: "标题不能为空" }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="状态" label="状态">
-            <Select options={p.STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
-          </Form.Item>
-          <Form.Item name="问题单号" label="问题单号">
-            <Input />
-          </Form.Item>
-          <Form.Item name="事件单号" label="事件单号">
-            <Input />
-          </Form.Item>
-          <Form.Item name="事件级别" label="事件级别">
-            <Input />
-          </Form.Item>
-          <Form.Item name="客户名称" label="客户名称">
-            <Input />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            人员信息
-          </Divider>
-          <Form.Item name="当前处理人" label="当前处理人">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索人员"
-              options={p.personOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="攻关组长" label="攻关组长">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索人员"
-              options={p.personOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="攻关成员" label="攻关成员" tooltip="多选组员;组长在上方选,不要重复">
-            <Select
-              mode="multiple"
-              showSearch
-              allowClear
-              placeholder="从全员名单多选组员"
-              options={p.personOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="攻关申请人" label="攻关申请人">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索人员"
-              options={p.personOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            详细信息
-          </Divider>
-          <Form.Item name="影响及现存风险" label="影响及现存风险">
-            <Input.TextArea rows={3} />
-          </Form.Item>
-          <Form.Item name="资源ID" label="资源ID">
-            <Input />
-          </Form.Item>
-          <Form.Item name="租户ID" label="租户ID">
-            <Input />
-          </Form.Item>
-          {p.extraEditFields.length > 0 && (
-            <>
-              <Divider orientation="left" orientationMargin={0}>
-                其它字段
-              </Divider>
-              {p.extraEditFields.map((f) => (
-                <Form.Item key={f.id} name={f.name} label={f.label}>
-                  {f.type === "enum" ? (
-                    <Select allowClear options={(f.enumValues ?? []).map((v) => ({ value: v, label: v }))} />
-                  ) : f.type === "number" ? (
-                    <Input type="number" placeholder={f.label} />
-                  ) : f.type === "date" ? (
-                    <Input type="date" />
-                  ) : f.type === "datetime" ? (
-                    <Input type="datetime-local" />
-                  ) : (
-                    <Input placeholder={f.label} />
-                  )}
-                </Form.Item>
-              ))}
-            </>
-          )}
+          {/*
+            v2.6: 编辑抽屉 schema 驱动 —
+            字段、分组、顺序、必填、校验都来自 FieldSchema(SchemaWizard 维护)。
+            specialControl='member-multi/member-leader/private-grants/system' 等字段在父组件
+            过滤后不会出现在 editableFields,它们由「成员管理」Tab + 「设置私密」Drawer 维护。
+            「攻关成员」(specialControl='member-multi') 是一个特例:它在抽屉里也提供多选,
+            方便不进成员 tab 也能快速改。父组件单独把它加在 editableFields 末尾时,这里
+            会自动识别 type=string + specialControl=member-multi → 渲染 multiple Select。
+          */}
+          {(() => {
+            const groups = groupAndSortFields(p.editableFields);
+            return groups.map(({ group, fields }) => (
+              <div key={group}>
+                <Divider orientation="left" orientationMargin={0}>
+                  {group}
+                </Divider>
+                {fields.map((f) => {
+                  // specialControl 字段在通用渲染器里不能正确显示,需要兜底
+                  if (f.specialControl === "member-multi") {
+                    return (
+                      <Form.Item
+                        key={f.id}
+                        name={f.name}
+                        label={f.label}
+                        tooltip="多选组员;组长在「攻关组长」字段选,不要重复"
+                      >
+                        <Select
+                          mode="multiple"
+                          showSearch
+                          allowClear
+                          placeholder="从全员名单多选组员"
+                          options={p.personOptions}
+                          filterOption={(input, option) =>
+                            (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                          }
+                        />
+                      </Form.Item>
+                    );
+                  }
+                  // 状态字段优先用 STATUS_OPTIONS(可被 useSettings 覆盖)
+                  if (f.name === "状态") {
+                    return (
+                      <Form.Item key={f.id} name={f.name} label={f.label} rules={buildFormRules(f) as any}>
+                        <Select options={p.STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+                      </Form.Item>
+                    );
+                  }
+                  return (
+                    <Form.Item key={f.id} name={f.name} label={f.label} rules={buildFormRules(f) as any}>
+                      <SchemaFieldInput field={f} personOptions={p.personOptions} />
+                    </Form.Item>
+                  );
+                })}
+              </div>
+            ));
+          })()}
         </Form>
       </Drawer>
 

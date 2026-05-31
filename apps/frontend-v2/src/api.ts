@@ -24,6 +24,44 @@ import type {
   ConflictItem,
 } from "@combat/shared";
 
+// §v2.6 LLM settings DTOs
+export type LlmThinkingMode = "disabled" | "enabled" | "auto";
+export interface LlmSettingsMaskedDTO {
+  provider: string;
+  baseUrl: string;
+  defaultModel: string;
+  smallModel: string;
+  thinking: LlmThinkingMode;
+  maxHops: number;
+  timeoutMs: number;
+  apiKeyMasked: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+export interface LlmSettingsPutBody {
+  provider: string;
+  baseUrl: string;
+  defaultModel: string;
+  smallModel?: string;
+  apiKey?: string;
+  thinking?: LlmThinkingMode;
+  maxHops?: number;
+  timeoutMs?: number;
+}
+export interface LlmSettingsTestBody {
+  model?: string;
+  thinking?: LlmThinkingMode;
+  baseUrl?: string;
+  apiKey?: string;
+  timeoutMs?: number;
+}
+export interface LlmTestResult {
+  ok: boolean;
+  error?: string;
+  latencyMs?: number;
+  modelEcho?: string;
+}
+
 export interface RelatedResult {
   outgoing: RelatedItem[];
   incoming: RelatedItem[];
@@ -111,6 +149,20 @@ export interface Reminder {
   status: "待发送" | "已发送" | "已忽略";
   decidedBy?: string;
   decidedAt?: string;
+  createdAt: string;
+}
+
+export type NotificationKind = "escalation" | "reminder" | "mention" | "help_request" | "bug_update" | "system";
+
+export interface InboxNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind | string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  sourceEntityId: string | null;
+  readAt: string | null;
   createdAt: string;
 }
 
@@ -511,6 +563,25 @@ export class Api {
     return this.req<SmtpConfigMasked>("/api/email/config");
   }
 
+  // §v2.6 LLM settings
+  getLlmSettings(): Promise<LlmSettingsMaskedDTO> {
+    return this.req<LlmSettingsMaskedDTO>("/api/llm-settings");
+  }
+  putLlmSettings(body: LlmSettingsPutBody): Promise<LlmSettingsMaskedDTO> {
+    return this.req<LlmSettingsMaskedDTO>("/api/llm-settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+  testLlmSettings(body: LlmSettingsTestBody): Promise<LlmTestResult> {
+    return this.req<LlmTestResult>("/api/llm-settings/test", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
   putEmailConfig(cfg: Partial<SmtpConfig>): Promise<SmtpConfigMasked> {
     return this.req<SmtpConfigMasked>("/api/email/config", {
       method: "PUT",
@@ -849,6 +920,45 @@ export class Api {
 
   deleteBugReport(id: string): Promise<{ deleted: string }> {
     return this.req(`/api/bug-reports/${id}`, { method: "DELETE" });
+  }
+
+  // ---- 收件箱通知 ----
+  listNotifications(opts: { unread?: boolean; limit?: number } = {}): Promise<{
+    items: InboxNotification[];
+    unreadCount: number;
+  }> {
+    const p = new URLSearchParams();
+    if (opts.unread) p.set("unread", "true");
+    if (opts.limit !== undefined) p.set("limit", String(opts.limit));
+    const qs = p.toString();
+    return this.req(`/api/notifications${qs ? "?" + qs : ""}`);
+  }
+
+  unreadNotificationCount(): Promise<{ unreadCount: number }> {
+    return this.req("/api/notifications/unread-count");
+  }
+
+  markNotificationRead(id: string): Promise<InboxNotification> {
+    return this.req(`/api/notifications/${id}/read`, { method: "POST" });
+  }
+
+  markAllNotificationsRead(): Promise<{ updated: number }> {
+    return this.req("/api/notifications/read-all", { method: "POST" });
+  }
+
+  createNotification(data: {
+    userId: string;
+    kind: string;
+    title: string;
+    body?: string;
+    link?: string;
+    sourceEntityId?: string;
+  }): Promise<InboxNotification> {
+    return this.req("/api/notifications", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
   }
 
   login(username: string, password: string): Promise<LoginResult> {

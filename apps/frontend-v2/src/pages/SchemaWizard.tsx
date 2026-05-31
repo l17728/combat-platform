@@ -24,6 +24,8 @@ import {
   CheckOutlined,
   LinkOutlined,
   DisconnectOutlined,
+  ArrowUpOutlined,
+  ArrowDownOutlined,
 } from "@ant-design/icons";
 import type { FieldSchema, FieldType, NodeSchema } from "@combat/shared";
 import { api } from "../api.js";
@@ -153,8 +155,11 @@ export default function SchemaWizard() {
     label: string;
     type: FieldType;
     enumValues: string;
-  }>({ name: "", label: "", type: "string", enumValues: "" });
+    group: string;
+  }>({ name: "", label: "", type: "string", enumValues: "", group: "" });
   const [addingField, setAddingField] = useState(false);
+  // v2.6: 新分组占位输入框
+  const [newGroupName, setNewGroupName] = useState("");
   const { settings } = useSettings();
   const settingKeys = Object.keys(settings).filter((k) => !k.includes("."));
 
@@ -263,12 +268,19 @@ export default function SchemaWizard() {
               .map((s) => s.trim())
               .filter(Boolean)
           : undefined;
+      const group = newFieldDraft.group.trim();
       const updated = await api.patchSchema(selectedSchema.nodeType, {
         op: "addField",
-        field: { name, label, type: newFieldDraft.type, ...(enumValues && enumValues.length ? { enumValues } : {}) },
+        field: {
+          name,
+          label,
+          type: newFieldDraft.type,
+          ...(enumValues && enumValues.length ? { enumValues } : {}),
+          ...(group ? { group } : {}),
+        },
       });
       message.success(`字段「${label}」已添加，相关页面将自动显示`);
-      setNewFieldDraft({ name: "", label: "", type: "string", enumValues: "" });
+      setNewFieldDraft({ name: "", label: "", type: "string", enumValues: "", group: "" });
       setSelectedSchema(updated);
       await loadSchemas();
     } catch (e) {
@@ -309,6 +321,96 @@ export default function SchemaWizard() {
     } catch (e) {
       handleApiError(e);
     }
+  };
+
+  // v2.6: 字段分组管理 ---------------------------------------------------------
+  // PATCH /api/schema/<nt> { op: "updateField", ... } 走后端 updateField 分支,
+  // 同时写回 baseline / overlay 并记录审计。
+  const handleSetFieldGroup = async (nodeType: string, fieldId: string, group: string | null) => {
+    try {
+      const updated = await api.patchSchema(nodeType, { op: "updateField", id: fieldId, group });
+      message.success(group ? `已移入分组「${group}」` : "已移出分组");
+      await loadSchemas();
+      setSelectedSchema(updated);
+    } catch (e) {
+      handleApiError(e);
+    }
+  };
+
+  const handleMoveField = async (nodeType: string, fieldId: string, dir: "up" | "down") => {
+    if (!selectedSchema) return;
+    // 同组内按 (order asc, idx asc) 排序后,与上/下邻居交换 order。
+    const fields = selectedSchema.fields;
+    const f = fields.find((x) => x.id === fieldId);
+    if (!f) return;
+    const group = f.group ?? "其它";
+    const sameGroup = fields
+      .map((x, idx) => ({ x, idx }))
+      .filter((p) => (p.x.group ?? "其它") === group)
+      .sort((a, b) => {
+        const oa = a.x.order ?? Number.MAX_SAFE_INTEGER;
+        const ob = b.x.order ?? Number.MAX_SAFE_INTEGER;
+        if (oa !== ob) return oa - ob;
+        return a.idx - b.idx;
+      });
+    const pos = sameGroup.findIndex((p) => p.x.id === fieldId);
+    if (pos < 0) return;
+    const neighborPos = dir === "up" ? pos - 1 : pos + 1;
+    if (neighborPos < 0 || neighborPos >= sameGroup.length) return;
+    const neighbor = sameGroup[neighborPos].x;
+    const newSelfOrder = sameGroup[neighborPos].x.order ?? neighborPos + 1;
+    const newNeighborOrder = sameGroup[pos].x.order ?? pos + 1;
+    try {
+      await api.patchSchema(selectedSchema.nodeType, {
+        op: "updateField",
+        id: fieldId,
+        order: newSelfOrder,
+      });
+      const updated = await api.patchSchema(selectedSchema.nodeType, {
+        op: "updateField",
+        id: neighbor.id,
+        order: newNeighborOrder,
+      });
+      message.success("已调整顺序");
+      await loadSchemas();
+      setSelectedSchema(updated);
+      void nodeType;
+    } catch (e) {
+      handleApiError(e);
+    }
+  };
+
+  // 收集当前 schema 的所有分组名(用于「字段分组」侧栏 + 行内 Select)。
+  const groupNames = (() => {
+    if (!selectedSchema) return [] as string[];
+    const set = new Set<string>();
+    for (const f of selectedSchema.fields) {
+      const g = (f.group && f.group.trim()) || "其它";
+      set.add(g);
+    }
+    return Array.from(set);
+  })();
+
+  const handleAddGroup = () => {
+    const g = newGroupName.trim();
+    if (!g) {
+      message.warning("请输入分组名");
+      return;
+    }
+    if (groupNames.includes(g)) {
+      message.info("该分组已存在");
+      return;
+    }
+    // 没有"裸创建分组"的后端语义 —— 分组是字段属性派生的。
+    // 把第一个未分组(其它)字段移入新组作为占位,没有可移入时仅本地预告。
+    if (!selectedSchema) return;
+    const firstOrphan = selectedSchema.fields.find((f) => !f.group || !f.group.trim());
+    if (firstOrphan) {
+      void handleSetFieldGroup(selectedSchema.nodeType, firstOrphan.id, g);
+    } else {
+      message.info(`分组「${g}」已就绪,先把字段拖入即可生效`);
+    }
+    setNewGroupName("");
   };
 
   const fieldEditorColumns = [
@@ -525,6 +627,55 @@ export default function SchemaWizard() {
             </Button>
           }
         >
+          {/* v2.6: 字段分组管理面板 */}
+          <Card
+            size="small"
+            type="inner"
+            title="字段分组"
+            style={{ marginBottom: 12 }}
+            extra={
+              <Space size={4}>
+                <Input
+                  size="small"
+                  placeholder="新分组名"
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  onPressEnter={handleAddGroup}
+                  style={{ width: 140 }}
+                />
+                <Button size="small" icon={<PlusOutlined />} onClick={handleAddGroup}>
+                  新建分组
+                </Button>
+              </Space>
+            }
+          >
+            <Space wrap>
+              {groupNames.length === 0 ? (
+                <Text type="secondary">暂无分组</Text>
+              ) : (
+                groupNames.map((g) => {
+                  const count = selectedSchema.fields.filter(
+                    (f) => ((f.group && f.group.trim()) || "其它") === g
+                  ).length;
+                  return (
+                    <Tag key={g} color="blue" style={{ fontSize: 13, padding: "2px 8px" }}>
+                      {g}{" "}
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        ({count})
+                      </Text>
+                    </Tag>
+                  );
+                })
+              )}
+            </Space>
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                每个字段都属于一个分组(默认「其它」)。在下方表格里通过「分组」列下拉切换分组、用 ↑ / ↓
+                调整组内顺序。变更会立即生效到详情页。
+              </Text>
+            </div>
+          </Card>
+
           <Table
             size="small"
             dataSource={selectedSchema.fields}
@@ -548,17 +699,64 @@ export default function SchemaWizard() {
                   </span>
                 ),
               },
-              { title: "标签", dataIndex: "label", width: 160 },
-              { title: "类型", dataIndex: "type", width: 100, render: (v: string) => <Tag>{v}</Tag> },
+              { title: "标签", dataIndex: "label", width: 140 },
+              { title: "类型", dataIndex: "type", width: 90, render: (v: string) => <Tag>{v}</Tag> },
+              {
+                title: "分组",
+                width: 160,
+                render: (_: unknown, f: FieldSchema) => (
+                  <Select
+                    size="small"
+                    allowClear
+                    placeholder="未分组"
+                    value={f.group || undefined}
+                    onChange={(v) => handleSetFieldGroup(selectedSchema.nodeType, f.id, v ?? null)}
+                    style={{ width: 140 }}
+                    showSearch
+                    options={[
+                      ...groupNames.filter((g) => g !== "其它").map((g) => ({ value: g, label: g })),
+                      ...(newGroupName.trim() && !groupNames.includes(newGroupName.trim())
+                        ? [{ value: newGroupName.trim(), label: `${newGroupName.trim()}(新)` }]
+                        : []),
+                    ]}
+                  />
+                ),
+              },
+              {
+                title: "顺序",
+                width: 110,
+                render: (_: unknown, f: FieldSchema) => (
+                  <Space size={2}>
+                    <Text
+                      type="secondary"
+                      style={{ fontSize: 12, width: 24, display: "inline-block", textAlign: "right" }}
+                    >
+                      {f.order ?? "—"}
+                    </Text>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowUpOutlined />}
+                      onClick={() => handleMoveField(selectedSchema.nodeType, f.id, "up")}
+                    />
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<ArrowDownOutlined />}
+                      onClick={() => handleMoveField(selectedSchema.nodeType, f.id, "down")}
+                    />
+                  </Space>
+                ),
+              },
               {
                 title: "概念",
                 dataIndex: "concept",
-                width: 100,
+                width: 80,
                 render: (v?: string) => (v ? <Tag color="purple">{v}</Tag> : "—"),
               },
               {
                 title: "配置绑定",
-                width: 220,
+                width: 200,
                 render: (_: unknown, f: FieldSchema) =>
                   f.type === "enum" ? (
                     <Select
@@ -567,7 +765,7 @@ export default function SchemaWizard() {
                       placeholder="选择配置项"
                       value={f.optionsKey || undefined}
                       onChange={(v) => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
-                      style={{ width: 200 }}
+                      style={{ width: 180 }}
                       options={[
                         ...settingKeys.map((k) => ({ value: k, label: k })),
                         { value: f.name, label: `${f.name}（自动）` },
@@ -635,6 +833,16 @@ export default function SchemaWizard() {
                 style={{ width: 180 }}
               />
             )}
+            <Select
+              size="small"
+              allowClear
+              placeholder="分组(可选)"
+              value={newFieldDraft.group || undefined}
+              onChange={(v) => setNewFieldDraft((s) => ({ ...s, group: v ?? "" }))}
+              style={{ width: 140 }}
+              showSearch
+              options={groupNames.filter((g) => g !== "其它").map((g) => ({ value: g, label: g }))}
+            />
             <Button
               size="small"
               type="primary"

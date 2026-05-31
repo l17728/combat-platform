@@ -37,6 +37,8 @@ import { makeSupportNodeRouter } from "./support-node.js";
 import { makeHelpRequestRouter } from "./help-request.js";
 import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
+import { makeNotificationsRouter } from "./notifications-router.js";
+import { NotificationsRepo } from "./notifications.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
 import { csrfMiddleware } from "./csrf.js";
@@ -49,6 +51,9 @@ import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
+import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
+import { ensureLlmSettingsTable, getLlmSettings, resolveLlmSecret } from "./llm-settings.js";
+import { makeLlmSettingsRouter } from "./llm-settings-router.js";
 import { ensureKgOutboxTable, enqueueKgOutbox, KgOutboxWorker, makeKgOutboxRouter } from "./kg-outbox.js";
 import type { KgOutboxEventType } from "./kg-outbox.js";
 import { ensureAuditChainColumns, makeAuditChainRouter } from "./audit-chain-router.js";
@@ -151,6 +156,8 @@ export function createApp(deps: {
     app.use("/api/reminders", adminMiddleware);
     // email:配置 + 测试 + 发送均限 admin
     app.use("/api/email", adminMiddleware);
+    // §v2.6: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
+    app.use("/api/llm-settings", adminMiddleware);
     // ticket-tabs:leader+ 可写(普通用户不应改 markdown/导致 XSS 投毒)。
     app.use("/api/tickets/:id/tabs", leaderMiddleware);
     // documents: 写入(POST/PUT/DELETE)限 leader+; GET 列表/下载保留公开(链接点击)。
@@ -211,11 +218,66 @@ export function createApp(deps: {
   app.use("/api", makeRecommendRouter(deps.repo));
   app.use("/api", makeDashboardRouter(deps.repo));
   app.use("/api", makeDailyReportRouter(deps.repo));
-  app.use("/api", makeRemindersRouter(deps.repo, deps.registry));
+  app.use(
+    "/api",
+    makeRemindersRouter(deps.repo, deps.registry, undefined, adapter ? new NotificationsRepo(adapter) : undefined)
+  );
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
-  // Hermes 概念用 agent(opencode)实现;默认关闭(HERMES_AGENT=1 开启),
-  // 关闭或失败时回退规则引擎,保证现网零风险接入。
+  // §v2.6: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
+  // 配置全部从 DB(llm_settings 表)取,经 getConfig 钩子热加载;
+  // 缺 DB 配置时 fallback env → 最后 hardcoded baseURL(智谱)+ 必须 env apiKey,
+  // 绝无 hardcoded apiKey。
+  //
+  // 同一实例同时实现 AgentRunner 与 ToolCallingRunner — runner + toolRunner 双注入,
+  // hermes router 内部 plannedEngine 决定走哪条路径。
+  //
+  // 旧 OpencodeAgentRunner 保留为可选 fallback(HERMES_AGENT=1 时启用),用于 welink 的
+  // 历史 prompt 路径;默认不启用。
+  let llmRunner: OpenAICompatibleRunner | undefined;
+  if (adapter) {
+    ensureLlmSettingsTable(adapter).catch((e) =>
+      log.warn("llm_settings.ensure_table.fail", { error: (e as Error).message })
+    );
+    const getConfig = async (): Promise<LlmConfig> => {
+      const row = await getLlmSettings(adapter);
+      const secret = await resolveLlmSecret(adapter);
+      const envBase = process.env.HERMES_LLM_BASE_URL;
+      const envKey = process.env.HERMES_LLM_API_KEY;
+      const envModel = process.env.HERMES_MODEL;
+      // 三层 fallback: DB → env → 智谱默认。apiKey 绝无 hardcoded。
+      const baseURL = row?.baseUrl || envBase || "https://open.bigmodel.cn/api/paas/v4";
+      const apiKey = secret || envKey || "";
+      const model = row?.defaultModel || envModel || "glm-4.5-air";
+      const smallModel = row?.smallModel || undefined;
+      const thinking = row?.thinking ?? "disabled";
+      const timeoutMs = row?.timeoutMs ?? 60000;
+      return { baseURL, apiKey, model, smallModel, thinking, timeoutMs };
+    };
+    llmRunner = new OpenAICompatibleRunner({ getConfig });
+    // 启动日志:报告解析到的配置来源,但不打印 apiKey。
+    (async () => {
+      try {
+        const cfg = await getConfig();
+        const row = await getLlmSettings(adapter);
+        let source: "db" | "env" | "default" = "default";
+        if (row && (row.baseUrl || row.defaultModel)) source = "db";
+        else if (process.env.HERMES_LLM_API_KEY || process.env.HERMES_LLM_BASE_URL) source = "env";
+        log.info("llm.runner.config", {
+          provider: row?.provider || "default",
+          baseURL: cfg.baseURL,
+          model: cfg.model,
+          thinking: cfg.thinking,
+          source,
+        });
+      } catch (e) {
+        log.warn("llm.runner.config_resolve_fail", { error: (e as Error).message });
+      }
+    })();
+  }
+
+  // 历史:仅当 HERMES_AGENT=1 显式开启时,用旧 OpencodeAgentRunner 走 welink prompt 路径。
+  // 现网默认不开,welink prompt 自动走 llmRunner.run(prompt) 兼容路径。
   const hermesRunner =
     process.env.HERMES_AGENT === "1"
       ? new OpencodeAgentRunner({
@@ -224,27 +286,41 @@ export function createApp(deps: {
           model: process.env.HERMES_MODEL || "huawei_cloud/glm-5",
         })
       : undefined;
-  hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
-  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner, deps.db));
+  hermesRunner?.warmup();
+  app.use(
+    "/api",
+    makeHermesRouter(deps.repo, deps.registry, {
+      // 默认两端都用 OpenAICompatibleRunner 实例;HERMES_AGENT=1 时 runner 路径走旧 opencode
+      runner: hermesRunner ?? llmRunner,
+      toolRunner: llmRunner,
+      db: deps.db,
+    })
+  );
   // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
   app.use("/api", makeHermesToolsRouter(deps.repo, deps.registry, adapter, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
   app.use("/api", makeMergeRouter(deps.repo));
-  app.use("/api", makeEscalationRouter(deps.repo));
+  app.use("/api", makeEscalationRouter(deps.repo, adapter ? new NotificationsRepo(adapter) : undefined));
   app.use("/api", makeRelationsRouter(deps.repo));
   app.use("/api", makeJobsRouter(deps.repo, deps.registry));
   app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeCustomCommandsRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
+  // §v2.6: LLM 全局配置 (admin only)
+  if (adapter) {
+    app.use("/api", makeLlmSettingsRouter(adapter));
+  }
   app.use("/api", makeResponsibilityRouter(deps.repo));
   app.use("/api", makeUiCacheRouter(deps.repo));
   if (adapter) {
+    const notificationsRepo = new NotificationsRepo(adapter);
+    app.use("/api", makeNotificationsRouter(adapter));
     app.use("/api", makeDailyReportEntryRouter(adapter));
     app.use("/api", makeSupportNodeRouter(adapter));
-    app.use("/api", makeHelpRequestRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeHelpRequestRouter(adapter, deps.repo, mailSender, undefined, notificationsRepo));
     app.use("/api", makeSettingsRouter(adapter));
-    app.use("/api", makeBugReportRouter(adapter));
+    app.use("/api", makeBugReportRouter(adapter, notificationsRepo));
     app.use("/api", makeOpLogRouter(adapter));
     app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(adapter));
@@ -260,7 +336,8 @@ export function createApp(deps: {
   // Welink router uses the raw better-sqlite3 handle for now.
   // Postgres path keeps Welink disabled until Welink is async-refactored.
   if (deps.db) {
-    app.use("/api", makeWelinkRouter(deps.db, deps.repo, hermesRunner));
+    // welink 用 AgentRunner.run(prompt) 协议;hermesRunner(若启用)优先,否则 llmRunner。
+    app.use("/api", makeWelinkRouter(deps.db, deps.repo, hermesRunner ?? llmRunner));
   }
   app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     log.error("http.error", { path: req.path, error: err.message });
