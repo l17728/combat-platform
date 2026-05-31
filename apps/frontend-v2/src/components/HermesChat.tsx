@@ -52,10 +52,27 @@ export default function HermesChat({
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  // 用户是否处于"贴底"状态。仅当贴底时自动滚动,避免 AI 思考期间用户上滑读历史被强行拽回底部
+  // —— 与浏览器 overflow-anchor 相互争抢正是滚动条上下抖动的根因。
+  const stickToBottomRef = useRef(true);
 
+  // 用户手动滚动时实时更新"是否贴底"标记;阈值 24px 容忍亚像素抖动
+  const handleScroll = () => {
+    const el = listRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+  };
+
+  // 仅当用户处于贴底状态时才自动滚动;loading 不再触发滚动(Spin 提示自身不需要 reflow 滚动)
   useEffect(() => {
-    if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [msgs, loading]);
+    if (!stickToBottomRef.current) return;
+    const el = listRef.current;
+    if (!el) return;
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [msgs]);
 
   const ask = async (raw?: string) => {
     const question = (raw ?? q).trim();
@@ -137,7 +154,20 @@ export default function HermesChat({
             <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
           </div>
           <div style={{ padding: 12, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div ref={listRef} style={{ flex: 1, overflowY: "auto", marginBottom: 12 }}>
+            <div
+              ref={listRef}
+              onScroll={handleScroll}
+              data-testid="hermes-chat-list"
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                marginBottom: 12,
+                // overflowAnchor:none 关闭浏览器滚动锚定,避免它与我们的自动滚动相互争抢导致上下抖动
+                overflowAnchor: "none",
+                // contain:layout 让回答区高度变化不影响外层布局,降低 reflow 引起的抖动
+                contain: "layout",
+              }}
+            >
               {msgs.length === 0 && !loading && (
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="向 AI 提问,基于知识库作答并给出可点击的来源" />
               )}
