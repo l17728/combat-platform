@@ -42,6 +42,7 @@ import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
 import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
+import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
@@ -80,6 +81,7 @@ export function createApp(deps: {
   // 集成测试均跳过守卫,保持既有测试行为(348 通过基线)。
   if (adapter && process.env.COMBAT_NO_AUTH !== "1") {
     app.use("/api/audit", adminMiddleware);
+    app.use("/api/upgrade", adminMiddleware);
     app.use("/api/merge", adminMiddleware);
     app.use("/api/op-logs", adminMiddleware);
     app.use("/api/backup", adminMiddleware);
@@ -157,6 +159,8 @@ export function createApp(deps: {
     // SQLite hot-migrate flows.
     app.use("/api", makeDbMigrationRouter(adapter, deps.dbPath || ""));
   }
+  // 一键升级 router (v2.3) — 不依赖 adapter,任何模式都挂载
+  app.use("/api", makeUpgradeRouter(deps.dbPath || ""));
   // Welink router uses the raw better-sqlite3 handle for now.
   // Postgres path keeps Welink disabled until Welink is async-refactored.
   if (deps.db) {
