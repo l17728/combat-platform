@@ -251,6 +251,17 @@ ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 - HTTP: `http.request`（所有请求）, `http.error`, `http.unhandled`
 - 动态标签: `ticket_tab.created`, `ticket_tab.updated`, `ticket_tab.deleted`, `ticket_tab.reordered`
 
+### 系统升级机制 (v2.3 一键升级 UI)
+
+详细见 `docs/UPGRADE.md`。要点:
+
+- **三层分层**:代码 baseline(随包替换) / 用户态 overlay (`data/schemas-overlay/`,跨升级保留) / 业务数据(SQLite/uploads,整盘备份)
+- **入口**:系统管理 → 系统升级(仅 admin)
+- **流程**:上传 .tar.gz → 自动 analyze diff → 双重确认("UPGRADE")→ detached worker 跑 backup/extract/schema-merge/secrets/code-swap/restart/health,失败自动回滚
+- **环境变量**(systemd 设置):`COMBAT_INSTALL_ROOT=/opt/combat-v2`、`COMBAT_SCHEMA_OVERLAY_DIR=/opt/combat-v2/apps/backend/data/schemas-overlay`、`COMBAT_UPGRADE_DATA_DIR=/opt/combat-v2/apps/backend/data`
+- **sudoers**:升级阶段 worker 需 `sudo systemctl restart combat-v2`(NOPASSWD),首次部署需配 `/etc/sudoers.d/combat-v2`
+- **本机/e2e**:设 `COMBAT_UPGRADE_MOCK_SYSTEMD=1` 跳过 systemctl + health 探活
+
 ### Existing Deployment (参考前端，不要修改，已停止更新)
 
 - **服务器**: `47.103.99.229`（Alibaba Cloud Linux）
@@ -868,7 +879,29 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
+### 当前测试状态（2026-05-31 feature/roadmap-upgrade-ui — v2.3 旗舰特性 一键升级 UI)
+
+**v2.3 一键升级 UI 分支(基于 v2.1.0 master)**:
+
+- 后端 vitest **492 通过**(基线 463 + schema-overlay 单测 11 + upgrade router e2e 18)
+- 双端 `npx tsc --noEmit` 通过
+- 前端 e2e `system-upgrade.spec.ts` 4 用例(本机未跑全量,端口被并行 worktree 占,合并 master 后再跑)
+- 部署需先 git commit,然后在测试环境真跑一次自我升级验证 systemd detached worker 行为
+
+**核心交付**:
+
+- Schema overlay 系统(`apps/backend/src/schema-overlay.ts` + `FileSchemaRegistry` 扩展)— baseline vs user 分离
+- Schema 三方合并 `scripts/upgrade/schema-merger.mjs` — 用户字段名撞新基线 → 冲突报告
+- 升级 router `apps/backend/src/upgrade.ts` 8 个端点(admin-only)
+- 自我升级 worker `scripts/upgrade/worker.mjs`(detached 进程,phase=backup→extract→schema-merge→secrets→code-swap→restart→health,失败自动回滚)
+- 前端 SystemUpgrade 页面(三段式 + 双重确认 + 实时 log tail)
+- 详细文档 `docs/UPGRADE.md`
+
+**MVP 限制**(留 v2.4):仅本地上传(不支持 GitHub Release)、无 PGP 签名校验、自我升级需在 staging 测一次再上线。
+
+---
+
+### 历史测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
 
 **v2.1.0 整合 = quality + performance + security + ux + 已含 master 的 welink + postgres + UI 配置化:**
 

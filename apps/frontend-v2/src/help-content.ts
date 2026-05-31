@@ -4,6 +4,32 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.3.0 — 2026-05-31 (旗舰特性:一键升级 UI)
+
+新增「系统管理 → 系统升级」(仅 admin),支持上传 .tar.gz 升级包,自动分析 diff、备份、回滚的全流程编排。
+
+### 核心机制
+- **Schema overlay 系统**:用户在 UI 加的字段写到 \`data/schemas-overlay/\`,跨升级保留;baseline (\`config/schemas/\`) 随代码包整盘替换
+- **三方 schema 合并**(current_baseline + current_overlay + target_baseline):用户字段名撞新基线 → 列入冲突报告供决策
+- **自我升级 orchestrator**:detached Node worker 跑 backup → extract → schema-merge → secrets → code-swap → restart → health,任一步失败自动回滚
+- **MVP 限制**:本地上传包(不支持 GitHub release 拉取/PGP 签名校验,留 v2.4);自我升级生产化需在测试环境真跑 systemd 重启一次再上线
+
+### 后端
+- 8 端点 \`/api/upgrade/*\`(current/upload/analyze/apply/status/rollback/history/log)
+- worker.mjs detached 进程(stdio: ignore + unref),状态文件 \`data/upgrade-state.json\`,历史 \`data/upgrade-history.json\`
+- 兼容 mock-systemd 模式(\`COMBAT_UPGRADE_MOCK_SYSTEMD=1\`),本机/e2e 跳过 systemctl
+
+### 前端
+- 三段式 SystemUpgrade 页面:① 上传 → ② diff 报告 Drawer → ③ 双重确认(Checkbox + 输入 UPGRADE)→ 执行
+- 升级中 Progress + Steps + 实时 log tail(轮询 /api/upgrade/status 1.5s)
+- 完成后展示历史 Table + 回滚按钮
+
+### 测试
+- 后端 \`apps/backend/test/upgrade-router.e2e.test.ts\` 18 用例 + \`schema-overlay.unit.test.ts\` 11 用例
+- 前端 \`apps/frontend-v2/e2e/system-upgrade.spec.ts\` 4 用例
+
+---
+
 ## v2.1.0 — 2026-05-31 (Roadmap 4 桶整合 — 安全/性能/UX/质量)
 
 依 5 位专家评审产出的 5 P0 安全 + 5 性能 quick wins + 5 UX 改进 + 5 代码质量,四桶并行落地后整合入 master。**全部为本机改动,所有桶均在合并前独立 push 并 CI 通过**。
@@ -254,6 +280,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - **备份恢复**:立即备份 / 定时备份(每天/每周/每月,保留份数)/ 下载 / 恢复(上传 .db)
 - **用户管理**(仅 admin):CRUD 用户 / 重置密码 / 角色(admin / leader / normal)
 - **操作追踪**(仅 admin):前端所有 API 调用 / 路由导航 / 全局错误的会话级日志
+- **系统升级**(仅 admin):一键升级 UI,上传 .tar.gz → 自动 diff → 双重确认 → backup/swap/restart/health 全流程编排
 - **问题反馈**(详见上方核心新增)
 
 #### 平台基础
