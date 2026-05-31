@@ -1,6 +1,7 @@
-import { Button, Space, Popover, Checkbox, Descriptions, Typography } from "antd";
+import { Button, Space, Popover, Checkbox, Descriptions, Typography, Card } from "antd";
 import { AppstoreOutlined } from "@ant-design/icons";
 import type { FieldSchema, GraphNode } from "@combat/shared";
+import { SchemaFieldView, groupAndSortFields, evalVisible } from "../../components/SchemaField.js";
 
 const { Text } = Typography;
 
@@ -11,6 +12,10 @@ export interface AttackBasicInfoTabProps {
   onHiddenChange: (hidden: string[]) => void;
 }
 
+// v2.6: 详情页基础信息 Tab — schema 驱动的分组渲染。
+// - basicFields 仍由父组件传(已剔除 retired);
+// - 渲染按 FieldSchema.group + FieldSchema.order 分组,每组一张 Card + Descriptions;
+// - 隐藏偏好(字段管理 Popover)按 field.name 持久化,跨分组生效。
 export default function AttackBasicInfoTab({
   node,
   basicFields,
@@ -18,6 +23,11 @@ export default function AttackBasicInfoTab({
   onHiddenChange,
 }: AttackBasicInfoTabProps) {
   const props = node.properties;
+  // 过滤:retired/隐藏偏好/visible 表达式
+  const renderable = basicFields.filter(
+    (f) => !f.retired && !hiddenBasicFields.includes(f.name) && evalVisible(f.visible, props)
+  );
+  const groups = groupAndSortFields(renderable);
   return (
     <div style={{ padding: "16px 0" }}>
       <Space style={{ marginBottom: 12 }}>
@@ -37,6 +47,11 @@ export default function AttackBasicInfoTab({
                 {basicFields.map((f) => (
                   <Checkbox key={f.name} value={f.name}>
                     {f.label}
+                    {f.group ? (
+                      <Text type="secondary" style={{ marginLeft: 6, fontSize: 11 }}>
+                        · {f.group}
+                      </Text>
+                    ) : null}
                   </Checkbox>
                 ))}
               </Checkbox.Group>
@@ -58,18 +73,24 @@ export default function AttackBasicInfoTab({
           </Button>
         </Popover>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          勾选要显示的字段;偏好按用户保存,下次进来仍生效。
+          字段及分组在 表结构管理 维护;隐藏偏好按用户保存。
         </Text>
       </Space>
-      <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
-        {basicFields
-          .filter((f) => !hiddenBasicFields.includes(f.name))
-          .map((f) => (
-            <Descriptions.Item key={f.name} label={f.label}>
-              {String(props[f.name] ?? "--")}
-            </Descriptions.Item>
-          ))}
-      </Descriptions>
+      {groups.length === 0 ? (
+        <Text type="secondary">没有可显示的字段</Text>
+      ) : (
+        groups.map(({ group, fields }) => (
+          <Card key={group} size="small" title={group} style={{ marginBottom: 16 }}>
+            <Descriptions bordered column={2} size="small">
+              {fields.map((f) => (
+                <Descriptions.Item key={f.name} label={f.label}>
+                  <SchemaFieldView field={f} value={props[f.name]} />
+                </Descriptions.Item>
+              ))}
+            </Descriptions>
+          </Card>
+        ))
+      )}
     </div>
   );
 }
