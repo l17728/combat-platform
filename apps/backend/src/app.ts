@@ -131,7 +131,7 @@ export function createApp(deps: {
   app.use(express.json({ limit: "20mb" }));
 
   // 健康检查 + Prometheus 指标:auth 之前注册,无需鉴权 — 系统级端点,供 systemd / 反代 / Prometheus 调用。
-  app.use("/api", makeHealthRouter(deps.db));
+  app.use("/api", makeHealthRouter(deps.db, adapter));
   app.use("/api", makeMetricsRouter());
 
   if (adapter) {
@@ -290,10 +290,10 @@ export function createApp(deps: {
   app.use(
     "/api",
     makeHermesRouter(deps.repo, deps.registry, {
-      // 默认两端都用 OpenAICompatibleRunner 实例;HERMES_AGENT=1 时 runner 路径走旧 opencode
       runner: hermesRunner ?? llmRunner,
       toolRunner: llmRunner,
       db: deps.db,
+      adapter: deps.adapter,
     })
   );
   // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。

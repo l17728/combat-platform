@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNod
 import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
 import { answerWithAgent, answerWithToolCalling, type AgentRunner, type ToolCallingRunner } from "./hermes-agent.js";
+import type { DbAdapter } from "./db-adapter.js";
 import type { DB } from "./db.js";
 import {
   createSession,
@@ -506,15 +507,11 @@ function welinkFallbackCitations(db: DB, question: string, ticketId: string): He
 }
 
 export interface HermesRouterOptions {
-  /** 兼容旧接口:单轮 prompt-based AgentRunner(走 answerWithAgent) */
   runner?: AgentRunner;
-  /** §v2.5 新接口:OpenAI tool-calling LLM runner(走 answerWithToolCalling) */
   toolRunner?: ToolCallingRunner;
-  /** Welink DB 句柄(可选) */
   db?: DB;
-  /** 启动期默认 mode(env 优先于此默认) */
+  adapter?: DbAdapter;
   defaultMode?: HermesMode;
-  /** 审计写入(可选;mode=tool 成功/失败都记一条) */
   auditActor?: string;
 }
 
@@ -537,9 +534,9 @@ export function makeHermesRouter(
   r.get(
     "/hermes/sessions",
     asyncHandler(async (req, res) => {
-      if (!opts.db) return res.json([]);
+      if (!opts.adapter) return res.json([]);
       const userId = (req as any).user?.username ?? "anonymous";
-      const sessions = listSessions(opts.db, userId);
+      const sessions = await listSessions(opts.adapter, userId);
       res.json(sessions);
     })
   );
@@ -547,10 +544,10 @@ export function makeHermesRouter(
   r.post(
     "/hermes/sessions",
     asyncHandler(async (req, res) => {
-      if (!opts.db) return res.status(501).json({ error: "session unavailable" });
+      if (!opts.adapter) return res.status(501).json({ error: "session unavailable" });
       const userId = (req as any).user?.username ?? "anonymous";
       const title = String(req.body?.title ?? "").trim() || undefined;
-      const session = createSession(opts.db, userId, title);
+      const session = await createSession(opts.adapter, userId, title);
       res.json(session);
     })
   );
@@ -558,10 +555,10 @@ export function makeHermesRouter(
   r.get(
     "/hermes/sessions/:id",
     asyncHandler(async (req, res) => {
-      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
-      const session = getSession(opts.db, req.params.id);
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
+      const session = await getSession(opts.adapter, req.params.id);
       if (!session) return res.status(404).json({ error: "session not found" });
-      const messages = loadRecentMessages(opts.db, req.params.id, 200);
+      const messages = await loadRecentMessages(opts.adapter, req.params.id, 200);
       res.json({ ...session, messages });
     })
   );
@@ -569,8 +566,8 @@ export function makeHermesRouter(
   r.delete(
     "/hermes/sessions/:id",
     asyncHandler(async (req, res) => {
-      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
-      const ok = deleteSession(opts.db, req.params.id);
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
+      const ok = await deleteSession(opts.adapter, req.params.id);
       res.json({ ok });
     })
   );
@@ -578,10 +575,10 @@ export function makeHermesRouter(
   r.patch(
     "/hermes/sessions/:id",
     asyncHandler(async (req, res) => {
-      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
       const title = String(req.body?.title ?? "").trim();
       if (!title) return res.status(400).json({ error: "title 必填" });
-      const ok = updateSessionTitle(opts.db, req.params.id, title);
+      const ok = await updateSessionTitle(opts.adapter, req.params.id, title);
       res.json({ ok });
     })
   );
@@ -599,10 +596,10 @@ export function makeHermesRouter(
       const sessionId = String(req.body?.sessionId ?? "").trim() || undefined;
 
       let priorMessages: import("./hermes-agent.js").LlmMessage[] | undefined;
-      if (sessionId && opts.db) {
-        const session = getSession(opts.db, sessionId);
+      if (sessionId && opts.adapter) {
+        const session = await getSession(opts.adapter, sessionId);
         if (session) {
-          const history = loadRecentMessages(opts.db, sessionId);
+          const history = await loadRecentMessages(opts.adapter, sessionId);
           priorMessages = history.map((m) => ({
             role: m.role as "user" | "assistant",
             content: m.content,
@@ -644,12 +641,13 @@ export function makeHermesRouter(
           });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;
-          if (sessionId && opts.db) {
-            appendMessage(opts.db, sessionId, "user", q);
-            appendMessage(opts.db, sessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
+          if (sessionId && opts.adapter) {
+            const sa = opts.adapter;
+            await appendMessage(sa, sessionId, "user", q);
+            await appendMessage(sa, sessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
             if (q.length <= 40) {
               try {
-                updateSessionTitle(opts.db, sessionId, q);
+                await updateSessionTitle(sa, sessionId, q);
               } catch {}
             }
           }
