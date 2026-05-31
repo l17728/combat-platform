@@ -47,7 +47,11 @@ if (parsed.kind === "sqlite") {
 }
 
 const repo = new SqliteRepository(adapter);
-const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
+// v2.3 schema overlay: 用户 UI 新增字段写到 data/schemas-overlay/,跨升级保留。
+// 现网 /opt/combat-v2/data/schemas-overlay/(systemd WorkingDirectory=/opt/combat-v2)
+// dev: apps/backend/data/schemas-overlay/
+const overlayDir = process.env.COMBAT_SCHEMA_OVERLAY_DIR || join(process.cwd(), "data", "schemas-overlay");
+const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"), overlayDir);
 // Pass rawSqliteDb so welink router (SQLite-only) gets mounted; undefined on
 // Postgres path keeps welink disabled until async-refactored.
 const app = createApp({ repo, registry, adapter, db: rawSqliteDb, dbPath: DB_PATH });

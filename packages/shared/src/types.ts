@@ -13,6 +13,9 @@ export interface FieldSchema {
   concept?: string;
   anchor?: string;
   optionsKey?: string;
+  // v2.3: schema-overlay marker. "user" = added/edited via UI after install,
+  // preserved verbatim across upgrades. Absent (default) = "baseline".
+  source?: "baseline" | "user";
 }
 export interface NodeSchema {
   nodeType: string;
