@@ -217,6 +217,42 @@ export class SqliteRepository implements Repository {
     return out;
   }
 
+  /**
+   * v2.2 P1 §1: SQL-pushdown 单键等值过滤。
+   *
+   * SQLite 路径:
+   *   `WHERE nodeType=? AND json_extract(properties, '$.<key>') = ?`
+   *   配合 `idx_nodes_<key>` 表达式索引(在 db.ts 里建)对热点 key 走索引。
+   * Postgres 路径:
+   *   `WHERE "nodeType"=? AND properties->>'<key>' = ?`
+   *   走 `idx_nodes_properties_gin`(GIN on JSONB)。
+   *
+   * 等值语义与 `queryNodes(nt, {key: v})` 严格一致(JS `===`),便于渐进迁移。
+   * 注意:value 是字符串等值;数字/bool 字段若以 JSON 数字存储仍需用 queryNodes(否则
+   * `json_extract` 返回 number 与字符串 `?` 不等)。
+   *
+   * key 必须是 [A-Za-z0-9_一-鿿]+(防 JSON path 注入)。
+   */
+  async queryNodesByProperty(nodeType: string, key: string, value: string): Promise<GraphNode[]> {
+    if (!/^[A-Za-z0-9_一-鿿]+$/.test(key)) {
+      throw new Error(`queryNodesByProperty: invalid key ${JSON.stringify(key)}`);
+    }
+    let sql: string;
+    if (this.adapter.kind === "postgres") {
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND properties->>'${key}' = ? ORDER BY created_at DESC`;
+    } else {
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND json_extract(properties, '$.${key}') = ? ORDER BY created_at DESC`;
+    }
+    const rows = await this.adapter.query<any>(sql, [nodeType, value]);
+    return rows.map((r) => ({
+      id: r.id,
+      nodeType: r.nodeType,
+      properties: decodeJsonFromAdapter(this.adapter, r.properties),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+  }
+
   async createEdge(
     edgeType: string,
     sourceId: string,
