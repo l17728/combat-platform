@@ -6,6 +6,7 @@ import {
   SwapOutlined,
   NodeIndexOutlined,
   MessageOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { message } from "antd";
 import type { FormInstance } from "antd";
@@ -20,6 +21,7 @@ import AttackDailyReportTab from "./AttackDailyReportTab.js";
 import AttackSupportNetworkTab from "./AttackSupportNetworkTab.js";
 import DynamicLinkTab from "../../components/DynamicLinkTab.js";
 import DynamicCustomTab from "../../components/DynamicCustomTab.js";
+import WikiPanel from "../../components/WikiPanel.js";
 import WelinkTab from "../WelinkTab.js";
 
 export interface BuildTabItemsArgs {
@@ -224,7 +226,8 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
     key: tab.id,
     label: (
       <span style={tab.tabType === "custom" && tab.title === "信息广场" ? { color: "#999" } : undefined}>
-        {tab.tabType === "link" ? <LinkOutlined /> : <FileTextOutlined />} {tab.title}
+        {tab.tabType === "link" ? <LinkOutlined /> : tab.tabType === "wiki" ? <BookOutlined /> : <FileTextOutlined />}{" "}
+        {tab.title}
       </span>
     ),
     closable: true,
@@ -235,6 +238,8 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           tab={tab}
           onDeleted={(tid) => a.setDynamicTabs((prev) => prev.filter((t) => t.id !== tid))}
         />
+      ) : tab.tabType === "wiki" ? (
+        <WikiPanel scope="ticket" scopeId={a.id} />
       ) : (
         <DynamicCustomTab
           ticketId={a.id}

@@ -18,7 +18,7 @@ const POSTER_TITLE = "全局广场海报";
 export default function AddTabModal({ ticketId, open, onClose, onCreated }: Props) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-  const [tabType, setTabType] = useState<"link" | "custom">("link");
+  const [tabType, setTabType] = useState<"link" | "custom" | "wiki">("link");
   const [infoCards, setInfoCards] = useState<GraphNode[]>([]);
 
   useEffect(() => {
@@ -29,14 +29,24 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
         .catch(() => setInfoCards([]));
   }, [open]);
 
-  const handleSubmit = async (values: { tabType: "link" | "custom"; title?: string; posterCardIds?: string[] }) => {
+  const handleSubmit = async (values: {
+    tabType: "link" | "custom" | "wiki";
+    title?: string;
+    posterCardIds?: string[];
+  }) => {
     setSubmitting(true);
     try {
       const posterCardIds = values.tabType === "link" ? (values.posterCardIds ?? []) : [];
       let title = values.title?.trim();
       if (!title) {
         title =
-          values.tabType === "custom" ? DEFAULT_CUSTOM_TITLE : posterCardIds.length > 0 ? POSTER_TITLE : "关联数据";
+          values.tabType === "custom"
+            ? DEFAULT_CUSTOM_TITLE
+            : values.tabType === "wiki"
+              ? "知识库"
+              : posterCardIds.length > 0
+                ? POSTER_TITLE
+                : "关联数据";
       }
       const tab = await api.createTicketTab(ticketId, {
         tabType: values.tabType,
@@ -74,6 +84,7 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
           <Radio.Group onChange={(e) => setTabType(e.target.value)}>
             <Radio.Button value="link">{TAB_TYPE_LABEL["link"]}</Radio.Button>
             <Radio.Button value="custom">{TAB_TYPE_LABEL["custom"]}</Radio.Button>
+            <Radio.Button value="wiki">知识库</Radio.Button>
           </Radio.Group>
         </Form.Item>
         <Form.Item
@@ -81,7 +92,15 @@ export default function AddTabModal({ ticketId, open, onClose, onCreated }: Prop
           label="标签名称"
           rules={tabType === "link" ? [{ required: true, message: "请输入标签名称" }] : []}
         >
-          <Input placeholder={tabType === "link" ? "如：全局广场海报、相关贡献…" : "留空则默认为「信息广场」"} />
+          <Input
+            placeholder={
+              tabType === "link"
+                ? "如：全局广场海报、相关贡献…"
+                : tabType === "wiki"
+                  ? "留空则默认为「知识库」"
+                  : "留空则默认为「信息广场」"
+            }
+          />
         </Form.Item>
         {tabType === "link" && (
           <Form.Item name="posterCardIds" label="信息广场卡片（多选即「全局广场海报」，可链接到信息广场）">

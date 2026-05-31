@@ -900,6 +900,30 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-06-01 v2.3.0 — 知识库 + API文档 + Code-split)
+
+**v2.3.0 = v2.2.0 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
+
+- 后端 vitest **768/768 全绿**（100 文件）
+- shared vitest **28/28 全绿**
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- 新增 `wiki.ts`（WikiRepo CRUD + 文章搜索 + 排序）
+- 新增 `wiki-router.ts`（REST API: 列表/详情/创建/更新/删除/搜索/重排序）
+- 新增 `openapi-router.ts`（OpenAPI 3.0 spec 生成 + Swagger UI 渲染）
+- 新增前端 `WikiPanel.tsx`（知识库面板：文章列表+Markdown编辑+搜索）
+- 新增前端 `buildTabItems.tsx` wiki 类型支持（攻关单局部知识库）
+- 新增前端 `AddTabModal.tsx` wiki 选项
+- `Dashboard.tsx` 新增「知识库」tab（全局知识库，信息广场后面）
+- `App.tsx` 全面改为 React.lazy 路由级懒加载（30+ 页面，3.5MB→按需加载）
+- `api.ts` 新增 wiki CRUD 方法，TicketTab.tabType 扩展 "wiki"
+- `help-content.ts` 追加 v2.3.0 release notes + wiki/apiDocs 帮助页
+
+**关键设计决定**:
+
+1. **知识库双态** — 全局知识库(scope=global)放在态势首页 tab；局部知识库(scope=ticket,scopeId=ticketId)通过自定义 tab 创建
+2. **OpenAPI 静态 spec** — 手工维护的 spec 对象，覆盖 50+ 端点、10 个标签分组；Swagger UI CDN 加载，自动携带 JWT token
+3. **Code-splitting** — React.lazy + Suspense 包裹整个 Routes，LoginPage/ErrorBoundary 保持 eager load；PageLoader 统一 loading 态
+
 ### 当前测试状态(2026-06-01 v2.2.0 — 邮件增强 + 邀请管理 + 运营大屏)
 
 **v2.2.0 = v2.11.0 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**

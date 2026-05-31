@@ -1574,6 +1574,47 @@ export class Api {
   checkInvite(code: string): Promise<any> {
     return this.req(`/api/invitations/check/${code}`);
   }
+
+  listWiki(scope: string, scopeId?: string): Promise<any[]> {
+    const params = new URLSearchParams({ scope });
+    if (scopeId) params.set("scopeId", scopeId);
+    return this.req(`/api/wiki?${params}`);
+  }
+
+  getWiki(id: string): Promise<any> {
+    return this.req(`/api/wiki/${id}`);
+  }
+
+  createWiki(data: {
+    scope: string;
+    scopeId?: string;
+    parentId?: string;
+    title: string;
+    content?: string;
+  }): Promise<any> {
+    return this.req("/api/wiki", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  updateWiki(
+    id: string,
+    data: { title?: string; content?: string; parentId?: string; sortOrder?: number }
+  ): Promise<any> {
+    return this.req(`/api/wiki/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  deleteWiki(id: string): Promise<any> {
+    return this.req(`/api/wiki/${id}`, { method: "DELETE" });
+  }
+
+  searchWiki(scope: string, keyword: string, scopeId?: string): Promise<any[]> {
+    const params = new URLSearchParams({ scope, keyword });
+    if (scopeId) params.set("scopeId", scopeId);
+    return this.req(`/api/wiki?${params}`);
+  }
+
+  reorderWiki(ids: string[]): Promise<any> {
+    return this.req("/api/wiki/reorder", { method: "POST", body: JSON.stringify({ ids }) });
+  }
 }
 
 export interface DocItem {
@@ -1650,7 +1691,7 @@ export interface BackupSchedule {
 export interface TicketTab {
   id: string;
   ticketId: string;
-  tabType: "link" | "custom";
+  tabType: "link" | "custom" | "wiki";
   title: string;
   tabOrder: number;
   config: string;

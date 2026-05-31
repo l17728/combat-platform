@@ -30,6 +30,7 @@ import {
   DownOutlined,
   StarFilled,
   WarningOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
@@ -39,6 +40,7 @@ import type { DashboardSummary, GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import InfoSquare from "./InfoSquare.js";
+import WikiPanel from "../components/WikiPanel.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { useDashboardConfig } from "../hooks/useDashboardConfig.js";
 import ProductTour from "../components/ProductTour.js";
@@ -495,6 +497,15 @@ export default function Dashboard() {
                 </span>
               ),
               children: <InfoSquare />,
+            },
+            {
+              key: "wiki",
+              label: (
+                <span>
+                  <BookOutlined /> 知识库
+                </span>
+              ),
+              children: <WikiPanel scope="global" />,
             },
           ]}
         />

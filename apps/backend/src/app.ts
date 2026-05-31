@@ -52,6 +52,8 @@ import { makeDbMigrationRouter } from "./db-migration.js";
 import { makeWebhookRouter } from "./webhook-router.js";
 import { makeDigestRouter } from "./digest-router.js";
 import { makeInvitationRouter } from "./invitation-router.js";
+import { makeWikiRouter } from "./wiki-router.js";
+import { makeOpenApiRouter } from "./openapi-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
@@ -136,6 +138,7 @@ export function createApp(deps: {
   // 健康检查 + Prometheus 指标:auth 之前注册,无需鉴权 — 系统级端点,供 systemd / 反代 / Prometheus 调用。
   app.use("/api", makeHealthRouter(deps.db, adapter));
   app.use("/api", makeMetricsRouter());
+  app.use("", makeOpenApiRouter());
 
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
@@ -331,6 +334,7 @@ export function createApp(deps: {
     app.use("/api", makeWebhookRouter(adapter));
     app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
     app.use("/api", makeInvitationRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeWikiRouter(adapter));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for
