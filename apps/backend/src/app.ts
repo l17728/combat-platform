@@ -1,4 +1,6 @@
 import express from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import type { Repository, SchemaRegistry } from "@combat/shared";
 import { makeRouter } from "./routes.js";
 import { makeImportRouter } from "./import.js";
@@ -22,7 +24,7 @@ import { makeRelationsRouter } from "./relations.js";
 import { makeJobsRouter } from "./jobs.js";
 import { makeOncallRouter } from "./oncall.js";
 import { makeCustomCommandsRouter } from "./custom-commands.js";
-import { makeEmailRouter } from "./email.js";
+import { makeEmailRouter, migrateSmtpPasswordIfNeeded } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
 import { requestLogger, log } from "./logger.js";
 import { makeResponsibilityRouter } from "./responsibility.js";
@@ -36,7 +38,9 @@ import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
+import { csrfMiddleware } from "./csrf.js";
 import { makeHealthRouter } from "./health.js";
+import { makeMetricsRouter, metricsMiddleware } from "./metrics.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
@@ -61,17 +65,71 @@ export function createApp(deps: {
   const mailSender = deps.mailSender ?? new NodemailerSender();
   const adapter: DbAdapter | undefined = deps.adapter ?? (deps.db ? new SqliteAdapter(deps.db) : undefined);
   const app = express();
+  // P1 安全头:helmet 缺省一揽子(X-Frame-Options/X-Content-Type-Options/Referrer-Policy 等)。
+  // contentSecurityPolicy 关闭 —— SPA + Ant Design 5 inline style + 第三方 CDN 配 CSP 易踩坑,
+  // 放到 Nginx/CDN 前置层统一管理更稳。
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  // P1 CORS:开发期(NODE_ENV!=production)放行所有 Origin;生产期同源(浏览器直接同域,
+  // 无 Origin 头时回 *,有 Origin 时回 echo)。复杂跨域请在反代层做。
+  app.use((req, res, next) => {
+    const origin = req.headers.origin as string | undefined;
+    const isProd = process.env.NODE_ENV === "production";
+    if (!isProd) {
+      res.setHeader("Access-Control-Allow-Origin", origin || "*");
+    } else if (origin) {
+      // 生产期:仅当 Origin 与 Host 同源时回显,否则不发 CORS 头(由浏览器同源策略拦截)
+      const host = req.headers.host || "";
+      const sameHost = origin.endsWith("//" + host) || origin.endsWith("//" + host.split(":")[0]);
+      if (sameHost) res.setHeader("Access-Control-Allow-Origin", origin);
+    }
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+    if (req.method === "OPTIONS") return res.status(204).end();
+    next();
+  });
+  // P1 全局限流:60 req/IP/min,COMBAT_RATE_LIMIT_PER_MIN env 可调。
+  // 跳过 NODE_ENV=test 与 COMBAT_NO_AUTH=1(e2e 走 supertest,每个 case 都会被打挂)。
+  const skipRate = process.env.NODE_ENV === "test" || process.env.COMBAT_NO_AUTH === "1";
+  const perMin = Number(process.env.COMBAT_RATE_LIMIT_PER_MIN || 60);
+  app.use(
+    rateLimit({
+      windowMs: 60_000,
+      max: perMin,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: () => skipRate,
+      message: { error: "请求过于频繁,请稍后再试" },
+    })
+  );
+  // P1 登录爆破限流:5 req/IP/15min,仅限 POST /auth/login,跳过 test/NO_AUTH。
+  app.use(
+    "/api/auth/login",
+    rateLimit({
+      windowMs: 15 * 60_000,
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: () => skipRate,
+      message: { error: "登录尝试过多,请 15 分钟后重试" },
+    })
+  );
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
+  // v2.2 P1 §7: metrics 中间件紧随 logger,统计每个请求的 in_flight/count/duration
+  app.use(metricsMiddleware());
   // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
   app.use(express.json({ limit: "20mb" }));
 
-  // 健康检查:在 auth 之前注册,无需鉴权 — 系统级探活点,供 systemd / 反代 / 监控调用。
+  // 健康检查 + Prometheus 指标:auth 之前注册,无需鉴权 — 系统级端点,供 systemd / 反代 / Prometheus 调用。
   app.use("/api", makeHealthRouter(deps.db));
+  app.use("/api", makeMetricsRouter());
 
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
+    // P1 CSRF:同源 Origin/Referer 校验,挂在 auth 之后(只对已登录的写请求生效)。
+    app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
   }
 
@@ -103,6 +161,11 @@ export function createApp(deps: {
   seedConfigFromSchemas(deps.registry, deps.repo).catch(() => {
     /* logged inside */
   });
+
+  // P1 SMTP 密码加密:启动期把历史明文密码原地加密 (一次性迁移,幂等)。
+  migrateSmtpPasswordIfNeeded(deps.repo).catch((e) =>
+    log.warn("smtp.migration_failed", { error: (e as Error).message })
+  );
 
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));

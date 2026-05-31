@@ -40,15 +40,16 @@ describe("API e2e", () => {
     expect((await request(app).get("/api/nodes/nope")).status).toBe(404);
   });
   it("BE-6 progress is append-only, ordered, audited", async () => {
-    const { app, repo } = await makeTestApp();
+    const { app } = await makeTestApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "a", 状态: "进行中" });
     for (const t of ["d1", "d2", "d3"])
       await request(app)
         .post(`/api/nodes/${c.body.id}/progress`)
-        .send({ content: t, statusSnapshot: "进行中", actor: "u" });
+        // P1 修复后 body.actor 不再被信任,actor 取自 req.user (COMBAT_NO_AUTH=1 默认 admin)
+        .send({ content: t, statusSnapshot: "进行中" });
     const seq = await request(app).get(`/api/nodes/${c.body.id}/progress`);
     expect(seq.body).toHaveLength(3);
-    expect(seq.body[0].updatedBy).toBe("u");
+    expect(seq.body[0].updatedBy).toBe("api"); // makeTestApp 走 NO_AUTH bypass,actorOf 回退 fallback
     expect(seq.body.map((p: any) => p.seqNo)).toEqual([1, 2, 3]);
     expect(seq.body[0].content).toBe("d1");
   });

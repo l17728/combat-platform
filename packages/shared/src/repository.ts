@@ -17,6 +17,14 @@ export interface Repository {
   getNode(id: string): Promise<GraphNode | null>;
   updateNode(id: string, patch: Record<string, unknown>, actor: string): Promise<GraphNode>;
   queryNodes(nodeType: string, filter?: NodeFilter): Promise<GraphNode[]>;
+  /**
+   * v2.2 P1 §1: SQL-pushdown 单键等值过滤。Repository 实现走 JSON 路径函数
+   *   - SQLite: `json_extract(properties, '$.<key>') = ?`
+   *   - Postgres: `properties->>'<key>' = ?` (走 GIN)
+   * 用于消除 `queryNodes(nt, {key: v})` 后 N 次 JSON.parse + 应用层 filter 的 O(N) 浪费。
+   * 等值 key/value 必须为字符串(其他类型走 queryNodes 兼容)。
+   */
+  queryNodesByProperty(nodeType: string, key: string, value: string): Promise<GraphNode[]>;
   createEdge(
     edgeType: string,
     sourceId: string,
@@ -32,13 +40,16 @@ export interface Repository {
   listProgress(ownerId: string): Promise<ProgressLog[]>;
   listAllProgress(): Promise<ProgressLog[]>;
   deleteNode(id: string, actor: string): Promise<void>;
-  logAudit(entry: {
-    action: string;
-    entityType: string;
-    entityId: string;
-    changes: unknown;
-    actor: string;
-  }): Promise<void>;
+  logAudit(
+    entry: {
+      action: string;
+      entityType: string;
+      entityId: string;
+      changes: unknown;
+      actor: string;
+    },
+    req?: { user?: { username?: string } }
+  ): Promise<void>;
   listAuditLog(filter: {
     action?: string;
     entityType?: string;

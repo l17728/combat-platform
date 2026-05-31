@@ -216,6 +216,37 @@ export interface QueryContext {
   progress: ProgressLog[];
 }
 
+/**
+ * 类型化的 API 错误。所有 api.* 调用失败统一抛 ApiError(而非裸 Error),
+ * 调用方可以按 status 分支处理(如 403 隐藏 toast)。
+ *
+ * 渐进迁移:旧 catch (e: any) { message.error(e.message) } 仍兼容(message 字段保留);
+ * 新代码推荐 catch (e) { handleApiError(e, '操作失败') }。
+ */
+export class ApiError extends Error {
+  status: number;
+  detail?: string;
+  path: string;
+
+  constructor(status: number, message: string, path: string, detail?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+    this.path = path;
+  }
+}
+
+// 401 全局回调。在 main.tsx 注册一次,触发即跳 /login。
+// 拆出来便于测试(测试时可注册 noop)。
+let unauthorizedHandler: ((err: ApiError) => void) | null = null;
+export function onUnauthorized(handler: (err: ApiError) => void): void {
+  unauthorizedHandler = handler;
+}
+export function _triggerUnauthorized(err: ApiError): void {
+  if (unauthorizedHandler) unauthorizedHandler(err);
+}
+
 export class Api {
   private f: typeof fetch;
   constructor(
@@ -255,7 +286,14 @@ export class Api {
     if (!r.ok) {
       const body = await r.json().catch(() => null);
       const detail = body?.error ?? (Array.isArray(body?.errors) ? body.errors.join("; ") : "");
-      throw new Error(`HTTP ${r.status}${detail ? ` ${detail}` : ` ${r.url || path}`}`);
+      const msg = `HTTP ${r.status}${detail ? ` ${detail}` : ` ${r.url || path}`}`;
+      const err = new ApiError(r.status, msg, path, detail || undefined);
+      // 401:未登录或 token 过期 → 全局跳登录。/api/auth/me 是 AuthProvider 启动时探活
+      // 用的,不能让它弹 toast + 跳转(它的 401 是预期的"未登录"信号),所以排除。
+      if (r.status === 401 && !path.startsWith("/api/auth/me")) {
+        _triggerUnauthorized(err);
+      }
+      throw err;
     }
     const ct = r.headers.get("content-type") ?? "";
     if (ct.includes("application/json")) return r.json() as Promise<T>;
@@ -809,7 +847,7 @@ export class Api {
     });
   }
 
-  getMe(): Promise<{ user: AuthUser }> {
+  getMe(): Promise<{ user: AuthUser; passwordMustChange?: boolean }> {
     return this.req("/api/auth/me");
   }
 
@@ -1268,6 +1306,7 @@ export interface AuthUser {
 export interface LoginResult {
   token: string;
   user: AuthUser;
+  passwordMustChange?: boolean;
 }
 
 export interface OpLogEntry {

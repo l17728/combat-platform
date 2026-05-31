@@ -4,29 +4,94 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
-## v2.3.0 — 2026-05-31 (旗舰特性:一键升级 UI)
+## v2.3.0 — 2026-05-31 (旗舰特性:一键升级 UI + v2.2 P1 三桶继承)
 
+本版在 v2.2.0(sec/perf/quality 三桶 P1)基础上,叠加 **一键升级 UI** 旗舰特性 — 用户可在浏览器内完成版本升级、Schema 自动合并、失败自动回滚。
+
+### 一键升级 UI(旗舰特性)
 新增「系统管理 → 系统升级」(仅 admin),支持上传 .tar.gz 升级包,自动分析 diff、备份、回滚的全流程编排。
 
-### 核心机制
+#### 核心机制
 - **Schema overlay 系统**:用户在 UI 加的字段写到 \`data/schemas-overlay/\`,跨升级保留;baseline (\`config/schemas/\`) 随代码包整盘替换
 - **三方 schema 合并**(current_baseline + current_overlay + target_baseline):用户字段名撞新基线 → 列入冲突报告供决策
 - **自我升级 orchestrator**:detached Node worker 跑 backup → extract → schema-merge → secrets → code-swap → restart → health,任一步失败自动回滚
 - **MVP 限制**:本地上传包(不支持 GitHub release 拉取/PGP 签名校验,留 v2.4);自我升级生产化需在测试环境真跑 systemd 重启一次再上线
 
-### 后端
-- 8 端点 \`/api/upgrade/*\`(current/upload/analyze/apply/status/rollback/history/log)
+#### 后端
+- 8 端点 \`/api/upgrade/*\`(current/upload/analyze/apply/status/rollback/history/log),走 v2.2 新增的 \`adminMiddleware\` 守卫
 - worker.mjs detached 进程(stdio: ignore + unref),状态文件 \`data/upgrade-state.json\`,历史 \`data/upgrade-history.json\`
 - 兼容 mock-systemd 模式(\`COMBAT_UPGRADE_MOCK_SYSTEMD=1\`),本机/e2e 跳过 systemctl
 
-### 前端
+#### 前端
 - 三段式 SystemUpgrade 页面:① 上传 → ② diff 报告 Drawer → ③ 双重确认(Checkbox + 输入 UPGRADE)→ 执行
 - 升级中 Progress + Steps + 实时 log tail(轮询 /api/upgrade/status 1.5s)
 - 完成后展示历史 Table + 回滚按钮
+- api.ts 8 个 upgrade 方法走 v2.2 新增的 \`ApiError\` 类型化错误,401 自动跳登录
 
-### 测试
-- 后端 \`apps/backend/test/upgrade-router.e2e.test.ts\` 18 用例 + \`schema-overlay.unit.test.ts\` 11 用例
-- 前端 \`apps/frontend-v2/e2e/system-upgrade.spec.ts\` 4 用例
+#### 测试
+- 后端 \`upgrade-router.e2e.test.ts\` 18 用例 + \`schema-overlay.unit.test.ts\` 11 用例
+- 前端 \`system-upgrade.spec.ts\` 4 用例(本地 e2e)
+
+### v2.2.0 P1 三桶继承
+v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
+
+- 🔒 **安全**:helmet 响应头 / 全局 + 登录 rate-limit / CSRF 同源 Referer / 私密单全集过滤 / SMTP AES-256-GCM / 强制首登改密 / multer 2.x + express 4.21 / audit actor 强制 req.user
+- ⚡ **性能**:queryNodesByProperty SQL 下推 / conflicts 30s 防抖 + 增量 / recommend 消除 N+1 / proposer 长度差预筛 / appendProgress 原子 seqNo / Prometheus /api/metrics
+- 🏗️ **质量**:AttackDetail 1823→327 行(拆 6 组件 + 2 hook + 1 builder)/ 前端 vitest 54 用例 / ApiError 类型化 / makeTestApp 单源
+
+### 文档体系
+- \`docs/UPGRADE.md\` — 一键升级流程、回滚、故障排查
+- \`docs/SECURITY_RUNBOOK.md\` — 安全运营 / 事故响应(v2.2 沿用)
+- \`docs/PERFORMANCE_TUNING.md\` — 性能调优手册(v2.2 沿用)
+- \`docs/REVIEWS/REVIEW_*.md\` — 5 专家评审 + 各桶"v2.2 P1 已实施"段
+
+### 部署
+- 后端 vitest **~536 全绿**(v2.2 baseline 507 + upgrade-ui 29:overlay 11 + router 18)
+- 前端 vitest **54/54**(v2.2 quality 继承)
+- 三端 \`tsc --noEmit\` 全 0 错
+- 部署同 v2.2:\`cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <pass>\`
+
+---
+
+## v2.2.0 — 2026-05-31 (Roadmap P1 三桶整合 — 安全/性能/质量)
+
+继 v2.1.0 的 P0 清零后,本版处理 5 位专家评审中所有的 **P1 重要项**,分 3 桶并行落地:**7 P1 安全 + 7 P1 性能 + 4 P1 质量**。各桶在独立分支验证后整合入 master。
+
+### 🔒 安全(7 P1 全清)
+- **helmet 安全响应头**:CSP / HSTS / X-Frame-Options / X-Content-Type-Options 等浏览器侧防御一次性开
+- **全局 + 登录 rate-limit**:全局 1000 req/15min/IP,登录 5 次/15min/IP,挡暴破和爬虫
+- **CSRF 同源 Referer 校验**:写操作强校验 \`Referer\` / \`Origin\` 同源,挡跨站伪造
+- **私密攻关单"全集过滤"**:list/audit/export/dashboard 等任何返回 attackTicket 的入口都走 \`filterAccessibleTickets\`,防越权读元信息
+- **SMTP 凭证 AES-256-GCM 加密**:数据库静态字段加密 + 启动期 \`SMTP_ENC_KEY\` 校验
+- **默认 admin/admin123 强制首登改密**:登录后端返回 \`passwordMustChange\`,前端 ForcePasswordChange 全屏拦截
+- **multer 1.x → 2.x + express ≥4.21.2**:消除 multer/express 已知 CVE
+- **audit log actor 强制 req.user.username**:不再信任 body.actor / 硬编码 "api",新增 \`actorOf(req)\` helper 统一收口
+
+### ⚡ 性能(7 P1 全清 + 可观测性)
+- **queryNodesByProperty SQL 下推**:json_extract + 表达式索引,emailGroup/person 等值查找从全表扫降为索引点查;消除 routes/dashboard 多处 N×M 内存过滤
+- **conflicts 30s 防抖 + 增量算法**:窗口内单 ticket 多次保存合并为 1 次 \`syncConflictsForOne\`,>50 ticket 兜底降级到全量,audit 写放大降 10-100×
+- **recommend 推荐找帮手消除 N+1**:历史贡献按 personId 批量预聚合,N+1 query 降为 2 次
+- **proposer Levenshtein 长度差预筛**:|len(a)-len(b)| > threshold 直接 reject,N² → ~N log N 估
+- **appendProgress 原子 seqNo**:UNIQUE(targetId,seqNo) + WAL 内事务,防竞态丢序
+- **EXPLAIN + benchmark 实测**:scripts/bench-queryNodes.mjs + bench-explain.mjs 给出实测口径
+- **Prometheus /api/metrics 端点**:Histogram(http 时延)+ Counter(请求数 by status)+ Node.js 默认 process 指标,公开免鉴权,供采集器拉
+
+### 🏗️ 代码质量(4 P1)
+- **AttackDetail 1823 行 → 327 行**:拆 6 子组件(Header/Sidebar/4 个 Tab/Drawers) + 2 hook(useAttackDetailData/Handlers) + 1 builder(buildTabItems)
+- **frontend vitest 单测起手**:7 文件 / 54 用例 / 100% 通过 — utils(auditFilter/handleApiError/nodeLabel/teamMembers) + hooks(useSettings) + components(StatusTag) + api(ApiError)
+- **ApiError 类型化 + 401 自动跳登录**:消除前端 100+ 处 \`(e: any)\`,handleApiError helper 统一收口
+- **makeTestApp 单源**:去除 3 处副本,所有 backend test 共用同一 helper
+
+### ✅ 测试覆盖(整合分支验证)
+- 后端 vitest: **507/507 全绿**(基线 463 + sec 23 + perf 14 + quality 7 = 44 新增)
+- 前端 vitest: **54/54 全绿**(全新增)
+- TypeScript: backend + frontend-v2 + shared 三端 \`tsc --noEmit\` 全 0 错
+
+### ⚠️ 整合策略说明
+- 按依赖顺序合:perf(基础数据通路) → quality(重构 + 测试) → sec(收尾守卫)
+- 冲突解决原则:**特性 union**(perf 的 nodeId 参数 + sec 的 actorOf actor,quality 的 handleApiError + sec 的 passwordMustChange 同时保留)
+- \`private-tickets.ts\` 由 sec 桶从 routes.ts inline 拆出来,再套上 perf 的 \`queryNodesByProperty\` SQL 下推
+- master 当前 8b3f223(v2.1.0),与三桶共同祖先一致,无需 master 二次合
 
 ---
 

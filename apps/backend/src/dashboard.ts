@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Repository, DashboardSummary } from "@combat/shared";
 import { listConflictRows } from "./conflicts.js";
+import { filterAccessibleTickets } from "./private-tickets.js";
 
 // §2.3 canonical 状态 enum partitioned into open/resolved.
 // Invariant: open + resolved == total ONLY when every ticket's 状态 falls in
@@ -11,11 +12,14 @@ const RESOLVED = new Set(["已解决", "已关闭"]);
 
 export function makeDashboardRouter(repo: Repository): Router {
   const r = Router();
-  r.get("/dashboard", async (_req, res) => {
+  r.get("/dashboard", async (req, res) => {
     // 单次扫 attackTicket,在内存里同时算 byStatus / open / resolved / recentActivity,
     // 再把同一份 tks 传给 listConflictRows 复用 — 把原来 2 次全表扫 + 2N 次 JSON.parse
     // 压缩成 1 次扫 + N 次 parse(dashboard 5 个聚合里 attackTicket 维度 50% 数据库 IO 削掉)。
-    const tks = await repo.queryNodes("attackTicket");
+    // 私密攻关单全集过滤 (P1):统计也按访问控制裁剪,防止聚合泄漏标题 / 状态 / 数量。
+    const reqUser = (req as any).user as { username?: string; displayName?: string } | undefined;
+    const allTks = await repo.queryNodes("attackTicket");
+    const tks = await filterAccessibleTickets(repo, allTks, reqUser);
     const byStatus: Record<string, number> = {};
     let open = 0,
       resolved = 0;
