@@ -4,6 +4,43 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.7.0 — 2026-06-01 (三桶 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+
+本版聚焦"把 v2.6 几条主线完整跑通":Hermes 体验收尾(动态 model 列表 + golden set 15/15 + 部署 drop-in 自愈)、Schema-as-UI 推到全部 7 个 nodeType、多视图(Kanban/Calendar/Pivot)首次落地。
+
+### 三桶整合
+
+**① Hermes 体验收尾**
+- **GET /api/llm-settings/models 动态拉取 provider 实际 model 列表**: 走 OpenAI 兼容 \`/v1/models\` endpoint;UI 把 defaultModel/smallModel 从 AutoComplete 改为动态 Select + 「刷新」按钮,看到的就是 provider 真支持的
+- **/api/llm-settings/test 修 env-fallback**: admin 未存 DB 也能走 env 实测连接,补 v2.6 漏洞
+- **Hermes prompt 优化**: 审计追溯类问题("admin 改过哪些"/"张三干过什么")LLM 现在会优先 \`get_audit(actor='X')\` 而非让用户澄清;golden set **15/15 通过**(v2.6 是 14/15)
+- **deploy-direct.mjs 自愈 systemd drop-in**: 自动检测多个 drop-in 设同一 env key 时备份旧的、保留新的(吃下 v2.6 \`hermes.conf\` 累加坑);\`--keep-old-drop-ins\` flag 关闭自动清理
+- 默认 model **glm-4-flash**(智谱免费层,零成本可用,首次部署即工作)
+
+**② Schema-as-UI 全栈化**
+- **v2.6 的 attackTicket 模式推到全部 7 个 nodeType**: contribution / teamContribution / person / helpRequest / bugReport / proposal / reminder
+- **新概念 \`virtual: true\` schema**: helpRequest/bugReport/proposal/reminder 这些数据存在专用表(不走 nodes 表),仍写 \`config/schemas/*.json\` 描述字段;后端 \`/api/nodes/<virtual>\` 拒收防止双写,但 UI 照样 schema 驱动
+- **新 hook \`useSchema\` + 高阶组件 \`SchemaFormBody\` / \`SchemaViewBody\`**: 按 group 自动 Divider/Card 渲染,从此抽屉表单 = 一行 JSX
+- **所有抽屉移除硬编码 Form.Item**: 加字段 → \`SchemaWizard\` → 全部相关页面自动出现,零前端代码改动
+- 攻关 v2.4.1 React #310 Hooks 修复仍保留
+
+**③ 多视图 (One Data Model, Many Views)**
+- **Kanban (\`/attack?view=kanban\`)**: 按"状态"列 + HTML5 native DnD 拖拽改状态 + 卡片底部 Select 降级 + 乐观更新 + 失败回滚(写后端 \`api.transitionNode\`)
+- **Calendar (\`/attack?view=calendar\`)**: antd \`<Calendar fullscreen>\` 月视图 + 按创建/解决时间切换 + 色块标 P0/P1/P2/P3 + 点单元格 Popover 列当日攻关
+- **Pivot (\`/contributions?view=pivot\`)**: 贡献人 × 贡献类型 透视表 + 加权积分(核心3/关键2/普通1) + 颜色梯度 + 行尾小计 + 列尾总计 + Grand Total + 个人/团队透视模式 Segmented 切换
+- **AttackList / Contributions 顶部 Segmented 视图切换器**: URL \`?view=table|kanban|calendar|pivot\` 同步,直链分享 + 切换不重置 filter
+
+### 测试
+
+- Backend: **~755/755** 通过(集成阶段汇总;含 hermes-polish 17 + schema-all 25 + golden set 15/15)
+- Shared: **28/28**
+- Frontend tsc: 0 错
+- Frontend e2e: 多视图 12 + schema-driven 25 + 抽屉/详情回归 47+ 全绿
+
+### 经验沉淀
+
+> v2.6 完成的是"用户可见的中期 UX 槽位填上"(Inbox/面包屑/LLM UI);v2.7 完成的是把这些主线**贯穿落地** — Schema-as-UI 从 1 个 nodeType 到 7 个 + 视图从 1 种到 4 种 + LLM 从 14/15 到 15/15 + 部署从手工到自愈。这是把"组件化能力"转向"产品成熟度"的关键一版。配合 v2.6 的 LLM 直连 + UI 配置,**v2.7 之后管理员的全部日常运维都在浏览器里完成**:加字段、改 LLM、看通知、切视图,**无需 SSH、无需重启**。
+
 ## v2.6.0 — 2026-05-31 (四桶 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
 
 本版三件大事:**完全去掉 opencode 依赖** + 把"用户可见的中期 UX 槽位"全部填上(站内 inbox/面包屑/通知铃铛) + **详情页全部 Schema 驱动**——这些一起把"配置 / 升级 / 体验"三条主线推到一个新台阶。
