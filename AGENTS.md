@@ -868,7 +868,30 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-05-31 v2.2 安全 P1 — feature/roadmap-sec-p1 分支)
+### 当前测试状态(2026-05-31 v2.2.0 整合 — roadmap P1 三桶合并到 expert-roadmap-v2.2 后)
+
+**v2.2.0 = 7 P1 安全 + 7 P1 性能 + Prometheus + 4 P1 质量(AttackDetail 拆 + frontend vitest 起手 + ApiError + makeTestApp 去重)**
+
+- 后端 vitest **507/507 全绿** (基线 463 → 各桶整合后 +44:sec 23 + perf 14 + quality 7)
+- 前端 vitest **54/54 全绿** (全新增 7 文件:auditFilter/handleApiError/nodeLabel/teamMembers/useSettings/StatusTag/apiError)
+- 三端 `npx tsc --noEmit` 全 0 错 (backend + shared + frontend-v2)
+- 前端 e2e 未跑 (端口被占,集成机共用 5174/3001;各桶分支独立验证 401+ 全绿)
+- 文档:`apps/frontend-v2/src/help-content.ts` 顶部追加 v2.2.0 release notes;各桶 `docs/REVIEWS/REVIEW_*.md` 已含"v2.2 P1 已实施"段
+
+**整合策略(本次成功路径):**
+
+- 按依赖顺序合:perf(基础数据通路) → quality(重构 + 测试) → sec(收尾守卫)
+- perf / quality 干净合入无冲突
+- sec 合时冲突在 routes.ts(4 处) / LoginPage.tsx(2 处) / package-lock.json
+  - routes.ts: 保留 perf 桶 `triggerPostSaveJobs(repo, registry, nodeId)` 签名 + sec 桶 `actorOf(req)` actor 来源
+  - private-tickets.ts: 用 sec 桶拆分版本(从 routes.ts inline 移出) + perf 桶 `queryNodesByProperty` SQL 下推
+  - LoginPage.tsx: union(sec 的 `passwordMustChange` 提示 + quality 的 `handleApiError` helper)
+  - package-lock.json: theirs + `npm install` regenerate
+- master 当前 8b3f223 与三桶共同祖先一致,master 合是 no-op
+
+---
+
+### 历史测试状态(2026-05-31 v2.2 安全 P1 — feature/roadmap-sec-p1 分支)
 
 **v2.2 P1 = 私密单全集过滤 + SMTP 加密 + 强制改默认密 + helmet/rate-limit + CSRF + multer/express 升级 + audit actor 强制:**
 
