@@ -32,6 +32,7 @@ import {
 import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
+import { verifyDetachedSignature, loadConfiguredPubkey } from "./pgp.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -178,6 +179,10 @@ export interface AnalyzeReport {
   newSchemas: string[];
   requiredEnv: string[];
   warnings: string[];
+  signaturePresent: boolean;
+  signatureValid?: boolean;
+  signedBy?: string;
+  signatureError?: string;
 }
 
 export interface ReleaseAsset {
@@ -316,6 +321,31 @@ export function makeUpgradeRouter(sqlitePath: string): Router {
   );
 
   r.post(
+    "/upgrade/upload-signature",
+    upload.single("file"),
+    asyncHandler(async (req, res) => {
+      const stagingId = (req.body as any)?.stagingId;
+      if (!stagingId || typeof stagingId !== "string") {
+        res.status(400).json({ error: "stagingId 必填" });
+        return;
+      }
+      if (!req.file?.buffer) {
+        res.status(400).json({ error: "签名文件必填(multipart 字段名 file)" });
+        return;
+      }
+      const pkg = join(stagingDir(), `${stagingId}.tar.gz`);
+      if (!existsSync(pkg)) {
+        res.status(404).json({ error: "staging 包不存在,请先上传升级包" });
+        return;
+      }
+      const dst = join(stagingDir(), `${stagingId}.tar.gz.asc`);
+      writeFileSync(dst, req.file.buffer);
+      log.info("upgrade.upload_signature", { stagingId, size: req.file.size });
+      res.json({ stagingId, size: req.file.size });
+    })
+  );
+
+  r.post(
     "/upgrade/upload-from-url",
     asyncHandler(async (req, res) => {
       const { url } = req.body as { url?: string };
@@ -374,11 +404,36 @@ export function makeUpgradeRouter(sqlitePath: string): Router {
         return;
       }
       const report = await analyzePackage(stagingId, pkg);
+      // PGP signature check (optional)
+      const sigPath = join(stagingDir(), `${stagingId}.tar.gz.asc`);
+      const signaturePresent = existsSync(sigPath);
+      report.signaturePresent = signaturePresent;
+      if (signaturePresent) {
+        const pubkey = loadConfiguredPubkey();
+        if (!pubkey) {
+          report.signatureValid = false;
+          report.signatureError = "已上传签名但未配置 UPGRADE_PGP_PUBKEY 公钥";
+        } else {
+          try {
+            const sigArmored = readFileSync(sigPath, "utf8");
+            const pkgBuf = readFileSync(pkg);
+            const v = await verifyDetachedSignature(pkgBuf, sigArmored, pubkey);
+            report.signatureValid = v.valid;
+            if (v.valid) report.signedBy = v.signedBy;
+            else report.signatureError = v.error;
+          } catch (e) {
+            report.signatureValid = false;
+            report.signatureError = `签名校验异常: ${(e as Error).message}`;
+          }
+        }
+      }
       log.info("upgrade.analyze", {
         stagingId,
         targetVersion: report.targetVersion,
         conflicts: report.schemaReport.conflicts.length,
         breaking: report.breaking.length,
+        signaturePresent: report.signaturePresent,
+        signatureValid: report.signatureValid,
       });
       res.json(report);
     })
@@ -628,6 +683,7 @@ async function analyzePackage(stagingId: string, tarPath: string): Promise<Analy
     newSchemas,
     requiredEnv,
     warnings,
+    signaturePresent: false,
   };
 }
 

@@ -99,6 +99,7 @@ export default function SystemUpgrade() {
   const [history, setHistory] = useState<Awaited<ReturnType<typeof api.upgradeHistory>>>([]);
   const [confirm1, setConfirm1] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [allowUnsigned, setAllowUnsigned] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
   const [releases, setReleases] = useState<Awaited<ReturnType<typeof api.upgradeReleases>>>([]);
@@ -303,8 +304,32 @@ export default function SystemUpgrade() {
     });
   };
 
-  const confirmEnabled = confirm1 && confirmText.trim() === "UPGRADE";
+  const sigOk = report?.signaturePresent ? report?.signatureValid === true : true;
+  const sigGate = sigOk || allowUnsigned;
+  const confirmEnabled = confirm1 && confirmText.trim() === "UPGRADE" && sigGate;
   const isRunning = status?.phase && !["idle", "done", "failed", "rolled-back"].includes(status.phase);
+
+  const beforeSigUpload = async (file: File) => {
+    if (!stagingId) {
+      message.error("请先上传升级包");
+      return false;
+    }
+    try {
+      await api.upgradeUploadSignature(stagingId, file);
+      message.success("签名已上传,重新分析中...");
+      // 重新 analyze 拉取签名结果
+      setAnalyzing(true);
+      try {
+        const rep = await api.upgradeAnalyze(stagingId);
+        setReport(rep);
+      } finally {
+        setAnalyzing(false);
+      }
+    } catch (e: any) {
+      message.error(`签名上传失败: ${e.message}`);
+    }
+    return false;
+  };
 
   const phaseColor =
     status?.phase === "done"
@@ -451,6 +476,21 @@ export default function SystemUpgrade() {
             message={`已选:${stagingFile.name} (${fmtBytes(stagingFile.size)})`}
           />
         )}
+        {stagingId && (
+          <div style={{ marginTop: 12 }} data-testid="upgrade-signature-zone">
+            <Upload
+              accept=".asc"
+              showUploadList={false}
+              beforeUpload={beforeSigUpload}
+              disabled={!stagingId || isRunning === true}
+            >
+              <Button size="small">上传 .asc 签名 (可选)</Button>
+            </Upload>
+            <Text type="secondary" style={{ marginLeft: 8 }}>
+              用于校验升级包来源(PGP);未配置 UPGRADE_PGP_PUBKEY 时只显示警告。
+            </Text>
+          </div>
+        )}
       </Card>
 
       <Card style={{ marginBottom: 16 }} title="② 分析报告">
@@ -460,6 +500,36 @@ export default function SystemUpgrade() {
           <Empty description="尚未上传升级包" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
           <>
+            {report.signaturePresent && report.signatureValid === true && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="success"
+                showIcon
+                message="签名有效"
+                description={`签名人: ${report.signedBy ?? "<unknown>"}`}
+                data-testid="upgrade-signature-valid"
+              />
+            )}
+            {report.signaturePresent && report.signatureValid === false && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="error"
+                showIcon
+                message="签名校验失败"
+                description={report.signatureError ?? "未知错误"}
+                data-testid="upgrade-signature-invalid"
+              />
+            )}
+            {!report.signaturePresent && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="warning"
+                showIcon
+                message="未提供 PGP 签名"
+                description="升级包未附 .asc 签名;建议从可信渠道获取并上传签名后再升级。"
+                data-testid="upgrade-signature-missing"
+              />
+            )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="目标版本">{report.targetVersion}</Descriptions.Item>
               <Descriptions.Item label="新增 schema">{report.newSchemas.length} 个</Descriptions.Item>
@@ -584,6 +654,23 @@ export default function SystemUpgrade() {
           </>
         ) : (
           <>
+            {report && !sigOk && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="warning"
+                showIcon
+                message={report.signaturePresent ? "升级包签名校验失败 — 默认禁用执行" : "升级包未签名 — 默认禁用执行"}
+                description={
+                  <Checkbox
+                    checked={allowUnsigned}
+                    onChange={(e) => setAllowUnsigned(e.target.checked)}
+                    data-testid="upgrade-allow-unsigned"
+                  >
+                    我已确认升级包来源可信,允许在签名不通过的情况下执行升级
+                  </Checkbox>
+                }
+              />
+            )}
             <Checkbox
               checked={confirm1}
               onChange={(e) => setConfirm1(e.target.checked)}

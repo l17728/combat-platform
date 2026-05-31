@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import * as tar from "tar";
+import * as openpgp from "openpgp";
 import { makeUpgradeRouter } from "../src/upgrade.js";
 import { makeTestApp } from "./helpers.js";
 
@@ -385,6 +386,90 @@ describe("upgrade router", () => {
         .post("/api/upgrade/upload-from-url")
         .send({ url: "https://example.com/missing.tar.gz" });
       expect(res.status).toBe(502);
+    });
+  });
+
+  describe("analyze + PGP signature", () => {
+    const ORIGINAL_PUBKEY = process.env.UPGRADE_PGP_PUBKEY;
+    afterEach(() => {
+      if (ORIGINAL_PUBKEY === undefined) delete process.env.UPGRADE_PGP_PUBKEY;
+      else process.env.UPGRADE_PGP_PUBKEY = ORIGINAL_PUBKEY;
+    });
+
+    async function signBuf(buf: Buffer, privArmored: string): Promise<string> {
+      const priv = await openpgp.readPrivateKey({ armoredKey: privArmored });
+      const m = await openpgp.createMessage({ binary: new Uint8Array(buf) });
+      return await openpgp.sign({ message: m, signingKeys: priv, detached: true, format: "armored" });
+    }
+
+    it("signatureValid=true when sig + pubkey match", async () => {
+      const k = await openpgp.generateKey({
+        userIDs: [{ name: "Combat Bot", email: "bot@example.com" }],
+        type: "ecc",
+        curve: "ed25519",
+      });
+      process.env.UPGRADE_PGP_PUBKEY = k.publicKey;
+      const app = makeMiniAppWithRole("admin");
+      const pkgBuf = await makeFakeUpgradePkg("2.5.0");
+      // upload
+      const upRes = await request(app).post("/api/upgrade/upload").attach("file", pkgBuf, "upgrade.tar.gz");
+      const stagingId = upRes.body.stagingId;
+      // upload sig as multipart .asc
+      const sig = await signBuf(pkgBuf, k.privateKey);
+      const sigRes = await request(app)
+        .post(`/api/upgrade/upload-signature`)
+        .field("stagingId", stagingId)
+        .attach("file", Buffer.from(sig, "utf8"), "upgrade.tar.gz.asc");
+      expect(sigRes.status).toBe(200);
+      // analyze should now report signatureValid
+      const aRes = await request(app).post("/api/upgrade/analyze").send({ stagingId });
+      expect(aRes.status).toBe(200);
+      expect(aRes.body.signatureValid).toBe(true);
+      expect(aRes.body.signedBy).toContain("Combat Bot");
+    });
+
+    it("signatureValid=false when sig is from a different key", async () => {
+      const k1 = await openpgp.generateKey({
+        userIDs: [{ name: "Other Bot", email: "other@example.com" }],
+        type: "ecc",
+        curve: "ed25519",
+      });
+      const k2 = await openpgp.generateKey({
+        userIDs: [{ name: "Trusted Bot", email: "trusted@example.com" }],
+        type: "ecc",
+        curve: "ed25519",
+      });
+      process.env.UPGRADE_PGP_PUBKEY = k2.publicKey; // trust k2 but sign with k1
+      const app = makeMiniAppWithRole("admin");
+      const pkgBuf = await makeFakeUpgradePkg("2.5.1");
+      const upRes = await request(app).post("/api/upgrade/upload").attach("file", pkgBuf, "upgrade.tar.gz");
+      const stagingId = upRes.body.stagingId;
+      const sig = await signBuf(pkgBuf, k1.privateKey);
+      await request(app)
+        .post(`/api/upgrade/upload-signature`)
+        .field("stagingId", stagingId)
+        .attach("file", Buffer.from(sig, "utf8"), "upgrade.tar.gz.asc");
+      const aRes = await request(app).post("/api/upgrade/analyze").send({ stagingId });
+      expect(aRes.status).toBe(200);
+      expect(aRes.body.signatureValid).toBe(false);
+      expect(aRes.body.signatureError).toBeTruthy();
+    });
+
+    it("signatureValid=undefined when no .asc uploaded", async () => {
+      const k = await openpgp.generateKey({
+        userIDs: [{ name: "Bot", email: "bot@example.com" }],
+        type: "ecc",
+        curve: "ed25519",
+      });
+      process.env.UPGRADE_PGP_PUBKEY = k.publicKey;
+      const app = makeMiniAppWithRole("admin");
+      const pkgBuf = await makeFakeUpgradePkg("2.5.2");
+      const upRes = await request(app).post("/api/upgrade/upload").attach("file", pkgBuf, "upgrade.tar.gz");
+      const stagingId = upRes.body.stagingId;
+      const aRes = await request(app).post("/api/upgrade/analyze").send({ stagingId });
+      expect(aRes.status).toBe(200);
+      expect(aRes.body.signatureValid).toBeUndefined();
+      expect(aRes.body.signaturePresent).toBe(false);
     });
   });
 });
