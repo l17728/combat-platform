@@ -22,3 +22,4 @@ scripts/backup/node_modules/
 scripts/backup/package-lock.json
 nul
 data/
+backups/
