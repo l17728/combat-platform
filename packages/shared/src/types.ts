@@ -1,4 +1,27 @@
-export type FieldType = "string" | "number" | "date" | "datetime" | "enum" | "ref" | "sequence";
+export type FieldType =
+  | "string"
+  | "number"
+  | "date"
+  | "datetime"
+  | "enum"
+  | "ref"
+  | "sequence"
+  | "boolean"
+  | "textarea"
+  | "json"
+  | "array";
+
+/**
+ * v2.6: Validation rules — declared on FieldSchema, evaluated by frontend SchemaField + backend validateNode.
+ * `min/max` apply to number types; `minLength/maxLength` apply to string/textarea/array; `pattern` is a JS RegExp source string.
+ */
+export interface FieldValidation {
+  pattern?: string;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+}
 
 export interface FieldSchema {
   id: string;
@@ -16,6 +39,30 @@ export interface FieldSchema {
   // v2.3: schema-overlay marker. "user" = added/edited via UI after install,
   // preserved verbatim across upgrades. Absent (default) = "baseline".
   source?: "baseline" | "user";
+  // v2.6: Schema-as-UI — fields below drive the SchemaField renderer +
+  // AttackBasicInfoTab grouping in the detail page.
+  /** Group name (人员信息 / 详细信息 / ...). Empty/missing → default group「其它」. */
+  group?: string;
+  /** Order within the group (ascending). Same-order ties fall back to schema array order. */
+  order?: number;
+  /**
+   * Visibility expression. Currently supports a tiny eq/ne/in DSL evaluated against
+   * the same record's properties — see frontend `evalVisible()`. NEVER `eval`'d.
+   * Examples:
+   *   - `状态 != "已关闭"`
+   *   - `事件级别 in [P1, P2]`
+   */
+  visible?: string;
+  /** Default value applied when a record is created (frontend Form initialValues). */
+  defaultValue?: unknown;
+  /** Lightweight per-field validation rules (frontend Form rules + backend validateNode). */
+  validation?: FieldValidation;
+  /**
+   * v2.6: Marker for fields that need a special control (e.g. member multi-select with role).
+   * Plain fields render via SchemaField; specialControl='member-multi' / 'private-grants' keep
+   * their dedicated drawer/tab UI.
+   */
+  specialControl?: string;
 }
 export interface NodeSchema {
   nodeType: string;

@@ -17,37 +17,21 @@ import { buildAllTabItems } from "./attackDetail/buildTabItems.js";
 
 const { Title, Text } = Typography;
 const STATUS_STEPS = ["待响应", "处理中", "进行中", "已解决", "已关闭"];
-// 攻关成员/成员列表 由专用多选 + 成员管理 tab 维护,不在通用 extraEditFields 中渲染
-const HARDCODED_EDIT_FIELDS = new Set([
-  "标题",
-  "状态",
-  "问题单号",
-  "事件单号",
-  "事件级别",
-  "客户名称",
-  "当前处理人",
-  "攻关组长",
-  "攻关成员",
-  "成员列表",
-  "攻关申请人",
-  "影响及现存风险",
-  "资源ID",
-  "租户ID",
-  "创建人",
-  "私密",
-  "私密授权人",
-  "私密授权组",
-]);
-const SUMMARY_FIELD_IDS = new Set([
-  "标题",
-  "问题单号",
-  "事件单号",
-  "事件级别",
-  "影响及现存风险",
-  "客户名称",
-  "故障发生时间",
-  "当前处理人",
-  "攻关组长",
+// v2.6: schema-as-UI — 详情页基础信息 Tab 改为 schema 驱动分组渲染。
+//
+// 之前用 HARDCODED_EDIT_FIELDS / SUMMARY_FIELD_IDS 两个常量手动维护"哪些字段算基础/扩展",
+// 现在改为从 FieldSchema 的 group / specialControl 中派生:
+//   - basicFields  = schema.fields 全集(剔除 retired) → AttackBasicInfoTab 按 group 分 Card 渲染
+//   - editableFields = schema.fields 剔除 specialControl='system'/'private-grants'/'private-flag'/'member-list'
+//                     + 剔除 retired,自动按 group/order 排布
+// 唯一保留的 specialControl 兜底:member-multi(攻关成员)在通用抽屉里也能多选改。
+//
+// 在 SchemaWizard 加新字段(并选好 group),AttackDetail 自动渲染,无需改任何前端代码。
+const EXCLUDED_EDIT_SPECIAL = new Set([
+  "system", // 创建人 / 时长 / 攻关单号 等系统字段
+  "private-grants", // 私密授权人/组 由 「设置私密」 Drawer 管
+  "private-flag", // 私密 由 「设置私密」/「取消私密」 按钮管
+  "member-list", // 成员列表 由 「成员管理」 Tab 管
 ]);
 const ROLE_OPTIONS_FALLBACK: TeamRole[] = ["组长", "组员"];
 
@@ -200,11 +184,16 @@ export default function AttackDetail() {
     value: (p.properties["姓名"] as string) ?? "",
     label: `${p.properties["姓名"] ?? p.id} (${p.properties["部门"] ?? "-"})`,
   }));
-  const basicFields = schema?.fields.filter((f) => !f.retired && !SUMMARY_FIELD_IDS.has(f.name)) ?? [];
-  const seen = new Set<string>();
-  const extraEditFields = (schema?.fields ?? []).filter((f) => {
-    if (f.retired || HARDCODED_EDIT_FIELDS.has(f.name) || seen.has(f.name)) return false;
-    seen.add(f.name);
+  // v2.6: schema-driven 字段渲染。
+  // basicFields:基础信息 Tab 用 — 全部非 retired 字段(含系统字段在「系统字段」组里展示);
+  // editableFields:编辑抽屉用 — 剔除 specialControl ∈ EXCLUDED_EDIT_SPECIAL 的字段。
+  const basicFields = (schema?.fields ?? []).filter((f) => !f.retired);
+  const seenEdit = new Set<string>();
+  const editableFields = (schema?.fields ?? []).filter((f) => {
+    if (f.retired) return false;
+    if (f.specialControl && EXCLUDED_EDIT_SPECIAL.has(f.specialControl)) return false;
+    if (seenEdit.has(f.name)) return false;
+    seenEdit.add(f.name);
     return true;
   });
   const keyAudits = filterKeyAudits(auditLogs);
@@ -349,7 +338,7 @@ export default function AttackDetail() {
         isPrivate={isPrivate}
         emailGroups={emailGroups}
         personOptions={personOptions}
-        extraEditFields={extraEditFields}
+        editableFields={editableFields}
         STATUS_OPTIONS={STATUS_OPTIONS}
         ROLE_OPTIONS={ROLE_OPTIONS}
         DR_TYPES={DR_TYPES}

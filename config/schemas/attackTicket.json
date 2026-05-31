@@ -10,7 +10,9 @@
       "id": "攻关单号",
       "name": "攻关单号",
       "type": "string",
-      "label": "攻关单号"
+      "label": "攻关单号",
+      "group": "系统字段",
+      "order": 1
     },
     {
       "id": "标题",
@@ -22,16 +24,20 @@
         "title",
         "问题标题",
         "事件标题"
-      ]
+      ],
+      "group": "基础信息",
+      "order": 1
     },
     {
       "id": "问题描述",
       "name": "问题描述",
-      "type": "string",
+      "type": "textarea",
       "label": "问题描述",
       "aliases": [
         "故障现象"
-      ]
+      ],
+      "group": "详细信息",
+      "order": 1
     },
     {
       "id": "故障发生时间",
@@ -41,13 +47,17 @@
       "aliases": [
         "发生时间",
         "故障时间"
-      ]
+      ],
+      "group": "基础信息",
+      "order": 5
     },
     {
       "id": "事件级别",
       "name": "事件级别",
       "type": "string",
-      "label": "事件级别"
+      "label": "事件级别",
+      "group": "基础信息",
+      "order": 4
     },
     {
       "id": "状态",
@@ -61,19 +71,25 @@
         "进行中",
         "已解决",
         "已关闭"
-      ]
+      ],
+      "group": "基础信息",
+      "order": 2
     },
     {
       "id": "客户名称",
       "name": "客户名称",
       "type": "string",
-      "label": "客户名称"
+      "label": "客户名称",
+      "group": "基础信息",
+      "order": 6
     },
     {
       "id": "客户要求解决时间",
       "name": "客户要求解决时间",
       "type": "datetime",
-      "label": "客户要求解决时间"
+      "label": "客户要求解决时间",
+      "group": "详细信息",
+      "order": 8
     },
     {
       "id": "攻关申请人",
@@ -81,13 +97,17 @@
       "type": "ref",
       "refType": "person",
       "label": "攻关申请人",
-      "concept": "负责人"
+      "concept": "负责人",
+      "group": "人员信息",
+      "order": 4
     },
     {
       "id": "攻关申请人工号",
       "name": "攻关申请人工号",
       "type": "string",
-      "label": "攻关申请人工号"
+      "label": "攻关申请人工号",
+      "group": "人员信息",
+      "order": 5
     },
     {
       "id": "当前处理人",
@@ -101,7 +121,9 @@
         "责任人",
         "owner"
       ],
-      "concept": "负责人"
+      "concept": "负责人",
+      "group": "人员信息",
+      "order": 1
     },
     {
       "id": "攻关组长",
@@ -109,26 +131,35 @@
       "type": "ref",
       "refType": "person",
       "label": "攻关组长",
-      "concept": "负责人"
+      "concept": "负责人",
+      "group": "人员信息",
+      "order": 2,
+      "specialControl": "member-leader"
     },
     {
       "id": "是否已解决",
       "name": "是否已解决",
       "type": "string",
-      "label": "是否已解决"
+      "label": "是否已解决",
+      "group": "详细信息",
+      "order": 10
     },
     {
       "id": "攻关有效性",
       "name": "攻关有效性",
       "type": "string",
-      "label": "攻关有效性"
+      "label": "攻关有效性",
+      "group": "详细信息",
+      "order": 11
     },
     {
       "id": "问题单号",
       "name": "问题单号",
       "type": "string",
       "label": "问题单号",
-      "anchor": "问题单号"
+      "anchor": "问题单号",
+      "group": "基础信息",
+      "order": 3
     },
     {
       "id": "是否需CCB",
@@ -138,20 +169,26 @@
       "enumValues": [
         "是",
         "否"
-      ]
+      ],
+      "group": "详细信息",
+      "order": 4
     },
     {
       "id": "事件单号",
       "name": "事件单号",
       "type": "string",
       "label": "事件单号",
-      "anchor": "事件单号"
+      "anchor": "事件单号",
+      "group": "基础信息",
+      "order": 7
     },
     {
       "id": "影响及现存风险",
       "name": "影响及现存风险",
-      "type": "string",
-      "label": "影响及现存风险"
+      "type": "textarea",
+      "label": "影响及现存风险",
+      "group": "详细信息",
+      "order": 2
     },
     {
       "id": "局点",
@@ -160,7 +197,9 @@
       "label": "局点",
       "aliases": [
         "故障局点"
-      ]
+      ],
+      "group": "详细信息",
+      "order": 5
     },
     {
       "id": "资源ID",
@@ -170,7 +209,9 @@
       "aliases": [
         "客户所属资源ID",
         "资源id"
-      ]
+      ],
+      "group": "详细信息",
+      "order": 6
     },
     {
       "id": "租户ID",
@@ -179,104 +220,147 @@
       "label": "租户ID",
       "aliases": [
         "租户id"
-      ]
+      ],
+      "group": "详细信息",
+      "order": 7
     },
     {
       "id": "根因服务",
       "name": "根因服务",
       "type": "string",
-      "label": "根因服务"
+      "label": "根因服务",
+      "group": "详细信息",
+      "order": 9
     },
     {
       "id": "当前处理部门",
       "name": "当前处理部门",
       "type": "string",
-      "label": "当前处理部门"
+      "label": "当前处理部门",
+      "group": "人员信息",
+      "order": 6
     },
     {
       "id": "攻关发起说明",
       "name": "攻关发起说明",
-      "type": "string",
-      "label": "攻关发起说明"
+      "type": "textarea",
+      "label": "攻关发起说明",
+      "group": "详细信息",
+      "order": 3
     },
     {
       "id": "攻关响应时长",
       "name": "攻关响应时长",
       "type": "string",
-      "label": "攻关响应时长"
+      "label": "攻关响应时长",
+      "group": "系统字段",
+      "order": 6
     },
     {
       "id": "攻关时长",
       "name": "攻关时长",
       "type": "string",
-      "label": "攻关时长"
+      "label": "攻关时长",
+      "group": "系统字段",
+      "order": 7
     },
     {
       "id": "挂起开始时间",
       "name": "挂起开始时间",
       "type": "datetime",
-      "label": "挂起开始时间"
+      "label": "挂起开始时间",
+      "group": "系统字段",
+      "order": 8
     },
     {
       "id": "总挂起时长",
       "name": "总挂起时长",
       "type": "string",
-      "label": "总挂起时长"
+      "label": "总挂起时长",
+      "group": "系统字段",
+      "order": 9
     },
     {
       "id": "解除挂起时间",
       "name": "解除挂起时间",
       "type": "datetime",
-      "label": "解除挂起时间"
+      "label": "解除挂起时间",
+      "group": "系统字段",
+      "order": 10
     },
     {
       "id": "结束攻关时间",
       "name": "结束攻关时间",
       "type": "datetime",
-      "label": "结束攻关时间"
+      "label": "结束攻关时间",
+      "group": "系统字段",
+      "order": 11
     },
     {
       "id": "日报发布数量",
       "name": "日报发布数量",
       "type": "number",
-      "label": "日报发布数量"
+      "label": "日报发布数量",
+      "group": "系统字段",
+      "order": 12
     },
     {
       "id": "攻关成员",
       "name": "攻关成员",
       "type": "string",
-      "label": "攻关成员"
+      "label": "攻关成员",
+      "group": "人员信息",
+      "order": 3,
+      "specialControl": "member-multi"
     },
     {
       "id": "成员列表",
       "name": "成员列表",
-      "type": "string",
-      "label": "成员列表"
+      "type": "json",
+      "label": "成员列表",
+      "group": "人员信息",
+      "order": 7,
+      "specialControl": "member-list"
     },
     {
       "id": "创建人",
       "name": "创建人",
       "type": "string",
-      "label": "创建人"
+      "label": "创建人",
+      "group": "系统字段",
+      "order": 2,
+      "specialControl": "system"
     },
     {
       "id": "私密",
       "name": "私密",
       "type": "enum",
       "label": "私密",
-      "enumValues": ["是", "否"]
+      "enumValues": [
+        "是",
+        "否"
+      ],
+      "group": "系统字段",
+      "order": 3,
+      "specialControl": "private-flag"
     },
     {
       "id": "私密授权人",
       "name": "私密授权人",
-      "type": "string",
-      "label": "私密授权人"
+      "type": "json",
+      "label": "私密授权人",
+      "group": "系统字段",
+      "order": 4,
+      "specialControl": "private-grants"
     },
     {
       "id": "私密授权组",
       "name": "私密授权组",
-      "type": "string",
-      "label": "私密授权组"
+      "type": "json",
+      "label": "私密授权组",
+      "group": "系统字段",
+      "order": 5,
+      "specialControl": "private-grants"
     }
   ]
 }
