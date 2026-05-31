@@ -8,6 +8,7 @@ import { syncConflicts } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { verifyAuth } from "./auth.js";
+import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
 
 /**
  * 节点保存后异步触发后台扫描任务（fire-and-forget）。
@@ -77,78 +78,6 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
   });
 }
 
-// 私密攻关单访问判定:成员(姓名)/创建人(用户名)/私密授权人(姓名)/私密授权组(经邮件→人员)。
-// 仅当 attackTicket.私密 === '是' 时调用。
-async function canAccessPrivateAttackTicket(
-  repo: Repository,
-  node: { properties: Record<string, unknown> },
-  user: { username?: string; displayName?: string }
-): Promise<boolean> {
-  const p = node.properties as Record<string, unknown>;
-  const username = user.username || "";
-  const displayName = user.displayName || "";
-  // 创建人 (存的是 username)
-  if (String(p["创建人"] ?? "") === username && username) return true;
-  // 成员列表 (姓名)
-  const memberRaw = p["成员列表"];
-  if (typeof memberRaw === "string" && memberRaw.trim()) {
-    try {
-      const arr = JSON.parse(memberRaw);
-      if (Array.isArray(arr)) {
-        for (const m of arr) {
-          const n = String(m?.["姓名"] ?? "").trim();
-          if (n && (n === displayName || n === username)) return true;
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  // 私密授权人 (姓名数组,JSON)
-  const authRaw = p["私密授权人"];
-  if (typeof authRaw === "string" && authRaw.trim()) {
-    try {
-      const arr = JSON.parse(authRaw);
-      if (Array.isArray(arr)) {
-        for (const n of arr) {
-          const s = String(n).trim();
-          if (s && (s === displayName || s === username)) return true;
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  // 私密授权组 (组名数组,JSON):展开为邮箱 → 人员姓名 → 比对 displayName/username
-  const groupRaw = p["私密授权组"];
-  if (typeof groupRaw === "string" && groupRaw.trim()) {
-    try {
-      const groups = JSON.parse(groupRaw);
-      if (Array.isArray(groups) && groups.length > 0) {
-        for (const groupName of groups) {
-          const gNodes = await repo.queryNodes("emailGroup", { 组名: String(groupName) });
-          for (const g of gNodes) {
-            const emails = String(g.properties?.["成员邮箱"] ?? "")
-              .split(/[,，;；]/)
-              .map((s) => s.trim())
-              .filter(Boolean);
-            for (const email of emails) {
-              const persons = await repo.queryNodes("person", { 邮箱: email });
-              for (const person of persons) {
-                const n = String(person.properties?.["姓名"] ?? "").trim();
-                if (n && (n === displayName || n === username)) return true;
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  return false;
-}
-
 // §50: gate 贡献等级 标定 to privileged roles. P0-3 修复:role 必须从 JWT payload 取,
 // 严禁信任客户端可控的 X-Role 头(localStorage 写入,curl 可任意伪造)。
 // - 缺失 Authorization (CLI / import / 测试 / COMBAT_NO_AUTH) → 信任
@@ -211,7 +140,14 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       // string property values, so collapse each param to its first scalar value.
       const filter: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.query)) filter[k] = Array.isArray(v) ? String(v[0]) : String(v);
-      return res.json(await repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
+      const nodes = await repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined);
+      // 私密攻关单全集过滤 (P1):list 也走与单条 GET 相同的访问控制,
+      // 防止越权用户从列表里看到 私密=是 的标题/状态/创建人等元信息。
+      if (nodeType === "attackTicket") {
+        const reqUser = (req as any).user as { username?: string; displayName?: string } | undefined;
+        return res.json(await filterAccessibleTickets(repo, nodes, reqUser));
+      }
+      return res.json(nodes);
     }
     const single = await repo.getNode(nodeType);
     if (!single) return res.status(404).json({ error: "not found" });
