@@ -141,7 +141,7 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
       const timer = setTimeout(() => ctrl.abort(), Math.min(timeoutMs, 30000));
       const url = `${baseUrl}/chat/completions`;
       const body: Record<string, unknown> = {
-        model: model || "glm-4.6",
+        model: model || "glm-4.5-air",
         messages: [{ role: "user", content: "ping" }],
         max_tokens: 16,
         temperature: 0,

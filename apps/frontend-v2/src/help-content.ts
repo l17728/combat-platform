@@ -4,6 +4,51 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.6.0 — 2026-05-31 (四桶 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
+
+本版三件大事:**完全去掉 opencode 依赖** + 把"用户可见的中期 UX 槽位"全部填上(站内 inbox/面包屑/通知铃铛) + **详情页全部 Schema 驱动**——这些一起把"配置 / 升级 / 体验"三条主线推到一个新台阶。
+
+### 四桶整合
+
+**① LLM 端到端 + UI 配置 (替代 opencode 中转)**
+- **直连 OpenAI 兼容 endpoint**(\`apps/backend/src/openai-compatible-runner.ts\`,纯 fetch ~250 行) — 完全不再 spawn opencode 子进程,部署零额外依赖
+- **/llm-settings 可视化配置页**(admin only):provider(智谱/华为云/自定义)、baseURL、apiKey(AES-256-GCM 加密入库,UI 永不显示明文)、defaultModel/smallModel(AutoComplete + 常用模型下拉)、thinking(disabled 默认极速)、maxHops、timeoutMs;保存即生效不重启;「测试连接」按钮 ping 验证
+- **默认配置 glm-4.5-air + thinking disabled** — 比之前 glm-4.6 + thinking enabled 快 3-4x,完全够 hermes 工具调用场景
+- 三层 fallback: DB → env → 智谱默认(apiKey 永无 hardcoded)
+- CLI: \`llm:get / llm:set / llm:test\`
+- docs/HERMES_TOOLS.md 架构章节去 opencode + docs/LLM_SETTINGS.md UI 操作指南
+
+**② 通知 Inbox + 站内导航**
+- **inbox_notifications 表**(避免与既有 reminder 表混淆,详见 docs/NOTIFICATIONS.md §9) + repo + REST + SSE 推送(单进程 in-process pub/sub,集群部署可换 Redis)
+- **顶栏 🔔 铃铛 + Badge**(SSE+30s 轮询双保险) + **/notifications 完整列表页**(筛选 kind/已读 + 标已读)
+- **4 处触发源接入**: escalation(逾期升级 → 通知当前处理人+创建人)/reminder(跟催 → 通知负责人)/help_request(邮件失败或反馈 → 通知求助人)/bug_report(状态变更 → 通知提报人)
+- **BreadcrumbBar 全站接入**:path-pattern 配置式(不依赖 useMatches data router),所有页面顶部统一面包屑「首页 → 攻关管理 → 攻关作战台 → 攻关单 xxxxxxxx」,可点击逐级返回
+- CLI: \`notifications:list / read / read-all / create\`
+
+**③ Schema-as-UI 详情页**
+- **AttackDetail 基础信息 Tab 全部 schema 驱动**:按 \`schema.fields\` 的 \`group\` 字段自动分 Card(基础信息 / 人员信息 / 详细信息 / 系统字段)+ Descriptions
+- **编辑抽屉全部 schema 驱动**:移除 HARDCODED_EDIT_FIELDS 常量,新字段在 SchemaWizard 加好后**详情页自动出现表单项**,无需改前端代码
+- **通用 SchemaField 渲染器**:支持 string/number/boolean/enum/textarea/date/datetime/ref(person)/array/json 全类型;view 只读 / edit antd 受控
+- **FieldSchema 扩展**: group / order / visible(纯 parser eq/ne/in,绝不 eval)/ defaultValue / validation / specialControl(member-multi/member-list/private-flag 等保留专用 UI 不被通用渲染抢占)
+- **SchemaWizard 字段分组面板**: 行内组/顺序控制 + Popover 显示分组信息
+- attackTicket.json 36 字段全部注 group + order
+
+**④ 文档 + 集成 Stage E**
+- 顶部 release notes(本节)+ 每个受影响 page 章节内追加 v2.6 说明
+- docs/V2.6_RELEASE.md / LLM_SETTINGS.md / NOTIFICATIONS.md / SCHEMA_AS_UI.md
+- merge master → tag v2.6.0 → deploy 124.156.193.122 → 现网 verify(LLM 真跑 + Inbox + Schema 渲染)
+
+### 测试
+
+- Backend: **~700/700** 通过(集成阶段汇总;含 LLM 单测 36 + Inbox 6 + Schema-UI 7 + golden set 15 + 全部回归)
+- Shared: **28/28**
+- Frontend tsc: 0 错
+- Frontend e2e: LLM settings 4 + breadcrumb 6 + notifications 3 + schema-driven-detail 2 + schema-wizard-group 2 + 全部回归绿
+
+### 经验沉淀
+
+> v2.5 把 hermes 从硬编码 intent 路由升级为 tool-using agent,但当时 LLM 仍走 opencode 中转,导致(a)现网部署要装 opencode、(b)配置改了要 SSH、(c)v2.5 现网 LLM ask 卡 120s 超时部分原因在 opencode SDK 适配链。v2.6 直接绕开:backend 用纯 fetch 打 OpenAI 兼容 endpoint,配置入 DB 由 UI 管。一旦做完这步,**v2.6 系列的运维成本接近零**——admin 在浏览器改 model/key/baseURL 保存即生效,key rotation 不重启。这是把"AI 能力是后端 SDK"转向"AI 能力是配置数据"的关键一步。
+
 ## v2.5.0 — 2026-05-31 (旗舰特性:Hermes Tool-using Agent + 14 通用工具)
 
 本版把 Hermes 从「intent 路由器」升级为「Tool-using Agent」——LLM 自己看 schema 选工具,不再硬编码 intent 正则。v2.4 现网"有多少员工"这类问题(intent 命不中 → fallback-search 空)v2.5 直接命中 \`count_nodes\` 返回精确答案。

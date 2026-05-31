@@ -1,5 +1,18 @@
 import { useEffect, useState } from "react";
-import { Typography, Card, Form, Input, InputNumber, Button, Select, Space, Skeleton, message, Alert } from "antd";
+import {
+  Typography,
+  Card,
+  Form,
+  Input,
+  InputNumber,
+  Button,
+  Select,
+  Space,
+  Skeleton,
+  message,
+  Alert,
+  AutoComplete,
+} from "antd";
 import { ThunderboltOutlined, SaveOutlined, ApiOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { LlmSettingsMaskedDTO, LlmSettingsPutBody, LlmThinkingMode } from "../api.js";
@@ -10,27 +23,36 @@ import { handleApiError } from "../utils/handleApiError.js";
 const { Title, Text } = Typography;
 
 // 各 provider 的默认 baseURL / model 速查表
-const PROVIDER_DEFAULTS: Record<string, { baseUrl: string; defaultModel: string; smallModel?: string; label: string }> =
-  {
-    "zhipuai-coding-plan": {
-      baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-      defaultModel: "glm-4.6",
-      smallModel: "glm-4.5-air",
-      label: "智谱 AI(zhipuai-coding-plan)",
-    },
-    huawei_cloud: {
-      baseUrl: "https://api.modelarts-maas.com/openai/v1",
-      defaultModel: "glm-5",
-      smallModel: "glm-5",
-      label: "华为云 ModelArts(huawei_cloud)",
-    },
-    custom: {
-      baseUrl: "",
-      defaultModel: "",
-      smallModel: "",
-      label: "自定义 OpenAI 兼容(custom)",
-    },
-  };
+interface ProviderDefault {
+  baseUrl: string;
+  defaultModel: string;
+  smallModel?: string;
+  label: string;
+  models?: string[]; // 常用模型下拉提示
+}
+
+const PROVIDER_DEFAULTS: Record<string, ProviderDefault> = {
+  "zhipuai-coding-plan": {
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    defaultModel: "glm-4.5-air",
+    smallModel: "glm-4.5-flash",
+    label: "智谱 AI(zhipuai-coding-plan)",
+    models: ["glm-4.5-air", "glm-4.5-flash", "glm-4.5", "glm-4-plus", "glm-4.6", "glm-4-air", "glm-4-flash"],
+  },
+  huawei_cloud: {
+    baseUrl: "https://api.modelarts-maas.com/openai/v1",
+    defaultModel: "glm-5",
+    smallModel: "glm-5",
+    label: "华为云 ModelArts(huawei_cloud)",
+    models: ["glm-5", "qwen3-coder-480b-a35b-instruct", "qwen3-235b-a22b", "Kimi-K2.6"],
+  },
+  custom: {
+    baseUrl: "",
+    defaultModel: "",
+    smallModel: "",
+    label: "自定义 OpenAI 兼容(custom)",
+  },
+};
 
 interface FormValues {
   provider: string;
@@ -58,7 +80,7 @@ export default function LlmSettings() {
         provider: c.provider || "zhipuai-coding-plan",
         baseUrl: c.baseUrl || PROVIDER_DEFAULTS["zhipuai-coding-plan"].baseUrl,
         defaultModel: c.defaultModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].defaultModel,
-        smallModel: c.smallModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].smallModel,
+        smallModel: c.smallModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].smallModel || "",
         thinking: c.thinking || "disabled",
         maxHops: c.maxHops || 6,
         timeoutMs: c.timeoutMs || 60000,
@@ -193,16 +215,31 @@ export default function LlmSettings() {
               <Input.Password autoComplete="off" placeholder="不修改请留空" />
             </Form.Item>
 
-            <Form.Item
-              label="defaultModel 主模型"
-              name="defaultModel"
-              rules={[{ required: true, message: "请填写 defaultModel" }]}
-            >
-              <Input placeholder="glm-4.6" />
-            </Form.Item>
+            <Form.Item shouldUpdate={(p, c) => p.provider !== c.provider} noStyle>
+              {({ getFieldValue }) => {
+                const providerModels = PROVIDER_DEFAULTS[getFieldValue("provider") as string]?.models;
+                const options = providerModels ? providerModels.map((m) => ({ value: m })) : [];
+                return (
+                  <>
+                    <Form.Item
+                      label="defaultModel 主模型"
+                      name="defaultModel"
+                      rules={[{ required: true, message: "请填写 defaultModel" }]}
+                      extra={
+                        providerModels
+                          ? `常用:${providerModels.slice(0, 4).join(" / ")}…(支持输入任意模型名)`
+                          : "支持输入任意模型名"
+                      }
+                    >
+                      <AutoComplete options={options} placeholder="glm-4.5-air" />
+                    </Form.Item>
 
-            <Form.Item label="smallModel 小模型(可选,用于轻量任务)" name="smallModel">
-              <Input placeholder="glm-4.5-air" />
+                    <Form.Item label="smallModel 小模型(可选,用于轻量任务)" name="smallModel">
+                      <AutoComplete options={options} placeholder="glm-4.5-flash" allowClear />
+                    </Form.Item>
+                  </>
+                );
+              }}
             </Form.Item>
 
             <Form.Item
