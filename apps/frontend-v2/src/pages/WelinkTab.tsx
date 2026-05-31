@@ -98,8 +98,8 @@ function parseUploadFile(file: File): Promise<any[]> {
           if (n) normalized.push(n);
         }
         resolve(normalized);
-      } catch (e: any) {
-        reject(new Error(`解析 JSON 失败: ${e.message || e}`));
+      } catch (e) {
+        reject(new Error(`解析 JSON 失败: ${(e instanceof Error ? e.message : String(e)) || e}`));
       }
     };
     reader.onerror = () => reject(new Error("读取文件失败"));
@@ -142,8 +142,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         const r = await api.listWelinkMessages(ticketId, { limit: 2000 });
         setMessages(r.messages);
         setStats(r.stats);
-      } catch (e: any) {
-        message.error(`加载消息失败: ${e.message || e}`);
+      } catch (e) {
+        message.error(`加载消息失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
       } finally {
         if (!silent) setLoading(false);
       }
@@ -245,8 +245,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
         }
         message.success(`上传完成:新增 ${inserted} 条,覆盖 ${updated} 条`);
         await fetchMessages(true);
-      } catch (e: any) {
-        message.error(`上传失败: ${e.message || e}`);
+      } catch (e) {
+        message.error(`上传失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
       } finally {
         setUploading(false);
       }
@@ -275,8 +275,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       message.success(`已删除 ${r.deleted} 条`);
       setSelectedRowKeys([]);
       await fetchMessages(true);
-    } catch (e: any) {
-      message.error(`批量删除失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`批量删除失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -285,8 +285,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       await api.deleteWelinkMessage(ticketId, id);
       message.success("已删除");
       await fetchMessages(true);
-    } catch (e: any) {
-      message.error(`删除失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`删除失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -296,8 +296,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       message.success(`已清空 ${r.deleted} 条消息`);
       setSelectedRowKeys([]);
       await fetchMessages(true);
-    } catch (e: any) {
-      message.error(`清空失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`清空失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -310,8 +310,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       const r = await api.updateWelinkSelection(ticketId, ids, selected);
       message.success(`已${selected ? "纳入" : "排除"} ${r.updated} 条`);
       await fetchMessages(true);
-    } catch (e: any) {
-      message.error(`更新选中失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`更新选中失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -329,8 +329,8 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
       await fetchExtractionCount();
       // 抽完直接打开 Drawer 让用户查看
       if (r.extracted > 0) setExtractionsOpen(true);
-    } catch (e: any) {
-      message.error(`触发 AI 分析失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`触发 AI 分析失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     } finally {
       setAnalyzing(false);
     }

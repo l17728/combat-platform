@@ -1,13 +1,14 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Input, Table, Tag, Typography, Space, Select, Empty, Card, Descriptions, Timeline, Spin, message } from 'antd';
-import { SearchOutlined, NodeIndexOutlined } from '@ant-design/icons';
-import { api } from '../api.js';
-import type { QueryContext } from '../api.js';
-import { NODE_TYPE_LABEL } from '../constants.js';
-import { nodeLabel, detailPath } from '../utils/nodeLabel.js';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
+import { useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Input, Table, Tag, Typography, Space, Select, Empty, Card, Descriptions, Timeline, Spin, message } from "antd";
+import { SearchOutlined, NodeIndexOutlined } from "@ant-design/icons";
+import { api } from "../api.js";
+import type { QueryContext } from "../api.js";
+import { NODE_TYPE_LABEL } from "../constants.js";
+import { nodeLabel, detailPath } from "../utils/nodeLabel.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
@@ -23,8 +24,7 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
   const navigate = useNavigate();
   const props = ctx.node.properties;
 
-  const relatedCount =
-    ctx.related.outgoing.length + ctx.related.incoming.length + ctx.related.coAnchored.length;
+  const relatedCount = ctx.related.outgoing.length + ctx.related.incoming.length + ctx.related.coAnchored.length;
 
   return (
     <Card
@@ -35,16 +35,12 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
           <Tag>{NODE_TYPE_LABEL[ctx.node.nodeType] || ctx.node.nodeType}</Tag>
         </Space>
       }
-      extra={
-        ctx.node.nodeType === 'attackTicket' && (
-          <a onClick={() => navigate(`/attack/${ctx.node.id}`)}>查看详情</a>
-        )
-      }
+      extra={ctx.node.nodeType === "attackTicket" && <a onClick={() => navigate(`/attack/${ctx.node.id}`)}>查看详情</a>}
       style={{ marginTop: 16 }}
     >
       <Descriptions bordered size="small" column={1}>
         {Object.entries(props)
-          .filter(([, v]) => v != null && v !== '')
+          .filter(([, v]) => v != null && v !== "")
           .slice(0, 8)
           .map(([k, v]) => (
             <Descriptions.Item key={k} label={k}>
@@ -58,12 +54,21 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
           <Text type="secondary">关联节点 ({relatedCount})</Text>
           <div style={{ marginTop: 4 }}>
             {ctx.related.outgoing.slice(0, 5).map((r) => (
-              <Tag key={r.node.id} style={{ marginBottom: 4, cursor: 'pointer' }} onClick={() => navigate(detailPath(r.node))}>
+              <Tag
+                key={r.node.id}
+                style={{ marginBottom: 4, cursor: "pointer" }}
+                onClick={() => navigate(detailPath(r.node))}
+              >
                 {r.field}: {nodeLabel(r.node)}
               </Tag>
             ))}
             {ctx.related.incoming.slice(0, 5).map((r) => (
-              <Tag key={r.node.id} color="blue" style={{ marginBottom: 4, cursor: 'pointer' }} onClick={() => navigate(detailPath(r.node))}>
+              <Tag
+                key={r.node.id}
+                color="blue"
+                style={{ marginBottom: 4, cursor: "pointer" }}
+                onClick={() => navigate(detailPath(r.node))}
+              >
                 {r.field}: {nodeLabel(r.node)}
               </Tag>
             ))}
@@ -96,7 +101,7 @@ function ContextPanel({ ctx }: { ctx: QueryContext }) {
 
 export default function SearchPage() {
   const navigate = useNavigate();
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState("");
   const [results, setResults] = useState<QueryHit[]>([]);
   const [selectedType, setSelectedType] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
@@ -115,14 +120,14 @@ export default function SearchPage() {
       try {
         const data = await api.searchNodes(q, selectedType, 50);
         setResults(data);
-      } catch (e: any) {
-        message.error(e.message);
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : String(e));
         setResults([]);
       } finally {
         setLoading(false);
       }
     },
-    [selectedType],
+    [selectedType]
   );
 
   const handleRowClick = useCallback(async (record: QueryHit) => {
@@ -130,8 +135,8 @@ export default function SearchPage() {
     try {
       const ctx = await api.getContext(record.id);
       setContextData(ctx);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setContextLoading(false);
     }
@@ -139,45 +144,45 @@ export default function SearchPage() {
 
   const columns = [
     {
-      title: '摘要',
-      dataIndex: 'summary',
-      key: 'summary',
+      title: "摘要",
+      dataIndex: "summary",
+      key: "summary",
       render: (text: string, record: QueryHit) => (
-        <a onClick={() => {
-          if (record.nodeType === 'attackTicket') {
-            navigate(`/attack/${record.id}`);
-          } else {
-            handleRowClick(record);
-          }
-        }}>
+        <a
+          onClick={() => {
+            if (record.nodeType === "attackTicket") {
+              navigate(`/attack/${record.id}`);
+            } else {
+              handleRowClick(record);
+            }
+          }}
+        >
           {text}
         </a>
       ),
     },
     {
-      title: '类型',
-      dataIndex: 'nodeType',
-      key: 'nodeType',
+      title: "类型",
+      dataIndex: "nodeType",
+      key: "nodeType",
       width: 90,
       render: (t: string) => <Tag>{NODE_TYPE_LABEL[t] || t}</Tag>,
     },
     {
-      title: '匹配度',
-      dataIndex: 'score',
-      key: 'score',
+      title: "匹配度",
+      dataIndex: "score",
+      key: "score",
       width: 110,
-      align: 'center' as const,
+      align: "center" as const,
       sorter: (a: QueryHit, b: QueryHit) => a.score - b.score,
-      render: (s: number) => (
-        <Text type={s >= 3 ? 'danger' : s >= 2 ? 'warning' : undefined}>{s}</Text>
-      ),
+      render: (s: number) => <Text type={s >= 3 ? "danger" : s >= 2 ? "warning" : undefined}>{s}</Text>,
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Title level={4} style={{ margin: 0 }}>
             全局搜索
           </Title>
@@ -185,7 +190,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      <Space wrap style={{ marginBottom: 16, width: '100%' }}>
+      <Space wrap style={{ marginBottom: 16, width: "100%" }}>
         <Select
           allowClear
           placeholder="筛选类型"
@@ -196,9 +201,9 @@ export default function SearchPage() {
             if (keyword) doSearch(keyword);
           }}
           options={[
-            { value: 'attackTicket', label: '攻关单' },
-            { value: 'person', label: '人员' },
-            { value: 'contribution', label: '贡献' },
+            { value: "attackTicket", label: "攻关单" },
+            { value: "person", label: "人员" },
+            { value: "contribution", label: "贡献" },
           ]}
         />
         <Search
@@ -206,7 +211,11 @@ export default function SearchPage() {
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
           onSearch={doSearch}
-          enterButton={<><SearchOutlined /> 搜索</>}
+          enterButton={
+            <>
+              <SearchOutlined /> 搜索
+            </>
+          }
           style={{ width: 400 }}
           size="middle"
           allowClear
@@ -214,7 +223,7 @@ export default function SearchPage() {
       </Space>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 40 }}>
+        <div style={{ textAlign: "center", padding: 40 }}>
           <Spin tip="搜索中..." />
         </div>
       ) : results.length === 0 && keyword ? (
@@ -223,7 +232,7 @@ export default function SearchPage() {
         <Empty description="输入关键词开始搜索" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
         <>
-          <Text type="secondary" style={{ marginBottom: 8, display: 'block' }}>
+          <Text type="secondary" style={{ marginBottom: 8, display: "block" }}>
             找到 {results.length} 条结果
           </Text>
           <Table
@@ -234,14 +243,14 @@ export default function SearchPage() {
             pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
             onRow={(record) => ({
               onClick: () => handleRowClick(record),
-              style: { cursor: 'pointer' },
+              style: { cursor: "pointer" },
             })}
           />
         </>
       )}
 
       {contextLoading && (
-        <div style={{ textAlign: 'center', padding: 20 }}>
+        <div style={{ textAlign: "center", padding: 20 }}>
           <Spin tip="加载上下文..." />
         </div>
       )}

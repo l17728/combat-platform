@@ -31,8 +31,8 @@ export function ForcePasswordChange() {
       clearPasswordMustChange();
       logout();
       window.location.href = "/login";
-    } catch (e: any) {
-      message.error(e.message || "改密失败");
+    } catch (e) {
+      message.error((e instanceof Error ? e.message : String(e)) || "改密失败");
     } finally {
       setSubmitting(false);
     }

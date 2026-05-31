@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 import {
   Typography,
   Card,
@@ -13,11 +13,12 @@ import {
   Table,
   Modal,
   Popconfirm,
-} from 'antd';
-import { api } from '../api.js';
-import type { SmtpConfigMasked, GraphNode } from '@combat/shared';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
+} from "antd";
+import { api } from "../api.js";
+import type { SmtpConfigMasked, GraphNode } from "@combat/shared";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
@@ -26,7 +27,7 @@ export default function EmailSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [testEmail, setTestEmail] = useState('');
+  const [testEmail, setTestEmail] = useState("");
   const [form] = Form.useForm();
 
   const [groups, setGroups] = useState<GraphNode[]>([]);
@@ -46,9 +47,9 @@ export default function EmailSettings() {
           port: c.port,
           secure: c.secure,
           username: c.username,
-          password: '',
+          password: "",
           fromEmail: c.fromEmail,
-          fromName: c.fromName ?? '',
+          fromName: c.fromName ?? "",
         });
       })
       .catch(() => {})
@@ -58,10 +59,10 @@ export default function EmailSettings() {
   const fetchGroups = async () => {
     setGroupsLoading(true);
     try {
-      const list = await api.listNodes('emailGroup');
+      const list = await api.listNodes("emailGroup");
       setGroups(list);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setGroupsLoading(false);
     }
@@ -88,16 +89,16 @@ export default function EmailSettings() {
     try {
       if (editingGroup) {
         await api.updateNode(editingGroup.id, values);
-        message.success('群组更新成功');
+        message.success("群组更新成功");
       } else {
-        await api.createNode('emailGroup', values);
-        message.success('群组创建成功');
+        await api.createNode("emailGroup", values);
+        message.success("群组创建成功");
       }
       setGroupModalOpen(false);
       groupForm.resetFields();
       await fetchGroups();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setGroupSaving(false);
     }
@@ -106,10 +107,10 @@ export default function EmailSettings() {
   const handleGroupDelete = async (id: string) => {
     try {
       await api.deleteNode(id);
-      message.success('群组删除成功');
+      message.success("群组删除成功");
       await fetchGroups();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -125,9 +126,9 @@ export default function EmailSettings() {
         fromEmail: values.fromEmail,
         fromName: values.fromName,
       } as any);
-      message.success('保存成功');
-    } catch (e: any) {
-      message.error(e.message);
+      message.success("保存成功");
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setSaving(false);
     }
@@ -135,19 +136,19 @@ export default function EmailSettings() {
 
   const handleTest = async () => {
     if (!testEmail) {
-      message.warning('请输入测试收件人');
+      message.warning("请输入测试收件人");
       return;
     }
     setTesting(true);
     try {
       const result = await api.testEmail(testEmail);
       if (result.ok) {
-        message.success('测试邮件发送成功');
+        message.success("测试邮件发送成功");
       } else {
-        message.error(`发送失败: ${result.error ?? '未知错误'}`);
+        message.error(`发送失败: ${result.error ?? "未知错误"}`);
       }
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setTesting(false);
     }
@@ -157,45 +158,49 @@ export default function EmailSettings() {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>邮件设置</Title>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          邮件设置
+        </Title>
         <HelpButton title={HELP.emailSettings.title} content={HELP.emailSettings.content} />
       </div>
 
       <Card style={{ maxWidth: 600 }}>
-        <Form form={form} layout="vertical" onFinish={handleSave}
-          initialValues={{ port: 465, secure: true }}>
-          <Form.Item name="host" label="SMTP 服务器"
-            rules={[{ required: true, message: '请输入 SMTP 服务器地址' }]}>
+        <Form form={form} layout="vertical" onFinish={handleSave} initialValues={{ port: 465, secure: true }}>
+          <Form.Item name="host" label="SMTP 服务器" rules={[{ required: true, message: "请输入 SMTP 服务器地址" }]}>
             <Input placeholder="例如: smtp.qq.com" />
           </Form.Item>
-          <Space style={{ width: '100%' }} direction="horizontal" size="large">
-            <Form.Item name="port" label="端口"
-              rules={[{ required: true, message: '请输入端口' }]}>
+          <Space style={{ width: "100%" }} direction="horizontal" size="large">
+            <Form.Item name="port" label="端口" rules={[{ required: true, message: "请输入端口" }]}>
               <InputNumber placeholder="465" min={1} max={65535} style={{ width: 160 }} />
             </Form.Item>
-            <Form.Item name="secure" label="SSL/TLS" valuePropName="checked"
-              tooltip="端口 465 通常启用 SSL，端口 587 通常关闭">
+            <Form.Item
+              name="secure"
+              label="SSL/TLS"
+              valuePropName="checked"
+              tooltip="端口 465 通常启用 SSL，端口 587 通常关闭"
+            >
               <Switch checkedChildren="SSL" unCheckedChildren="OFF" />
             </Form.Item>
           </Space>
-          <Form.Item name="username" label="用户名（邮箱地址）"
-            rules={[{ required: true, message: '请输入邮箱地址' }]}>
+          <Form.Item name="username" label="用户名（邮箱地址）" rules={[{ required: true, message: "请输入邮箱地址" }]}>
             <Input placeholder="例如: 3657768344@qq.com" />
           </Form.Item>
-          <Form.Item name="password" label="密码 / 授权码"
-            rules={config?.passwordSet ? [] : [{ required: true, message: '请输入密码或授权码' }]}>
-            <Input.Password placeholder={config?.passwordSet ? '留空保持原密码不变' : 'QQ邮箱请使用授权码'} />
+          <Form.Item
+            name="password"
+            label="密码 / 授权码"
+            rules={config?.passwordSet ? [] : [{ required: true, message: "请输入密码或授权码" }]}
+          >
+            <Input.Password placeholder={config?.passwordSet ? "留空保持原密码不变" : "QQ邮箱请使用授权码"} />
           </Form.Item>
-          <Form.Item name="fromEmail" label="发件人邮箱"
-            rules={[{ required: true, message: '请输入发件人邮箱' }]}>
+          <Form.Item name="fromEmail" label="发件人邮箱" rules={[{ required: true, message: "请输入发件人邮箱" }]}>
             <Input placeholder="与用户名相同，例如: 3657768344@qq.com" />
           </Form.Item>
           <Form.Item name="fromName" label="发件人名称（可选）">
             <Input placeholder="例如: 作战管理平台" />
           </Form.Item>
-          {config?.passwordSet && !form.getFieldValue('password') && (
-            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+          {config?.passwordSet && !form.getFieldValue("password") && (
+            <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
               密码已保存。留空则保持原密码不变。
             </Text>
           )}
@@ -206,13 +211,13 @@ export default function EmailSettings() {
           </Space>
         </Form>
 
-        <div style={{ marginTop: 24, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+        <div style={{ marginTop: 24, borderTop: "1px solid #f0f0f0", paddingTop: 16 }}>
           <Space>
             <Input
               placeholder="收件人邮箱"
               style={{ width: 240 }}
               value={testEmail}
-              onChange={e => setTestEmail(e.target.value)}
+              onChange={(e) => setTestEmail(e.target.value)}
             />
             <Button onClick={handleTest} loading={testing}>
               发送测试邮件
@@ -222,9 +227,13 @@ export default function EmailSettings() {
       </Card>
 
       <Card style={{ marginTop: 24, maxWidth: 900 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <Title level={5} style={{ margin: 0 }}>邮件群组</Title>
-          <Button type="primary" onClick={openCreateGroup}>新建群组</Button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <Title level={5} style={{ margin: 0 }}>
+            邮件群组
+          </Title>
+          <Button type="primary" onClick={openCreateGroup}>
+            新建群组
+          </Button>
         </div>
         <Table<GraphNode>
           rowKey="id"
@@ -234,30 +243,30 @@ export default function EmailSettings() {
           pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
           columns={[
             {
-              title: '组名',
-              dataIndex: ['properties', '组名'],
-              render: (_: unknown, node) => String(node.properties['组名'] ?? ''),
+              title: "组名",
+              dataIndex: ["properties", "组名"],
+              render: (_: unknown, node) => String(node.properties["组名"] ?? ""),
             },
             {
-              title: '成员邮箱',
-              dataIndex: ['properties', '成员邮箱'],
+              title: "成员邮箱",
+              dataIndex: ["properties", "成员邮箱"],
               ellipsis: true,
-              render: (_: unknown, node) => String(node.properties['成员邮箱'] ?? ''),
+              render: (_: unknown, node) => String(node.properties["成员邮箱"] ?? ""),
             },
             {
-              title: '描述',
-              dataIndex: ['properties', '描述'],
+              title: "描述",
+              dataIndex: ["properties", "描述"],
               ellipsis: true,
-              render: (_: unknown, node) => String(node.properties['描述'] ?? ''),
+              render: (_: unknown, node) => String(node.properties["描述"] ?? ""),
             },
             {
-              title: '操作',
+              title: "操作",
               width: 120,
               render: (_: unknown, node) => (
                 <Space size="middle">
                   <a onClick={() => openEditGroup(node)}>编辑</a>
                   <Popconfirm title="确认删除该群组？" onConfirm={() => handleGroupDelete(node.id)}>
-                    <a style={{ color: '#ff4d4f' }}>删除</a>
+                    <a style={{ color: "#ff4d4f" }}>删除</a>
                   </Popconfirm>
                 </Space>
               ),
@@ -267,7 +276,7 @@ export default function EmailSettings() {
       </Card>
 
       <Modal
-        title={editingGroup ? '编辑群组' : '新建群组'}
+        title={editingGroup ? "编辑群组" : "新建群组"}
         open={groupModalOpen}
         onCancel={() => setGroupModalOpen(false)}
         onOk={() => groupForm.submit()}
@@ -277,8 +286,7 @@ export default function EmailSettings() {
         cancelText="取消"
       >
         <Form form={groupForm} layout="vertical" onFinish={handleGroupSubmit}>
-          <Form.Item name="组名" label="组名"
-            rules={[{ required: true, message: '请输入组名' }]}>
+          <Form.Item name="组名" label="组名" rules={[{ required: true, message: "请输入组名" }]}>
             <Input placeholder="例如: 领导组" />
           </Form.Item>
           <Form.Item name="成员邮箱" label="成员邮箱">

@@ -1,25 +1,48 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from "react";
 import {
-  Table, Input, Select, Button, List, Tag, message, Card, Space, Typography, Row, Col, Divider, Popconfirm, Popover, Tooltip,
-} from 'antd';
-import { PlusOutlined, DeleteOutlined, SearchOutlined, CheckOutlined, LinkOutlined, DisconnectOutlined } from '@ant-design/icons';
-import type { FieldSchema, FieldType, NodeSchema } from '@combat/shared';
-import { api } from '../api.js';
-import type { SchemaSuggestion } from '../api.js';
-import { useSettings } from '../hooks/useSettings.js';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
+  Table,
+  Input,
+  Select,
+  Button,
+  List,
+  Tag,
+  message,
+  Card,
+  Space,
+  Typography,
+  Row,
+  Col,
+  Divider,
+  Popconfirm,
+  Popover,
+  Tooltip,
+} from "antd";
+import {
+  PlusOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+  CheckOutlined,
+  LinkOutlined,
+  DisconnectOutlined,
+} from "@ant-design/icons";
+import type { FieldSchema, FieldType, NodeSchema } from "@combat/shared";
+import { api } from "../api.js";
+import type { SchemaSuggestion } from "../api.js";
+import { useSettings } from "../hooks/useSettings.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
-  { value: 'string', label: '文本 (string)' },
-  { value: 'number', label: '数字 (number)' },
-  { value: 'date', label: '日期 (date)' },
-  { value: 'datetime', label: '日期时间 (datetime)' },
-  { value: 'enum', label: '枚举 (enum)' },
-  { value: 'ref', label: '引用 ref' },
-  { value: 'sequence', label: '序号 (sequence)' },
+  { value: "string", label: "文本 (string)" },
+  { value: "number", label: "数字 (number)" },
+  { value: "date", label: "日期 (date)" },
+  { value: "datetime", label: "日期时间 (datetime)" },
+  { value: "enum", label: "枚举 (enum)" },
+  { value: "ref", label: "引用 ref" },
+  { value: "sequence", label: "序号 (sequence)" },
 ];
 
 interface FieldRow {
@@ -39,44 +62,80 @@ function SuggestPopover({ fieldName, onReuse }: { fieldName: string; onReuse: (s
   const [loading, setLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<SchemaSuggestion[]>([]);
 
-  const handleOpen = useCallback(async (visible: boolean) => {
-    setOpen(visible);
-    if (visible && fieldName.trim()) {
-      setLoading(true);
-      try {
-        setSuggestions(await api.suggestSchema(fieldName));
-      } catch { setSuggestions([]); }
-      finally { setLoading(false); }
-    }
-  }, [fieldName]);
+  const handleOpen = useCallback(
+    async (visible: boolean) => {
+      setOpen(visible);
+      if (visible && fieldName.trim()) {
+        setLoading(true);
+        try {
+          setSuggestions(await api.suggestSchema(fieldName));
+        } catch {
+          setSuggestions([]);
+        } finally {
+          setLoading(false);
+        }
+      }
+    },
+    [fieldName]
+  );
 
   return (
     <Popover
       content={
-        <div style={{ maxWidth: 400, maxHeight: 300, overflowY: 'auto' }}>
-          {loading ? <Text type="secondary">搜索中…</Text>
-            : suggestions.length === 0 ? <Text type="secondary">无匹配字段</Text>
-            : (
-              <List size="small" dataSource={suggestions}
-                renderItem={(s) => (
-                  <List.Item actions={[
-                    <Button key="reuse" size="small" icon={<CheckOutlined />}
-                      onClick={() => { onReuse(s); setOpen(false); }}>复用</Button>,
-                  ]}>
-                    <List.Item.Meta
-                      title={<Space size={4}><Text strong>{s.label}</Text><Tag color="blue">{s.nodeType}</Tag></Space>}
-                      description={<Text type="secondary" style={{ fontSize: 12 }}>
-                        类型: {s.type}{s.concept ? ` 概念: ${s.concept}` : ''}{s.anchor ? ` 锚: ${s.anchor}` : ''}
-                      </Text>} />
-                  </List.Item>
-                )} />
-            )}
+        <div style={{ maxWidth: 400, maxHeight: 300, overflowY: "auto" }}>
+          {loading ? (
+            <Text type="secondary">搜索中…</Text>
+          ) : suggestions.length === 0 ? (
+            <Text type="secondary">无匹配字段</Text>
+          ) : (
+            <List
+              size="small"
+              dataSource={suggestions}
+              renderItem={(s) => (
+                <List.Item
+                  actions={[
+                    <Button
+                      key="reuse"
+                      size="small"
+                      icon={<CheckOutlined />}
+                      onClick={() => {
+                        onReuse(s);
+                        setOpen(false);
+                      }}
+                    >
+                      复用
+                    </Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={
+                      <Space size={4}>
+                        <Text strong>{s.label}</Text>
+                        <Tag color="blue">{s.nodeType}</Tag>
+                      </Space>
+                    }
+                    description={
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        类型: {s.type}
+                        {s.concept ? ` 概念: ${s.concept}` : ""}
+                        {s.anchor ? ` 锚: ${s.anchor}` : ""}
+                      </Text>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+          )}
         </div>
       }
       title={`"${fieldName}" 的现有字段匹配`}
-      trigger="click" open={open} onOpenChange={handleOpen}
+      trigger="click"
+      open={open}
+      onOpenChange={handleOpen}
     >
-      <Button size="small" icon={<SearchOutlined />}>查找现有字段</Button>
+      <Button size="small" icon={<SearchOutlined />}>
+        查找现有字段
+      </Button>
     </Popover>
   );
 }
@@ -85,157 +144,326 @@ export default function SchemaWizard() {
   const [schemas, setSchemas] = useState<NodeSchema[]>([]);
   const [selectedSchema, setSelectedSchema] = useState<NodeSchema | null>(null);
   const [loadingSchemas, setLoadingSchemas] = useState(false);
-  const [nodeType, setNodeType] = useState('');
-  const [tableLabel, setTableLabel] = useState('');
-  const [fieldRows, setFieldRows] = useState<FieldRow[]>([{ key: '0', name: '', label: '', type: 'string' }]);
+  const [nodeType, setNodeType] = useState("");
+  const [tableLabel, setTableLabel] = useState("");
+  const [fieldRows, setFieldRows] = useState<FieldRow[]>([{ key: "0", name: "", label: "", type: "string" }]);
   const [submitting, setSubmitting] = useState(false);
-  const [newFieldDraft, setNewFieldDraft] = useState<{ name: string; label: string; type: FieldType; enumValues: string }>({ name: '', label: '', type: 'string', enumValues: '' });
+  const [newFieldDraft, setNewFieldDraft] = useState<{
+    name: string;
+    label: string;
+    type: FieldType;
+    enumValues: string;
+  }>({ name: "", label: "", type: "string", enumValues: "" });
   const [addingField, setAddingField] = useState(false);
   const { settings } = useSettings();
-  const settingKeys = Object.keys(settings).filter(k => !k.includes('.'));
+  const settingKeys = Object.keys(settings).filter((k) => !k.includes("."));
 
   const loadSchemas = useCallback(async () => {
     setLoadingSchemas(true);
-    try { setSchemas(await api.listSchemas()); }
-    catch { setSchemas([]); }
-    finally { setLoadingSchemas(false); }
+    try {
+      setSchemas(await api.listSchemas());
+    } catch {
+      setSchemas([]);
+    } finally {
+      setLoadingSchemas(false);
+    }
   }, []);
 
-  useEffect(() => { loadSchemas(); }, [loadSchemas]);
+  useEffect(() => {
+    loadSchemas();
+  }, [loadSchemas]);
 
-  const addFieldRow = () => setFieldRows(prev => [...prev, { key: String(Date.now()), name: '', label: '', type: 'string' }]);
-  const removeFieldRow = (key: string) => setFieldRows(prev => prev.filter(r => r.key !== key));
-  const updateFieldRow = (key: string, patch: Partial<FieldRow>) => setFieldRows(prev => prev.map(r => r.key === key ? { ...r, ...patch } : r));
+  const addFieldRow = () =>
+    setFieldRows((prev) => [...prev, { key: String(Date.now()), name: "", label: "", type: "string" }]);
+  const removeFieldRow = (key: string) => setFieldRows((prev) => prev.filter((r) => r.key !== key));
+  const updateFieldRow = (key: string, patch: Partial<FieldRow>) =>
+    setFieldRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)));
 
   const handleReuseConceptFor = (key: string, s: SchemaSuggestion) => {
-    updateFieldRow(key, { name: s.fieldName, type: s.type as FieldType, concept: s.concept, anchor: s.anchor, label: s.label });
+    updateFieldRow(key, {
+      name: s.fieldName,
+      type: s.type as FieldType,
+      concept: s.concept,
+      anchor: s.anchor,
+      label: s.label,
+    });
     message.success(`已复用 "${s.label}" 的概念/锚点`);
   };
 
   const handleSubmit = async () => {
     if (!nodeType.trim() || !/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
-      message.error('表名必须以字母开头，只包含字母和数字');
+      message.error("表名必须以字母开头，只包含字母和数字");
       return;
     }
-    if (!tableLabel.trim()) { message.error('请填写中文显示名'); return; }
-    const validFields = fieldRows.filter(r => r.name.trim() && r.label.trim());
-    if (validFields.length === 0) { message.error('至少需要一个完整的字段'); return; }
+    if (!tableLabel.trim()) {
+      message.error("请填写中文显示名");
+      return;
+    }
+    const validFields = fieldRows.filter((r) => r.name.trim() && r.label.trim());
+    if (validFields.length === 0) {
+      message.error("至少需要一个完整的字段");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const fields: FieldSchema[] = validFields.map(r => ({
-        id: r.name.trim(), name: r.name.trim(), label: r.label.trim(), type: r.type,
-        ...(r.type === 'ref' ? { refType: r.refType } : {}),
-        ...(r.type === 'enum' && r.enumValues?.length ? { enumValues: r.enumValues } : {}),
-        ...(r.type === 'enum' ? { optionsKey: r.optionsKey || r.name.trim() } : {}),
-        concept: r.concept, anchor: r.anchor,
+      const fields: FieldSchema[] = validFields.map((r) => ({
+        id: r.name.trim(),
+        name: r.name.trim(),
+        label: r.label.trim(),
+        type: r.type,
+        ...(r.type === "ref" ? { refType: r.refType } : {}),
+        ...(r.type === "enum" && r.enumValues?.length ? { enumValues: r.enumValues } : {}),
+        ...(r.type === "enum" ? { optionsKey: r.optionsKey || r.name.trim() } : {}),
+        concept: r.concept,
+        anchor: r.anchor,
       }));
       await api.createSchema({ nodeType: nodeType.trim(), label: tableLabel.trim(), fields });
       message.success(`表 "${nodeType}" 创建成功`);
-      setNodeType(''); setTableLabel('');
-      setFieldRows([{ key: String(Date.now()), name: '', label: '', type: 'string' }]);
+      setNodeType("");
+      setTableLabel("");
+      setFieldRows([{ key: String(Date.now()), name: "", label: "", type: "string" }]);
       await loadSchemas();
-    } catch (e: any) { message.error(e.message); }
-    finally { setSubmitting(false); }
+    } catch (e) {
+      handleApiError(e);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDeleteSchema = async (nt: string) => {
     try {
       await api.deleteSchema(nt);
-      message.success('已删除');
+      message.success("已删除");
       if (selectedSchema?.nodeType === nt) setSelectedSchema(null);
       await loadSchemas();
-    } catch (e: any) { message.error(e.message); }
+    } catch (e) {
+      handleApiError(e);
+    }
   };
 
   const handleAddFieldToSchema = async () => {
     if (!selectedSchema) return;
     const name = newFieldDraft.name.trim();
     const label = newFieldDraft.label.trim() || name;
-    if (!name) { message.warning('请输入字段名'); return; }
-    if (selectedSchema.fields.some(f => f.name === name)) { message.error(`字段名「${name}」已存在`); return; }
+    if (!name) {
+      message.warning("请输入字段名");
+      return;
+    }
+    if (selectedSchema.fields.some((f) => f.name === name)) {
+      message.error(`字段名「${name}」已存在`);
+      return;
+    }
     setAddingField(true);
     try {
-      const enumValues = newFieldDraft.type === 'enum'
-        ? newFieldDraft.enumValues.split(',').map(s => s.trim()).filter(Boolean)
-        : undefined;
+      const enumValues =
+        newFieldDraft.type === "enum"
+          ? newFieldDraft.enumValues
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined;
       const updated = await api.patchSchema(selectedSchema.nodeType, {
-        op: 'addField',
+        op: "addField",
         field: { name, label, type: newFieldDraft.type, ...(enumValues && enumValues.length ? { enumValues } : {}) },
       });
       message.success(`字段「${label}」已添加，相关页面将自动显示`);
-      setNewFieldDraft({ name: '', label: '', type: 'string', enumValues: '' });
+      setNewFieldDraft({ name: "", label: "", type: "string", enumValues: "" });
       setSelectedSchema(updated);
       await loadSchemas();
-    } catch (e: any) { message.error(e.message); }
-    finally { setAddingField(false); }
+    } catch (e) {
+      handleApiError(e);
+    } finally {
+      setAddingField(false);
+    }
   };
 
   const handleSetOptionsKey = async (nodeType: string, fieldId: string, optionsKey: string | null) => {
     try {
-      const updated = await api.patchSchema(nodeType, { op: 'setOptionsKey', id: fieldId, optionsKey });
-      message.success(optionsKey ? `已绑定配置项"${optionsKey}"` : '已解除配置绑定');
+      const updated = await api.patchSchema(nodeType, { op: "setOptionsKey", id: fieldId, optionsKey });
+      message.success(optionsKey ? `已绑定配置项"${optionsKey}"` : "已解除配置绑定");
       await loadSchemas();
       setSelectedSchema(updated);
-    } catch (e: any) { message.error(e.message); }
+    } catch (e) {
+      handleApiError(e);
+    }
   };
 
   const handleRetireField = async (nodeType: string, fieldId: string) => {
     try {
-      const updated = await api.patchSchema(nodeType, { op: 'retire', id: fieldId });
-      message.success('字段已停用');
+      const updated = await api.patchSchema(nodeType, { op: "retire", id: fieldId });
+      message.success("字段已停用");
       await loadSchemas();
       setSelectedSchema(updated);
-    } catch (e: any) { message.error(e.message); }
+    } catch (e) {
+      handleApiError(e);
+    }
   };
 
   const handleUnretireField = async (nodeType: string, fieldId: string) => {
     try {
-      const updated = await api.patchSchema(nodeType, { op: 'unretire', id: fieldId });
-      message.success('字段已恢复');
+      const updated = await api.patchSchema(nodeType, { op: "unretire", id: fieldId });
+      message.success("字段已恢复");
       await loadSchemas();
       setSelectedSchema(updated);
-    } catch (e: any) { message.error(e.message); }
+    } catch (e) {
+      handleApiError(e);
+    }
   };
 
   const fieldEditorColumns = [
-    { title: '字段名', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="status" value={row.name} onChange={e => updateFieldRow(row.key, { name: e.target.value })} style={{ width: 120 }} /> },
-    { title: '标签', render: (_: unknown, row: FieldRow) => <Input size="small" placeholder="状态" value={row.label} onChange={e => updateFieldRow(row.key, { label: e.target.value })} style={{ width: 100 }} /> },
-    { title: '类型', render: (_: unknown, row: FieldRow) => <Select size="small" value={row.type} onChange={v => updateFieldRow(row.key, { type: v })} style={{ width: 130 }} options={FIELD_TYPE_OPTIONS} /> },
-    { title: '引用目标表', render: (_: unknown, row: FieldRow) => row.type === 'ref' ? <Select size="small" placeholder="选择引用表" value={row.refType} onChange={v => updateFieldRow(row.key, { refType: v })} style={{ width: 120 }} options={schemas.map(s => ({ value: s.nodeType, label: s.label || s.nodeType }))} /> : <Text type="secondary">—</Text> },
-    { title: '枚举值', render: (_: unknown, row: FieldRow) => row.type === 'enum' ? <Input size="small" placeholder="待响应,处理中" value={(row.enumValues ?? []).join(',')} onChange={e => updateFieldRow(row.key, { enumValues: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) })} style={{ width: 140 }} /> : <Text type="secondary">—</Text> },
-    { title: '配置绑定', render: (_: unknown, row: FieldRow) => row.type === 'enum'
-      ? <Select size="small" allowClear placeholder="配置中心key" value={row.optionsKey || undefined} onChange={v => updateFieldRow(row.key, { optionsKey: v ?? '' })} style={{ width: 130 }}
-          options={[...settingKeys.map(k => ({ value: k, label: k })), { value: row.name, label: `${row.name}（自动）` }]}
-          showSearch optionFilterProp="label" />
-      : <Text type="secondary">—</Text> },
-    { title: '概念', render: (_: unknown, row: FieldRow) => row.concept ? <Tag color="purple">{row.concept}</Tag> : <Text type="secondary">—</Text> },
-    { title: '', render: (_: unknown, row: FieldRow) => <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => removeFieldRow(row.key)} disabled={fieldRows.length <= 1} /> },
+    {
+      title: "字段名",
+      render: (_: unknown, row: FieldRow) => (
+        <Input
+          size="small"
+          placeholder="status"
+          value={row.name}
+          onChange={(e) => updateFieldRow(row.key, { name: e.target.value })}
+          style={{ width: 120 }}
+        />
+      ),
+    },
+    {
+      title: "标签",
+      render: (_: unknown, row: FieldRow) => (
+        <Input
+          size="small"
+          placeholder="状态"
+          value={row.label}
+          onChange={(e) => updateFieldRow(row.key, { label: e.target.value })}
+          style={{ width: 100 }}
+        />
+      ),
+    },
+    {
+      title: "类型",
+      render: (_: unknown, row: FieldRow) => (
+        <Select
+          size="small"
+          value={row.type}
+          onChange={(v) => updateFieldRow(row.key, { type: v })}
+          style={{ width: 130 }}
+          options={FIELD_TYPE_OPTIONS}
+        />
+      ),
+    },
+    {
+      title: "引用目标表",
+      render: (_: unknown, row: FieldRow) =>
+        row.type === "ref" ? (
+          <Select
+            size="small"
+            placeholder="选择引用表"
+            value={row.refType}
+            onChange={(v) => updateFieldRow(row.key, { refType: v })}
+            style={{ width: 120 }}
+            options={schemas.map((s) => ({ value: s.nodeType, label: s.label || s.nodeType }))}
+          />
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "枚举值",
+      render: (_: unknown, row: FieldRow) =>
+        row.type === "enum" ? (
+          <Input
+            size="small"
+            placeholder="待响应,处理中"
+            value={(row.enumValues ?? []).join(",")}
+            onChange={(e) =>
+              updateFieldRow(row.key, {
+                enumValues: e.target.value
+                  .split(",")
+                  .map((s: string) => s.trim())
+                  .filter(Boolean),
+              })
+            }
+            style={{ width: 140 }}
+          />
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "配置绑定",
+      render: (_: unknown, row: FieldRow) =>
+        row.type === "enum" ? (
+          <Select
+            size="small"
+            allowClear
+            placeholder="配置中心key"
+            value={row.optionsKey || undefined}
+            onChange={(v) => updateFieldRow(row.key, { optionsKey: v ?? "" })}
+            style={{ width: 130 }}
+            options={[
+              ...settingKeys.map((k) => ({ value: k, label: k })),
+              { value: row.name, label: `${row.name}（自动）` },
+            ]}
+            showSearch
+            optionFilterProp="label"
+          />
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
+    },
+    {
+      title: "概念",
+      render: (_: unknown, row: FieldRow) =>
+        row.concept ? <Tag color="purple">{row.concept}</Tag> : <Text type="secondary">—</Text>,
+    },
+    {
+      title: "",
+      render: (_: unknown, row: FieldRow) => (
+        <Button
+          size="small"
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => removeFieldRow(row.key)}
+          disabled={fieldRows.length <= 1}
+        />
+      ),
+    },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>表结构管理</Title>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          表结构管理
+        </Title>
         <HelpButton title={HELP.schemaWizard.title} content={HELP.schemaWizard.content} />
       </div>
       <Row gutter={24}>
         <Col xs={24} lg={10}>
           <Card title="现有数据表" size="small" loading={loadingSchemas} style={{ marginBottom: 16 }}>
-            <Table size="small" dataSource={schemas} rowKey="nodeType" pagination={false}
+            <Table
+              size="small"
+              dataSource={schemas}
+              rowKey="nodeType"
+              pagination={false}
               columns={[
-                { title: '类型标识', dataIndex: 'nodeType', render: (v: string) => <Text code>{v}</Text> },
-                { title: '显示名', dataIndex: 'label' },
-                { title: '字段数', render: (_: unknown, r: NodeSchema) => r.fields.length },
-                { title: '', width: 60, render: (_: unknown, r: NodeSchema) => (
-                  <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
-                )},
+                { title: "类型标识", dataIndex: "nodeType", render: (v: string) => <Text code>{v}</Text> },
+                { title: "显示名", dataIndex: "label" },
+                { title: "字段数", render: (_: unknown, r: NodeSchema) => r.fields.length },
+                {
+                  title: "",
+                  width: 60,
+                  render: (_: unknown, r: NodeSchema) => (
+                    <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                    </Popconfirm>
+                  ),
+                },
               ]}
               onRow={(record) => ({
                 onClick: () => setSelectedSchema(selectedSchema?.nodeType === record.nodeType ? null : record),
-                style: { cursor: 'pointer', background: selectedSchema?.nodeType === record.nodeType ? '#e6f4ff' : undefined },
+                style: {
+                  cursor: "pointer",
+                  background: selectedSchema?.nodeType === record.nodeType ? "#e6f4ff" : undefined,
+                },
               })}
             />
           </Card>
@@ -245,58 +473,183 @@ export default function SchemaWizard() {
             <div style={{ marginBottom: 16 }}>
               <Row gutter={16}>
                 <Col span={12}>
-                  <div style={{ marginBottom: 8 }}><Text type="secondary">表名 (英文 camelCase)</Text></div>
-                  <Input placeholder="e.g. workOrder" value={nodeType} onChange={e => setNodeType(e.target.value)} />
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="secondary">表名 (英文 camelCase)</Text>
+                  </div>
+                  <Input placeholder="e.g. workOrder" value={nodeType} onChange={(e) => setNodeType(e.target.value)} />
                 </Col>
                 <Col span={12}>
-                  <div style={{ marginBottom: 8 }}><Text type="secondary">中文显示名</Text></div>
-                  <Input placeholder="e.g. 工单" value={tableLabel} onChange={e => setTableLabel(e.target.value)} />
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="secondary">中文显示名</Text>
+                  </div>
+                  <Input placeholder="e.g. 工单" value={tableLabel} onChange={(e) => setTableLabel(e.target.value)} />
                 </Col>
               </Row>
             </div>
-            <Divider orientation="left" style={{ margin: '8px 0' }}>字段定义</Divider>
-            <Table size="small" dataSource={fieldRows} rowKey="key" columns={fieldEditorColumns} pagination={false} style={{ marginBottom: 8 }} />
+            <Divider orientation="left" style={{ margin: "8px 0" }}>
+              字段定义
+            </Divider>
+            <Table
+              size="small"
+              dataSource={fieldRows}
+              rowKey="key"
+              columns={fieldEditorColumns}
+              pagination={false}
+              style={{ marginBottom: 8 }}
+            />
             <Space style={{ marginTop: 8 }}>
-              <Button icon={<PlusOutlined />} onClick={addFieldRow} size="small">添加字段</Button>
-              <Button type="primary" onClick={handleSubmit} loading={submitting}>创建数据表</Button>
+              <Button icon={<PlusOutlined />} onClick={addFieldRow} size="small">
+                添加字段
+              </Button>
+              <Button type="primary" onClick={handleSubmit} loading={submitting}>
+                创建数据表
+              </Button>
             </Space>
           </Card>
         </Col>
       </Row>
       {selectedSchema && (
-        <Card title={<Space><Text strong>{selectedSchema.label}</Text><Text code>{selectedSchema.nodeType}</Text><Text type="secondary">字段详情</Text></Space>} size="small"
+        <Card
+          title={
+            <Space>
+              <Text strong>{selectedSchema.label}</Text>
+              <Text code>{selectedSchema.nodeType}</Text>
+              <Text type="secondary">字段详情</Text>
+            </Space>
+          }
+          size="small"
           style={{ marginTop: 16 }}
-          extra={<Button size="small" type="text" onClick={() => setSelectedSchema(null)}>关闭</Button>}>
-          <Table size="small" dataSource={selectedSchema.fields} rowKey="id" pagination={false}
+          extra={
+            <Button size="small" type="text" onClick={() => setSelectedSchema(null)}>
+              关闭
+            </Button>
+          }
+        >
+          <Table
+            size="small"
+            dataSource={selectedSchema.fields}
+            rowKey="id"
+            pagination={false}
             columns={[
-              { title: '字段ID', dataIndex: 'id', width: 200, render: (v: string, f: FieldSchema) => <span><Text code style={{ whiteSpace: 'nowrap' }}>{v}</Text>{f.retired && <Tag color="default" style={{ marginLeft: 4, fontSize: 11 }}>停用</Tag>}</span> },
-              { title: '标签', dataIndex: 'label', width: 160 },
-              { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag>{v}</Tag> },
-              { title: '概念', dataIndex: 'concept', width: 100, render: (v?: string) => v ? <Tag color="purple">{v}</Tag> : '—' },
-              { title: '配置绑定', width: 220, render: (_: unknown, f: FieldSchema) => f.type === 'enum'
-                ? <Select size="small" allowClear placeholder="选择配置项" value={f.optionsKey || undefined}
-                    onChange={v => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
-                    style={{ width: 200 }}
-                    options={[...settingKeys.map(k => ({ value: k, label: k })), { value: f.name, label: `${f.name}（自动）` }]}
-                    showSearch optionFilterProp="label" />
-                : <Text type="secondary">—</Text> },
-              { title: '', width: 80, render: (_: unknown, f: FieldSchema) => f.retired
-                ? <Button size="small" type="link" onClick={() => handleUnretireField(selectedSchema.nodeType, f.id)}>恢复</Button>
-                : <Popconfirm title={`确认停用字段"${f.label}"？`} description="停用后 UI 将不再显示该字段，已有数据不受影响" onConfirm={() => handleRetireField(selectedSchema.nodeType, f.id)}>
-                    <Button size="small" type="link" danger>停用</Button>
-                  </Popconfirm> },
-            ]} />
-          <Divider orientation="left" orientationMargin={0} style={{ marginTop: 16 }}>添加新字段</Divider>
+              {
+                title: "字段ID",
+                dataIndex: "id",
+                width: 200,
+                render: (v: string, f: FieldSchema) => (
+                  <span>
+                    <Text code style={{ whiteSpace: "nowrap" }}>
+                      {v}
+                    </Text>
+                    {f.retired && (
+                      <Tag color="default" style={{ marginLeft: 4, fontSize: 11 }}>
+                        停用
+                      </Tag>
+                    )}
+                  </span>
+                ),
+              },
+              { title: "标签", dataIndex: "label", width: 160 },
+              { title: "类型", dataIndex: "type", width: 100, render: (v: string) => <Tag>{v}</Tag> },
+              {
+                title: "概念",
+                dataIndex: "concept",
+                width: 100,
+                render: (v?: string) => (v ? <Tag color="purple">{v}</Tag> : "—"),
+              },
+              {
+                title: "配置绑定",
+                width: 220,
+                render: (_: unknown, f: FieldSchema) =>
+                  f.type === "enum" ? (
+                    <Select
+                      size="small"
+                      allowClear
+                      placeholder="选择配置项"
+                      value={f.optionsKey || undefined}
+                      onChange={(v) => handleSetOptionsKey(selectedSchema.nodeType, f.id, v ?? null)}
+                      style={{ width: 200 }}
+                      options={[
+                        ...settingKeys.map((k) => ({ value: k, label: k })),
+                        { value: f.name, label: `${f.name}（自动）` },
+                      ]}
+                      showSearch
+                      optionFilterProp="label"
+                    />
+                  ) : (
+                    <Text type="secondary">—</Text>
+                  ),
+              },
+              {
+                title: "",
+                width: 80,
+                render: (_: unknown, f: FieldSchema) =>
+                  f.retired ? (
+                    <Button size="small" type="link" onClick={() => handleUnretireField(selectedSchema.nodeType, f.id)}>
+                      恢复
+                    </Button>
+                  ) : (
+                    <Popconfirm
+                      title={`确认停用字段"${f.label}"？`}
+                      description="停用后 UI 将不再显示该字段，已有数据不受影响"
+                      onConfirm={() => handleRetireField(selectedSchema.nodeType, f.id)}
+                    >
+                      <Button size="small" type="link" danger>
+                        停用
+                      </Button>
+                    </Popconfirm>
+                  ),
+              },
+            ]}
+          />
+          <Divider orientation="left" orientationMargin={0} style={{ marginTop: 16 }}>
+            添加新字段
+          </Divider>
           <Space wrap align="start">
-            <Input size="small" placeholder="字段名" value={newFieldDraft.name} onChange={e => setNewFieldDraft(s => ({ ...s, name: e.target.value }))} style={{ width: 140 }} />
-            <Input size="small" placeholder="显示名(标签)" value={newFieldDraft.label} onChange={e => setNewFieldDraft(s => ({ ...s, label: e.target.value }))} style={{ width: 140 }} />
-            <Select size="small" value={newFieldDraft.type} onChange={v => setNewFieldDraft(s => ({ ...s, type: v }))} style={{ width: 150 }} options={FIELD_TYPE_OPTIONS} />
-            {newFieldDraft.type === 'enum' && (
-              <Input size="small" placeholder="枚举值,逗号分隔" value={newFieldDraft.enumValues} onChange={e => setNewFieldDraft(s => ({ ...s, enumValues: e.target.value }))} style={{ width: 180 }} />
+            <Input
+              size="small"
+              placeholder="字段名"
+              value={newFieldDraft.name}
+              onChange={(e) => setNewFieldDraft((s) => ({ ...s, name: e.target.value }))}
+              style={{ width: 140 }}
+            />
+            <Input
+              size="small"
+              placeholder="显示名(标签)"
+              value={newFieldDraft.label}
+              onChange={(e) => setNewFieldDraft((s) => ({ ...s, label: e.target.value }))}
+              style={{ width: 140 }}
+            />
+            <Select
+              size="small"
+              value={newFieldDraft.type}
+              onChange={(v) => setNewFieldDraft((s) => ({ ...s, type: v }))}
+              style={{ width: 150 }}
+              options={FIELD_TYPE_OPTIONS}
+            />
+            {newFieldDraft.type === "enum" && (
+              <Input
+                size="small"
+                placeholder="枚举值,逗号分隔"
+                value={newFieldDraft.enumValues}
+                onChange={(e) => setNewFieldDraft((s) => ({ ...s, enumValues: e.target.value }))}
+                style={{ width: 180 }}
+              />
             )}
-            <Button size="small" type="primary" icon={<PlusOutlined />} loading={addingField} onClick={handleAddFieldToSchema}>新增字段</Button>
+            <Button
+              size="small"
+              type="primary"
+              icon={<PlusOutlined />}
+              loading={addingField}
+              onClick={handleAddFieldToSchema}
+            >
+              新增字段
+            </Button>
           </Space>
-          <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>添加后，攻关单等页面的表单会自动显示该字段，无需在其它页面单独新增。</Text></div>
+          <div style={{ marginTop: 8 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              添加后，攻关单等页面的表单会自动显示该字段，无需在其它页面单独新增。
+            </Text>
+          </div>
         </Card>
       )}
     </div>

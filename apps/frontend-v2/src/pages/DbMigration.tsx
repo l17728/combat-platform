@@ -57,8 +57,8 @@ export default function DbMigration() {
     try {
       const s = await api.dbMigrationStatus();
       setStatus(s);
-    } catch (e: any) {
-      message.error(e.message || "获取数据库状态失败");
+    } catch (e) {
+      message.error((e instanceof Error ? e.message : String(e)) || "获取数据库状态失败");
     } finally {
       setLoading(false);
     }
@@ -87,8 +87,8 @@ export default function DbMigration() {
       await api.dbMigrationTestConnection(pgUrl);
       message.success("Postgres 连接 OK");
       setStep(1);
-    } catch (e: any) {
-      message.error(e.message || "连接失败");
+    } catch (e) {
+      message.error((e instanceof Error ? e.message : String(e)) || "连接失败");
     } finally {
       setTesting(false);
     }
@@ -112,9 +112,9 @@ export default function DbMigration() {
       if (r.ok) message.success(values.dryRun ? "试运行完成,数据未写入" : "迁移完成");
       else message.error(r.error || "迁移失败");
       fetchStatus();
-    } catch (e: any) {
-      setResult({ ok: false, stats: {}, error: e.message });
-      message.error(e.message || "迁移异常");
+    } catch (e) {
+      setResult({ ok: false, stats: {}, error: e instanceof Error ? e.message : String(e) });
+      message.error((e instanceof Error ? e.message : String(e)) || "迁移异常");
     } finally {
       setMigrating(false);
     }

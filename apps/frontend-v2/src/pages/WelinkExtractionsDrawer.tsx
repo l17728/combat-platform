@@ -73,8 +73,8 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
     try {
       const r = await api.listWelinkExtractions(ticketId);
       setItems(r.items);
-    } catch (e: any) {
-      message.error(`加载抽取结果失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`加载抽取结果失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     } finally {
       setLoading(false);
     }
@@ -103,8 +103,8 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
       await api.updateWelinkExtraction(ticketId, id, { reviewed: true });
       setItems((arr) => arr.map((it) => (it.id === id ? { ...it, reviewed: true } : it)));
       message.success("已标记为已查阅");
-    } catch (e: any) {
-      message.error(`标记失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`标记失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -113,8 +113,8 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
       await api.deleteWelinkExtraction(ticketId, id);
       setItems((arr) => arr.filter((it) => it.id !== id));
       message.success("已删除");
-    } catch (e: any) {
-      message.error(`删除失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`删除失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 
@@ -129,8 +129,8 @@ export default function WelinkExtractionsDrawer({ open, ticketId, onClose, onMem
         message.info(`「${name}」已在成员列表`);
       }
       onMembersChanged?.();
-    } catch (e: any) {
-      message.error(`加入失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`加入失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     } finally {
       setAddingName(null);
     }

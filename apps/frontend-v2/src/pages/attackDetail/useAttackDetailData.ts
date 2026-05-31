@@ -3,6 +3,7 @@ import { message } from "antd";
 import { api, type TicketTab } from "../../api.js";
 import type { GraphNode, ProgressLog, HelperRecommendation, AuditLogEntry, NodeSchema } from "@combat/shared";
 import type { DailyReportEntry, SupportNode, SupportTemplate, RelatedResult } from "../../api.js";
+import { handleApiError } from "../../utils/handleApiError.js";
 
 /**
  * AttackDetail 数据加载 hook:把所有 fetch / 刷新逻辑集中,
@@ -44,10 +45,11 @@ export function useAttackDetailData(id: string | undefined) {
       setPeople(ppl);
       setSchema(s);
       setAccessDenied(false);
-    } catch (e: any) {
+    } catch (e) {
       // 私密攻关单 GET 返回 403 时,显示无权访问页而非 toast 报错
-      if (typeof e?.message === "string" && /私密|403/.test(e.message)) setAccessDenied(true);
-      else message.error(e.message);
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/私密|403/.test(msg)) setAccessDenied(true);
+      else message.error(msg);
     } finally {
       setInitialLoading(false);
     }
@@ -72,8 +74,8 @@ export function useAttackDetailData(id: string | undefined) {
       const [nodes, tmpls] = await Promise.all([api.listSupportNodes(id), api.listSupportTemplates().catch(() => [])]);
       setSupportNodes(nodes);
       setTemplates(tmpls);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setSupportLoading(false);
     }

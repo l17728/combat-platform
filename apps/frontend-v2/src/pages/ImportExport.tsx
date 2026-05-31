@@ -1,35 +1,24 @@
-import { useState } from 'react';
-import {
-  Typography,
-  Card,
-  Select,
-  Upload,
-  Button,
-  Table,
-  message,
-  Space,
-  Checkbox,
-  Tag,
-  Alert,
-} from 'antd';
-import { UploadOutlined, ExportOutlined } from '@ant-design/icons';
-import { api } from '../api.js';
-import type { ImportPreview } from '@combat/shared';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
+import { useState } from "react";
+import { Typography, Card, Select, Upload, Button, Table, message, Space, Checkbox, Tag, Alert } from "antd";
+import { UploadOutlined, ExportOutlined } from "@ant-design/icons";
+import { api } from "../api.js";
+import type { ImportPreview } from "@combat/shared";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
 const NODE_TYPES = [
-  { value: 'attackTicket', label: '攻关单' },
-  { value: 'person', label: '人员' },
-  { value: 'contribution', label: '贡献' },
-  { value: 'releasePackage', label: '发布包' },
-  { value: 'weightFile', label: '权重文件' },
+  { value: "attackTicket", label: "攻关单" },
+  { value: "person", label: "人员" },
+  { value: "contribution", label: "贡献" },
+  { value: "releasePackage", label: "发布包" },
+  { value: "weightFile", label: "权重文件" },
 ];
 
 export default function ImportExport() {
-  const [nodeType, setNodeType] = useState<string>('attackTicket');
+  const [nodeType, setNodeType] = useState<string>("attackTicket");
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [createFields, setCreateFields] = useState(false);
@@ -40,23 +29,28 @@ export default function ImportExport() {
       const result = await api.importPreview(file, nodeType);
       setPreview(result);
       setPendingFile(file);
-      message.info('预览完成');
-    } catch (e: any) {
-      message.error(e.message);
+      message.info("预览完成");
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
   const handleImport = async () => {
-    if (!pendingFile) { message.warning('请先拖入文件预览'); return; }
+    if (!pendingFile) {
+      message.warning("请先拖入文件预览");
+      return;
+    }
     setImporting(true);
     try {
       const result = await api.importXlsx(pendingFile, nodeType, createFields);
-      const newFieldsMsg = result.createdFields?.length ? `，新建字段 ${result.createdFields.length}` : '';
-      message.success(`导入完成：新增 ${result.created}，更新 ${result.updated}${result.skipped ? `，跳过 ${result.skipped}` : ''}${newFieldsMsg}`);
+      const newFieldsMsg = result.createdFields?.length ? `，新建字段 ${result.createdFields.length}` : "";
+      message.success(
+        `导入完成：新增 ${result.created}，更新 ${result.updated}${result.skipped ? `，跳过 ${result.skipped}` : ""}${newFieldsMsg}`
+      );
       setPreview(null);
       setPendingFile(null);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setImporting(false);
     }
@@ -66,33 +60,30 @@ export default function ImportExport() {
     try {
       const blob = await api.exportNodes(nodeType);
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = url;
       a.download = `${nodeType}_export.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      message.success('导出成功');
-    } catch (e: any) {
-      message.error(e.message);
+      message.success("导出成功");
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-        <Title level={4} style={{ margin: 0 }}>数据导入/导出</Title>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          数据导入/导出
+        </Title>
         <HelpButton title={HELP.importExport.title} content={HELP.importExport.content} />
       </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Space style={{ marginBottom: 16 }}>
           <Text>数据类型：</Text>
-          <Select
-            style={{ width: 160 }}
-            value={nodeType}
-            onChange={setNodeType}
-            options={NODE_TYPES}
-          />
+          <Select style={{ width: 160 }} value={nodeType} onChange={setNodeType} options={NODE_TYPES} />
           <Button icon={<ExportOutlined />} onClick={handleExport}>
             导出当前数据
           </Button>
@@ -111,7 +102,10 @@ export default function ImportExport() {
         {preview && (
           <div>
             <div style={{ marginBottom: 12 }}>
-              <Text>预览结果：新增 {String(preview.willCreate ?? 0)}，更新 {String(preview.willUpdate ?? 0)}，跳过 {String(preview.skipped ?? 0)}</Text>
+              <Text>
+                预览结果：新增 {String(preview.willCreate ?? 0)}，更新 {String(preview.willUpdate ?? 0)}，跳过{" "}
+                {String(preview.skipped ?? 0)}
+              </Text>
             </div>
             {preview.newColumns && preview.newColumns.length > 0 && (
               <Alert
@@ -122,7 +116,9 @@ export default function ImportExport() {
                 description={
                   <div>
                     <Space size={[4, 4]} wrap style={{ marginBottom: 8 }}>
-                      {preview.newColumns.map((c) => <Tag key={c}>{c}</Tag>)}
+                      {preview.newColumns.map((c) => (
+                        <Tag key={c}>{c}</Tag>
+                      ))}
                     </Space>
                     <div>
                       <Checkbox checked={createFields} onChange={(e) => setCreateFields(e.target.checked)}>
