@@ -1,0 +1,102 @@
+{
+  "nodeType": "proposal",
+  "label": "关系提案",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "virtual": true,
+  "fields": [
+    {
+      "id": "sourceNodeId",
+      "name": "sourceNodeId",
+      "type": "string",
+      "label": "来源节点",
+      "group": "基础信息",
+      "order": 1,
+      "specialControl": "node-ref"
+    },
+    {
+      "id": "relationType",
+      "name": "relationType",
+      "type": "string",
+      "label": "关系类型",
+      "group": "基础信息",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "targetNodeId",
+      "name": "targetNodeId",
+      "type": "string",
+      "label": "目标节点",
+      "group": "基础信息",
+      "order": 3,
+      "specialControl": "node-ref"
+    },
+    {
+      "id": "confidence",
+      "name": "confidence",
+      "type": "number",
+      "label": "置信度",
+      "validation": { "min": 0, "max": 1 },
+      "group": "提案详情",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "rationale",
+      "name": "rationale",
+      "type": "textarea",
+      "label": "依据",
+      "group": "提案详情",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "proposerSource",
+      "name": "proposerSource",
+      "type": "string",
+      "label": "来源算法",
+      "group": "提案详情",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "status",
+      "name": "status",
+      "type": "enum",
+      "label": "状态",
+      "enumValues": ["待审批", "已通过", "已拒绝"],
+      "optionsKey": "提案状态",
+      "group": "审批",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "decidedBy",
+      "name": "decidedBy",
+      "type": "string",
+      "label": "决策人",
+      "group": "审批",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "decidedAt",
+      "name": "decidedAt",
+      "type": "datetime",
+      "label": "决策时间",
+      "group": "审批",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "createdAt",
+      "name": "createdAt",
+      "type": "datetime",
+      "label": "创建时间",
+      "group": "系统字段",
+      "order": 1,
+      "specialControl": "system"
+    }
+  ]
+}

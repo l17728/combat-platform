@@ -4,14 +4,86 @@
   "identityKeys": [],
   "derivedToKG": true,
   "fields": [
-    { "id": "贡献人", "name": "贡献人", "type": "ref", "refType": "person", "label": "贡献人", "required": true, "concept": "负责人" },
-    { "id": "关联攻关单", "name": "关联攻关单", "type": "string", "label": "关联攻关单" },
-    { "id": "贡献类型", "name": "贡献类型", "type": "enum", "label": "贡献类型", "required": true, "enumValues": ["发现", "设计", "实施", "协调", "公关"] },
-    { "id": "贡献等级", "name": "贡献等级", "type": "enum", "label": "贡献等级", "enumValues": ["普通", "关键", "核心"] },
-    { "id": "描述", "name": "描述", "type": "string", "label": "贡献描述" },
-    { "id": "周期", "name": "周期", "type": "string", "label": "周期" },
-    { "id": "记录时间", "name": "记录时间", "type": "datetime", "label": "记录时间" },
-    { "id": "记录人", "name": "记录人", "type": "string", "label": "记录人" },
-    { "id": "关联问题单", "name": "关联问题单", "type": "string", "label": "关联问题单", "anchor": "问题单号" }
+    {
+      "id": "贡献人",
+      "name": "贡献人",
+      "type": "ref",
+      "refType": "person",
+      "label": "贡献人",
+      "required": true,
+      "concept": "负责人",
+      "group": "基础信息",
+      "order": 1
+    },
+    {
+      "id": "贡献类型",
+      "name": "贡献类型",
+      "type": "enum",
+      "label": "贡献类型",
+      "required": true,
+      "enumValues": ["发现", "设计", "实施", "协调", "公关"],
+      "group": "贡献详情",
+      "order": 1
+    },
+    {
+      "id": "贡献等级",
+      "name": "贡献等级",
+      "type": "enum",
+      "label": "贡献等级",
+      "enumValues": ["普通", "关键", "核心"],
+      "group": "贡献详情",
+      "order": 2
+    },
+    {
+      "id": "描述",
+      "name": "描述",
+      "type": "textarea",
+      "label": "贡献描述",
+      "group": "贡献详情",
+      "order": 3
+    },
+    {
+      "id": "关联攻关单",
+      "name": "关联攻关单",
+      "type": "string",
+      "label": "关联攻关单",
+      "group": "关联信息",
+      "order": 1
+    },
+    {
+      "id": "关联问题单",
+      "name": "关联问题单",
+      "type": "string",
+      "label": "关联问题单",
+      "anchor": "问题单号",
+      "group": "关联信息",
+      "order": 2
+    },
+    {
+      "id": "周期",
+      "name": "周期",
+      "type": "string",
+      "label": "周期",
+      "group": "关联信息",
+      "order": 3
+    },
+    {
+      "id": "记录时间",
+      "name": "记录时间",
+      "type": "datetime",
+      "label": "记录时间",
+      "group": "系统字段",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "记录人",
+      "name": "记录人",
+      "type": "string",
+      "label": "记录人",
+      "group": "系统字段",
+      "order": 2,
+      "specialControl": "system"
+    }
   ]
 }
