@@ -7,7 +7,7 @@ import type {
   HermesToolTrace,
 } from "@combat/shared";
 import type { DB } from "./db.js";
-import { TOOL_SCHEMAS, callTool as defaultCallTool, type ToolCtx, type ToolSchema } from "./hermes-tools-mock.js";
+import { TOOL_SCHEMAS, callToolUnwrap as defaultCallTool, type ToolCtx, type ToolSchema } from "./hermes-tools.js";
 
 /**
  * Hermes 的"agent"实现层。Hermes 是"用 agent 做只读问答"这一稳定概念,

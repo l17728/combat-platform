@@ -1031,3 +1031,54 @@ export async function callTool(name: string, input: unknown, ctx: HermesToolCtx)
     return { ok: false, error: "bad_input", detail: msg };
   }
 }
+
+// ---------------------------------------------------------------------------
+// v2.5 桶 D 集成层 — 给 hermes-agent (桶 B) 的 OpenAI tool-calling 协议适配
+// ---------------------------------------------------------------------------
+
+export type ToolCtx = HermesToolCtx;
+
+export interface ToolSchema {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+/** OpenAI ChatCompletions `tools` 数组格式;由 ALL_TOOLS 派生。 */
+export const TOOL_SCHEMAS: ToolSchema[] = ALL_TOOLS.map((t) => ({
+  type: "function",
+  function: {
+    name: t.name,
+    description: t.description,
+    parameters: t.inputSchema,
+  },
+}));
+
+/**
+ * 桶 B 期望的 callTool 签名:返回原始执行结果数据(成功) 或抛错(失败)。
+ * 真工具 callTool 返回 ToolResult{ok, data, error},此处拆解适配。
+ * _truncated 透传给 LLM 让其感知出参被截断。
+ */
+export async function callToolUnwrap(
+  name: string,
+  input: Record<string, unknown>,
+  ctx: ToolCtx = {} as ToolCtx
+): Promise<unknown> {
+  const result = await callTool(name, input, ctx);
+  if (!result.ok) {
+    const err = new Error(result.error || "tool_failed");
+    (err as Error & { detail?: unknown }).detail = result.detail;
+    throw err;
+  }
+  if (result._truncated) {
+    const data = result.data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      return { ...(data as Record<string, unknown>), _truncated: true };
+    }
+    return { value: data, _truncated: true };
+  }
+  return result.data;
+}
