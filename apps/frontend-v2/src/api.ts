@@ -216,6 +216,35 @@ export interface QueryContext {
   progress: ProgressLog[];
 }
 
+export interface HermesCitation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;
+  link: string;
+  kind?: "node" | "welink";
+  messageId?: string;
+  ticketId?: string;
+}
+
+export interface HermesTraceStep {
+  tool: string;
+  input: unknown;
+  outputSize: number;
+  ms: number;
+  _truncated?: boolean;
+}
+
+export interface HermesAskResult {
+  question?: string;
+  intent?: string;
+  answer: string;
+  citations: HermesCitation[];
+  uiSpec?: unknown;
+  trace?: HermesTraceStep[];
+  engine?: "tool" | "intent";
+  fallback_reason?: string;
+}
+
 /**
  * 类型化的 API 错误。所有 api.* 调用失败统一抛 ApiError(而非裸 Error),
  * 调用方可以按 status 分支处理(如 403 隐藏 toast)。
@@ -684,16 +713,7 @@ export class Api {
     return this.req(`/api/query/search?${p.toString()}`);
   }
 
-  hermesAsk(
-    question: string,
-    context?: string
-  ): Promise<{
-    question: string;
-    intent: string;
-    answer: string;
-    citations: { nodeId: string; nodeType: string; summary: string; link: string }[];
-    uiSpec?: any;
-  }> {
+  hermesAsk(question: string, context?: string): Promise<HermesAskResult> {
     return this.req("/api/hermes/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
