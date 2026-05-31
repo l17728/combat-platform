@@ -1,5 +1,6 @@
-import { Component, type ReactNode } from 'react';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { Result, Button } from 'antd';
+import { captureException } from '../sentry.js';
 
 interface Props {
   children: ReactNode;
@@ -18,6 +19,10 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    captureException(error, { componentStack: info.componentStack });
   }
 
   handleReset = () => {

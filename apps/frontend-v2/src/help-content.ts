@@ -15,6 +15,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - **PM2 cluster 多进程**: 新增 \`ecosystem.config.cjs\`,生产可启用 cluster 模式(Postgres adapter 推荐)
 - **编译 dist 去 tsx**: 后端生产从 \`tsx src/server.ts\` 改为 \`node dist/server.js\`,冷启动更快、内存更稳
 - **异地备份脚本**: 新增 \`backup:offsite\` CLI + \`scripts/backup/offsite-backup.mjs\`,支持 SFTP 远端备份(含 dry-run)
+- **Sentry 错误聚合**: 前后端集成 \`@sentry/node\` + \`@sentry/react\`,DSN 未设时完全 no-op,详见 \`docs/OBSERVABILITY.md\`
 
 **② 架构韧性**
 - **KG outbox + worker**: KG 派生从 \`setImmediate\` 改为持久化 outbox 表 + 后台 worker,进程崩溃可重放;\`kg:outbox:status/list/replay/process\` 四个 CLI

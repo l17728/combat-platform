@@ -11,6 +11,17 @@ import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
 import { SqliteAdapter, PostgresAdapter, type DbAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
+import { initSentry, captureException } from "./sentry.js";
+
+initSentry();
+process.on("uncaughtException", (e) => {
+  captureException(e, { phase: "uncaughtException" });
+  log.error("process.uncaughtException", { error: (e as Error).message });
+});
+process.on("unhandledRejection", (e) => {
+  captureException(e, { phase: "unhandledRejection" });
+  log.error("process.unhandledRejection", { error: e instanceof Error ? e.message : String(e) });
+});
 
 // Driver selection (Phase 2c):
 //   - DB_URL takes precedence (sqlite://... or postgres://...)

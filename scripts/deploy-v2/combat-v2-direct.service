@@ -9,7 +9,8 @@ Environment=PATH=/root/.nvm/versions/node/v22.22.3/bin:/usr/local/sbin:/usr/loca
 Environment=COMBAT_API=http://localhost:3001
 Environment=COMBAT_DB_PATH=/opt/combat-v2/data/combat.sqlite
 Environment=COMBAT_UPLOAD_DIR=/opt/combat-v2/data/uploads
-ExecStart=/root/.nvm/versions/node/v22.22.3/bin/npx tsx src/server.ts
+Environment=NODE_ENV=production
+ExecStart=/root/.nvm/versions/node/v22.22.3/bin/node dist/server.js
 Restart=always
 RestartSec=5
 StandardOutput=append:/opt/combat-v2/backend.log

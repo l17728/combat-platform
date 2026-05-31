@@ -7,7 +7,10 @@ import { themeConfig } from "./theme.js";
 import App from "./App.js";
 import { startConsoleCapture } from "./utils/console-capture.js";
 import { onUnauthorized, setAuthToken, setStoredUser } from "./api.js";
+import { initSentry } from "./sentry.js";
 import "./markdown.css";
+
+initSentry();
 
 // Install console capture at boot so 问题反馈 can attach recent console logs.
 startConsoleCapture();

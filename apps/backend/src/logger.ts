@@ -3,6 +3,7 @@
 // Goal: every notable backend operation leaves a greppable trace for production
 // 定位 (diagnosis) — request lifecycle, scans/jobs, merges, imports, email, errors.
 import type { RequestHandler } from "express";
+import { captureException } from "./sentry.js";
 
 type Level = "INFO" | "WARN" | "ERROR";
 type Fields = Record<string, unknown>;
@@ -53,6 +54,7 @@ export function asyncHandler<T extends (...a: any[]) => Promise<unknown>>(fn: T)
   return (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch((e) => {
       log.error("http.unhandled", { path: req.path, error: (e as Error).message });
+      captureException(e, { path: req.path, method: req.method });
       next(e);
     });
   };
