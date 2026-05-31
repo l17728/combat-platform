@@ -48,7 +48,7 @@ import { makeDocumentRouter } from "./documents.js";
 import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
 import { makeUpgradeRouter } from "./upgrade.js";
-import { OpencodeAgentRunner } from "./opencode-runner.js";
+import { OpencodeAgentRunner, OpencodeToolCallingRunner } from "./opencode-runner.js";
 import { ensureKgOutboxTable, enqueueKgOutbox, KgOutboxWorker, makeKgOutboxRouter } from "./kg-outbox.js";
 import type { KgOutboxEventType } from "./kg-outbox.js";
 import { ensureAuditChainColumns, makeAuditChainRouter } from "./audit-chain-router.js";
@@ -214,8 +214,10 @@ export function createApp(deps: {
   app.use("/api", makeRemindersRouter(deps.repo, deps.registry));
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
-  // Hermes 概念用 agent(opencode)实现;默认关闭(HERMES_AGENT=1 开启),
-  // 关闭或失败时回退规则引擎,保证现网零风险接入。
+  // Hermes 概念用 agent(opencode)实现;两路 runner 并存:
+  //   - HERMES_AGENT=1     → 旧的 prompt-based OpencodeAgentRunner(走 .opencode/agents/hermes.md + tools/hermes.ts)
+  //   - HERMES_TOOL_AGENT=1 → §v2.6 新的 OpencodeToolCallingRunner(直接打 OpenAI 兼容 /chat/completions,自带 14 工具)
+  // 默认开启 tool agent;失败时 fallback intent。两者皆未开启 → 纯 intent 引擎。
   const hermesRunner =
     process.env.HERMES_AGENT === "1"
       ? new OpencodeAgentRunner({
@@ -225,7 +227,25 @@ export function createApp(deps: {
         })
       : undefined;
   hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
-  app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner, deps.db));
+  const toolAgentEnabled = process.env.HERMES_TOOL_AGENT !== "0"; // 默认开启
+  let hermesToolRunner: OpencodeToolCallingRunner | undefined;
+  if (toolAgentEnabled) {
+    try {
+      hermesToolRunner = new OpencodeToolCallingRunner({
+        baseUrl: process.env.HERMES_LLM_BASE_URL,
+        apiKey: process.env.HERMES_LLM_API_KEY,
+        model: process.env.HERMES_MODEL || "huawei_cloud/glm-5",
+      });
+      log.info("hermes.tool_runner.ready", { model: process.env.HERMES_MODEL || "huawei_cloud/glm-5" });
+    } catch (e) {
+      log.warn("hermes.tool_runner.init_fail", { error: (e as Error).message });
+      hermesToolRunner = undefined;
+    }
+  }
+  app.use(
+    "/api",
+    makeHermesRouter(deps.repo, deps.registry, { runner: hermesRunner, toolRunner: hermesToolRunner, db: deps.db })
+  );
   // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
   app.use("/api", makeHermesToolsRouter(deps.repo, deps.registry, adapter, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
