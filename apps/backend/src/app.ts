@@ -22,7 +22,7 @@ import { makeRelationsRouter } from "./relations.js";
 import { makeJobsRouter } from "./jobs.js";
 import { makeOncallRouter } from "./oncall.js";
 import { makeCustomCommandsRouter } from "./custom-commands.js";
-import { makeEmailRouter } from "./email.js";
+import { makeEmailRouter, migrateSmtpPasswordIfNeeded } from "./email.js";
 import { NodemailerSender, type MailSender } from "./mailer.js";
 import { requestLogger, log } from "./logger.js";
 import { makeResponsibilityRouter } from "./responsibility.js";
@@ -101,6 +101,11 @@ export function createApp(deps: {
   seedConfigFromSchemas(deps.registry, deps.repo).catch(() => {
     /* logged inside */
   });
+
+  // P1 SMTP 密码加密:启动期把历史明文密码原地加密 (一次性迁移,幂等)。
+  migrateSmtpPasswordIfNeeded(deps.repo).catch((e) =>
+    log.warn("smtp.migration_failed", { error: (e as Error).message })
+  );
 
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
