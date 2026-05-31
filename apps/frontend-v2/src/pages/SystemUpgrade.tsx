@@ -22,10 +22,7 @@ import {
   Tabs,
   Empty,
 } from "antd";
-import type { UploadFile } from "antd/es/upload/interface";
 import {
-  CloudUploadOutlined,
-  CheckCircleOutlined,
   WarningOutlined,
   RollbackOutlined,
   ReloadOutlined,

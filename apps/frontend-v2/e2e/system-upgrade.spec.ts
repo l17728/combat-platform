@@ -31,7 +31,7 @@ test.describe("系统升级 UI", () => {
     await page.goto("/system-upgrade");
     await page.waitForLoadState("networkidle");
     await page.locator('[data-testid="upgrade-confirm-checkbox"]').check();
-    await page.locator('[data-testid="upgrade-confirm-text"] input').fill("UPGRADE");
+    await page.locator('[data-testid="upgrade-confirm-text"]').fill("UPGRADE");
     // 未上传 staging → 仍 disabled
     await expect(page.locator('[data-testid="upgrade-apply-btn"]')).toBeDisabled();
   });
