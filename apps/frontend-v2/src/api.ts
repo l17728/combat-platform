@@ -114,6 +114,20 @@ export interface Reminder {
   createdAt: string;
 }
 
+export type NotificationKind = "escalation" | "reminder" | "mention" | "help_request" | "bug_update" | "system";
+
+export interface InboxNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind | string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  sourceEntityId: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface WelinkAttachment {
   type?: string;
   url?: string;
@@ -849,6 +863,45 @@ export class Api {
 
   deleteBugReport(id: string): Promise<{ deleted: string }> {
     return this.req(`/api/bug-reports/${id}`, { method: "DELETE" });
+  }
+
+  // ---- 收件箱通知 ----
+  listNotifications(opts: { unread?: boolean; limit?: number } = {}): Promise<{
+    items: InboxNotification[];
+    unreadCount: number;
+  }> {
+    const p = new URLSearchParams();
+    if (opts.unread) p.set("unread", "true");
+    if (opts.limit !== undefined) p.set("limit", String(opts.limit));
+    const qs = p.toString();
+    return this.req(`/api/notifications${qs ? "?" + qs : ""}`);
+  }
+
+  unreadNotificationCount(): Promise<{ unreadCount: number }> {
+    return this.req("/api/notifications/unread-count");
+  }
+
+  markNotificationRead(id: string): Promise<InboxNotification> {
+    return this.req(`/api/notifications/${id}/read`, { method: "POST" });
+  }
+
+  markAllNotificationsRead(): Promise<{ updated: number }> {
+    return this.req("/api/notifications/read-all", { method: "POST" });
+  }
+
+  createNotification(data: {
+    userId: string;
+    kind: string;
+    title: string;
+    body?: string;
+    link?: string;
+    sourceEntityId?: string;
+  }): Promise<InboxNotification> {
+    return this.req("/api/notifications", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
   }
 
   login(username: string, password: string): Promise<LoginResult> {

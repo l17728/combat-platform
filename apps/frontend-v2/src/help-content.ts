@@ -646,7 +646,11 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 求助网络支持模板一键应用，比逐个创建支撑节点更高效
 
 ### v2.4.1 修复
-- 修复:打开攻关单详情页直接显示"页面出了点问题/重试"(React #310 hooks 调用顺序违规),原因为 \`useAttackDetailHandlers\` hook 调用位于 early return 之后,已搬到 hooks 之前固定调用顺序`,
+- 修复:打开攻关单详情页直接显示"页面出了点问题/重试"(React #310 hooks 调用顺序违规),原因为 \`useAttackDetailHandlers\` hook 调用位于 early return 之后,已搬到 hooks 之前固定调用顺序
+
+### v2.6 新增
+- **面包屑导航**:详情页顶部新增「首页 → 攻关管理 → 攻关作战台 → 攻关单 xxxxxxxx」面包屑,可点击逐级返回
+- **逾期通知**:本攻关单若超出 SLA 触发升级,**当前处理人 + 创建人**会在「通知中心 (🔔)」收到一条 escalation 提醒;邮件失败或求助回复也会推到提报人收件箱`,
   },
 
   peopleList: {
@@ -756,7 +760,10 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 先在攻关作战台确认攻关单标题，再到贡献录入关联，避免选错
 
 ### v2.4.1 修复
-- 修复:嵌入页面的 AI 助手在思考阶段(Hermes 流式返回时)滚动条上下抖动(bug \`de1bf88e\`),用户上滑离开底部后不会再被强制拖回底部`,
+- 修复:嵌入页面的 AI 助手在思考阶段(Hermes 流式返回时)滚动条上下抖动(bug \`de1bf88e\`),用户上滑离开底部后不会再被强制拖回底部
+
+### v2.6 新增
+- **面包屑已上线**:列表页顶部新增「首页 → 人员与荣誉 → 贡献录入」面包屑,可点击逐级返回`,
   },
 
   honor: {
@@ -1334,6 +1341,68 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 所有业务枚举下拉必须用 \`useSettings().getValues(key, fallback)\` 读取
 - fallback 是必填的 string[]，写上当前默认值，配置中心被清空 / 离线时 UI 仍可用
 - 新增枚举 → \`scripts/settings-seed.mjs\` 同步 seed`,
+  },
+
+  notifications: {
+    title: "通知中心 - 使用帮助",
+    content: `## 通知中心 (Inbox)
+
+### 功能概述
+集中展示与当前用户相关的所有系统通知:攻关单逾期升级、跟催提醒、求助回复、问题反馈状态变更等。顶栏「🔔 铃铛」按钮显示未读数,点击展开最近 10 条;完整列表在「通知中心」页面 (\`/notifications\`)。
+
+### 通知类型
+
+| 类型 | 触发条件 | 收件人 |
+|------|---------|--------|
+| **升级 (escalation)** | 攻关单超过事件级别对应的 SLA(P1=2h/P2=8h/P3=24h/P4A=4h),未被处理 | 当前处理人 + 创建人 |
+| **跟催 (reminder)** | 规则引擎扫描出待跟催的问题单 / FE Deadline / CCB | 提醒目标人(收件人姓名) |
+| **求助 (help_request)** | 求助邮件发送失败 / 对方已回复 | 求助发起人 |
+| **问题更新 (bug_update)** | 「问题反馈」状态变更 (待处理 → 处理中 → 已解决 / 已关闭) | 问题提报人 |
+| **提及 (mention)** | 进展记录中提及 (@) 某人(后续版本接入) | 被 @ 用户 |
+| **系统 (system)** | 平台公告 / 版本更新 / 维护通知 | 全员或指定群体 |
+
+### 顶栏铃铛
+
+- **位置**:全站顶栏右上角,用户菜单左侧
+- **未读徽标**:红色数字气泡显示未读总数,最大显示 99+
+- **实时推送**:浏览器接入 SSE (\`/api/notifications/stream\`),新通知秒级到达;断线自动回落到 30s 轮询
+- **快捷弹层**:点击铃铛打开 360px 宽下拉面板,显示最近 10 条;点击单条标已读并跳转到 \`link\`;点击「查看全部」跳 \`/notifications\`
+- **全部已读**:面板右上角「全部已读」按钮一次性把当前用户所有未读置已读
+
+### 通知中心页面
+
+进入 \`/notifications\` 看完整列表:
+
+- **顶部按钮**:「刷新」「全部标已读」
+- **筛选**:按类型(下拉)/ 已读未读 / 时间排序
+- **列**:状态 / 类型 / 标题 / 内容 / 时间(相对时间 + Tooltip 完整时间)
+- **行为**:点击标题跳到 \`link\` 并标已读;未读行带蓝底高亮 + 加粗
+
+### 触发源接入(给开发者)
+
+通知由后端**事件驱动**自动产生,业务代码不直接 import \`api\`,而是调用以下入口:
+
+| 入口 | 触发位置 | 说明 |
+|------|---------|------|
+| \`scanEscalation(repo, notifications)\` | \`apps/backend/src/escalation.ts\` | 逾期扫描 → 自动给 owner + creator 推 escalation |
+| \`scanAndCreateReminders(repo, registry, notifications)\` | \`apps/backend/src/reminders.ts\` | 规则扫描 → 推 reminder |
+| \`makeHelpRequestRouter(..., notifications)\` | \`apps/backend/src/help-request.ts\` | 邮件失败 / 反馈到达 → 推 help_request |
+| \`makeBugReportRouter(adapter, notifications)\` | \`apps/backend/src/bug-report.ts\` | bug status 变更 → 推 bug_update |
+| \`POST /api/notifications\` (admin) | \`apps/backend/src/notifications-router.ts\` | 手动创建 / 系统公告 / 测试 |
+
+### CLI
+
+\`\`\`
+npm run cli -- notifications:list [--unread] [--limit N]
+npm run cli -- notifications:read <id>
+npm run cli -- notifications:read-all
+npm run cli -- notifications:create --user <u> --kind <k> --title <t> [--body <b>] [--link <url>]
+\`\`\`
+
+### 注意事项
+- 通知与「跟催提醒」(reminder 决策队列) **是两个独立系统**:跟催提醒是 admin 操作台,逐条人工决定发不发邮件;通知中心是每位用户的私人收件箱。一条「跟催提醒」生成时会**同时**给收件人投递一条「跟催 (reminder)」通知。
+- 当前后端**单进程内**通过内存订阅做 SSE fanout;集群部署需替换为 Redis pub/sub(已留扩展点)。
+- 通知不入审计日志(audit_log) — 它是辅助渠道,真实业务事件本身仍在审计表里有记录。`,
   },
 
   bugReport: {
