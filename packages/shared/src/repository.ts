@@ -32,13 +32,16 @@ export interface Repository {
   listProgress(ownerId: string): Promise<ProgressLog[]>;
   listAllProgress(): Promise<ProgressLog[]>;
   deleteNode(id: string, actor: string): Promise<void>;
-  logAudit(entry: {
-    action: string;
-    entityType: string;
-    entityId: string;
-    changes: unknown;
-    actor: string;
-  }): Promise<void>;
+  logAudit(
+    entry: {
+      action: string;
+      entityType: string;
+      entityId: string;
+      changes: unknown;
+      actor: string;
+    },
+    req?: { user?: { username?: string } }
+  ): Promise<void>;
   listAuditLog(filter: {
     action?: string;
     entityType?: string;

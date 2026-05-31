@@ -868,7 +868,30 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
+### 当前测试状态(2026-05-31 v2.2 安全 P1 — feature/roadmap-sec-p1 分支)
+
+**v2.2 P1 = 私密单全集过滤 + SMTP 加密 + 强制改默认密 + helmet/rate-limit + CSRF + multer/express 升级 + audit actor 强制:**
+
+- 后端 vitest **493/493 全绿** (基线 463 → 新增 30 个 P1 用例,分布在 7 个 commit)
+- 双端 `npx tsc --noEmit` 通过 (backend + shared + frontend-v2)
+- 前端 e2e 未跑 (本次仅安全后端 + 强制改密 Modal 接入,业务流无破坏)
+- 文档: `docs/REVIEWS/REVIEW_security.md` 已追加 v2.2 P1 实施记录;`docs/SECURITY_RUNBOOK.md` 新增运营手册
+
+**安全 P1 commit 列表 (feature/roadmap-sec-p1):**
+
+1. `2410744` fix(sec/P1): 私密 ticket 全集过滤 list/export/audit/dashboard
+2. `0c6f584` feat(sec/P1): SMTP 密码 AES-256-GCM 加密 + 自动迁移
+3. `7bfe0ec` feat(sec/P1): 默认密强制首登改密
+4. `98188d9` feat(sec/P1): helmet + 全局 rate-limit + 登录 rate-limit 加固
+5. `403fddc` feat(sec/P1): CSRF 同源 Referer 校验
+6. `4f8d762` fix(deps/sec): 升级 multer 1.x→2.x + express ≥4.21.2 修 CVE
+7. (本 commit) fix(sec/P1): audit actor 强制取自 req.user 防伪造
+
+详细安全运营 / 事故响应见 [docs/SECURITY_RUNBOOK.md](./docs/SECURITY_RUNBOOK.md)。
+
+---
+
+### 历史测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
 
 **v2.1.0 整合 = quality + performance + security + ux + 已含 master 的 welink + postgres + UI 配置化:**
 

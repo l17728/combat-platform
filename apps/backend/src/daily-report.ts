@@ -51,7 +51,7 @@ export function makeDailyReportRouter(repo: Repository): Router {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const raw = String(first(req.query.date) ?? "");
     const date = ISO_DATE.test(raw) ? raw : todayUTC();
-    res.json(await publishDailyReport(repo, date, "api"));
+    res.json(await publishDailyReport(repo, date, (req as any).user?.username ?? "api"));
   });
   r.get("/daily-report", async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);

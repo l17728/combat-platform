@@ -96,6 +96,15 @@ function gradeGate(req: { headers: Record<string, unknown>; body: unknown }, nod
   return "仅 Leader 可标定贡献等级";
 }
 
+// P1 audit actor 强制取自 req.user:任何调用 repo 写操作的 actor 实参,
+// 必须经此 helper 取值 — 不再硬编码 "api" 字符串(那是任传字符串伪造来源)。
+// 仅 CLI / 内部测试 / COMBAT_NO_AUTH bypass 链路没有 req.user → 回退到 fallback。
+// 用 unknown 入参 + 内部断言:Express Request 类型不含 user (中间件 (req as any).user 注入),
+// 避免到处再写一遍类型断言;helper 内部一次 cast 即可。
+export function actorOf(req: unknown, fallback = "api"): string {
+  return (req as { user?: { username?: string } })?.user?.username || fallback;
+}
+
 export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
 
@@ -118,13 +127,16 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     try {
       const s = registry.applyFieldOp(nodeType, req.body);
-      await repo.logAudit({
-        action: `SCHEMA_${req.body?.op}`,
-        entityType: "schema",
-        entityId: nodeType,
-        changes: req.body,
-        actor: "api",
-      });
+      await repo.logAudit(
+        {
+          action: `SCHEMA_${req.body?.op}`,
+          entityType: "schema",
+          entityId: nodeType,
+          changes: req.body,
+          actor: actorOf(req),
+        },
+        req as unknown as { user?: { username?: string } }
+      );
       log.info("schema.fieldOp", { nodeType, op: req.body?.op });
       res.json(s);
     } catch (e) {
@@ -173,8 +185,9 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const node = await repo.createNode(nodeType, req.body, "api");
-    log.info("node.create", { nodeType, id: node.id });
+    const actor = actorOf(req);
+    const node = await repo.createNode(nodeType, req.body, actor);
+    log.info("node.create", { nodeType, id: node.id, actor });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
@@ -182,11 +195,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         const target =
           tickets.find((t) => String(t.properties["攻关单号"] ?? "") === ref) ??
           tickets.find((t) => String(t.properties["标题"] ?? "") === ref);
-        if (target) await repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
+        if (target) await repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, actor);
       }
     }
-    await syncRefEdges(repo, registry, node, req.body, "api");
-    await syncAnchorEdges(repo, registry, node, req.body, "api");
+    await syncRefEdges(repo, registry, node, req.body, actor);
+    await syncAnchorEdges(repo, registry, node, req.body, actor);
     if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.status(201).json(node);
   });
@@ -200,10 +213,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const updated = await repo.updateNode(req.params.id, req.body, "api");
-    log.info("node.update", { id: req.params.id, nodeType: cur.nodeType });
-    await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
-    await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    const actor = actorOf(req);
+    const updated = await repo.updateNode(req.params.id, req.body, actor);
+    log.info("node.update", { id: req.params.id, nodeType: cur.nodeType, actor });
+    await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
+    await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.json(updated);
   });
@@ -221,16 +235,18 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         return res.status(403).json({ error: "仅创建人可删除该攻关单" });
       }
     }
-    await repo.deleteNode(req.params.id, "api");
-    log.info("node.delete", { id: req.params.id });
+    const actor = actorOf(req);
+    await repo.deleteNode(req.params.id, actor);
+    log.info("node.delete", { id: req.params.id, actor });
     res.json({ ok: true });
   });
 
   r.get("/nodes/:id/progress", async (req, res) => res.json(await repo.listProgress(req.params.id)));
   r.post("/nodes/:id/progress", async (req, res) => {
-    const { content, statusSnapshot, actor } = req.body;
+    const { content, statusSnapshot } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
-    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
+    // body.actor 不再被信任(P1 防伪造);req.user 缺失才退回 "api"
+    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req)));
   });
 
   // §41: atomic state transition — update 状态 + append a status-snapshotted
@@ -247,10 +263,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (!toStatus || !allowed.includes(toStatus))
       return res.status(400).json({ error: `非法目标状态：${toStatus || "(空)"}` });
     const fromStatus = String(node.properties["状态"] ?? "");
-    const updated = await repo.updateNode(node.id, { 状态: toStatus }, "api");
+    const actor = actorOf(req);
+    const updated = await repo.updateNode(node.id, { 状态: toStatus }, actor);
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
-    const progress = await repo.appendProgress(node.id, content, toStatus, "api");
-    log.info("node.transition", { id: node.id, toStatus });
+    const progress = await repo.appendProgress(node.id, content, toStatus, actor);
+    log.info("node.transition", { id: node.id, toStatus, actor });
     triggerPostSaveJobs(repo, registry);
     res.json({ node: updated, progress });
   });
