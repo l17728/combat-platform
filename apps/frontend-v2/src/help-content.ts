@@ -754,7 +754,12 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 快捷操作
 - 搜索框支持中文姓名部分匹配，输入「张」即可找到所有姓张的人员
 - 导入前先导出当前数据，可快速了解现有人员的字段格式和数据结构
-- 点击「荣誉」按钮可直接跳转查看某人的贡献统计，无需先去荣誉殿堂查找`,
+- 点击「荣誉」按钮可直接跳转查看某人的贡献统计，无需先去荣誉殿堂查找
+
+### v2.7 — 详情页/抽屉全部 schema 驱动
+- 创建、编辑、详情抽屉里的字段全部来自 person schema（在 SchemaWizard 维护）
+- 在 SchemaWizard 给 person 加新字段（如手机号、办公地点、入职日期），抽屉与详情自动出现该字段，无需改前端代码
+- 字段按 group 分组渲染（基础信息 / 组织信息），group/order 都在 SchemaWizard 改`,
   },
 
   contributions: {
@@ -812,7 +817,12 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 修复:嵌入页面的 AI 助手在思考阶段(Hermes 流式返回时)滚动条上下抖动(bug \`de1bf88e\`),用户上滑离开底部后不会再被强制拖回底部
 
 ### v2.6 新增
-- **面包屑已上线**:列表页顶部新增「首页 → 人员与荣誉 → 贡献录入」面包屑,可点击逐级返回`,
+- **面包屑已上线**:列表页顶部新增「首页 → 人员与荣誉 → 贡献录入」面包屑,可点击逐级返回
+
+### v2.7 — 详情页/抽屉全部 schema 驱动
+- 「录入个人贡献」/「录入团队贡献」抽屉的字段、必填项、分组都来自 contribution / teamContribution schema(SchemaWizard 可改)
+- 在 SchemaWizard 给 contribution 加字段(如外部链接、PR编号),抽屉立刻出现,无需改前端代码
+- 团队贡献的「组员」字段标了 specialControl=member-multi → 自动渲染人员多选,组长则是 person ref → 自动渲染单选`,
   },
 
   honor: {
@@ -939,7 +949,13 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 通过状态筛选「待回复」可快速找到还未获得反馈的求助，及时跟催
 
 ### v2.6 更新
-LLM 全部 UI 配置，无需后台手工部署。详见左侧「系统管理 → LLM 设置」（仅 admin 可见）。`,
+LLM 全部 UI 配置，无需后台手工部署。详见左侧「系统管理 → LLM 设置」（仅 admin 可见）。
+
+### v2.7 — 发起求助抽屉 schema 驱动
+- 抽屉里的字段、必填项、分组现在来自 helpRequest virtual schema
+- 「求助类型」枚举仍可被 系统管理 → 配置中心 的「求助分类」覆盖（运行时优先 settings）
+- 在 SchemaWizard 给 helpRequest 加字段(如紧急程度、期望响应时间),抽屉立刻出现,无需改前端代码
+- 注:helpRequest 是 virtual schema,数据存在专用表 \`help_requests\`,不走 /api/nodes`,
   },
 
   helpFeedback: {
@@ -1508,7 +1524,13 @@ npm run cli -- notifications:create --user <u> --kind <k> --title <t> [--body <b
 - 可查看截图、Console 日志、浏览器信息等
 
 ### Console 日志自动捕获
-系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。`,
+系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。
+
+### v2.7 — 创建/编辑抽屉 schema 驱动
+- 抽屉里的基础字段(标题/严重程度/描述/报告人/页面)现在来自 bugReport virtual schema
+- 截图、Console 日志保留 specialControl 专用 UI(粘贴/拖拽/捕获)
+- 在 SchemaWizard 给 bugReport 加字段(如复现步骤、预期结果),抽屉立刻出现,无需改前端代码
+- 注:bugReport 是 virtual schema,数据存在专用表 \`bug_reports\`,不走 /api/nodes`,
   },
   userManagement: {
     title: "用户管理 - 使用帮助",

@@ -70,6 +70,13 @@ export interface NodeSchema {
   fields: FieldSchema[];
   identityKeys: string[];
   derivedToKG: boolean;
+  /**
+   * v2.7: virtual schemas describe entities stored in dedicated tables (helpRequest,
+   * bugReport, proposal, reminder, ...). They drive the UI (groups/order/specialControl)
+   * but the generic /api/nodes CRUD MUST refuse them — their data lives in their own
+   * routes & tables. `false`/undefined = real node-backed schema.
+   */
+  virtual?: boolean;
 }
 export interface EdgeSchema {
   edgeType: string;

@@ -1,0 +1,104 @@
+{
+  "nodeType": "reminder",
+  "label": "跟催提醒",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "virtual": true,
+  "fields": [
+    {
+      "id": "kind",
+      "name": "kind",
+      "type": "enum",
+      "label": "提醒类型",
+      "enumValues": ["问题单跟催", "FE Deadline 提醒", "CCB 提醒"],
+      "group": "基础信息",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "ticketId",
+      "name": "ticketId",
+      "type": "ref",
+      "refType": "attackTicket",
+      "label": "关联攻关单",
+      "group": "基础信息",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "recipientName",
+      "name": "recipientName",
+      "type": "ref",
+      "refType": "person",
+      "label": "收件人",
+      "group": "基础信息",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "recipientPersonId",
+      "name": "recipientPersonId",
+      "type": "string",
+      "label": "收件人ID",
+      "group": "基础信息",
+      "order": 4,
+      "specialControl": "system"
+    },
+    {
+      "id": "subject",
+      "name": "subject",
+      "type": "string",
+      "label": "主题",
+      "group": "提醒内容",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "body",
+      "name": "body",
+      "type": "textarea",
+      "label": "内容",
+      "group": "提醒内容",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "status",
+      "name": "status",
+      "type": "enum",
+      "label": "状态",
+      "enumValues": ["待发送", "已发送", "已忽略"],
+      "optionsKey": "提醒状态",
+      "group": "处理结果",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "decidedBy",
+      "name": "decidedBy",
+      "type": "string",
+      "label": "处理人",
+      "group": "处理结果",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "decidedAt",
+      "name": "decidedAt",
+      "type": "datetime",
+      "label": "处理时间",
+      "group": "处理结果",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "createdAt",
+      "name": "createdAt",
+      "type": "datetime",
+      "label": "创建时间",
+      "group": "系统字段",
+      "order": 1,
+      "specialControl": "system"
+    }
+  ]
+}

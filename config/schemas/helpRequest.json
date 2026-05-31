@@ -1,0 +1,123 @@
+{
+  "nodeType": "helpRequest",
+  "label": "求助记录",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "virtual": true,
+  "fields": [
+    {
+      "id": "ticketId",
+      "name": "ticketId",
+      "type": "ref",
+      "refType": "attackTicket",
+      "label": "关联攻关单",
+      "required": true,
+      "group": "基础信息",
+      "order": 1
+    },
+    {
+      "id": "requesterName",
+      "name": "requesterName",
+      "type": "ref",
+      "refType": "person",
+      "label": "求助人",
+      "required": true,
+      "group": "基础信息",
+      "order": 2
+    },
+    {
+      "id": "targetName",
+      "name": "targetName",
+      "type": "ref",
+      "refType": "person",
+      "label": "求助对象",
+      "group": "基础信息",
+      "order": 3
+    },
+    {
+      "id": "targetEmail",
+      "name": "targetEmail",
+      "type": "string",
+      "label": "求助对象邮箱",
+      "required": true,
+      "validation": { "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$" },
+      "group": "基础信息",
+      "order": 4
+    },
+    {
+      "id": "category",
+      "name": "category",
+      "type": "enum",
+      "label": "求助类型",
+      "required": true,
+      "enumValues": ["环境", "领域专家", "团队协作", "资源"],
+      "optionsKey": "求助分类",
+      "group": "求助详情",
+      "order": 1
+    },
+    {
+      "id": "question",
+      "name": "question",
+      "type": "textarea",
+      "label": "求助内容",
+      "required": true,
+      "group": "求助详情",
+      "order": 2
+    },
+    {
+      "id": "extraNote",
+      "name": "extraNote",
+      "type": "textarea",
+      "label": "附加说明",
+      "group": "求助详情",
+      "order": 3
+    },
+    {
+      "id": "status",
+      "name": "status",
+      "type": "enum",
+      "label": "状态",
+      "enumValues": ["待回复", "已回复"],
+      "optionsKey": "求助中心状态",
+      "group": "状态与回复",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "feedback",
+      "name": "feedback",
+      "type": "textarea",
+      "label": "回复内容",
+      "group": "状态与回复",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "feedbackBy",
+      "name": "feedbackBy",
+      "type": "string",
+      "label": "回复人",
+      "group": "状态与回复",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "feedbackAt",
+      "name": "feedbackAt",
+      "type": "datetime",
+      "label": "回复时间",
+      "group": "状态与回复",
+      "order": 4,
+      "specialControl": "system"
+    },
+    {
+      "id": "createdAt",
+      "name": "createdAt",
+      "type": "datetime",
+      "label": "发起时间",
+      "group": "系统字段",
+      "order": 1,
+      "specialControl": "system"
+    }
+  ]
+}

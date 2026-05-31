@@ -1,4 +1,4 @@
-import { Input, InputNumber, Select, Switch, DatePicker, Tag, Typography, Form } from "antd";
+import { Input, InputNumber, Select, Switch, DatePicker, Tag, Typography, Form, Divider, Descriptions } from "antd";
 import type { FieldSchema, FieldValidation } from "@combat/shared";
 import dayjs from "dayjs";
 import { Link } from "react-router-dom";
@@ -94,11 +94,29 @@ export function SchemaFieldInput(props: {
   value?: unknown;
   onChange?: (v: unknown) => void;
   personOptions?: PersonOption[];
+  /** Generic ref options keyed by refType — falls back to plain input for unknown refType. */
+  refOptions?: Record<string, PersonOption[]>;
   /** AntD Form.Item cloneElement-injected id (drives <label htmlFor> linkage). */
   id?: string;
 }): React.ReactElement {
-  const { field: f, value, onChange, personOptions, id } = props;
+  const { field: f, value, onChange, personOptions, refOptions, id } = props;
   const t = f.type;
+  // v2.7: specialControl='member-multi' 强制走 personOptions 多选,无论底层 type 是 array 还是 string。
+  if (f.specialControl === "member-multi") {
+    return (
+      <Select
+        id={id}
+        mode="multiple"
+        showSearch
+        allowClear
+        placeholder={`选择${f.label}`}
+        value={Array.isArray(value) ? (value as string[]) : value ? [String(value)] : []}
+        onChange={onChange}
+        options={personOptions ?? []}
+        filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+      />
+    );
+  }
   if (t === "enum") {
     return (
       <Select
@@ -165,6 +183,21 @@ export function SchemaFieldInput(props: {
     );
   }
   if (t === "ref") {
+    const opts = (refOptions && f.refType && refOptions[f.refType]) || undefined;
+    if (opts) {
+      return (
+        <Select
+          id={id}
+          value={value as string | undefined}
+          onChange={onChange}
+          showSearch
+          allowClear
+          placeholder={`选择${f.label}`}
+          options={opts}
+          filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+        />
+      );
+    }
     return (
       <Input
         id={id}
@@ -315,8 +348,12 @@ export function groupAndSortFields(fields: FieldSchema[]): { group: string; fiel
  * Form.Item wrapper for a single FieldSchema — handles label/rules.
  * Useful in drawers that want a one-liner per field.
  */
-export function SchemaFormItem(props: { field: FieldSchema; personOptions?: PersonOption[] }): React.ReactElement {
-  const { field, personOptions } = props;
+export function SchemaFormItem(props: {
+  field: FieldSchema;
+  personOptions?: PersonOption[];
+  refOptions?: Record<string, PersonOption[]>;
+}): React.ReactElement {
+  const { field, personOptions, refOptions } = props;
   return (
     <Form.Item
       name={field.name}
@@ -324,8 +361,74 @@ export function SchemaFormItem(props: { field: FieldSchema; personOptions?: Pers
       // antd accepts arbitrary rule descriptors; cast to any to bridge the unknown[] from buildFormRules
       rules={buildFormRules(field) as any}
     >
-      <SchemaFieldInput field={field} personOptions={personOptions} />
+      <SchemaFieldInput field={field} personOptions={personOptions} refOptions={refOptions} />
     </Form.Item>
+  );
+}
+
+/**
+ * v2.7: Render a schema-driven Form body — groups via Divider, fields via SchemaFormItem.
+ * Caller provides the wrapping <Form> and any post-field actions.
+ */
+export function SchemaFormBody(props: {
+  fields: FieldSchema[];
+  personOptions?: PersonOption[];
+  refOptions?: Record<string, PersonOption[]>;
+  /** Per-field render override; return null to skip rendering that field here. */
+  renderField?: (field: FieldSchema) => React.ReactNode | null;
+}): React.ReactElement {
+  const { fields, personOptions, refOptions, renderField } = props;
+  const groups = groupAndSortFields(fields);
+  return (
+    <>
+      {groups.map(({ group, fields: gFields }) => (
+        <div key={group}>
+          <Divider orientation="left" orientationMargin={0}>
+            {group}
+          </Divider>
+          {gFields.map((f) => {
+            if (renderField) {
+              const overridden = renderField(f);
+              if (overridden !== undefined && overridden !== null) return <div key={f.id}>{overridden}</div>;
+            }
+            return <SchemaFormItem key={f.id} field={f} personOptions={personOptions} refOptions={refOptions} />;
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/**
+ * v2.7: Render a schema-driven view body — groups via Card, fields via Descriptions.
+ * Mirror of SchemaFormBody for read-only detail panels.
+ */
+export function SchemaViewBody(props: {
+  fields: FieldSchema[];
+  values: Record<string, unknown>;
+  /** column count for Descriptions per group; default 1 for narrow drawers, 2 for wide cards. */
+  column?: number;
+  /** Per-field display override; return null/undefined → fallback to SchemaFieldView. */
+  renderValue?: (field: FieldSchema, value: unknown) => React.ReactNode | null;
+}): React.ReactElement {
+  const { fields, values, column = 1, renderValue } = props;
+  const groups = groupAndSortFields(fields.filter((f) => evalVisible(f.visible, values)));
+  return (
+    <>
+      {groups.map(({ group, fields: gFields }) => (
+        <Descriptions key={group} bordered column={column} size="small" title={group} style={{ marginBottom: 16 }}>
+          {gFields.map((f) => {
+            const v = values[f.name];
+            const override = renderValue?.(f, v);
+            return (
+              <Descriptions.Item key={f.id} label={f.label}>
+                {override !== undefined && override !== null ? override : <SchemaFieldView field={f} value={v} />}
+              </Descriptions.Item>
+            );
+          })}
+        </Descriptions>
+      ))}
+    </>
   );
 }
 

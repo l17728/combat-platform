@@ -47,7 +47,7 @@ test.describe("schema-driven AttackDetail (v2.6)", () => {
 
   test("new field appears in 基础信息 tab under its group card", async ({ page }) => {
     await page.goto(`/attack/${ticketId}`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
     // 默认进来在「基础信息」tab
     await page.getByRole("tab", { name: "基础信息" }).click();
@@ -61,7 +61,7 @@ test.describe("schema-driven AttackDetail (v2.6)", () => {
 
   test("edit drawer renders the schema-added field and persists value", async ({ page }) => {
     await page.goto(`/attack/${ticketId}`);
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
 
     await page.getByRole("button", { name: "编辑信息" }).click();
     await waitForDrawer(page);
@@ -83,7 +83,7 @@ test.describe("schema-driven AttackDetail (v2.6)", () => {
 
     // 重新加载,验证值持久化(基础信息 tab 里的分组卡能看到新值)
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("domcontentloaded");
     await page.getByRole("tab", { name: "基础信息" }).click();
     const groupCard = page.locator(".ant-card").filter({ hasText: groupName });
     await expect(groupCard.first().getByText(newValue)).toBeVisible({ timeout: 5000 });

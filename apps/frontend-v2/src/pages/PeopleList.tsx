@@ -12,9 +12,6 @@ import {
   Typography,
   Skeleton,
   Descriptions,
-  Divider,
-  Tag,
-  Tooltip,
   Upload,
 } from "antd";
 import {
@@ -29,6 +26,8 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api.js";
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from "../constants.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
+import { useNodeSchema, editableFieldsOf, viewFieldsOf } from "../hooks/useSchema.js";
+import { SchemaFormBody, SchemaViewBody } from "../components/SchemaField.js";
 import type { GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -53,6 +52,10 @@ export default function PeopleList() {
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const navigate = useNavigate();
+  // v2.7: schema 驱动 — 表单字段由 person schema 派生,在 SchemaWizard 加字段即生效。
+  const { schema: personSchema } = useNodeSchema("person");
+  const editableFields = editableFieldsOf(personSchema);
+  const viewFields = viewFieldsOf(personSchema);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -291,24 +294,7 @@ export default function PeopleList() {
         }
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="姓名" label="姓名" rules={[{ required: true, message: "请输入姓名" }]}>
-            <Input placeholder="姓名" />
-          </Form.Item>
-          <Form.Item name="工号" label="工号">
-            <Input placeholder="工号" />
-          </Form.Item>
-          <Form.Item name="邮箱" label="邮箱">
-            <Input placeholder="邮箱地址" />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            组织信息
-          </Divider>
-          <Form.Item name="部门" label="部门">
-            <Input placeholder="部门" />
-          </Form.Item>
-          <Form.Item name="角色" label="角色">
-            <Input placeholder="角色" />
-          </Form.Item>
+          <SchemaFormBody fields={editableFields} />
         </Form>
       </Drawer>
 
@@ -329,24 +315,7 @@ export default function PeopleList() {
         }
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          <Form.Item name="姓名" label="姓名" rules={[{ required: true, message: "请输入姓名" }]}>
-            <Input placeholder="姓名" />
-          </Form.Item>
-          <Form.Item name="工号" label="工号">
-            <Input placeholder="工号" />
-          </Form.Item>
-          <Form.Item name="邮箱" label="邮箱">
-            <Input placeholder="邮箱地址" />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            组织信息
-          </Divider>
-          <Form.Item name="部门" label="部门">
-            <Input placeholder="部门" />
-          </Form.Item>
-          <Form.Item name="角色" label="角色">
-            <Input placeholder="角色" />
-          </Form.Item>
+          <SchemaFormBody fields={editableFields} />
         </Form>
       </Drawer>
 
@@ -411,11 +380,13 @@ export default function PeopleList() {
                 {String(detailNode.properties["角色"] ?? "")}
               </Text>
             </div>
-            <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label="工号">{String(detailNode.properties["工号"] ?? "--")}</Descriptions.Item>
-              <Descriptions.Item label="邮箱">{String(detailNode.properties["邮箱"] ?? "--")}</Descriptions.Item>
-              <Descriptions.Item label="部门">{String(detailNode.properties["部门"] ?? "--")}</Descriptions.Item>
-              <Descriptions.Item label="角色">{String(detailNode.properties["角色"] ?? "--")}</Descriptions.Item>
+            {/* v2.7: schema 驱动 — 字段按 person schema 的 group/order 分组渲染 */}
+            <SchemaViewBody
+              fields={viewFields.filter((f) => f.name !== "姓名")}
+              values={detailNode.properties}
+              column={1}
+            />
+            <Descriptions bordered column={1} size="small" title="时间">
               <Descriptions.Item label="创建时间">{dayjs(detailNode.createdAt).format(DATE_FORMAT)}</Descriptions.Item>
               <Descriptions.Item label="更新时间">{dayjs(detailNode.updatedAt).format(DATE_FORMAT)}</Descriptions.Item>
             </Descriptions>
