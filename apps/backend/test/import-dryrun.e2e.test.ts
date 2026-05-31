@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
 import { SqliteAdapter } from "../src/db-adapter.js";
@@ -19,17 +19,10 @@ async function makeTestApp() {
   );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
-function xlsxBuffer(rows: Record<string, string>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-}
-
 describe("§42 import dry-run + skipped visibility e2e", () => {
   it("dryRun=1 plans create/skip without writing to db", async () => {
     const { app, repo } = await makeTestApp();
-    const buf = xlsxBuffer([
+    const buf = await xlsxBuffer([
       { 标题: "有效新单", 状态: "进行中" },
       { 状态: "进行中" }, // 缺必填 标题 → skip
     ]);
@@ -48,17 +41,17 @@ describe("§42 import dry-run + skipped visibility e2e", () => {
     // seed one with identity 攻关单号
     await request(app)
       .post("/api/import")
-      .attach("file", xlsxBuffer([{ 攻关单号: "GK-1", 标题: "原单", 状态: "进行中" }]), "s.xlsx");
+      .attach("file", await xlsxBuffer([{ 攻关单号: "GK-1", 标题: "原单", 状态: "进行中" }]), "s.xlsx");
     const r = await request(app)
       .post("/api/import?dryRun=1")
-      .attach("file", xlsxBuffer([{ 攻关单号: "GK-1", 标题: "改单", 状态: "已解决" }]), "s.xlsx");
+      .attach("file", await xlsxBuffer([{ 攻关单号: "GK-1", 标题: "改单", 状态: "已解决" }]), "s.xlsx");
     expect(r.body.willUpdate).toBe(1);
     expect(r.body.willCreate).toBe(0);
   });
 
   it("commit returns skipped + skippedRows; created rows are persisted", async () => {
     const { app, repo } = await makeTestApp();
-    const buf = xlsxBuffer([
+    const buf = await xlsxBuffer([
       { 标题: "提交有效单", 状态: "进行中" },
       { 状态: "进行中" }, // skip
     ]);

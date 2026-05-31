@@ -48,6 +48,9 @@ import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
+import { ensureKgOutboxTable, enqueueKgOutbox, KgOutboxWorker, makeKgOutboxRouter } from "./kg-outbox.js";
+import type { KgOutboxEventType } from "./kg-outbox.js";
+import { ensureAuditChainColumns, makeAuditChainRouter } from "./audit-chain-router.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
 import { SqliteAdapter, type DbAdapter } from "./db-adapter.js";
@@ -170,7 +173,34 @@ export function createApp(deps: {
   if (deps.registry instanceof FileSchemaRegistry) {
     app.use("/api", makeSchemaApiRouter(deps.registry, deps.registry.dir, deps.repo));
   }
-  app.use("/api", makeRouter(deps.repo, deps.registry));
+
+  // resilience(outbox): provision kg_outbox + start background worker when adapter
+  // is available. Without adapter (rare test paths) we degrade to no-outbox path —
+  // makeRouter's `outbox?` is undefined and triggerPostSaveJobs becomes a noop.
+  let outboxEnqueuer: { enqueue(eventType: string, payload: Record<string, unknown>): Promise<void> } | undefined;
+  if (adapter) {
+    // Provision table synchronously-ish: fire-and-forget but logged. Worker
+    // will hit pending rows on its first tick (defaults to 1s).
+    ensureKgOutboxTable(adapter).catch((e) => log.warn("kg_outbox.ensure_table.fail", { error: (e as Error).message }));
+    // resilience(audit-merkle): ensure prev_hash/hash columns + mount verify router.
+    ensureAuditChainColumns(adapter).catch((e) =>
+      log.warn("audit_chain.ensure_columns.fail", { error: (e as Error).message })
+    );
+    app.use("/api", makeAuditChainRouter(adapter));
+    outboxEnqueuer = {
+      enqueue: (eventType, payload) =>
+        enqueueKgOutbox(adapter, eventType as KgOutboxEventType, payload).then(() => undefined),
+    };
+    // Worker only in non-test envs to avoid surprising existing tests that
+    // expect explicit scan endpoints to return non-zero. Tests can dispatch
+    // /api/kg-outbox/process manually to drain.
+    if (process.env.NODE_ENV !== "test") {
+      new KgOutboxWorker(adapter, deps.repo, deps.registry).start();
+    }
+    app.use("/api", makeKgOutboxRouter(adapter, deps.repo, deps.registry));
+  }
+
+  app.use("/api", makeRouter(deps.repo, deps.registry, outboxEnqueuer));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
   app.use("/api", makeHonorRouter(deps.repo));
   app.use("/api", makeExportRouter(deps.repo, deps.registry));

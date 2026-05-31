@@ -18,16 +18,34 @@ if (!TARGET_HOST || !TARGET_PASS) {
   process.exit(1);
 }
 
-function log(step, msg) { console.log(`[${new Date().toISOString().slice(11, 19)}] [${step}] ${msg}`); }
-function logErr(step, msg) { console.error(`[${new Date().toISOString().slice(11, 19)}] [${step}] ❌ ${msg}`); }
+function log(step, msg) {
+  console.log(`[${new Date().toISOString().slice(11, 19)}] [${step}] ${msg}`);
+}
+function logErr(step, msg) {
+  console.error(`[${new Date().toISOString().slice(11, 19)}] [${step}] ❌ ${msg}`);
+}
 
 function conn() {
   return new Promise((res, rej) => {
     log("conn", `connecting to ${TARGET_HOST}...`);
     const c = new Client();
-    c.on("ready", () => { log("conn", `connected to ${TARGET_HOST}`); res(c); }).on("error", e => { logErr("conn", `${e.message}`); rej(e); })
-      .connect({ host: TARGET_HOST, port: 22, username: TARGET_USER, password: TARGET_PASS,
-        readyTimeout: 30000, keepaliveInterval: 10000, keepaliveCountMax: 6 });
+    c.on("ready", () => {
+      log("conn", `connected to ${TARGET_HOST}`);
+      res(c);
+    })
+      .on("error", (e) => {
+        logErr("conn", `${e.message}`);
+        rej(e);
+      })
+      .connect({
+        host: TARGET_HOST,
+        port: 22,
+        username: TARGET_USER,
+        password: TARGET_PASS,
+        readyTimeout: 30000,
+        keepaliveInterval: 10000,
+        keepaliveCountMax: 6,
+      });
   });
 }
 function run(c, cmd, label = "exec") {
@@ -37,17 +55,25 @@ function run(c, cmd, label = "exec") {
     const start = Date.now();
     c.exec(cmd, (e, s) => {
       if (e) return rej(e);
-      let out = "", err = "";
-      s.on("data", d => (out += d)).stderr.on("data", d => (err += d));
-      s.on("close", code => {
+      let out = "",
+        err = "";
+      s.on("data", (d) => (out += d)).stderr.on("data", (d) => (err += d));
+      s.on("close", (code) => {
         const elapsed = ((Date.now() - start) / 1000).toFixed(1);
         log(label, `done in ${elapsed}s, rc=${code}`);
         if (out.trim()) {
           const lines = out.trim().split("\n");
-          if (lines.length <= 8) lines.forEach(l => log(label, `  ${l}`));
-          else { lines.slice(0, 4).forEach(l => log(label, `  ${l}`)); log(label, `  ... (${lines.length - 4} more lines)`); }
+          if (lines.length <= 8) lines.forEach((l) => log(label, `  ${l}`));
+          else {
+            lines.slice(0, 4).forEach((l) => log(label, `  ${l}`));
+            log(label, `  ... (${lines.length - 4} more lines)`);
+          }
         }
-        if (err.trim()) err.trim().split("\n").forEach(l => log(label, `  stderr: ${l}`));
+        if (err.trim())
+          err
+            .trim()
+            .split("\n")
+            .forEach((l) => log(label, `  stderr: ${l}`));
         res({ code, out, err });
       });
     });
@@ -61,13 +87,20 @@ function uploadFile(c, localPath, remotePath) {
     c.sftp((err, sftp) => {
       if (err) return rej(err);
       const stream = sftp.createWriteStream(remotePath);
-      stream.on("close", () => { log("upload", `SFTP done: ${remotePath} (${sizeKB}KB)`); sftp.end(); res(); });
-      stream.on("error", e => { logErr("upload", `SFTP error: ${e.message}`); rej(e); });
+      stream.on("close", () => {
+        log("upload", `SFTP done: ${remotePath} (${sizeKB}KB)`);
+        sftp.end();
+        res();
+      });
+      stream.on("error", (e) => {
+        logErr("upload", `SFTP error: ${e.message}`);
+        rej(e);
+      });
       stream.end(data);
     });
   });
 }
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function ensureNode22(c) {
   log("node", "installing Node.js v22 via nvm...");
@@ -102,35 +135,68 @@ async function doDeploy(c, nodeBinPath) {
 
   log("3/5", "=== extracting on target ===");
   await run(c, "df -h / | tail -1", "disk");
-  const ex = await run(c,
+  const ex = await run(
+    c,
     `mkdir -p ${DEPLOY_PATH}/data && ` +
-    `cd ${DEPLOY_PATH} && ` +
-    // Preserve the SQLite DB across deploys: move any legacy DB (old cwd location)
-    // into the persistent data/ dir BEFORE rm -rf deletes apps/. data/ is never removed.
-    "if [ -f apps/backend/combat.sqlite ] && [ ! -f data/combat.sqlite ]; then mv apps/backend/combat.sqlite* data/ 2>/dev/null || true; fi; " +
-    "rm -rf config packages scripts apps node_modules 2>/dev/null; " +
-    "tar xzf /tmp/combat-v2.tar.gz && " +
-    "echo EXTRACT_OK"
+      `cd ${DEPLOY_PATH} && ` +
+      // Preserve the SQLite DB across deploys: move any legacy DB (old cwd location)
+      // into the persistent data/ dir BEFORE rm -rf deletes apps/. data/ is never removed.
+      "if [ -f apps/backend/combat.sqlite ] && [ ! -f data/combat.sqlite ]; then mv apps/backend/combat.sqlite* data/ 2>/dev/null || true; fi; " +
+      "rm -rf config packages scripts apps node_modules 2>/dev/null; " +
+      "tar xzf /tmp/combat-v2.tar.gz && " +
+      "echo EXTRACT_OK"
   );
-  if (!ex.out.includes("EXTRACT_OK")) { logErr("3/5", `extract failed: ${ex.out} ${ex.err}`); process.exit(1); }
+  if (!ex.out.includes("EXTRACT_OK")) {
+    logErr("3/5", `extract failed: ${ex.out} ${ex.err}`);
+    process.exit(1);
+  }
   log("3/5", "extracted OK");
 
   log("4/5", "=== npm install + build ===");
   log("4/5", "running npm install...");
-  const r4a = await run(c,
+  const r4a = await run(
+    c,
     `${pathPrefix}cd ${DEPLOY_PATH} && ` +
-    "npm config set registry https://registry.npmmirror.com >/dev/null 2>&1; " +
-    "npm install --no-audit --no-fund 2>&1 | tail -5"
+      "npm config set registry https://registry.npmmirror.com >/dev/null 2>&1; " +
+      "npm install --no-audit --no-fund 2>&1 | tail -5"
   );
   log("4/5", `npm install rc=${r4a.code}`);
 
   log("4/5", "building frontend-v2...");
-  const r4b = await run(c,
+  const r4b = await run(
+    c,
     `${pathPrefix}cd ${DEPLOY_PATH}/apps/frontend-v2 && ` +
-    "npm run build 2>&1 | tail -8 && " +
-    "ls dist/index.html && echo BUILD_OK"
+      "npm run build 2>&1 | tail -8 && " +
+      "ls dist/index.html && echo BUILD_OK"
   );
-  if (!r4b.out.includes("BUILD_OK")) { logErr("4/5", `build failed: ${r4b.out} ${r4b.err}`); process.exit(1); }
+  if (!r4b.out.includes("BUILD_OK")) {
+    logErr("4/5", `build failed: ${r4b.out} ${r4b.err}`);
+    process.exit(1);
+  }
+
+  // harden v2.4: compile shared + backend to dist so prod runs `node dist/server.js`
+  // (faster cold start, lower memory, no tsx runtime dependency).
+  log("4/5", "building shared package...");
+  const r4c = await run(
+    c,
+    `${pathPrefix}cd ${DEPLOY_PATH}/packages/shared && ` +
+      "npm run build 2>&1 | tail -5 && ls dist/index.js && echo SHARED_BUILD_OK"
+  );
+  if (!r4c.out.includes("SHARED_BUILD_OK")) {
+    logErr("4/5", `shared build failed: ${r4c.out} ${r4c.err}`);
+    process.exit(1);
+  }
+
+  log("4/5", "building backend...");
+  const r4d = await run(
+    c,
+    `${pathPrefix}cd ${DEPLOY_PATH}/apps/backend && ` +
+      "npm run build 2>&1 | tail -5 && ls dist/server.js && echo BACKEND_BUILD_OK"
+  );
+  if (!r4d.out.includes("BACKEND_BUILD_OK")) {
+    logErr("4/5", `backend build failed: ${r4d.out} ${r4d.err}`);
+    process.exit(1);
+  }
   log("4/5", "install + build OK");
 
   log("5/5", "=== configuring service ===");
@@ -146,7 +212,8 @@ Environment=PATH=${resolvedPath}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/b
 Environment=COMBAT_API=http://localhost:3001
 Environment=COMBAT_DB_PATH=${DEPLOY_PATH}/data/combat.sqlite
 Environment=COMBAT_UPLOAD_DIR=${DEPLOY_PATH}/data/uploads
-ExecStart=${resolvedPath}/npx tsx src/server.ts
+Environment=NODE_ENV=production
+ExecStart=${resolvedPath}/node dist/server.js
 Restart=always
 RestartSec=5
 StandardOutput=append:${DEPLOY_PATH}/backend.log
@@ -164,28 +231,29 @@ WantedBy=multi-user.target`;
   const logrotateConf = join(here, "logrotate-combat-v2");
   if (existsSync(logrotateConf)) {
     await uploadFile(c, logrotateConf, "/tmp/logrotate-combat-v2");
-    await run(c,
+    await run(
+      c,
       "cp /tmp/logrotate-combat-v2 /etc/logrotate.d/combat-v2 && " +
-      "chmod 644 /etc/logrotate.d/combat-v2 && " +
-      "logrotate -d /etc/logrotate.d/combat-v2 2>&1 | tail -5"
-    , "logrotate");
+        "chmod 644 /etc/logrotate.d/combat-v2 && " +
+        "logrotate -d /etc/logrotate.d/combat-v2 2>&1 | tail -5",
+      "logrotate"
+    );
   }
 
-  await run(c,
+  await run(
+    c,
     `mkdir -p ${DEPLOY_PATH}/data && ` +
-    "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
-    "systemctl daemon-reload && " +
-    "systemctl enable combat-v2 && " +
-    "systemctl restart combat-v2"
+      "cp /tmp/combat-v2.service /etc/systemd/system/combat-v2.service && " +
+      "systemctl daemon-reload && " +
+      "systemctl enable combat-v2 && " +
+      "systemctl restart combat-v2"
   );
   log("5/5", "service restarted, polling health...");
 
   let healthy = false;
   for (let i = 0; i < 20 && !healthy; i++) {
     await sleep(3000);
-    const rh = await run(c,
-      "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/auth/login 2>/dev/null"
-    );
+    const rh = await run(c, "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/api/auth/login 2>/dev/null");
     const code = rh.out.trim();
     log("5/5", `  [${i}] api=${code}`);
     if (["200", "400", "401", "404", "405"].includes(code)) healthy = true;
@@ -195,7 +263,10 @@ WantedBy=multi-user.target`;
     const rf = await run(c, "curl -s -o /dev/null -w '%{http_code}' http://localhost:3001/");
     log("5/5", `frontend=${rf.out.trim()}`);
 
-    await run(c, "ufw allow 3001/tcp 2>/dev/null || iptables -I INPUT -p tcp --dport 3001 -j ACCEPT 2>/dev/null || true");
+    await run(
+      c,
+      "ufw allow 3001/tcp 2>/dev/null || iptables -I INPUT -p tcp --dport 3001 -j ACCEPT 2>/dev/null || true"
+    );
 
     console.log(`\n✅ DEPLOY SUCCESS — http://${TARGET_HOST}:3001`);
   } else {

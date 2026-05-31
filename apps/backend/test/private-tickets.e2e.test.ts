@@ -93,9 +93,8 @@ describe("私密 ticket 全集过滤 (P1)", () => {
     expect(r.status).toBe(200);
     const body = (r.body as Buffer).toString("binary");
     // xlsx 是 zip,无法用 includes 直接验文本;改读回 sheet
-    const XLSX = await import("xlsx");
-    const wb = XLSX.read(r.body, { type: "buffer" });
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets[wb.SheetNames[0]]);
+    const { readSheetRows } = await import("../src/xlsx-util.js");
+    const rows = await readSheetRows(r.body as Buffer);
     const titles = rows.map((x) => x["标题"]);
     expect(titles).toContain("alice私密");
     expect(titles).toContain("公开单");

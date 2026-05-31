@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Typography,
   Table,
@@ -15,29 +15,30 @@ import {
   Descriptions,
   Divider,
   Badge,
-} from 'antd';
-import { PlusOutlined, SearchOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api.js';
-import type { HelpRequest } from '../api.js';
-import { HELP_STATUS_COLOR, PAGE_SIZE } from '../constants.js';
-import { useSettings } from '../hooks/useSettings.js';
-import { copyToClipboard } from '../utils/clipboard.js';
-import type { GraphNode } from '@combat/shared';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
-import dayjs from 'dayjs';
+} from "antd";
+import { PlusOutlined, SearchOutlined, ReloadOutlined, CopyOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import { api } from "../api.js";
+import type { HelpRequest } from "../api.js";
+import { HELP_STATUS_COLOR, PAGE_SIZE } from "../constants.js";
+import { useSettings } from "../hooks/useSettings.js";
+import { copyToClipboard } from "../utils/clipboard.js";
+import type { GraphNode } from "@combat/shared";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import dayjs from "dayjs";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
 export default function HelpCenter() {
   const { getValues } = useSettings();
-  const CATEGORY_OPTIONS = getValues('求助分类', ['环境', '领域专家', '团队协作', '资源']);
-  const HELP_STATUS_OPTIONS = getValues('求助中心状态', ['待回复', '已回复']);
+  const CATEGORY_OPTIONS = getValues("求助分类", ["环境", "领域专家", "团队协作", "资源"]);
+  const HELP_STATUS_OPTIONS = getValues("求助中心状态", ["待回复", "已回复"]);
   const [requests, setRequests] = useState<HelpRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
@@ -51,8 +52,8 @@ export default function HelpCenter() {
   const feedbackUrl = (r: HelpRequest) => `${window.location.origin}/help/feedback/${r.feedbackToken}`;
   const copyLink = async (r: HelpRequest) => {
     const ok = await copyToClipboard(feedbackUrl(r));
-    if (ok) message.success('反馈链接已复制');
-    else message.warning('复制失败，请手动复制');
+    if (ok) message.success("反馈链接已复制");
+    else message.warning("复制失败，请手动复制");
   };
 
   const fetchData = useCallback(async () => {
@@ -60,18 +61,18 @@ export default function HelpCenter() {
     try {
       const [list, ppl, tkt] = await Promise.all([
         api.listHelpRequests(statusFilter ? { status: statusFilter } : undefined),
-        api.listNodes('person').catch(() => []),
-        api.listNodes('attackTicket').catch(() => []),
+        api.listNodes("person").catch(() => []),
+        api.listNodes("attackTicket").catch(() => []),
       ]);
       setRequests(list);
       setPeople(ppl);
       setTickets(tkt);
       // Baseline of already-replied ids (use full list so status filter doesn't skew it).
       const full = statusFilter ? await api.listHelpRequests().catch(() => list) : list;
-      seenRepliedRef.current = new Set(full.filter(r => r.status === '已回复').map(r => r.id));
+      seenRepliedRef.current = new Set(full.filter((r) => r.status === "已回复").map((r) => r.id));
       setHasNewReply(false);
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setLoading(false);
     }
@@ -88,9 +89,11 @@ export default function HelpCenter() {
         const full = await api.listHelpRequests();
         const seen = seenRepliedRef.current;
         if (!seen) return;
-        const newlyReplied = full.some(r => r.status === '已回复' && !seen.has(r.id));
+        const newlyReplied = full.some((r) => r.status === "已回复" && !seen.has(r.id));
         if (newlyReplied) setHasNewReply(true);
-      } catch { /* ignore poll errors */ }
+      } catch {
+        /* ignore poll errors */
+      }
     }, 25000);
     return () => clearInterval(timer);
   }, []);
@@ -100,7 +103,7 @@ export default function HelpCenter() {
         const s = searchText.toLowerCase();
         return (
           r.requesterName.toLowerCase().includes(s) ||
-          (r.targetName ?? '').toLowerCase().includes(s) ||
+          (r.targetName ?? "").toLowerCase().includes(s) ||
           r.question.toLowerCase().includes(s) ||
           r.category.toLowerCase().includes(s)
         );
@@ -120,15 +123,18 @@ export default function HelpCenter() {
         extraNote: values.extraNote,
       });
       if (res.emailSent) {
-        message.success('求助邮件已发送');
+        message.success("求助邮件已发送");
       } else {
-        message.warning(`求助已创建，但邮件未发送（${res.emailNote || '邮箱未配置'}）。请到「邮件设置」配置 SMTP；或手动把反馈链接发给对方。`, 8);
+        message.warning(
+          `求助已创建，但邮件未发送（${res.emailNote || "邮箱未配置"}）。请到「邮件设置」配置 SMTP；或手动把反馈链接发给对方。`,
+          8
+        );
       }
       setDrawerOpen(false);
       form.resetFields();
       fetchData();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setSubmitting(false);
     }
@@ -136,59 +142,57 @@ export default function HelpCenter() {
 
   const ticketOptions = tickets.map((t) => ({
     value: t.id,
-    label: `${(t.properties['标题'] as string) ?? '(无标题)'}${t.properties['问题单号'] ? ` · ${t.properties['问题单号']}` : ''}`,
+    label: `${(t.properties["标题"] as string) ?? "(无标题)"}${t.properties["问题单号"] ? ` · ${t.properties["问题单号"]}` : ""}`,
   }));
 
   const personOptions = people.map((p) => ({
-    value: (p.properties['姓名'] as string) ?? '',
-    label: `${p.properties['姓名'] ?? p.id} (${p.properties['邮箱'] ?? '-'})`,
-    email: (p.properties['邮箱'] as string) ?? '',
+    value: (p.properties["姓名"] as string) ?? "",
+    label: `${p.properties["姓名"] ?? p.id} (${p.properties["邮箱"] ?? "-"})`,
+    email: (p.properties["邮箱"] as string) ?? "",
   }));
 
   const columns = [
     {
-      title: '攻关单',
-      dataIndex: 'ticketId',
+      title: "攻关单",
+      dataIndex: "ticketId",
       width: 100,
-      render: (v: string) => (
-        <a onClick={() => navigate(`/attack/${v}`)}>{v.slice(0, 8)}</a>
-      ),
+      render: (v: string) => <a onClick={() => navigate(`/attack/${v}`)}>{v.slice(0, 8)}</a>,
     },
     {
-      title: '求助对象',
+      title: "求助对象",
       width: 100,
       ellipsis: true,
       render: (_: unknown, r: HelpRequest) => r.targetName ?? r.targetEmail,
     },
     {
-      title: '类型',
-      dataIndex: 'category',
+      title: "类型",
+      dataIndex: "category",
       width: 90,
     },
     {
-      title: '内容摘要',
-      dataIndex: 'question',
+      title: "内容摘要",
+      dataIndex: "question",
       ellipsis: true,
     },
     {
-      title: '状态',
-      dataIndex: 'status',
+      title: "状态",
+      dataIndex: "status",
       width: 80,
-      render: (v: string) => <Tag color={HELP_STATUS_COLOR[v] ?? 'default'}>{v}</Tag>,
+      render: (v: string) => <Tag color={HELP_STATUS_COLOR[v] ?? "default"}>{v}</Tag>,
     },
     {
-      title: '时间',
-      dataIndex: 'createdAt',
+      title: "时间",
+      dataIndex: "createdAt",
       width: 100,
-      render: (v: string) => dayjs(v).format('MM/DD HH:mm'),
+      render: (v: string) => dayjs(v).format("MM/DD HH:mm"),
     },
     {
-      title: '操作',
+      title: "操作",
       width: 120,
       render: (_: unknown, r: HelpRequest) => (
         <Space size={8}>
-          <a onClick={() => setDetailReq(r)}>{r.status === '已回复' ? '查看回复' : '查看'}</a>
-          {r.status !== '已回复' && <a onClick={() => copyLink(r)}>复制链接</a>}
+          <a onClick={() => setDetailReq(r)}>{r.status === "已回复" ? "查看回复" : "查看"}</a>
+          {r.status !== "已回复" && <a onClick={() => copyLink(r)}>复制链接</a>}
         </Space>
       ),
     },
@@ -196,9 +200,11 @@ export default function HelpCenter() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Title level={4} style={{ margin: 0 }}>求助中心</Title>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            求助中心
+          </Title>
           <HelpButton title={HELP.helpCenter.title} content={HELP.helpCenter.content} />
         </div>
         <Space>
@@ -206,10 +212,10 @@ export default function HelpCenter() {
             <Button
               icon={<ReloadOutlined />}
               onClick={fetchData}
-              type={hasNewReply ? 'primary' : 'default'}
+              type={hasNewReply ? "primary" : "default"}
               danger={hasNewReply}
             >
-              {hasNewReply ? '有新回复，点击刷新' : '刷新'}
+              {hasNewReply ? "有新回复，点击刷新" : "刷新"}
             </Button>
           </Badge>
           <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
@@ -271,9 +277,7 @@ export default function HelpCenter() {
               showSearch
               placeholder="搜索攻关单"
               options={ticketOptions}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
             />
           </Form.Item>
           <Form.Item name="requesterName" label="求助人" rules={[{ required: true }]}>
@@ -281,9 +285,7 @@ export default function HelpCenter() {
               showSearch
               placeholder="您的姓名"
               options={personOptions.map((p) => ({ value: p.value, label: p.label }))}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
             />
           </Form.Item>
           <Form.Item name="targetName" label="求助对象（从名单选择）">
@@ -292,16 +294,14 @@ export default function HelpCenter() {
               allowClear
               placeholder="从全员名单搜索"
               options={personOptions}
-              filterOption={(input, option) =>
-                (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
               onChange={(val) => {
                 const person = personOptions.find((p) => p.value === val);
-                if (person?.email) form.setFieldValue('targetEmail', person.email);
+                if (person?.email) form.setFieldValue("targetEmail", person.email);
               }}
             />
           </Form.Item>
-          <Form.Item name="targetEmail" label="求助对象邮箱" rules={[{ required: true, type: 'email' }]}>
+          <Form.Item name="targetEmail" label="求助对象邮箱" rules={[{ required: true, type: "email" }]}>
             <Input placeholder="email@example.com" />
           </Form.Item>
           <Form.Item name="category" label="求助类型" rules={[{ required: true }]}>
@@ -316,40 +316,54 @@ export default function HelpCenter() {
         </Form>
       </Drawer>
 
-      <Drawer
-        title="求助详情"
-        width={520}
-        open={!!detailReq}
-        onClose={() => setDetailReq(null)}
-        destroyOnClose
-      >
+      <Drawer title="求助详情" width={520} open={!!detailReq} onClose={() => setDetailReq(null)} destroyOnClose>
         {detailReq && (
           <>
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="攻关单">
-                <a onClick={() => { navigate(`/attack/${detailReq.ticketId}`); }}>{detailReq.ticketId.slice(0, 8)}</a>
+                <a
+                  onClick={() => {
+                    navigate(`/attack/${detailReq.ticketId}`);
+                  }}
+                >
+                  {detailReq.ticketId.slice(0, 8)}
+                </a>
               </Descriptions.Item>
               <Descriptions.Item label="求助人">{detailReq.requesterName}</Descriptions.Item>
               <Descriptions.Item label="求助对象">{detailReq.targetName ?? detailReq.targetEmail}</Descriptions.Item>
               <Descriptions.Item label="类型">{detailReq.category}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag color={HELP_STATUS_COLOR[detailReq.status] ?? 'default'}>{detailReq.status}</Tag></Descriptions.Item>
-              <Descriptions.Item label="求助内容"><div style={{ whiteSpace: 'pre-wrap' }}>{detailReq.question}</div></Descriptions.Item>
-              <Descriptions.Item label="发起时间">{dayjs(detailReq.createdAt).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+              <Descriptions.Item label="状态">
+                <Tag color={HELP_STATUS_COLOR[detailReq.status] ?? "default"}>{detailReq.status}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="求助内容">
+                <div style={{ whiteSpace: "pre-wrap" }}>{detailReq.question}</div>
+              </Descriptions.Item>
+              <Descriptions.Item label="发起时间">
+                {dayjs(detailReq.createdAt).format("YYYY-MM-DD HH:mm")}
+              </Descriptions.Item>
             </Descriptions>
 
-            <Divider orientation="left" orientationMargin={0}>回复</Divider>
-            {detailReq.status === '已回复' ? (
+            <Divider orientation="left" orientationMargin={0}>
+              回复
+            </Divider>
+            {detailReq.status === "已回复" ? (
               <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="回复内容"><div style={{ whiteSpace: 'pre-wrap' }}>{detailReq.feedback || '—'}</div></Descriptions.Item>
-                <Descriptions.Item label="回复人">{detailReq.feedbackBy || '—'}</Descriptions.Item>
-                <Descriptions.Item label="回复时间">{detailReq.feedbackAt ? dayjs(detailReq.feedbackAt).format('YYYY-MM-DD HH:mm') : '—'}</Descriptions.Item>
+                <Descriptions.Item label="回复内容">
+                  <div style={{ whiteSpace: "pre-wrap" }}>{detailReq.feedback || "—"}</div>
+                </Descriptions.Item>
+                <Descriptions.Item label="回复人">{detailReq.feedbackBy || "—"}</Descriptions.Item>
+                <Descriptions.Item label="回复时间">
+                  {detailReq.feedbackAt ? dayjs(detailReq.feedbackAt).format("YYYY-MM-DD HH:mm") : "—"}
+                </Descriptions.Item>
               </Descriptions>
             ) : (
               <div>
                 <Text type="secondary">尚未回复。可将以下反馈链接发给求助对象：</Text>
-                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <Input readOnly value={feedbackUrl(detailReq)} />
-                  <Button icon={<CopyOutlined />} onClick={() => copyLink(detailReq)}>复制</Button>
+                  <Button icon={<CopyOutlined />} onClick={() => copyLink(detailReq)}>
+                    复制
+                  </Button>
                 </div>
               </div>
             )}

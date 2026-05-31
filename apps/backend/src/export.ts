@@ -1,7 +1,7 @@
 import { Router } from "express";
-import * as XLSX from "xlsx";
 import type { Repository, SchemaRegistry } from "@combat/shared";
 import { filterAccessibleTickets } from "./private-tickets.js";
+import { writeSheetBuffer } from "./xlsx-util.js";
 
 export function makeExportRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
@@ -21,10 +21,8 @@ export function makeExportRouter(repo: Repository, registry: SchemaRegistry): Ro
       for (const f of fields) row[f.label] = n.properties[f.id] ?? "";
       return row;
     });
-    const ws = XLSX.utils.json_to_sheet(rows, { header: fields.map((f) => f.label) });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const headers = fields.map((f) => f.label);
+    const buf = await writeSheetBuffer(rows, headers);
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader(
       "Content-Disposition",

@@ -44,4 +44,37 @@ test.describe("系统升级 UI", () => {
     // Empty 占位文案
     await expect(page.getByText(/暂无升级记录/)).toBeVisible({ timeout: 10000 });
   });
+
+  test("在线版本卡片渲染 + 未配置时显示告警", async ({ page }) => {
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator('[data-testid="upgrade-releases-card"]')).toBeVisible();
+    // 后端未配 UPGRADE_GITHUB_REPO → 503 → 告警可见
+    await expect(page.locator('[data-testid="upgrade-releases-error"]')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/UPGRADE_GITHUB_REPO/)).toBeVisible();
+  });
+
+  test("在线版本卡片:mock release 数据渲染下拉与拉取按钮", async ({ page }) => {
+    await page.route("**/api/upgrade/releases", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            tag: "v2.4.0",
+            name: "v2.4.0",
+            publishedAt: "2026-06-01T00:00:00Z",
+            body: "notes",
+            assets: [{ name: "combat-v2.4.0.tar.gz", url: "https://example.com/combat.tar.gz", size: 123456 }],
+          },
+        ]),
+      })
+    );
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator('[data-testid="upgrade-release-select"]')).toBeVisible();
+    await expect(page.locator('[data-testid="upgrade-asset-select"]')).toBeVisible();
+    await expect(page.locator('[data-testid="upgrade-fetch-release-btn"]')).toBeVisible();
+    await expect(page.getByText(/v2\.4\.0/).first()).toBeVisible();
+  });
 });

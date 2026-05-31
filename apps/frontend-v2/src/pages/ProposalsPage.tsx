@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from "react";
 import {
   Typography,
   Table,
@@ -12,27 +12,28 @@ import {
   Tooltip,
   Card,
   Descriptions,
-} from 'antd';
-import { ScanOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import { api } from '../api.js';
-import type { RelationProposal } from '../api.js';
-import { PROPOSAL_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from '../constants.js';
-import { nodeLabel } from '../utils/nodeLabel.js';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
-import { useSettings } from '../hooks/useSettings.js';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
+} from "antd";
+import { ScanOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { api } from "../api.js";
+import type { RelationProposal } from "../api.js";
+import { PROPOSAL_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from "../constants.js";
+import { nodeLabel } from "../utils/nodeLabel.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import { useSettings } from "../hooks/useSettings.js";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { handleApiError } from "../utils/handleApiError.js";
 dayjs.extend(relativeTime);
 
 const { Title, Text } = Typography;
 
 export default function ProposalsPage() {
   const { getValues } = useSettings();
-  const PROPOSAL_STATUSES = getValues('提案状态', ['待审批', '已通过', '已拒绝']);
+  const PROPOSAL_STATUSES = getValues("提案状态", ["待审批", "已通过", "已拒绝"]);
   const [data, setData] = useState<RelationProposal[]>([]);
   const [loading, setLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string | undefined>('待审批');
+  const [statusFilter, setStatusFilter] = useState<string | undefined>("待审批");
   const [scanning, setScanning] = useState(false);
   const [detail, setDetail] = useState<RelationProposal | null>(null);
   const [nodesCache, setNodesCache] = useState<Record<string, { name: string; type: string }>>({});
@@ -57,19 +58,19 @@ export default function ProposalsPage() {
                 const node = await api.getNode(id);
                 newCache[id] = { name: nodeLabel(node), type: node.nodeType };
               } catch {
-                newCache[id] = { name: '(已删除)', type: '?' };
+                newCache[id] = { name: "(已删除)", type: "?" };
               }
-            }),
+            })
           );
           setNodesCache(newCache);
         }
-      } catch (e: any) {
-        message.error(e.message);
+      } catch (e) {
+        handleApiError(e);
       } finally {
         setLoading(false);
       }
     },
-    [statusFilter, nodesCache],
+    [statusFilter, nodesCache]
   );
 
   useEffect(() => {
@@ -82,8 +83,8 @@ export default function ProposalsPage() {
       const res = await api.scanProposals();
       message.success(`扫描完成，新增 ${res.created} 条候选关系`);
       fetchData();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setScanning(false);
     }
@@ -92,69 +93,67 @@ export default function ProposalsPage() {
   const handleDecide = useCallback(
     async (id: string, decision: string) => {
       try {
-        await api.decideProposal(id, decision, 'ui');
-        message.success(decision === '通过' ? '已通过，人员已合并' : '已拒绝');
+        await api.decideProposal(id, decision, "ui");
+        message.success(decision === "通过" ? "已通过，人员已合并" : "已拒绝");
         fetchData();
-      } catch (e: any) {
-        message.error(e.message);
+      } catch (e) {
+        handleApiError(e);
       }
     },
-    [fetchData],
+    [fetchData]
   );
 
-  const getNodeName = (id: string) => nodesCache[id]?.name || '(加载中)';
+  const getNodeName = (id: string) => nodesCache[id]?.name || "(加载中)";
 
   const columns = [
     {
-      title: '来源节点',
-      dataIndex: 'sourceNodeId',
-      key: 'source',
+      title: "来源节点",
+      dataIndex: "sourceNodeId",
+      key: "source",
       width: 140,
       render: (id: string, record: RelationProposal) => (
         <Space direction="vertical" size={0}>
           <a onClick={() => setDetail(record)}>{getNodeName(id)}</a>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {nodesCache[id]?.type || ''}
+            {nodesCache[id]?.type || ""}
           </Text>
         </Space>
       ),
     },
     {
-      title: '关系',
-      dataIndex: 'relationType',
-      key: 'relation',
+      title: "关系",
+      dataIndex: "relationType",
+      key: "relation",
       width: 90,
       render: (t: string) => <Tag>{t}</Tag>,
     },
     {
-      title: '目标节点',
-      dataIndex: 'targetNodeId',
-      key: 'target',
+      title: "目标节点",
+      dataIndex: "targetNodeId",
+      key: "target",
       width: 140,
       render: (id: string) => (
         <Space direction="vertical" size={0}>
           <Text>{getNodeName(id)}</Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {nodesCache[id]?.type || ''}
+            {nodesCache[id]?.type || ""}
           </Text>
         </Space>
       ),
     },
     {
-      title: '置信度',
-      dataIndex: 'confidence',
-      key: 'confidence',
+      title: "置信度",
+      dataIndex: "confidence",
+      key: "confidence",
       width: 80,
       render: (c: number) => (
-        <Text type={c >= 0.9 ? 'danger' : c >= 0.7 ? 'warning' : undefined}>
-          {(c * 100).toFixed(0)}%
-        </Text>
+        <Text type={c >= 0.9 ? "danger" : c >= 0.7 ? "warning" : undefined}>{(c * 100).toFixed(0)}%</Text>
       ),
     },
     {
-      title: '依据',
-      dataIndex: 'rationale',
-      key: 'rationale',
+      title: "依据",
+      dataIndex: "rationale",
+      key: "rationale",
       ellipsis: true,
       render: (t: string) => (
         <Tooltip title={t}>
@@ -163,20 +162,20 @@ export default function ProposalsPage() {
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
+      title: "状态",
+      dataIndex: "status",
+      key: "status",
       width: 80,
       render: (s: string) => <Tag color={PROPOSAL_STATUS_COLOR[s]}>{s}</Tag>,
     },
     {
-      title: '时间',
-      dataIndex: 'createdAt',
-      key: 'time',
+      title: "时间",
+      dataIndex: "createdAt",
+      key: "time",
       width: 100,
       sorter: (a: RelationProposal, b: RelationProposal) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      defaultSortOrder: 'descend' as const,
+      defaultSortOrder: "descend" as const,
       render: (t: string) => (
         <Tooltip title={dayjs(t).format(DATE_FORMAT)}>
           <Text style={{ fontSize: 12 }}>{dayjs(t).fromNow()}</Text>
@@ -184,42 +183,34 @@ export default function ProposalsPage() {
       ),
     },
     {
-      title: '操作',
-      key: 'actions',
+      title: "操作",
+      key: "actions",
       width: 120,
-      fixed: 'right' as const,
+      fixed: "right" as const,
       render: (_: unknown, record: RelationProposal) =>
-        record.status === '待审批' ? (
+        record.status === "待审批" ? (
           <Space>
-            <Popconfirm
-              title="确认通过？将执行人员合并操作"
-              onConfirm={() => handleDecide(record.id, '通过')}
-            >
-              <a style={{ color: '#52c41a' }}>
+            <Popconfirm title="确认通过？将执行人员合并操作" onConfirm={() => handleDecide(record.id, "通过")}>
+              <a style={{ color: "#52c41a" }}>
                 <CheckOutlined /> 通过
               </a>
             </Popconfirm>
-            <Popconfirm
-              title="确认拒绝？"
-              onConfirm={() => handleDecide(record.id, '拒绝')}
-            >
-              <a style={{ color: '#ff4d4f' }}>
+            <Popconfirm title="确认拒绝？" onConfirm={() => handleDecide(record.id, "拒绝")}>
+              <a style={{ color: "#ff4d4f" }}>
                 <CloseOutlined /> 拒绝
               </a>
             </Popconfirm>
           </Space>
         ) : (
-          <Text type="secondary">
-            {record.decidedBy ? `${record.decidedBy}` : '-'}
-          </Text>
+          <Text type="secondary">{record.decidedBy ? `${record.decidedBy}` : "-"}</Text>
         ),
     },
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Title level={4} style={{ margin: 0 }}>
             关系审批
           </Title>
@@ -245,14 +236,20 @@ export default function ProposalsPage() {
           size="small"
           style={{ marginBottom: 16 }}
           title="提案详情"
-          extra={<Button size="small" onClick={() => setDetail(null)}>关闭</Button>}
+          extra={
+            <Button size="small" onClick={() => setDetail(null)}>
+              关闭
+            </Button>
+          }
         >
           <Descriptions bordered size="small" column={2}>
             <Descriptions.Item label="来源">{getNodeName(detail.sourceNodeId)}</Descriptions.Item>
             <Descriptions.Item label="目标">{getNodeName(detail.targetNodeId)}</Descriptions.Item>
             <Descriptions.Item label="关系类型">{detail.relationType}</Descriptions.Item>
             <Descriptions.Item label="置信度">{(detail.confidence * 100).toFixed(0)}%</Descriptions.Item>
-            <Descriptions.Item label="依据" span={2}>{detail.rationale}</Descriptions.Item>
+            <Descriptions.Item label="依据" span={2}>
+              {detail.rationale}
+            </Descriptions.Item>
             <Descriptions.Item label="来源算法">{detail.proposerSource}</Descriptions.Item>
             <Descriptions.Item label="状态">
               <Tag color={PROPOSAL_STATUS_COLOR[detail.status]}>{detail.status}</Tag>

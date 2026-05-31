@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,17 +30,10 @@ async function makeApp() {
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, cfg };
 }
-function xlsxBuf(rows: Record<string, string>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "S");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-}
-
 describe("alias e2e", () => {
   it("import: a divergent column name matched via alias lands in the canonical field", async () => {
     const { app, repo } = await makeApp();
-    const buf = xlsxBuf([{ 标题: "断连", 研发责任人: "张三" }]);
+    const buf = await xlsxBuffer([{ 标题: "断连", 研发责任人: "张三" }]);
     const r = await request(app).post("/api/import").attach("file", buf, "s.xlsx");
     expect(r.status).toBe(200);
     expect(r.body.created).toBe(1);
@@ -56,7 +49,7 @@ describe("alias e2e", () => {
     expect(p.body.fields.find((f: any) => f.id === "当前处理人").aliases).toEqual(["处理人", "PIC"]);
     const onDisk = JSON.parse(readFileSync(join(cfg, "attackTicket.json"), "utf8"));
     expect(onDisk.fields.find((f: any) => f.id === "当前处理人").aliases).toEqual(["处理人", "PIC"]);
-    const buf = xlsxBuf([{ 标题: "T2", PIC: "李四" }]);
+    const buf = await xlsxBuffer([{ 标题: "T2", PIC: "李四" }]);
     await request(app).post("/api/import").attach("file", buf, "s.xlsx");
     const t = (await repo.queryNodes("attackTicket")).find((n) => n.properties["标题"] === "T2");
     expect(t!.properties["当前处理人"]).toBe("李四");

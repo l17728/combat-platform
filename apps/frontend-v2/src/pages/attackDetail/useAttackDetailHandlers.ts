@@ -11,6 +11,7 @@ import {
 } from "../../utils/teamMembers.js";
 import type { GraphNode } from "@combat/shared";
 import type { DailyReportEntry, RelatedResult, SupportNode } from "../../api.js";
+import { handleApiError } from "../../utils/handleApiError.js";
 
 interface UseAttackDetailHandlersArgs {
   id: string | undefined;
@@ -82,8 +83,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       message.success("更新成功");
       args.setEditOpen(false);
       refetch();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setEditSubmitting(false);
     }
@@ -108,8 +109,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       args.setPrivacyDrawerOpen(false);
       await refetch();
       message.success(isPrivate ? "私密配置已更新" : "已设置为私密");
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -119,8 +120,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       await api.updateNode(id, { 私密: "否" });
       await refetch();
       message.success("已取消私密");
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -130,8 +131,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       await api.updateNode(id, syncMemberFields(next));
       message.success("成员已更新");
       refetch();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -144,8 +145,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       args.setTransitionOpen(false);
       args.transForm.resetFields();
       refetch();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setTransSubmitting(false);
     }
@@ -160,8 +161,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       args.setProgressOpen(false);
       args.progForm.resetFields();
       refetch();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setProgSubmitting(false);
     }
@@ -173,8 +174,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       await api.deleteNode(id);
       message.success("已删除");
       args.onNavigateAfterDelete();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -193,8 +194,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       args.setEditingDr(null);
       args.drForm.resetFields();
       refetchDailyReports();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setDrSubmitting(false);
     }
@@ -215,8 +216,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       args.supportForm.resetFields();
       args.setEditingNode(null);
       refetchSupportNodes();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setSupportSubmitting(false);
     }
@@ -227,8 +228,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       await api.deleteSupportNode(nodeId);
       message.success("节点已删除");
       refetchSupportNodes();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 
@@ -257,8 +258,8 @@ export function useAttackDetailHandlers(args: UseAttackDetailHandlersArgs) {
       const result = await api.applySupportTemplate(templateId, id);
       message.success(`已应用模板，创建 ${result.applied} 个节点`);
       refetchSupportNodes();
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     }
   };
 

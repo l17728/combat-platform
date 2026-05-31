@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
 import { SqliteAdapter } from "../src/db-adapter.js";
@@ -19,12 +19,7 @@ function make() {
   );
   return { app: createApp({ repo, registry: new FileSchemaRegistry(CFG) }), repo };
 }
-function xlsxBuf(rows: Record<string, unknown>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "S");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-}
+const xlsxBuf = (rows: Record<string, unknown>[]) => xlsxBuffer(rows);
 
 describe("增量40 review 加固（缺陷修复 + 边界）", () => {
   describe("import 守卫（崩溃→明确 400）", () => {
@@ -36,7 +31,9 @@ describe("增量40 review 加固（缺陷修复 + 边界）", () => {
     });
     it("空 sheet（无数据行）→ 正常返回 created:0，不崩溃", async () => {
       const { app } = make();
-      const r = await request(app).post("/api/import?type=attackTicket").attach("file", xlsxBuf([]), "empty.xlsx");
+      const r = await request(app)
+        .post("/api/import?type=attackTicket")
+        .attach("file", await xlsxBuf([]), "empty.xlsx");
       // 空行表是合法的（0 行），应 200 且不创建
       expect(r.status).toBe(200);
       expect(r.body.created).toBe(0);
@@ -146,7 +143,7 @@ describe("用户场景（end-to-end 视角）", () => {
     // 重新带上文件正常导入
     const ok = await request(app)
       .post("/api/import?type=attackTicket")
-      .attach("file", xlsxBuf([{ 标题: "正常单", 状态: "进行中" }]), "good.xlsx");
+      .attach("file", await xlsxBuf([{ 标题: "正常单", 状态: "进行中" }]), "good.xlsx");
     expect(ok.status).toBe(200);
     expect(ok.body.created).toBe(1);
     expect((await repo.queryNodes("attackTicket")).length).toBe(1);
