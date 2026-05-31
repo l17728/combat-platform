@@ -919,6 +919,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 1. **写工具三重安全** — env 门控 + admin/leader 角色检查 + `_confirm:'yes'` 二次确认
 2. **会话记忆** — 最近 10 轮历史注入 LLM 上下文,7 天自动过期,前端 auto-create session
 3. **TOOL_SCHEMAS 条件暴露** — 写工具仅在 `HERMES_ENABLE_WRITE=1` 时暴露给 LLM
+4. **双 DB 支持** — `hermes-sessions.ts` + `health.ts` 均通过 `DbAdapter` 异步接口实现 SQLite/PG 双兼容；DDL 按 `adapter.kind` 分方言（`datetime('now')` vs `now()::text`）；其余 DB 直调（welink/backup）为已知 SQLite-only 模块，PG 模式下不挂载
 
 ### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 
