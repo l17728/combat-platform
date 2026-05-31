@@ -19,3 +19,4 @@ scripts/deploy-v2/node_modules/
 scripts/deploy-v2/combat-v2.tar.gz
 scripts/deploy-v2/package-lock.json
 nul
+data/

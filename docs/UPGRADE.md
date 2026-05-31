@@ -145,12 +145,166 @@ node scripts/migrate-schemas-to-overlay.mjs \
 
 之后才能用 UI 升级。
 
-## MVP 限制 (留 v2.4)
+## v2.4 新增能力
 
-1. **仅本地上传**:不从 GitHub Release / 镜像源拉取(后续可加)
-2. **无 PGP 签名校验**:用户自己保证升级包来源可信
-3. **自我升级真跑需 staging 环境验证一次**:本机/dev 用 `COMBAT_UPGRADE_MOCK_SYSTEMD=1` 跳 systemctl,生产化前必须在测试服务器跑一次真升级,确认 detached worker 在 backend 被 `systemctl restart` 杀掉的情况下继续完成 phase 5-7
-4. **不支持多机集群升级**:单实例方案;集群需扩展(loadbalancer drain + rolling)
+### 1. 在线版本拉取 (GitHub Releases)
+
+- 后端 endpoint: `GET /api/upgrade/releases` → 透传 `https://api.github.com/repos/<owner>/<repo>/releases?per_page=20`
+- env 要求:
+  - `UPGRADE_GITHUB_REPO=owner/repo` — 必填,未设置时 endpoint 返回 503
+  - `GITHUB_TOKEN=ghp_xxx` — 可选,鉴权后命中私有仓库 / 提高速率上限
+- 返回结构(已规范化):
+
+  ```json
+  [
+    {
+      "tag": "v2.4.0",
+      "name": "v2.4.0",
+      "publishedAt": "2026-06-01T00:00:00Z",
+      "body": "release notes…",
+      "assets": [{ "name": "combat-v2.4.0.tar.gz", "url": "https://…", "size": 12345 }]
+    }
+  ]
+  ```
+
+- UI(系统管理 → 系统升级 → 顶部"在线版本"卡片):
+  - Release 下拉 + asset 下拉 + 「拉取并分析」按钮
+  - 点击后调 `POST /api/upgrade/upload-from-url`,后端直接下载入 staging,再走 analyze
+- CLI: `npm run cli -- upgrade:releases`
+
+> 手动验证:本机加 `UPGRADE_GITHUB_REPO=anthropics/anthropic-sdk-typescript` 启动 backend → 调 `/api/upgrade/releases` 应能拿到真实数据。
+
+### 2. PGP 签名校验
+
+- 升级包约定:`foo.tar.gz` + 同名 `foo.tar.gz.asc`(armored detached signature)
+- 公钥优先级:`env UPGRADE_PGP_PUBKEY` > `~/.config/combat/upgrade-pubkey.asc` > `data/upgrade-pubkey.asc`
+- 后端流程:
+  - `POST /api/upgrade/upload-signature` (multipart `file=.asc` + `stagingId`) — 把签名落到 staging
+  - `POST /api/upgrade/analyze` 自动检测同名 `.asc`,若存在则用 openpgp 校验,返回字段:
+    - `signaturePresent: boolean`
+    - `signatureValid?: boolean` (仅当 present 时)
+    - `signedBy?: string` (pubkey 第一个 userID)
+    - `signatureError?: string` (失败原因)
+- UI 行为:
+  - 签名有效 → 顶部绿条 `✓ 签名有效(签名人: xxx)`
+  - 签名无效 → 顶部红条 + 「执行升级」按钮默认 disabled
+  - 未提供签名 → 顶部橙条警告
+  - 红/橙状态下,需勾选「我已确认升级包来源可信,允许在签名不通过的情况下执行升级」才可点击执行
+- 独立校验工具(不依赖后端):
+  ```bash
+  node scripts/upgrade/verify-signature.mjs <pkg.tar.gz> <pubkey.asc> [--sig <pkg.tar.gz.asc>]
+  # 退出码 0=有效,1=无效,2=参数/IO 错误
+  ```
+
+### 3. 真实演练流程 (Stage E 必跑)
+
+升级机制成熟度的真正考验是「detached worker 在 backend 被 systemctl 杀掉后能否继续完成 phase 5-7 并自动健康检查」。本机用 `COMBAT_UPGRADE_MOCK_SYSTEMD=1` 跳过 systemctl,**不能替代真实演练**。
+
+**演练工具**: `scripts/upgrade/prod-rehearsal.mjs`
+
+```bash
+# 默认 dry-run:只做 SSH 可达性 + 当前版本 + 本地打包,不动生产
+node scripts/upgrade/prod-rehearsal.mjs
+
+# 完整真跑(危险!)
+node scripts/upgrade/prod-rehearsal.mjs --apply
+
+# 完整真跑 + 演练结束后自动回滚到原版本
+node scripts/upgrade/prod-rehearsal.mjs --apply --rollback
+```
+
+**前置条件**:
+
+- repo 根目录 `.env.deploy` 已包含 `PROD_HOST` / `PROD_USER` / `PROD_PASS`
+- 生产服务已经处于 v2.3+(具备 `/api/upgrade/*` endpoint)
+- 生产 sudoers 已配置无密码 systemctl restart(见上文「一次性准备」)
+
+**脚本步骤(10 步)**:
+
+| #   | 操作                                                               | 失败行为      |
+| --- | ------------------------------------------------------------------ | ------------- |
+| 1   | SSH 连接生产                                                       | 退出 2        |
+| 2   | curl `/api/upgrade/current` 记录 fromVersion                       | 退出 2        |
+| 3   | curl `/api/health` 健康检查                                        | 退出 2        |
+| 4   | `git archive HEAD` 本地打包                                        | 退出 2        |
+| 5   | SFTP 上传到 `/tmp/combat-upgrade.tar.gz`                           | —             |
+| 6   | curl POST `/api/upgrade/upload` 拿 stagingId                       | —             |
+| 7   | curl POST `/api/upgrade/analyze` 看 diff                           | —             |
+| 8   | curl POST `/api/upgrade/apply` 拿 jobId                            | —             |
+| 9   | 轮询 `/api/upgrade/status` 至 done/failed/rolled-back(最长 5 分钟) | 超时 → 退出 3 |
+| 10  | 再 curl `/api/upgrade/current` 验证 toVersion                      | —             |
+
+退出码:
+
+- `0` 升级到达 done
+- `1` 升级失败但 rollback 成功(可调查 worker 日志)
+- `2` 参数 / IO / 凭据错误
+- `3` **必须人工介入** — rollback 也失败,需 SSH 手动恢复
+
+### 4. 演练日志
+
+> 集成阶段(Stage E)在此追加每次真实演练记录。
+
+| 日期   | 触发人 | from → to | 阶段(done/failed/rolled-back) | 是否回滚 | 备注   |
+| ------ | ------ | --------- | ----------------------------- | -------- | ------ |
+| _待补_ | _待补_ | _待补_    | _待补_                        | _待补_   | _待补_ |
+
+### 5. 失败恢复手册
+
+如果演练或正式升级在 phase 5-7 出现以下灾难场景,按这个顺序处理:
+
+#### 场景 A: worker 中途 crash / 被 OOM Killer 杀掉
+
+症状:`/api/upgrade/status` 卡在某个 phase(如 `code-swap` 80%),`backend.log` 没有新的 worker 输出。
+
+恢复:
+
+```bash
+ssh root@<host>
+# 1. 查 worker 是否还活着
+ps -ef | grep worker.mjs
+# 2. 若已死,看 worker log 拼接出阶段
+tail -100 /opt/combat-v2/apps/backend/data/upgrade-logs/<jobId>.log
+# 3. 手动回滚(用之前 backup tar)
+cd /opt/combat-v2/apps/backend/data/backups
+ls -t pre-*.tar.gz | head -1   # 最近一个 backup
+tar -xzf pre-<ts>-<jobShort>.tar.gz -C /opt/combat-v2
+systemctl restart combat-v2
+# 4. 清掉过时 state file
+rm /opt/combat-v2/apps/backend/data/upgrade-state.json
+```
+
+#### 场景 B: 网络中断导致 SSH 演练脚本退出但 worker 已起飞
+
+worker 是 detached,SSH 断开不影响。重新 SSH 进去看 `/api/upgrade/status` 即可继续追踪。
+
+#### 场景 C: systemctl restart 失败,新代码已替换但服务起不来
+
+```bash
+ssh root@<host>
+journalctl -u combat-v2 --no-pager -n 100   # 看 systemd 错误
+# 常见原因:依赖缺失 / 端口被占
+ss -tlnp | grep 3001
+# 若需要紧急上线旧版,走场景 A 的手动 rollback 路径
+```
+
+#### 场景 D: 健康检查阶段(phase=health)反复失败 30s 后 worker 自动触发 rollback,但 rollback 后服务依旧不起
+
+这通常是 backup tar 解开后又被新覆盖了——查 `data/backups/` 是否真有 pre-\* 文件。最坏情况:
+
+```bash
+ssh root@<host>
+cd /opt/combat-v2
+git fetch && git reset --hard <last_known_good_commit>
+npm ci && npm run build --workspace=@combat/frontend-v2
+systemctl restart combat-v2
+```
+
+## MVP 限制 (留 v2.5)
+
+1. **不支持多机集群升级**:单实例方案;集群需扩展(loadbalancer drain + rolling)
+2. **GitHub Release 拉取无离线镜像**:如果生产环境无法访问 github.com,需要预先把 tar.gz scp 上去走本地 upload 路径
+3. **签名失败仍可放行**:出于实操便利,UI 允许勾选「允许未签名」放行;如需强制,可在 backend 加入 env `UPGRADE_REQUIRE_SIGNATURE=1` 钩子(后续迭代)
 
 ## 故障排查
 
