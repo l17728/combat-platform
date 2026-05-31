@@ -12,8 +12,9 @@ import {
   message,
   Alert,
   AutoComplete,
+  Tooltip,
 } from "antd";
-import { ThunderboltOutlined, SaveOutlined, ApiOutlined } from "@ant-design/icons";
+import { ThunderboltOutlined, SaveOutlined, ApiOutlined, ReloadOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { LlmSettingsMaskedDTO, LlmSettingsPutBody, LlmThinkingMode } from "../api.js";
 import HelpButton from "../components/HelpButton.js";
@@ -34,10 +35,11 @@ interface ProviderDefault {
 const PROVIDER_DEFAULTS: Record<string, ProviderDefault> = {
   "zhipuai-coding-plan": {
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
-    defaultModel: "glm-4.5-air",
-    smallModel: "glm-4.5-flash",
+    defaultModel: "glm-4-flash",
+    smallModel: "glm-4-flash",
     label: "智谱 AI(zhipuai-coding-plan)",
-    models: ["glm-4.5-air", "glm-4.5-flash", "glm-4.5", "glm-4-plus", "glm-4.6", "glm-4-air", "glm-4-flash"],
+    // §v2.7: glm-4-flash 排第一(免费可用,无需余额);其余按 v2.6 教训保留
+    models: ["glm-4-flash", "glm-4.5-air", "glm-4.5-flash", "glm-4.5", "glm-4-plus", "glm-4.6", "glm-4-air"],
   },
   huawei_cloud: {
     baseUrl: "https://api.modelarts-maas.com/openai/v1",
@@ -70,6 +72,9 @@ export default function LlmSettings() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  // §v2.7: 动态 provider 模型列表(刷新按钮加载),null 表示未刷新过,走 PROVIDER_DEFAULTS.models fallback
+  const [dynamicModels, setDynamicModels] = useState<string[] | null>(null);
+  const [refreshingModels, setRefreshingModels] = useState(false);
   const [form] = Form.useForm<FormValues>();
 
   const fetchConfig = async () => {
@@ -79,6 +84,7 @@ export default function LlmSettings() {
       form.setFieldsValue({
         provider: c.provider || "zhipuai-coding-plan",
         baseUrl: c.baseUrl || PROVIDER_DEFAULTS["zhipuai-coding-plan"].baseUrl,
+        // §v2.7: 默认 glm-4-flash(免费可用)
         defaultModel: c.defaultModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].defaultModel,
         smallModel: c.smallModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].smallModel || "",
         thinking: c.thinking || "disabled",
@@ -133,6 +139,25 @@ export default function LlmSettings() {
       handleApiError(e, "保存失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onRefreshModels = async () => {
+    setRefreshingModels(true);
+    try {
+      const r = await api.listLlmModels();
+      if (r.models && r.models.length > 0) {
+        setDynamicModels(r.models.map((m) => m.id));
+        message.success(`已刷新 ${r.models.length} 个模型`);
+      } else if (r.error) {
+        message.warning(`刷新失败:${r.error}(降级使用内置模型列表)`);
+      } else {
+        message.warning("provider 返回空列表(降级使用内置模型列表)");
+      }
+    } catch (e) {
+      handleApiError(e, "刷新模型列表失败");
+    } finally {
+      setRefreshingModels(false);
     }
   };
 
@@ -218,24 +243,68 @@ export default function LlmSettings() {
             <Form.Item shouldUpdate={(p, c) => p.provider !== c.provider} noStyle>
               {({ getFieldValue }) => {
                 const providerModels = PROVIDER_DEFAULTS[getFieldValue("provider") as string]?.models;
-                const options = providerModels ? providerModels.map((m) => ({ value: m })) : [];
+                // §v2.7: 优先用动态列表(刷新后注入);否则降级到 PROVIDER_DEFAULTS.models;再否则空
+                const modelList = dynamicModels && dynamicModels.length > 0 ? dynamicModels : providerModels;
+                const options = modelList ? modelList.map((m) => ({ value: m, label: m })) : [];
+                const refreshBtn = (
+                  <Tooltip title="点击调 provider /models endpoint 拉取真实可用模型列表(失败时降级为内置列表)">
+                    <Button icon={<ReloadOutlined />} size="small" onClick={onRefreshModels} loading={refreshingModels}>
+                      刷新模型列表
+                    </Button>
+                  </Tooltip>
+                );
                 return (
                   <>
                     <Form.Item
-                      label="defaultModel 主模型"
+                      label={
+                        <Space>
+                          <span>defaultModel 主模型</span>
+                          {refreshBtn}
+                        </Space>
+                      }
                       name="defaultModel"
                       rules={[{ required: true, message: "请填写 defaultModel" }]}
                       extra={
-                        providerModels
-                          ? `常用:${providerModels.slice(0, 4).join(" / ")}…(支持输入任意模型名)`
-                          : "支持输入任意模型名"
+                        dynamicModels && dynamicModels.length > 0
+                          ? `已从 provider 拉取 ${dynamicModels.length} 个真实模型(支持输入任意模型名)`
+                          : modelList
+                            ? `常用:${modelList.slice(0, 4).join(" / ")}…(支持输入任意模型名,点上方按钮刷新真实列表)`
+                            : "支持输入任意模型名"
                       }
                     >
-                      <AutoComplete options={options} placeholder="glm-4.5-air" />
+                      {dynamicModels && dynamicModels.length > 0 ? (
+                        <Select
+                          showSearch
+                          allowClear
+                          options={options}
+                          placeholder="glm-4-flash"
+                          filterOption={(input, option) =>
+                            String(option?.label ?? option?.value ?? "")
+                              .toLowerCase()
+                              .includes(input.toLowerCase())
+                          }
+                        />
+                      ) : (
+                        <AutoComplete options={options} placeholder="glm-4-flash" />
+                      )}
                     </Form.Item>
 
                     <Form.Item label="smallModel 小模型(可选,用于轻量任务)" name="smallModel">
-                      <AutoComplete options={options} placeholder="glm-4.5-flash" allowClear />
+                      {dynamicModels && dynamicModels.length > 0 ? (
+                        <Select
+                          showSearch
+                          allowClear
+                          options={options}
+                          placeholder="glm-4-flash"
+                          filterOption={(input, option) =>
+                            String(option?.label ?? option?.value ?? "")
+                              .toLowerCase()
+                              .includes(input.toLowerCase())
+                          }
+                        />
+                      ) : (
+                        <AutoComplete options={options} placeholder="glm-4-flash" allowClear />
+                      )}
                     </Form.Item>
                   </>
                 );

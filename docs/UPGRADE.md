@@ -131,11 +131,13 @@ chmod 0440 /etc/sudoers.d/combat-v2
 ### v2.4+ 部署故障排查 — JWT_SECRET 必须注入
 
 v2.4 起后端强制要求生产环境 `JWT_SECRET` 必须通过环境变量传入,否则启动失败:
+
 ```
 [FATAL] JWT_SECRET 未设置,生产环境必须通过环境变量注入随机 32+ 字节密钥
 ```
 
 systemd drop-in 修复:
+
 ```bash
 ssh root@<host>
 SECRET=$(openssl rand -hex 32)
@@ -351,3 +353,38 @@ systemctl restart combat-v2
 | `COMBAT_UPGRADE_MOCK_SYSTEMD` | =`1` 跳过 systemctl + health 探活(本机/e2e)                                           |
 | `COMBAT_ENV_FILE`             | secrets 阶段写入路径(默认 `/etc/combat-v2.env`)                                       |
 | `COMBAT_HEALTH_URL`           | health 阶段轮询的 URL(默认 `http://127.0.0.1:3001/api/health`)                        |
+
+## systemd drop-in 自动清理 (v2.7+)
+
+### 背景
+
+v2.6 现网部署中曾出现:多个 `/etc/systemd/system/combat-v2.service.d/*.conf` 同时设置同一 env key(比如 `HERMES_MODEL` 同时出现在 `hermes.conf` 和 `hermes-llm.conf`)。systemd 按字典序加载,后者覆盖前者,但运维改值后老 drop-in 会"偷偷复活",诊断困难。
+
+### 自动行为(默认开启)
+
+`scripts/deploy-v2/deploy-direct.mjs` 在每次部署的 5/5 阶段(daemon-reload 之前)运行 drop-in 健康检查:
+
+1. 拉 `/etc/systemd/system/combat-v2.service.d/*.conf` 文件列表 + 内容
+2. 解析每个文件的 `Environment=KEY=VAL` 行,提取 env key
+3. 检测同一 key 出现在多个文件 → 冲突
+4. 决策:
+   - `hermes-llm.conf` 是 v2.7 起的**权威** drop-in,优先级最高
+   - 若冲突文件包含权威 → 非权威文件改名 `.bak.<timestamp>` 备份后从加载链移除
+   - 若无权威 → 字典序最后一个胜出,其余备份
+5. 输出日志 `drop-in.cleanup removed=<list> kept=<list>`
+
+实际清理只是 `mv name.conf name.conf.bak.<ts>`,不删数据,**可随时回滚**。
+
+### 关闭自动清理(谨慎模式)
+
+部署时加 `--keep-old-drop-ins` flag:
+
+```bash
+node deploy-direct.mjs 124.156.193.122 root <password> --keep-old-drop-ins
+```
+
+适用于:确知存在多个 drop-in 但你**就是要这种覆盖关系**(如临时灰度)。日常生产部署应保持自动清理开启。
+
+### 单测
+
+纯 parser/planner 逻辑由 `scripts/deploy-v2/dropin-cleanup.mjs` 导出,在 `apps/backend/test/dropin-cleanup.unit.test.ts` 中有 11 条单测覆盖:多 KEY 引号解析、注释行忽略、混合冲突/非冲突场景、权威/字典序两种胜出策略。

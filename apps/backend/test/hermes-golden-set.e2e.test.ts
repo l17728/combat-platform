@@ -97,7 +97,7 @@ const cases: GoldenCase[] = [
       expect(Array.isArray(r.data)).toBe(true);
     },
   },
-  // 7) get audit by actor
+  // 7) get audit by actor — §v2.7 强化:验证 actor 必须 === 'admin'(模拟 LLM 自然语言意图正确映射)
   {
     id: "Q7",
     question: "admin 改过哪些?",
@@ -106,6 +106,13 @@ const cases: GoldenCase[] = [
     assert: (r: any) => {
       expect(r.ok).toBe(true);
       expect(Array.isArray(r.data)).toBe(true);
+      // §v2.7: 若 audit_log 有 admin 的写入(beforeAll 中我们用 'admin' actor 创建了节点),
+      // 返回数组中每条记录的 actor (字段名 performedBy) 应都是 'admin' — 工具按 actor 过滤的正确性回归。
+      if (r.data.length > 0) {
+        for (const row of r.data) {
+          expect(String(row.performedBy)).toBe("admin");
+        }
+      }
     },
   },
   // 8) get audit by action
@@ -262,7 +269,9 @@ describe("Hermes v2.5 golden set (15 题, threshold 12/15)", () => {
     const pass = results.filter((r) => r.pass).length;
     const total = results.length;
     console.log(`\n=== Golden Set 汇总 ${pass}/${total} ===`);
-    results.forEach((r) => console.log(`  ${r.pass ? "✓" : "✗"} ${r.id}${r.error ? " — " + r.error.slice(0, 80) : ""}`));
+    results.forEach((r) =>
+      console.log(`  ${r.pass ? "✓" : "✗"} ${r.id}${r.error ? " — " + r.error.slice(0, 80) : ""}`)
+    );
     expect(pass).toBeGreaterThanOrEqual(12);
   });
 });

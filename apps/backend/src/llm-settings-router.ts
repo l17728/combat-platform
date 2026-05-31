@@ -125,9 +125,13 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
     asyncHandler(async (req, res) => {
       const b = (req.body ?? {}) as PingBody;
       const current = await getLlmSettings(adapter);
-      const baseUrl = (b.baseUrl ?? current?.baseUrl ?? "").replace(/\/$/, "");
-      const apiKey = b.apiKey ?? (await resolveLlmSecret(adapter)) ?? "";
-      const model = b.model ?? current?.defaultModel ?? "";
+      // §v2.7: env 作为最终 fallback,允许 admin 在 DB 空时通过 env 一键测试
+      const envBase = process.env.HERMES_LLM_BASE_URL;
+      const envKey = process.env.HERMES_LLM_API_KEY;
+      const envModel = process.env.HERMES_MODEL;
+      const baseUrl = (b.baseUrl ?? current?.baseUrl ?? envBase ?? "").replace(/\/$/, "");
+      const apiKey = b.apiKey ?? (await resolveLlmSecret(adapter)) ?? envKey ?? "";
+      const model = b.model ?? current?.defaultModel ?? envModel ?? "";
       const thinking: ThinkingMode = isValidThinking(b.thinking)
         ? b.thinking
         : ((current?.thinking ?? "disabled") as ThinkingMode);
@@ -141,7 +145,7 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
       const timer = setTimeout(() => ctrl.abort(), Math.min(timeoutMs, 30000));
       const url = `${baseUrl}/chat/completions`;
       const body: Record<string, unknown> = {
-        model: model || "glm-4.5-air",
+        model: model || "glm-4-flash",
         messages: [{ role: "user", content: "ping" }],
         max_tokens: 16,
         temperature: 0,
@@ -177,6 +181,71 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
         const msg = (e as Error).message || String(e);
         log.warn("llm_settings.test.fail", { error: msg });
         return res.json({ ok: false, error: msg });
+      }
+    })
+  );
+
+  // §v2.7: GET /api/llm-settings/models — 透传 provider 的 OpenAI 兼容 /models
+  // 用 DB 配置(或 env fallback)调 `${baseURL}/models`,返回 {models: [{id, owned_by?}]}。
+  // 用于前端「刷新模型列表」按钮替换硬编码 PROVIDER_DEFAULTS.models。
+  r.get(
+    "/llm-settings/models",
+    asyncHandler(async (_req, res) => {
+      const current = await getLlmSettings(adapter);
+      const envBase = process.env.HERMES_LLM_BASE_URL;
+      const envKey = process.env.HERMES_LLM_API_KEY;
+      const baseUrl = (current?.baseUrl || envBase || "").replace(/\/$/, "");
+      const apiKey = (await resolveLlmSecret(adapter)) || envKey || "";
+      if (!baseUrl || !apiKey) {
+        return res.json({ error: "缺少 baseUrl 或 apiKey,请先保存配置或设置 HERMES_LLM_* 环境变量" });
+      }
+      const url = `${baseUrl}/models`;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15000);
+      try {
+        const resp = await fetch(url, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${apiKey}` },
+          signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => "");
+          log.warn("llm_settings.models.fail", { status: resp.status });
+          return res.json({ error: `HTTP ${resp.status}: ${text.slice(0, 200)}` });
+        }
+        const text = await resp.text();
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          return res.json({ error: "provider 返回非 JSON" });
+        }
+        // OpenAI 兼容标准: {object:'list', data:[{id, object:'model', owned_by?}]}
+        // 部分 provider 直接返回数组,做兼容
+        const rawList: any[] = Array.isArray(parsed)
+          ? parsed
+          : Array.isArray(parsed?.data)
+            ? parsed.data
+            : Array.isArray(parsed?.models)
+              ? parsed.models
+              : [];
+        const models = rawList
+          .map((m) => {
+            if (typeof m === "string") return { id: m };
+            const id = String(m?.id ?? m?.model ?? "").trim();
+            if (!id) return null;
+            const ownedBy = m?.owned_by ? String(m.owned_by) : undefined;
+            return ownedBy ? { id, owned_by: ownedBy } : { id };
+          })
+          .filter(Boolean) as { id: string; owned_by?: string }[];
+        log.info("llm_settings.models.ok", { count: models.length, baseUrl });
+        return res.json({ models });
+      } catch (e) {
+        clearTimeout(timer);
+        const msg = (e as Error).message || String(e);
+        log.warn("llm_settings.models.fail", { error: msg });
+        return res.json({ error: msg });
       }
     })
   );

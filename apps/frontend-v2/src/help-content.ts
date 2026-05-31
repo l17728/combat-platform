@@ -1675,7 +1675,23 @@ npm run cli -- llm:set --provider zhipuai-coding-plan --base-url https://open.bi
 npm run cli -- llm:test --model glm-4.6
 \`\`\`
 
-agent 自动化部署、批量改 model 时直接走 CLI，避免人工 UI 操作。`,
+agent 自动化部署、批量改 model 时直接走 CLI，避免人工 UI 操作。
+
+### v2.7 新增能力
+
+**1. 动态拉取 provider 实际可用模型**
+- defaultModel / smallModel 标签旁多了「🔄 刷新模型列表」按钮
+- 点击后调 \`GET /api/llm-settings/models\`，透传 provider 的 OpenAI 兼容 \`/models\` endpoint，把真实可用 model 列表注入到 Select 选项
+- 智谱、华为云等 provider 上新 model 后，UI 一刷新就能看到，不再受硬编码列表束缚
+- 失败时自动降级回内置 PROVIDER_DEFAULTS.models + 警告 toast
+
+**2. /test env-fallback**
+- v2.6 的「测试连接」按钮要求 DB 已有配置或 form 临时输入 apiKey 才能工作；v2.7 起新增 env fallback（\`HERMES_LLM_*\`）：admin 即使没存 DB，只要 backend 启动时设了 env 就能一键测试，方便首次配置引导
+- 优先级链：body → DB → env → 默认
+
+**3. 默认 model 改 glm-4-flash**
+- 智谱 zhipu apiKey 在 OpenAI 兼容 endpoint 下，glm-4.5/4.6/5 都需要余额；glm-4-flash 免费可用
+- 全栈默认值同步改为 glm-4-flash（app.ts / PROVIDER_DEFAULTS / models 提示列表第一位）`,
   },
 };
 
