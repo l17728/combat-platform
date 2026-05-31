@@ -6,14 +6,15 @@ import { join } from "node:path";
 import { makeTestApp } from "./helpers.js";
 
 describe("documents e2e", () => {
-  let app: ReturnType<typeof makeTestApp>["app"];
-  beforeAll(() => {
+  let app: Awaited<ReturnType<typeof makeTestApp>>["app"];
+  beforeAll(async () => {
     process.env.COMBAT_UPLOAD_DIR = mkdtempSync(join(tmpdir(), "combat-uploads-"));
-    app = makeTestApp().app;
+    app = (await makeTestApp()).app;
   });
 
   it("uploads a file, lists it, downloads its content", async () => {
-    const up = await request(app).post("/api/documents")
+    const up = await request(app)
+      .post("/api/documents")
       .field("name", "测试文档")
       .attach("file", Buffer.from("HELLO-DOC-CONTENT"), "test.txt");
     expect(up.status).toBe(201);

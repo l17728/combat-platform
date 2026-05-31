@@ -85,3 +85,116 @@ export const ticketTabs = tool({
     return JSON.stringify(out);
   },
 });
+
+// ============ Welink 场景 2 & 4 工具集 ============
+
+async function postJson(path: string, body: any): Promise<any> {
+  const res = await fetch(`${API}/api${path}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}),
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!res.ok) {
+    let err: any = `HTTP ${res.status}`;
+    try { err = await res.json(); } catch { /* ignore */ }
+    return { error: err, path };
+  }
+  return res.json();
+}
+
+// 搜该攻关单的群消息(只读)
+export const welinkSearch = tool({
+  description:
+    "在某攻关单的 Welink 群消息里按关键词全文搜索;返回最多 50 条命中消息(含发言人、时间、原文)。" +
+    "当用户问到群里谁说过什么、某关键字何时出现时使用。",
+  args: {
+    ticketId: tool.schema.string().describe("攻关单节点 id"),
+    q: tool.schema.string().describe("关键词"),
+  },
+  async execute(args) {
+    return JSON.stringify(await getJson(`/tickets/${encodeURIComponent(args.ticketId)}/welink/search?q=${encodeURIComponent(args.q)}`));
+  },
+});
+
+// 取该攻关单的群消息时间线(只读)
+export const welinkTimeline = tool({
+  description:
+    "按时间升序读取某攻关单的 Welink 群消息精简时间线;最多 500 条。" +
+    "当用户问到时间脉络、谁先谁后、第一个谁认领等顺序问题时使用。",
+  args: {
+    ticketId: tool.schema.string().describe("攻关单节点 id"),
+    limit: tool.schema.number().optional().describe("最多返回条数,默认 200"),
+  },
+  async execute(args) {
+    const limit = Math.min(500, Math.max(1, Math.round(args.limit ?? 200)));
+    return JSON.stringify(await getJson(`/tickets/${encodeURIComponent(args.ticketId)}/welink/timeline?limit=${limit}`));
+  },
+});
+
+// gap-analysis:活跃发言人 vs 攻关单成员的差集 — 场景 4 的入口
+export const gapAnalysis = tool({
+  description:
+    "对某攻关单跑 Welink 群「活跃发言人 vs 攻关单已登记成员」差集分析,返回未登记的人员清单及其在群里的发言次数。" +
+    "**当用户进入 Welink 场景、提到群、聊天、成员、补齐等关键字时,主动调用本工具看是否有缺口需要提醒用户。**",
+  args: { ticketId: tool.schema.string().describe("攻关单节点 id") },
+  async execute(args) {
+    return JSON.stringify(await getJson(`/tickets/${encodeURIComponent(args.ticketId)}/welink/gap-analysis`));
+  },
+});
+
+// 批量加成员 — 解析用户对话指令"把 X、Y 加进来"
+export const welinkAddMembers = tool({
+  description:
+    "把一批姓名加入某攻关单的成员列表(默认角色组员);自动去重、自动同步「成员列表 / 攻关组长 / 攻关成员」三字段。" +
+    "**仅在用户明确表达想要加成员(如「把张三李四加进来」、「除王五外都加进来」)时调用。**",
+  args: {
+    ticketId: tool.schema.string().describe("攻关单节点 id"),
+    names: tool.schema.string().describe("要加入的姓名,逗号或顿号分隔(也可单个),例 '张三,李四'"),
+    role: tool.schema.string().optional().describe("角色:组员(默认)|组长"),
+  },
+  async execute(args) {
+    const names = String(args.names || "").split(/[,，、;；\s]+/).map((s) => s.trim()).filter(Boolean);
+    return JSON.stringify(await postJson(`/tickets/${encodeURIComponent(args.ticketId)}/welink/add-members`, {
+      names,
+      role: args.role || "组员",
+    }));
+  },
+});
+
+// 改单人角色
+export const welinkSetMemberRole = tool({
+  description:
+    "把某攻关单里已登记的某成员角色改成「组长」或「组员」;若不在成员列表会返回 404。" +
+    '用于"把张三设为组长"这类对话指令。',
+  args: {
+    ticketId: tool.schema.string().describe("攻关单节点 id"),
+    name: tool.schema.string().describe("已在成员列表中的姓名"),
+    role: tool.schema.string().describe("目标角色:组长 或 组员"),
+  },
+  async execute(args) {
+    return JSON.stringify(await postJson(`/tickets/${encodeURIComponent(args.ticketId)}/welink/set-member-role`, {
+      name: args.name,
+      role: args.role,
+    }));
+  },
+});
+
+// 创建邮件群组节点(走通用 nodes API)
+export const createEmailGroup = tool({
+  description:
+    "创建一个「邮件群组」节点,字段:组名(必填)/成员邮箱(逗号分隔)/描述。" +
+    "用于用户在对话里要求「建一个 xxx 邮件群」、「把这几个人的邮箱拉个组」时调用。",
+  args: {
+    groupName: tool.schema.string().describe("组名(必填)"),
+    emails: tool.schema.string().describe("成员邮箱,逗号分隔"),
+    description: tool.schema.string().optional().describe("可选描述"),
+  },
+  async execute(args) {
+    const body: any = { 组名: args.groupName, 成员邮箱: String(args.emails || "") };
+    if (args.description) body.描述 = args.description;
+    return JSON.stringify(await postJson(`/nodes/emailGroup`, body));
+  },
+});

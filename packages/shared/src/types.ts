@@ -21,7 +21,11 @@ export interface NodeSchema {
   identityKeys: string[];
   derivedToKG: boolean;
 }
-export interface EdgeSchema { edgeType: string; from: string; to: string; }
+export interface EdgeSchema {
+  edgeType: string;
+  from: string;
+  to: string;
+}
 export interface EntitySchemaConfig {
   version: number;
   nodeTypes: NodeSchema[];
@@ -53,25 +57,79 @@ export interface ProgressLog {
   updatedBy: string;
   updatedAt: string;
 }
-export interface QueryHit { id: string; nodeType: string; summary: string; score: number; }
-export interface RelatedItem { field: string; concept: string; node: GraphNode; }
-export interface CoAnchoredItem { anchorKind: string; anchorKey: string; node: GraphNode; }
+export interface QueryHit {
+  id: string;
+  nodeType: string;
+  summary: string;
+  score: number;
+}
+export interface RelatedItem {
+  field: string;
+  concept: string;
+  node: GraphNode;
+}
+export interface CoAnchoredItem {
+  anchorKind: string;
+  anchorKey: string;
+  node: GraphNode;
+}
 export interface ExpandedItem {
-  node: GraphNode; depth: number; viaEdgeType: string; viaField: string; parentId: string;
+  node: GraphNode;
+  depth: number;
+  viaEdgeType: string;
+  viaField: string;
+  parentId: string;
 }
 export type ConflictEdgeType = "CONFLICTS_WITH" | "OVERLAPS_WITH";
-export interface ConflictItem { edgeType: ConflictEdgeType; reason: string; node: GraphNode; }
-export interface ConflictRow { edgeType: ConflictEdgeType; reason: string; source: GraphNode; target: GraphNode; }
-export interface ScanConflictsResult { conflicts: number; overlaps: number; }
-export interface RebuildKGResult { refEdges: number; anchorEdges: number; conflicts: number; overlaps: number; durationMs: number; }
+export interface ConflictItem {
+  edgeType: ConflictEdgeType;
+  reason: string;
+  node: GraphNode;
+}
+export interface ConflictRow {
+  edgeType: ConflictEdgeType;
+  reason: string;
+  source: GraphNode;
+  target: GraphNode;
+}
+export interface ScanConflictsResult {
+  conflicts: number;
+  overlaps: number;
+}
+export interface RebuildKGResult {
+  refEdges: number;
+  anchorEdges: number;
+  conflicts: number;
+  overlaps: number;
+  durationMs: number;
+}
 
 export type HermesIntent =
-  | "status" | "owner" | "ticket-by-pb" | "person-workload" | "fallback-search"
-  | "contribution-by-person" | "recent-changes" | "find-helpers" | "agent";
+  | "status"
+  | "owner"
+  | "ticket-by-pb"
+  | "person-workload"
+  | "fallback-search"
+  | "contribution-by-person"
+  | "recent-changes"
+  | "find-helpers"
+  | "agent";
 
-export interface GraphSnapshotNode { id: string; nodeType: string; label: string; }
-export interface GraphSnapshotEdge { source: string; target: string; edgeType: string; }
-export interface GraphSnapshot { rootId: string; nodes: GraphSnapshotNode[]; edges: GraphSnapshotEdge[]; }
+export interface GraphSnapshotNode {
+  id: string;
+  nodeType: string;
+  label: string;
+}
+export interface GraphSnapshotEdge {
+  source: string;
+  target: string;
+  edgeType: string;
+}
+export interface GraphSnapshot {
+  rootId: string;
+  nodes: GraphSnapshotNode[];
+  edges: GraphSnapshotEdge[];
+}
 
 export interface AuditLogEntry {
   id: string;
@@ -91,8 +149,11 @@ export interface MergePreview {
 }
 
 export const ATTACK_STATUSES = ["待响应", "处理中", "进行中", "已解决", "已关闭"] as const;
-export type AttackStatus = typeof ATTACK_STATUSES[number];
-export interface TransitionResult { node: GraphNode; progress: ProgressLog; }
+export type AttackStatus = (typeof ATTACK_STATUSES)[number];
+export interface TransitionResult {
+  node: GraphNode;
+  progress: ProgressLog;
+}
 
 export interface ImportRowResult {
   rowIndex: number;
@@ -112,9 +173,13 @@ export interface ImportPreview {
 }
 
 export interface SmtpConfig {
-  host: string; port: number; secure: boolean;
-  username: string; password: string;
-  fromEmail: string; fromName?: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  password: string;
+  fromEmail: string;
+  fromName?: string;
 }
 export type SmtpConfigMasked = Omit<SmtpConfig, "password"> & { passwordSet: boolean };
 export interface EmailSendRequest {
@@ -146,37 +211,103 @@ export type Role = "normal" | "leader" | "admin";
 export const PRIVILEGED_ROLES: Role[] = ["leader", "admin"];
 export const ROLE_LABELS: Record<Role, string> = { normal: "普通", leader: "Leader", admin: "管理员" };
 
-export interface EscalationRule { 事件级别: string; slaHours: number; 上升角色: string; }
-export interface EscalationConfig { rules: EscalationRule[]; }
-export interface EscalationScanResult { overdue: number; escalated: number; }
-export interface HermesCitation { nodeId: string; nodeType: string; summary: string; link: string; }
+export interface EscalationRule {
+  事件级别: string;
+  slaHours: number;
+  上升角色: string;
+}
+export interface EscalationConfig {
+  rules: EscalationRule[];
+}
+export interface EscalationScanResult {
+  overdue: number;
+  escalated: number;
+}
+export interface HermesCitation {
+  nodeId: string;
+  nodeType: string;
+  summary: string;
+  link: string;
+  /** 'node'(默认)|'welink'(指向某攻关单 welink 群消息) */
+  kind?: "node" | "welink";
+  /** kind='welink' 时为 welink message id(供前端跳转/高亮锚点) */
+  messageId?: string;
+  /** kind='welink' 时为所属攻关单 id */
+  ticketId?: string;
+}
 // §57: dynamic UI widget spec — each Hermes answer may include a widget
 export type UiWidgetType = "TABLE" | "STATS" | "MERMAID" | "TIMELINE" | "CARD_GRID";
-export interface UiTableRow { [key: string]: string | number | null }
-export interface UiTableParams { title?: string; columns: string[]; rows: UiTableRow[] }
-export interface UiStatsItem { label: string; value: number | string; color?: string }
-export interface UiStatsParams { title?: string; items: UiStatsItem[] }
-export interface UiMermaidParams { title?: string; diagram: string }
-export interface UiTimelineItem { time: string; title: string; content: string; status?: string }
-export interface UiTimelineParams { title?: string; items: UiTimelineItem[] }
-export interface UiCardItem { title: string; description?: string; link?: string; tags?: string[] }
-export interface UiCardGridParams { title?: string; cards: UiCardItem[] }
+export interface UiTableRow {
+  [key: string]: string | number | null;
+}
+export interface UiTableParams {
+  title?: string;
+  columns: string[];
+  rows: UiTableRow[];
+}
+export interface UiStatsItem {
+  label: string;
+  value: number | string;
+  color?: string;
+}
+export interface UiStatsParams {
+  title?: string;
+  items: UiStatsItem[];
+}
+export interface UiMermaidParams {
+  title?: string;
+  diagram: string;
+}
+export interface UiTimelineItem {
+  time: string;
+  title: string;
+  content: string;
+  status?: string;
+}
+export interface UiTimelineParams {
+  title?: string;
+  items: UiTimelineItem[];
+}
+export interface UiCardItem {
+  title: string;
+  description?: string;
+  link?: string;
+  tags?: string[];
+}
+export interface UiCardGridParams {
+  title?: string;
+  cards: UiCardItem[];
+}
 export interface UiSpec {
   widget: UiWidgetType;
   params: UiTableParams | UiStatsParams | UiMermaidParams | UiTimelineParams | UiCardGridParams;
   cacheKey: string;
 }
 export interface PinnedUi {
-  id: string; label: string; question: string;
-  intent: string; uiSpec: UiSpec; pinnedAt: string;
+  id: string;
+  label: string;
+  question: string;
+  intent: string;
+  uiSpec: UiSpec;
+  pinnedAt: string;
 }
-export interface HermesAnswer { question: string; intent: HermesIntent; answer: string; citations: HermesCitation[]; uiSpec?: UiSpec; }
+export interface HermesAnswer {
+  question: string;
+  intent: HermesIntent;
+  answer: string;
+  citations: HermesCitation[];
+  uiSpec?: UiSpec;
+}
 export interface QueryContext {
   node: GraphNode;
   related: { outgoing: RelatedItem[]; incoming: RelatedItem[]; coAnchored: CoAnchoredItem[] };
   progress: ProgressLog[];
 }
-export interface HelperRecommendation { person: GraphNode; score: number; reasons: string[]; }
+export interface HelperRecommendation {
+  person: GraphNode;
+  score: number;
+  reasons: string[];
+}
 export interface DashboardSummary {
   tickets: { total: number; byStatus: Record<string, number>; open: number; resolved: number };
   contributions: { total: number; topContributors: { 贡献人: string; count: number }[] };
@@ -217,21 +348,51 @@ export interface RelationProposal {
 }
 
 export interface DailyReportEntry {
-  seqNo: number; statusSnapshot: string; content: string; updatedBy: string; at: string;
+  seqNo: number;
+  statusSnapshot: string;
+  content: string;
+  updatedBy: string;
+  at: string;
 }
 export interface DailyReportSection {
-  ticketId: string; 标题: string; latestStatus: string; entries: DailyReportEntry[];
+  ticketId: string;
+  标题: string;
+  latestStatus: string;
+  entries: DailyReportEntry[];
 }
 export interface DailyReport {
   date: string;
   sections: DailyReportSection[];
   summary: { ticketsTouched: number; entriesTotal: number; openByStatus: Record<string, number> };
 }
-export interface CustomCommand { id: string; name: string; description?: string; template: string; params: string[]; createdAt: string; }
-export interface CustomCommandRunResult { resolved: string; request: { method: string; path: string; body?: unknown }; }
-export interface DailyReportPublishResult { date: string; ticketsTouched: number; published: number; }
-export interface JobsTickResult { conflicts: number; overlaps: number; escalated: number; reminders: number; proposals: number; }
-export interface OncallCurrentRow { domain: string; 值班人: string[]; }
+export interface CustomCommand {
+  id: string;
+  name: string;
+  description?: string;
+  template: string;
+  params: string[];
+  createdAt: string;
+}
+export interface CustomCommandRunResult {
+  resolved: string;
+  request: { method: string; path: string; body?: unknown };
+}
+export interface DailyReportPublishResult {
+  date: string;
+  ticketsTouched: number;
+  published: number;
+}
+export interface JobsTickResult {
+  conflicts: number;
+  overlaps: number;
+  escalated: number;
+  reminders: number;
+  proposals: number;
+}
+export interface OncallCurrentRow {
+  domain: string;
+  值班人: string[];
+}
 
 export type ReminderStatus = "待发送" | "已发送" | "已忽略";
 export type ReminderKind = "问题单跟催" | "FE Deadline 提醒" | "CCB 提醒";

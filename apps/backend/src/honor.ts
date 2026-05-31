@@ -7,16 +7,17 @@ const WEIGHT: Record<string, number> = { 普通: 1, 关键: 3, 核心: 8 };
 export function makeHonorRouter(repo: Repository): Router {
   const r = Router();
 
-  r.get("/honor/leaderboard", (req, res) => {
+  r.get("/honor/leaderboard", async (req, res) => {
     const period = typeof req.query.period === "string" ? req.query.period : "";
     const groupBy = typeof req.query.groupBy === "string" ? req.query.groupBy : "";
-    const rows = repo.queryNodes("contribution")
-      .filter(c => !period || String(c.properties["周期"] ?? "") === period);
+    const rows = (await repo.queryNodes("contribution")).filter(
+      (c) => !period || String(c.properties["周期"] ?? "") === period
+    );
 
     // §51.4: team aggregation — resolve each contributor name to their person's 团队.
     if (groupBy === "team") {
       const teamByName = new Map<string, string>();
-      for (const p of repo.queryNodes("person")) {
+      for (const p of await repo.queryNodes("person")) {
         const name = String(p.properties["姓名"] ?? p.properties["name"] ?? "");
         if (name) teamByName.set(name, String(p.properties["团队"] ?? "").trim());
       }
@@ -33,8 +34,10 @@ export function makeHonorRouter(repo: Repository): Router {
       return res.json(Object.values(byTeam).sort((a, b) => b.score - a.score));
     }
 
-    const by: Record<string, { 贡献人: string; score: number; 贡献数: number;
-      byLevel: Record<string, number>; byType: Record<string, number> }> = {};
+    const by: Record<
+      string,
+      { 贡献人: string; score: number; 贡献数: number; byLevel: Record<string, number>; byType: Record<string, number> }
+    > = {};
     for (const c of rows) {
       const person = String(c.properties["贡献人"] ?? "");
       if (!person) continue;
@@ -49,16 +52,17 @@ export function makeHonorRouter(repo: Repository): Router {
     res.json(Object.values(by).sort((a, b) => b.score - a.score));
   });
 
-  r.get("/honor/person/:name", (req, res) => {
+  r.get("/honor/person/:name", async (req, res) => {
     const name = req.params.name;
-    const contributions = repo.queryNodes("contribution")
-      .filter(c => String(c.properties["贡献人"] ?? "") === name);
+    const contributions = (await repo.queryNodes("contribution")).filter(
+      (c) => String(c.properties["贡献人"] ?? "") === name
+    );
     // Preload all CONTRIBUTED_TO edges to avoid N+1
     const edgeMap = new Map<string, string>();
-    for (const e of repo.queryEdges({ edgeType: "CONTRIBUTED_TO" })) {
+    for (const e of await repo.queryEdges({ edgeType: "CONTRIBUTED_TO" })) {
       if (!edgeMap.has(e.sourceId)) edgeMap.set(e.sourceId, e.targetId);
     }
-    const list = contributions.map(c => ({
+    const list = contributions.map((c) => ({
       contribution: c,
       attackTicketId: edgeMap.get(c.id) ?? null,
     }));

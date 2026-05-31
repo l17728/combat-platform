@@ -17,3 +17,4 @@ coverage/
 *.sqlite*
 package-lock.json
 config/schemas/
+apps/backend/hermes-workspace/

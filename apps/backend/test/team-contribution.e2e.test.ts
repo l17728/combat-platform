@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
@@ -18,14 +19,16 @@ function makeRealApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-team-"));
   const dbPath = join(dir, "t.sqlite");
   const db = openDb(dbPath);
-  const repo = new SqliteRepository(db);
+  const repo = new SqliteRepository(new SqliteAdapter(db));
   const registry = new FileSchemaRegistry(realSchemas);
   return { app: createApp({ repo, registry, db, dbPath }), registry };
 }
 
 describe("teamContribution e2e", () => {
   let app: ReturnType<typeof makeRealApp>["app"];
-  beforeAll(() => { app = makeRealApp().app; });
+  beforeAll(async () => {
+    app = makeRealApp().app;
+  });
 
   it("schema is registered with expected fields", async () => {
     const s = await request(app).get("/api/schema/teamContribution");
@@ -35,16 +38,18 @@ describe("teamContribution e2e", () => {
   });
 
   it("creates a team contribution and round-trips 组员 as an array", async () => {
-    const c = await request(app).post("/api/nodes/teamContribution").send({
-      团队名称: "攻坚突击队",
-      贡献等级: "核心",
-      贡献类型: "实施",
-      描述: "主导根因定位与修复",
-      组长: "张三",
-      组员: ["李四", "王五", "赵敏"],
-      关联攻关单: "PB202612345",
-      周期: "2026-Q2",
-    });
+    const c = await request(app)
+      .post("/api/nodes/teamContribution")
+      .send({
+        团队名称: "攻坚突击队",
+        贡献等级: "核心",
+        贡献类型: "实施",
+        描述: "主导根因定位与修复",
+        组长: "张三",
+        组员: ["李四", "王五", "赵敏"],
+        关联攻关单: "PB202612345",
+        周期: "2026-Q2",
+      });
     expect(c.status).toBe(201);
     const got = await request(app).get(`/api/nodes/${c.body.id}`);
     expect(got.status).toBe(200);

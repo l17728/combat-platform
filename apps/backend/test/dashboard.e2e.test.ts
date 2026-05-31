@@ -5,36 +5,61 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
-function makeApp() {
+async function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), "combat-dash-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), JSON.stringify({
-    nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-    fields: [{ name: "标题", type: "string", label: "标题", required: true },
-      { name: "状态", type: "string", label: "状态" },
-      { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" },
-      { name: "问题单号", type: "string", label: "问题单号", anchor: "问题单号" }],
-  }));
-  writeFileSync(join(cfg, "contribution.json"), JSON.stringify({
-    nodeType: "contribution", label: "贡献记录", identityKeys: [], derivedToKG: true,
-    fields: [{ name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true },
-      { name: "贡献等级", type: "string", label: "贡献等级" },
-      { name: "关联问题单", type: "string", label: "关联问题单", anchor: "问题单号" }],
-  }));
-  writeFileSync(join(cfg, "person.json"), JSON.stringify({
-    nodeType: "person", label: "人员", identityKeys: ["employeeId"], derivedToKG: true,
-    fields: [{ name: "name", type: "string", label: "姓名", required: true }],
-  }));
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
-  return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, db: (repo as any).db };
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    JSON.stringify({
+      nodeType: "attackTicket",
+      label: "攻关单",
+      identityKeys: ["攻关单号"],
+      derivedToKG: true,
+      fields: [
+        { name: "标题", type: "string", label: "标题", required: true },
+        { name: "状态", type: "string", label: "状态" },
+        { name: "当前处理人", type: "ref", label: "当前处理人", refType: "person" },
+        { name: "问题单号", type: "string", label: "问题单号", anchor: "问题单号" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "contribution.json"),
+    JSON.stringify({
+      nodeType: "contribution",
+      label: "贡献记录",
+      identityKeys: [],
+      derivedToKG: true,
+      fields: [
+        { name: "贡献人", type: "ref", label: "贡献人", refType: "person", required: true },
+        { name: "贡献等级", type: "string", label: "贡献等级" },
+        { name: "关联问题单", type: "string", label: "关联问题单", anchor: "问题单号" },
+      ],
+    })
+  );
+  writeFileSync(
+    join(cfg, "person.json"),
+    JSON.stringify({
+      nodeType: "person",
+      label: "人员",
+      identityKeys: ["employeeId"],
+      derivedToKG: true,
+      fields: [{ name: "name", type: "string", label: "姓名", required: true }],
+    })
+  );
+  const db = openDb(join(dir, "t.sqlite"));
+  const repo = new SqliteRepository(new SqliteAdapter(db));
+  return { app: createApp({ repo, registry: new FileSchemaRegistry(cfg) }), repo, db };
 }
 
 describe("dashboard e2e", () => {
   it("aggregates tickets/contributions/proposals correctly + deterministic top contributors", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "A", 状态: "进行中" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "B", 状态: "进行中", 问题单号: "PB-1" });
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "C", 状态: "已解决" });
@@ -63,7 +88,7 @@ describe("dashboard e2e", () => {
   });
 
   it("read-only: audit_log row count unchanged across calls; deterministic", async () => {
-    const { app, db } = makeApp();
+    const { app, db } = await makeApp();
     await request(app).post("/api/nodes/attackTicket").send({ 标题: "X", 状态: "进行中" });
     const n0 = (db.prepare("SELECT COUNT(*) c FROM audit_log").get() as any).c;
     const a = await request(app).get("/api/dashboard");
@@ -74,7 +99,7 @@ describe("dashboard e2e", () => {
   });
 
   it("empty system → zeroed summary", async () => {
-    const { app } = makeApp();
+    const { app } = await makeApp();
     const r = await request(app).get("/api/dashboard");
     expect(r.body).toMatchObject({
       tickets: { total: 0, byStatus: {}, open: 0, resolved: 0 },

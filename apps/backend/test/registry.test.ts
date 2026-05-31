@@ -20,22 +20,22 @@ function snapshotSeed(): string {
 
 describe("FileSchemaRegistry", () => {
   const reg = new FileSchemaRegistry(snapshotSeed());
-  it("loads attackTicket schema from config dir", () => {
+  it("loads attackTicket schema from config dir", async () => {
     expect(reg.getNodeSchema("attackTicket")?.label).toBe("攻关单");
   });
-  it("rejects missing required field", () => {
+  it("rejects missing required field", async () => {
     const r = reg.validateNode("attackTicket", { 状态: "进行中" });
     expect(r.ok).toBe(false);
     expect(r.errors.join()).toContain("标题");
   });
-  it("rejects invalid enum value (Chinese literals canonical)", () => {
+  it("rejects invalid enum value (Chinese literals canonical)", async () => {
     const r = reg.validateNode("attackTicket", { 标题: "x", 状态: "不存在" });
     expect(r.ok).toBe(false);
   });
-  it("accepts valid node", () => {
+  it("accepts valid node", async () => {
     expect(reg.validateNode("attackTicket", { 标题: "x", 状态: "进行中" }).ok).toBe(true);
   });
-  it("returns error for unknown nodeType", () => {
+  it("returns error for unknown nodeType", async () => {
     const r = reg.validateNode("不存在的类型", {});
     expect(r.ok).toBe(false);
     expect(r.errors.join()).toContain("未知节点类型");
@@ -50,10 +50,16 @@ describe("FileSchemaRegistry", () => {
     // broken alongside a valid file → constructs successfully, valid is usable
     const mixed = mkdtempSync(join(tmpdir(), "combat-mix-"));
     writeFileSync(join(mixed, "broken.json"), "{ not json");
-    writeFileSync(join(mixed, "ok.json"), JSON.stringify({
-      nodeType: "ok", label: "OK", identityKeys: [], derivedToKG: true,
-      fields: [{ name: "x", type: "string", label: "x" }],
-    }));
+    writeFileSync(
+      join(mixed, "ok.json"),
+      JSON.stringify({
+        nodeType: "ok",
+        label: "OK",
+        identityKeys: [],
+        derivedToKG: true,
+        fields: [{ name: "x", type: "string", label: "x" }],
+      })
+    );
     const reg = new FileSchemaRegistry(mixed);
     expect(reg.getNodeSchema("ok")).toBeDefined();
     expect(warn).toHaveBeenCalled();

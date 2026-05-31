@@ -12,6 +12,7 @@ data_backup_production/
 scripts/deploy/node_modules/
 scripts/deploy-v2/node_modules/
 coverage/
+apps/backend/hermes-workspace/
 *.png
 *.xlsx
 *.sqlite*

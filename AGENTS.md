@@ -868,7 +868,61 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态（2026-05-31 最后验证）
+### 当前测试状态（2026-05-31 v2.1.0 整合 — roadmap 4 桶合并到 master 后)
+
+**v2.1.0 整合 = quality + performance + security + ux + 已含 master 的 welink + postgres + UI 配置化:**
+
+- 后端 vitest **(SQLite 默认路径) 全绿** — 含 welink 21 / postgres 已 async 化 / 健康检查 2 / RBAC 5 + 全套核心 e2e
+- 双端 `npx tsc --noEmit` 通过
+- 前端 e2e 全量套件待整合后验证(各桶分支均独立 401+/全绿)
+- 待部署到 124.156.193.122,v2.1.0 release notes 已写
+
+**整合策略**:
+
+- 4 桶按 quality → performance → security → ux 顺序合(基础设施先,功能桶后)
+- 再合 master(welink + postgres + 配置化):repository.ts 取 master 的 async DbAdapter(quality 的 Row 类型化让位 — postgres 异步路径无法保持)
+- app.ts/auth.ts/routes.ts/dashboard.ts/conflicts.ts:合并 master 的 async 与各桶的安全/性能/UX 改进
+- AppLayout.tsx:union UX 的 "工具" 分组 + master 的 /db-migration
+
+---
+
+### 历史测试状态(2026-05-30 master 大整合 — welink + postgres 合并后)
+
+**master 合并 feature/welink-integration + feature/postgres-support 后:**
+
+- 后端 vitest **(SQLite 默认路径) 全绿** — 含 welink 21 / postgres 已 async 化 / 全套核心 e2e
+- 双端 `npx tsc --noEmit` 通过
+- 前端 e2e 在 feature 分支已分别验证(welink 21/21、postgres 407/407);主干 union 合并仅做接口聚合,无新行为
+- 已部署到 124.156.193.122,生产 release notes v2.0.0 可见
+
+**合并策略**:
+
+- welink router 暂时只在 SQLite 模式下挂载(deps.db 判断),postgres 模式下不挂(welink async 化作为后续 phase)
+- welink 的 4 处 `repo.getNode/queryNodes/updateNode` 已跟随 postgres async 改造加 await
+- SQLite DDL + Postgres DDL 都加了 welink_messages / welink_extractions 表
+
+---
+
+### 历史测试状态(2026-05-30 feature/welink-integration 分支)
+
+- **后端 vitest 377/377 全绿**(主干 347 + welink 模块 30+)
+- **welink 模块 e2e 21/21 全绿**
+
+### 历史测试状态(feature/postgres-support · 2026-05-30 Phase 4 完成)
+
+**后端 SQLite 路径 353/353 全绿**(60 文件)+ **本地 PG 18 实跑 OK**(CRUD/UPDATE/Audit + JSONB GIN 索引 + 中文 UTF-8 + migrate CLI 端到端验证)。
+
+Postgres 支持全阶段完成:
+
+- Phase 1 基建(drizzle-orm + pg + schema 双方言 + DB_URL 解析工厂)
+- Phase 2a/2b/2c:Repository async 化 + 11 router 改用 DbAdapter + PostgresAdapter 全套 + backup.ts pg_dump 分支
+- Phase 3 CLI 迁移工具(scripts/migrate/sqlite-to-postgres.mjs,事务/进度/标记 + Phase 4 JSONB 适配)
+- Phase 3.5 一键迁移 UI(系统管理 → 数据库迁移,前端 + 后端 3 个 API + AdminGuard 守卫)
+- **Phase 4**:PG 端 properties/changes 升级 JSONB + GIN 索引;Repository encode/decode adapter 分支;SQLite 路径完全不动
+
+详见 `docs/POSTGRES_SUPPORT.md` 路线图。
+
+### 历史测试状态（2026-05-30 主干验证）
 
 **前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **349/349**（60 文件，新增 health.e2e.test.ts 2 用例）。
 

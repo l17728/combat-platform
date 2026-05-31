@@ -1,8 +1,100 @@
 const HELP: Record<string, { title: string; content: string }> = {
   releaseNotes: {
-    title: 'Release Notes - 版本发布说明',
+    title: "Release Notes - 版本发布说明",
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
+
+## v2.0.0 — 2026-05-30 (Welink + Postgres + UI 配置化大整合)
+
+本版是「welink 群消息集成」「postgres 双驱动」「UI 配置化」三大主线 + 5 位专家评审 + 技术博客的 release。
+
+### 🔗 Welink 群消息集成(6 场景完整闭环)
+- 详见下方 v1.2.0 段。**主干合入完整 21/21 e2e**。
+
+### 🐘 Postgres 支持(脚手架 + 一键迁移 UI)
+- 详见下方 v1.1.0-pg 段。**SQLite 仍是默认**;Phase 1-4 全部完成,Repository 已 async 化、JSONB+GIN 索引、SQLite/PG 测试各 430/430。
+
+### 🎛️ UI 配置化(2026-05-30 主干新增)
+- 5 个高优先级硬编码选项迁配置中心:
+  - \`bug.severity.options\` —— 问题反馈严重程度(严重/较高/一般/建议)
+  - \`bug.status.options\` —— 问题反馈状态
+  - \`feedback.category.options\` —— 求助反馈分类
+  - \`proposal.status.options\` / \`reminder.status.options\` —— 关系审批 / 跟催状态
+  - \`team.role.options\` —— 团队角色枚举
+- 新铁律写入 AGENTS.md:**所有 UI 文案/选项/枚举,不在源码硬编码,统一通过 \`useSettings.getValues/getOptions\` 读配置中心**
+- \`useSettings\` API 升级:\`getValues(key, fallback)\` / \`getOptions(key, fallback)\` 支持 fallback,保证配置缺失时 UI 不空白
+
+### 👥 人员合并移入系统管理
+- 「人员合并」菜单从「人员与荣誉」组移到「系统管理」组,**仅 admin 可见可访问**;后端 \`/api/merge/*\` 加管理员守卫
+
+### 📚 文档 & 评审产出
+- \`docs/REVIEWS/\`:5 位专家(架构 / 性能并发 HA / 安全 / Staff Engineer 代码质量 / 现网运维)独立评审报告
+- \`docs/BLOG_技术评审_作战平台.md\`:5 评审整合为深度技术博客
+- \`docs/POSTGRES_SUPPORT.md\` / \`docs/REQUIREMENTS_WELINK.md\`:落地参考文档
+
+### ✅ 测试覆盖
+- 后端 vitest **SQLite 430/430 + Postgres 430/430**
+- 前端 e2e **407/407**(含 welink 模块 21/21)
+
+---
+
+## v1.2.0 — 2026-05-30 (Welink 群消息全套闭环)
+
+围绕「攻关单 ↔ Welink 群消息」打造完整工作流,场景 1/2/3/4 + 聊天视图 + 下载工具引导 闭环:
+
+### 📥 下载工具引导(本期收尾)
+- **Welink Tab 顶部置顶 Alert**:首次进入提示「📥 第一步:同步群消息」,内嵌 Windows 端下载工具直链(后端 \`GET /api/documents/:id/download\`)
+- 工具由管理员预先上传到 **文档中心**,Tab 自动按 title 含「Welink + 下载/工具」识别最新版本;未上传时 Alert 变橙色「⚠️ 管理员还未上传」+「跳到文档中心」按钮
+- Alert 用户可一键关闭,localStorage 持久化「已收到提示」,刷新不再弹
+
+### 🗂️ 场景 1:消息归档与筛选
+- 拖拽 / 点击上传 Welink 导出 JSON;按 messageId 覆盖式去重
+- 列表视图:发言人/时段/关键词(包含+排除) 四维筛选,全选/反选当前过滤集
+- 支持单条删除 / 批量软删 / 物理清空全部
+
+### 💬 场景 2:聊天视图(沉浸式回看)
+- 顶部 Segmented 切换「列表视图 / 聊天视图」,本机记忆偏好
+- 时间序气泡布局,头像按发言人 hash 上色;TEXT / CARD / PICTURE 三类不同样式
+- 引用块、@提及、http 链接自动高亮;按天分隔条;连续 5 分钟同人合并
+- 兼容 Welink 原始字段(msgId / sender / serverSendTime / contentType + images 数组)
+
+### 🤖 场景 3:AI 抽取 + 5 类结构化
+- 「让 AI 分析」按钮触发 Hermes agent 抽取(失败回退启发式),把已选子集压成 5 类:**人物 / 时间线 / 决策 / 争议 / 缺口**
+- 右侧 Drawer 分类展示;**「缺口」「人物」类一键「加入攻关成员」**,自动写回成员列表 + 三字段双向同步
+- 右下「AI 助手 · 群消息补齐」浮窗:对话式问答 + 补齐成员(如「把活跃的人都加进来」「除张三外其他都加进来」)
+
+### 🔗 场景 4:Hermes 回答里的群消息引用 + 跳转高亮
+- 在攻关详情或 KG 浮窗问 AI「谁最早提到 OOM」「小王几号介入」等,AI 回答里出现 **「群消息」蓝色 Tag**(citation kind=welink,后端 \`hermes_search\`/\`hermes_timeline\` 工具返回 messageId)
+- 点击 Tag → 自动跳转到对应攻关详情的 Welink Tab → 强制切「聊天视图」→ 滚动到目标消息并 **2 秒黄色高亮**(URL 参数 \`?welinkMsg=<id>\` 透传)
+
+### ✅ 测试覆盖
+- 后端 vitest **377/377**(welink 模块新增 30+ 测试覆盖 upload/list/select/analyze/extractions/citations)
+- 前端 e2e welink 模块 **21/21**(tab 5 / chat-view 5 / extraction 5 / citation 3 / download-prompt 3)
+
+---
+
+## v1.1.0-pg — 2026-05-30 (Postgres 支持脚手架 + 一键迁移 UI)
+
+\`feature/postgres-support\` 分支的增量。**SQLite 仍是默认,行为零变化**;新增 Postgres 双驱动基础设施 + 一键迁移工具。
+
+### 🆕 数据库迁移 UI(系统管理)
+- 新菜单项 **系统管理 → 数据库迁移**(仅管理员可见)
+- 三段式 UI:① 当前驱动 + 各表行数 ② Postgres 连接表单 + 测试 ③ 试运行/正式迁移
+- 后端调 \`scripts/migrate/sqlite-to-postgres.mjs\` 子进程,事务级一致
+
+### 🆕 CLI 迁移工具
+\`scripts/migrate/sqlite-to-postgres.mjs\`,支持 \`--dry-run\` / \`--truncate\` / \`--batch N\`;按表批量 INSERT、事务级提交、写迁移标记文件。
+
+### 🆕 后端 DB_URL 配置(默认仍 SQLite)
+- 新环境变量 \`DB_URL\`:支持 \`sqlite://./path\` / \`postgres://...\` / \`postgresql://...\` / 裸路径
+- 启动期自动识别协议,建表;Postgres 路径会打印 \`server.postgres_phase1\` 警告(因为业务层 Repository 仍未 async 化)
+
+### ⚠ 当前限制
+- 一键迁移 UI 是脚手架,**真正切换到 Postgres 需要 Phase 2 (Repository 全面 async 化) 落地**
+- Phase 2 体量大(~80 处 callsite),作为专项 sprint 单独排期
+- 详见 \`docs/POSTGRES_SUPPORT.md\` 路线图
+
+---
 
 ## v1.0.0 — 2026-05-30 (首版完整功能盘点)
 
@@ -141,7 +233,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 `,
   },
   dashboard: {
-    title: '作战态势 - 使用帮助',
+    title: "作战态势 - 使用帮助",
     content: `## 作战态势面板
 
 ### 功能概述
@@ -190,7 +282,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   attackList: {
-    title: '攻关作战台 - 使用帮助',
+    title: "攻关作战台 - 使用帮助",
     content: `## 攻关作战台
 
 ### 功能概述
@@ -258,7 +350,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   attackDetail: {
-    title: '攻关详情 - 使用帮助',
+    title: "攻关详情 - 使用帮助",
     content: `## 攻关详情页
 
 ### 功能概述
@@ -275,12 +367,13 @@ const HELP: Record<string, { title: string; content: string }> = {
 - **编辑信息** — 修改字段；攻关成员保持多选交互
 - **删除** — **仅创建人本人可见**；其他人（包括管理员/Leader）完全不显示
 
-### 固定标签页（5 个）
+### 固定标签页（6 个）
 
 | 标签 | 内容 |
 |------|------|
 | 基础信息 | 字段表格 + 顶部「**字段管理**」Popover 勾选要显示的字段；偏好按用户名持久化 |
 | **成员管理**（新） | 表格：姓名 / 角色 / 操作；支持新增、修改角色、删除；角色枚举 \`组长\` / \`组员\`；任何改动**三字段同步**（成员列表 ↔ 攻关组长 ↔ 攻关成员） |
+| **Welink 消息**（新） | 上传群消息 JSON,选择/删除/送 AI 分析；拖拽 .json 上传 → 时段/发言人/关键词筛选 → 勾选纳入分析子集 → 「让 AI 分析」按钮**触发 AI 抽取**(优先调 Hermes agent,失败回退启发式)。**列表视图 / 聊天视图 双模式**:顶部 Segmented 切换;聊天视图按时间序气泡布局 — 头像按发言人 hash 上色、TEXT/CARD/PICTURE 三类样式、引用块、@提及与 http 链接自动高亮、按天分隔条、连续 5 分钟同人合并;支持解析 Welink 原始字段(msgId/sender/serverSendTime/contentType + images 数组)。**AI 抽取**结果分 5 类(人物/时间线/决策/争议/缺口)在右侧 Drawer 展示;**「缺口」「人物」类一键加入攻关成员**;右下「AI 助手 · 群消息补齐」浮窗按钮支持对话式问答 + 补齐成员(例:"把活跃的人都加进来"、"除张三外其他都加进来")。**Welink 消息可被 AI 回答引用**,问"谁最早提到 OOM/小王几号介入"等问题时回答里的「群消息」蓝色 Tag 点击会自动跳转到聊天视图并 2 秒黄色高亮原消息(场景 3)。**首次使用三步走**:① Tab 顶部「📥 第一步:同步群消息」Alert 点链接下载 Windows 端 Welink 消息下载工具(管理员预先上传到文档中心,Tab 自动从 \`/api/documents\` 查找含「Welink + 下载/工具」的最新条目);② 本机运行工具登录 Welink → 选群 → 导出 JSON;③ 回 Welink Tab 把 JSON 拖到上传区 → 切到「聊天视图」/「列表视图」核对 → 勾选纳入分析子集 → 「让 AI 分析」。**Alert 可关闭**(本机 localStorage 记忆,刷新不再弹);若管理员尚未上传工具,Alert 变橙色「⚠️ 管理员还未上传」并提供「跳到文档中心」按钮 |
 | 进展同步 | Timeline 合并展示：原 progress + 过滤后关键审计（🟢 状态流转 / 🟠 升级 / 🟡 合并 / 🔵 成员变更）；Leader+Admin 可点「查看完整历史」跳转审计日志 |
 | 日报更新 | 表格展示日报条目，支持创建/编辑/发布/删除（已发布的不可编辑） |
 | 求助网络 | 树形展示支撑节点，支持模板应用 |
@@ -322,7 +415,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   peopleList: {
-    title: '全员名单 - 使用帮助',
+    title: "全员名单 - 使用帮助",
     content: `## 全员名单
 
 ### 功能概述
@@ -377,7 +470,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   contributions: {
-    title: '贡献录入 - 使用帮助',
+    title: "贡献录入 - 使用帮助",
     content: `## 贡献录入
 
 ### 功能概述
@@ -429,7 +522,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   honor: {
-    title: '荣誉殿堂 - 使用帮助',
+    title: "荣誉殿堂 - 使用帮助",
     content: `## 荣誉殿堂
 
 ### 功能概述
@@ -475,7 +568,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   personHonor: {
-    title: '个人荣誉 - 使用帮助',
+    title: "个人荣誉 - 使用帮助",
     content: `## 个人荣誉详情
 
 ### 功能概述
@@ -514,7 +607,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   helpCenter: {
-    title: '求助中心 - 使用帮助',
+    title: "求助中心 - 使用帮助",
     content: `## 求助中心
 
 ### 功能概述
@@ -553,7 +646,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   helpFeedback: {
-    title: '求助反馈 - 使用帮助',
+    title: "求助反馈 - 使用帮助",
     content: `## 求助反馈页
 
 ### 功能概述
@@ -590,7 +683,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   search: {
-    title: '全局搜索 - 使用帮助',
+    title: "全局搜索 - 使用帮助",
     content: `## 全局搜索
 
 ### 功能概述
@@ -630,7 +723,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   proposals: {
-    title: '关系审批 - 使用帮助',
+    title: "关系审批 - 使用帮助",
     content: `## 关系审批
 
 > **菜单位置**：系统管理 → 审核管理 → 关系审批（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -673,7 +766,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   reminders: {
-    title: '跟催提醒 - 使用帮助',
+    title: "跟催提醒 - 使用帮助",
     content: `## 跟催提醒
 
 > **菜单位置**：系统管理 → 审核管理 → 跟催提醒（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -717,7 +810,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   dailyReport: {
-    title: '攻关日报 - 使用帮助',
+    title: "攻关日报 - 使用帮助",
     content: `## 攻关日报
 
 ### 功能概述
@@ -759,7 +852,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   relatedPage: {
-    title: '关联全景 - 使用帮助',
+    title: "关联全景 - 使用帮助",
     content: `## 关联全景
 
 ### 功能概述
@@ -805,7 +898,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   mergePage: {
-    title: '人员合并 - 使用帮助',
+    title: "人员合并 - 使用帮助",
     content: `## 人员合并
 
 > **菜单位置**：系统管理 → 人员合并（**仅管理员可见可访问**；非 admin 直接访问 URL 会被路由守卫跳回首页）
@@ -828,7 +921,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   importExport: {
-    title: '数据导入/导出 - 使用帮助',
+    title: "数据导入/导出 - 使用帮助",
     content: `## 数据导入/导出
 
 ### 功能概述
@@ -873,7 +966,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   emailSettings: {
-    title: '邮件设置 - 使用帮助',
+    title: "邮件设置 - 使用帮助",
     content: `## 邮件设置
 
 ### 功能概述
@@ -894,7 +987,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   auditLog: {
-    title: '审计日志 - 使用帮助',
+    title: "审计日志 - 使用帮助",
     content: `## 审计日志
 
 ### 功能概述
@@ -924,7 +1017,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   schemaWizard: {
-    title: '表结构管理 - 使用帮助',
+    title: "表结构管理 - 使用帮助",
     content: `## 表结构管理
 
 ### 功能概述
@@ -959,7 +1052,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   configCenter: {
-    title: '配置中心 - 使用帮助',
+    title: "配置中心 - 使用帮助",
     content: `## 配置中心
 
 ### 功能概述
@@ -1006,7 +1099,7 @@ const HELP: Record<string, { title: string; content: string }> = {
   },
 
   bugReport: {
-    title: '问题反馈 - 使用帮助',
+    title: "问题反馈 - 使用帮助",
     content: `## 问题反馈
 
 ### 功能概述
@@ -1048,7 +1141,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。`,
   },
   userManagement: {
-    title: '用户管理 - 使用帮助',
+    title: "用户管理 - 使用帮助",
     content: `## 用户管理
 
 ### 功能概述
@@ -1069,7 +1162,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - 请在首次登录后及时修改默认密码`,
   },
   documentCenter: {
-    title: '文档中心 - 使用帮助',
+    title: "文档中心 - 使用帮助",
     content: `## 文档中心
 
 ### 功能概述
@@ -1109,7 +1202,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 - 外部资料（如官方文档、内部 wiki）用「添加链接」收纳，避免文件冗余`,
   },
   backupRestore: {
-    title: '备份恢复 - 使用帮助',
+    title: "备份恢复 - 使用帮助",
     content: `## 数据库备份与恢复
 
 ### 功能概述

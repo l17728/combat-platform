@@ -25,13 +25,13 @@ let conflictsDebounceRepo: Repository | null = null;
 function scheduleConflictsSync(repo: Repository): void {
   conflictsDebounceRepo = repo;
   if (conflictsDebounceTimer) clearTimeout(conflictsDebounceTimer);
-  conflictsDebounceTimer = setTimeout(() => {
+  conflictsDebounceTimer = setTimeout(async () => {
     conflictsDebounceTimer = null;
     const r = conflictsDebounceRepo;
     conflictsDebounceRepo = null;
     if (!r) return;
     try {
-      syncConflicts(r);
+      await syncConflicts(r);
       log.info("post_save.conflicts.debounced_run");
     } catch (e) {
       log.warn("post_save.conflicts.fail", { error: (e as Error).message });
@@ -41,7 +41,7 @@ function scheduleConflictsSync(repo: Repository): void {
 }
 
 /** Test helper: flush pending debounced conflict scan immediately. Not used in prod. */
-export function __flushConflictsDebounceForTest(): void {
+export async function __flushConflictsDebounceForTest(): Promise<void> {
   if (conflictsDebounceTimer) {
     clearTimeout(conflictsDebounceTimer);
     conflictsDebounceTimer = null;
@@ -49,7 +49,7 @@ export function __flushConflictsDebounceForTest(): void {
     conflictsDebounceRepo = null;
     if (r) {
       try {
-        syncConflicts(r);
+        await syncConflicts(r);
       } catch {
         /* swallow */
       }
@@ -63,14 +63,14 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
   // first run, making the explicit test call return 0).
   if (process.env.NODE_ENV === "test") return;
   scheduleConflictsSync(repo);
-  setImmediate(() => {
+  setImmediate(async () => {
     try {
-      scanEscalation(repo);
+      await scanEscalation(repo);
     } catch (e) {
       log.warn("post_save.escalation.fail", { error: (e as Error).message });
     }
     try {
-      scanAndCreateReminders(repo, registry);
+      await scanAndCreateReminders(repo, registry);
     } catch (e) {
       log.warn("post_save.reminders.fail", { error: (e as Error).message });
     }
@@ -79,11 +79,11 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
 
 // 私密攻关单访问判定:成员(姓名)/创建人(用户名)/私密授权人(姓名)/私密授权组(经邮件→人员)。
 // 仅当 attackTicket.私密 === '是' 时调用。
-function canAccessPrivateAttackTicket(
+async function canAccessPrivateAttackTicket(
   repo: Repository,
   node: { properties: Record<string, unknown> },
   user: { username?: string; displayName?: string }
-): boolean {
+): Promise<boolean> {
   const p = node.properties as Record<string, unknown>;
   const username = user.username || "";
   const displayName = user.displayName || "";
@@ -126,14 +126,14 @@ function canAccessPrivateAttackTicket(
       const groups = JSON.parse(groupRaw);
       if (Array.isArray(groups) && groups.length > 0) {
         for (const groupName of groups) {
-          const gNodes = repo.queryNodes("emailGroup", { 组名: String(groupName) });
+          const gNodes = await repo.queryNodes("emailGroup", { 组名: String(groupName) });
           for (const g of gNodes) {
             const emails = String(g.properties?.["成员邮箱"] ?? "")
               .split(/[,，;；]/)
               .map((s) => s.trim())
               .filter(Boolean);
             for (const email of emails) {
-              const persons = repo.queryNodes("person", { 邮箱: email });
+              const persons = await repo.queryNodes("person", { 邮箱: email });
               for (const person of persons) {
                 const n = String(person.properties?.["姓名"] ?? "").trim();
                 if (n && (n === displayName || n === username)) return true;
@@ -182,14 +182,14 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       res.status(400).json({ error: (e as Error).message });
     }
   });
-  r.patch("/schema/:nodeType", (req, res) => {
+  r.patch("/schema/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
     if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
       return res.status(400).json({ error: "nodeType 格式非法" });
     }
     try {
       const s = registry.applyFieldOp(nodeType, req.body);
-      repo.logAudit({
+      await repo.logAudit({
         action: `SCHEMA_${req.body?.op}`,
         entityType: "schema",
         entityId: nodeType,
@@ -204,28 +204,28 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
   });
 
-  r.get("/nodes/:nodeType", (req, res) => {
+  r.get("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
     if (registry.getNodeSchema(nodeType)) {
       // Express parses repeated query params as arrays; queryNodes does strict === on
       // string property values, so collapse each param to its first scalar value.
       const filter: Record<string, string> = {};
       for (const [k, v] of Object.entries(req.query)) filter[k] = Array.isArray(v) ? String(v[0]) : String(v);
-      return res.json(repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
+      return res.json(await repo.queryNodes(nodeType, Object.keys(filter).length ? filter : undefined));
     }
-    const single = repo.getNode(nodeType);
+    const single = await repo.getNode(nodeType);
     if (!single) return res.status(404).json({ error: "not found" });
     // 私密访问控制:攻关单 私密=是 → 仅 创建人 + 成员列表 + 私密授权人 + 私密授权组里的人可读
     if (single.nodeType === "attackTicket" && String(single.properties?.["私密"] ?? "") === "是") {
       const reqUser = (req as any).user as { username?: string; displayName?: string } | undefined;
-      if (reqUser?.username && !canAccessPrivateAttackTicket(repo, single, reqUser)) {
+      if (reqUser?.username && !(await canAccessPrivateAttackTicket(repo, single, reqUser))) {
         return res.status(403).json({ error: "私密攻关单,仅创建人/成员/授权人可访问" });
       }
     }
     return res.json(single);
   });
 
-  r.post("/nodes/:nodeType", (req, res) => {
+  r.post("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
     const gate = gradeGate(req, nodeType);
     if (gate) return res.status(403).json({ error: gate });
@@ -237,43 +237,43 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const node = repo.createNode(nodeType, req.body, "api");
+    const node = await repo.createNode(nodeType, req.body, "api");
     log.info("node.create", { nodeType, id: node.id });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
-        const tickets = repo.queryNodes("attackTicket");
+        const tickets = await repo.queryNodes("attackTicket");
         const target =
           tickets.find((t) => String(t.properties["攻关单号"] ?? "") === ref) ??
           tickets.find((t) => String(t.properties["标题"] ?? "") === ref);
-        if (target) repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
+        if (target) await repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
       }
     }
-    syncRefEdges(repo, registry, node, req.body, "api");
-    syncAnchorEdges(repo, registry, node, req.body, "api");
+    await syncRefEdges(repo, registry, node, req.body, "api");
+    await syncAnchorEdges(repo, registry, node, req.body, "api");
     if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.status(201).json(node);
   });
 
   // Partial/merge update only (no-DDL JSON store): body keys are merged into
   // existing properties; field removal is intentionally unsupported in Phase 1.
-  r.put("/nodes/:id", (req, res) => {
-    const cur = repo.getNode(req.params.id);
+  r.put("/nodes/:id", async (req, res) => {
+    const cur = await repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
     const gate = gradeGate(req, cur.nodeType);
     if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
     if (!v.ok) return res.status(400).json({ errors: v.errors });
-    const updated = repo.updateNode(req.params.id, req.body, "api");
+    const updated = await repo.updateNode(req.params.id, req.body, "api");
     log.info("node.update", { id: req.params.id, nodeType: cur.nodeType });
-    syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
-    syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
+    await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, "api");
     if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry);
     res.json(updated);
   });
 
-  r.delete("/nodes/:id", (req, res) => {
-    const cur = repo.getNode(req.params.id);
+  r.delete("/nodes/:id", async (req, res) => {
+    const cur = await repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
     // 攻关单删除:仅创建人本人可删,管理员也不行。
     // 老数据无创建人 → 视为孤儿,UI 不显示删除;必要时管理员走 CLI/直连 DB 清理。
@@ -285,22 +285,22 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
         return res.status(403).json({ error: "仅创建人可删除该攻关单" });
       }
     }
-    repo.deleteNode(req.params.id, "api");
+    await repo.deleteNode(req.params.id, "api");
     log.info("node.delete", { id: req.params.id });
     res.json({ ok: true });
   });
 
-  r.get("/nodes/:id/progress", (req, res) => res.json(repo.listProgress(req.params.id)));
-  r.post("/nodes/:id/progress", (req, res) => {
+  r.get("/nodes/:id/progress", async (req, res) => res.json(await repo.listProgress(req.params.id)));
+  r.post("/nodes/:id/progress", async (req, res) => {
     const { content, statusSnapshot, actor } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
-    res.status(201).json(repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
+    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actor ?? "api"));
   });
 
   // §41: atomic state transition — update 状态 + append a status-snapshotted
   // ProgressLog so every status change is traceable in the append-only series.
-  r.post("/nodes/:id/transition", (req, res) => {
-    const node = repo.getNode(req.params.id);
+  r.post("/nodes/:id/transition", async (req, res) => {
+    const node = await repo.getNode(req.params.id);
     if (!node) return res.status(404).json({ error: "not found" });
     if (node.nodeType !== "attackTicket") return res.status(400).json({ error: "仅攻关单支持状态流转" });
     const toStatus = String(req.body?.toStatus ?? "").trim();
@@ -311,9 +311,9 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     if (!toStatus || !allowed.includes(toStatus))
       return res.status(400).json({ error: `非法目标状态：${toStatus || "(空)"}` });
     const fromStatus = String(node.properties["状态"] ?? "");
-    const updated = repo.updateNode(node.id, { 状态: toStatus }, "api");
+    const updated = await repo.updateNode(node.id, { 状态: toStatus }, "api");
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
-    const progress = repo.appendProgress(node.id, content, toStatus, "api");
+    const progress = await repo.appendProgress(node.id, content, toStatus, "api");
     log.info("node.transition", { id: node.id, toStatus });
     triggerPostSaveJobs(repo, registry);
     res.json({ node: updated, progress });

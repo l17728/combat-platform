@@ -12,11 +12,9 @@ function xlsxBuffer(rows: Record<string, unknown>[]): Buffer {
 
 describe("灵活 Excel 导入(未知列自动建字段)", () => {
   it("dryRun 预览报告未匹配的新列", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const buf = xlsxBuffer([{ 标题: "灵活预览单", 状态: "待响应", 定位措施: "重启网关", 影响范围: "3租户" }]);
-    const res = await request(app)
-      .post("/api/import?type=attackTicket&dryRun=1")
-      .attach("file", buf, "t.xlsx");
+    const res = await request(app).post("/api/import?type=attackTicket&dryRun=1").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.newColumns).toEqual(expect.arrayContaining(["定位措施", "影响范围"]));
     // 已知列不应出现在 newColumns
@@ -25,11 +23,9 @@ describe("灵活 Excel 导入(未知列自动建字段)", () => {
   });
 
   it("createFields=1:未知列自动建为字段,数据落库", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const buf = xlsxBuffer([{ 标题: "灵活导入单", 状态: "待响应", 定位措施: "已重启网关" }]);
-    const res = await request(app)
-      .post("/api/import?type=attackTicket&createFields=1")
-      .attach("file", buf, "t.xlsx");
+    const res = await request(app).post("/api/import?type=attackTicket&createFields=1").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(1);
 
@@ -48,14 +44,12 @@ describe("灵活 Excel 导入(未知列自动建字段)", () => {
   });
 
   it("不带 createFields:未知列被忽略,schema 不变(仅导入匹配列)", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const before = await request(app).get("/api/schema/attackTicket");
     const beforeCount = before.body.fields.length;
 
     const buf = xlsxBuffer([{ 标题: "仅匹配单", 状态: "处理中", 神秘列: "应被忽略" }]);
-    const res = await request(app)
-      .post("/api/import?type=attackTicket")
-      .attach("file", buf, "t.xlsx");
+    const res = await request(app).post("/api/import?type=attackTicket").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(1);
 

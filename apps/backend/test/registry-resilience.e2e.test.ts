@@ -5,22 +5,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openDb } from "../src/db.js";
 import { SqliteRepository } from "../src/repository.js";
+import { SqliteAdapter } from "../src/db-adapter.js";
 import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
 function fixture(opts: { broken?: boolean; allBroken?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "combat-resil-"));
-  const cfg = join(dir, "schemas"); mkdirSync(cfg);
-  writeFileSync(join(cfg, "attackTicket.json"), opts.allBroken
-    ? "{NOT JSON" // intentionally malformed
-    : JSON.stringify({
-        nodeType: "attackTicket", label: "攻关单", identityKeys: ["攻关单号"], derivedToKG: true,
-        fields: [{ name: "标题", type: "string", label: "标题", required: true }],
-      }));
-  if (opts.broken || opts.allBroken)
-    writeFileSync(join(cfg, "bad.json"), "{NOT JSON"); // intentionally malformed
+  const cfg = join(dir, "schemas");
+  mkdirSync(cfg);
+  writeFileSync(
+    join(cfg, "attackTicket.json"),
+    opts.allBroken
+      ? "{NOT JSON" // intentionally malformed
+      : JSON.stringify({
+          nodeType: "attackTicket",
+          label: "攻关单",
+          identityKeys: ["攻关单号"],
+          derivedToKG: true,
+          fields: [{ name: "标题", type: "string", label: "标题", required: true }],
+        })
+  );
+  if (opts.broken || opts.allBroken) writeFileSync(join(cfg, "bad.json"), "{NOT JSON"); // intentionally malformed
   if (opts.allBroken) writeFileSync(join(cfg, "alsobad.json"), "{NOT JSON");
-  const repo = new SqliteRepository(openDb(join(dir, "t.sqlite")));
+  const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
   return { cfg, repo };
 }
 
@@ -30,7 +37,7 @@ describe("§13#9 fix: tolerant reload + targeted applyFieldOp validation", () =>
     const { cfg, repo } = fixture({ broken: true });
     const reg = new FileSchemaRegistry(cfg);
     expect(reg.getNodeSchema("attackTicket")).toBeDefined();
-    expect(reg.getConfig().nodeTypes.map(n => n.nodeType)).toEqual(["attackTicket"]);
+    expect(reg.getConfig().nodeTypes.map((n) => n.nodeType)).toEqual(["attackTicket"]);
     expect(warn).toHaveBeenCalled();
     const msg = warn.mock.calls.flat().join(" ");
     expect(msg).toContain("bad.json");
@@ -44,7 +51,8 @@ describe("§13#9 fix: tolerant reload + targeted applyFieldOp validation", () =>
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { cfg, repo } = fixture({ broken: true });
     const app = createApp({ repo, registry: new FileSchemaRegistry(cfg) });
-    const r = await request(app).patch("/api/schema/attackTicket")
+    const r = await request(app)
+      .patch("/api/schema/attackTicket")
       .send({ op: "setConcept", id: "标题", concept: "测试概念" });
     expect(r.status).toBe(200);
     expect(r.body.fields.find((f: any) => f.id === "标题").concept).toBe("测试概念");
@@ -65,9 +73,10 @@ describe("§13#9 fix: tolerant reload + targeted applyFieldOp validation", () =>
     const reg = new FileSchemaRegistry(cfg);
     const app = createApp({ repo, registry: reg });
     // Sanity: a normal PATCH still works (regression check on the new flow).
-    const r = await request(app).patch("/api/schema/attackTicket")
+    const r = await request(app)
+      .patch("/api/schema/attackTicket")
       .send({ op: "renameLabel", id: "标题", label: "改后" });
     expect(r.status).toBe(200);
-    expect(reg.getNodeSchema("attackTicket")!.fields.find(f => f.id === "标题")!.label).toBe("改后");
+    expect(reg.getNodeSchema("attackTicket")!.fields.find((f) => f.id === "标题")!.label).toBe("改后");
   });
 });
