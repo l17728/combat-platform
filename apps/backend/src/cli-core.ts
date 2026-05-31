@@ -1292,6 +1292,89 @@ export const COMMANDS: CliCommand[] = [
       return { method: "PUT", path: `/api/tickets/${encodeURIComponent(pos[0])}/tabs/order`, body: { order } };
     },
   },
+
+  // ---- upgrade (v2.3 一键升级) ----
+  {
+    name: "upgrade:current",
+    summary: "当前版本/uptime/DB 大小/用户字段数",
+    usage: "upgrade:current",
+    build: () => ({ method: "GET", path: "/api/upgrade/current" }),
+  },
+  {
+    name: "upgrade:releases",
+    summary: "列出 GitHub Releases（依赖后端 env UPGRADE_GITHUB_REPO）",
+    usage: "upgrade:releases",
+    build: () => ({ method: "GET", path: "/api/upgrade/releases" }),
+  },
+  {
+    name: "upgrade:status",
+    summary: "查看当前升级任务状态",
+    usage: "upgrade:status",
+    build: () => ({ method: "GET", path: "/api/upgrade/status" }),
+  },
+  {
+    name: "upgrade:history",
+    summary: "升级历史",
+    usage: "upgrade:history",
+    build: () => ({ method: "GET", path: "/api/upgrade/history" }),
+  },
+  {
+    name: "upgrade:upload",
+    summary: "上传升级包（multipart）",
+    usage: "upgrade:upload --file <path>",
+    build: (_pos, opts) => {
+      const f = str(opts.file);
+      if (!f) throw new Error("--file <path> 必填");
+      return { method: "POST", path: "/api/upgrade/upload", uploadFile: f };
+    },
+  },
+  {
+    name: "upgrade:analyze",
+    summary: "分析已上传 staging 包，输出 diff 报告",
+    usage: "upgrade:analyze --staging-id <id>",
+    build: (_pos, opts) => {
+      const sid = str(opts["staging-id"]);
+      if (!sid) throw new Error("--staging-id 必填");
+      return { method: "POST", path: "/api/upgrade/analyze", body: { stagingId: sid } };
+    },
+  },
+  {
+    name: "upgrade:apply",
+    summary: "执行升级（detached worker；不可逆，谨慎）",
+    usage: "upgrade:apply --staging-id <id> --confirm",
+    build: (_pos, opts) => {
+      const sid = str(opts["staging-id"]);
+      if (!sid) throw new Error("--staging-id 必填");
+      if (!opts.confirm) throw new Error("缺少 --confirm（必须显式确认）");
+      return { method: "POST", path: "/api/upgrade/apply", body: { stagingId: sid, confirm: true } };
+    },
+  },
+  {
+    name: "upgrade:rollback",
+    summary: "回滚到最近一次备份",
+    usage: "upgrade:rollback",
+    build: () => ({ method: "POST", path: "/api/upgrade/rollback" }),
+  },
+  {
+    name: "upgrade:log",
+    summary: "拉取 worker 日志（文本）",
+    usage: "upgrade:log <jobId>",
+    build: (pos) => {
+      requirePos(pos, 1, "upgrade:log <jobId>");
+      return { method: "GET", path: `/api/upgrade/log/${encodeURIComponent(pos[0])}` };
+    },
+  },
+  {
+    name: "upgrade:verify-signature",
+    summary: "本地校验升级包 PGP 签名（不依赖后端）",
+    usage: "upgrade:verify-signature <pkg.tar.gz> <pubkey.asc> [--sig <pkg.tar.gz.asc>]",
+    build: (pos) => {
+      requirePos(pos, 2, "upgrade:verify-signature <pkg.tar.gz> <pubkey.asc>");
+      throw new Error(
+        "此命令仅本地工具,请运行: node scripts/upgrade/verify-signature.mjs <pkg> <pubkey> [--sig <sig>]"
+      );
+    },
+  },
 ];
 
 export function renderHelp(commandName?: string): unknown {

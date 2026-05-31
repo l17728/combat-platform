@@ -21,6 +21,7 @@ import {
   Modal,
   Tabs,
   Empty,
+  Select,
 } from "antd";
 import {
   WarningOutlined,
@@ -29,6 +30,7 @@ import {
   PlayCircleOutlined,
   InboxOutlined,
   FileSearchOutlined,
+  CloudDownloadOutlined,
 } from "@ant-design/icons";
 import { api } from "../api.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -97,8 +99,15 @@ export default function SystemUpgrade() {
   const [history, setHistory] = useState<Awaited<ReturnType<typeof api.upgradeHistory>>>([]);
   const [confirm1, setConfirm1] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [allowUnsigned, setAllowUnsigned] = useState(false);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
+  const [releases, setReleases] = useState<Awaited<ReturnType<typeof api.upgradeReleases>>>([]);
+  const [releasesLoading, setReleasesLoading] = useState(false);
+  const [releasesError, setReleasesError] = useState<string | null>(null);
+  const [selectedReleaseTag, setSelectedReleaseTag] = useState<string | null>(null);
+  const [selectedAssetUrl, setSelectedAssetUrl] = useState<string | null>(null);
+  const [fetchingRelease, setFetchingRelease] = useState(false);
 
   const fetchCurrent = async () => {
     setLoading(true);
@@ -139,11 +148,58 @@ export default function SystemUpgrade() {
     }
   };
 
+  const fetchReleases = async () => {
+    setReleasesLoading(true);
+    setReleasesError(null);
+    try {
+      const r = await api.upgradeReleases();
+      setReleases(r);
+      if (r.length > 0) {
+        setSelectedReleaseTag(r[0].tag);
+        const firstAsset = r[0].assets.find((a) => /\.(tar\.gz|tgz)$/i.test(a.name));
+        setSelectedAssetUrl(firstAsset?.url ?? null);
+      }
+    } catch (e: any) {
+      setReleasesError(e.message || "拉取 Release 列表失败");
+    } finally {
+      setReleasesLoading(false);
+    }
+  };
+
+  const fetchFromRelease = async () => {
+    if (!selectedAssetUrl) {
+      message.warning("请选择一个 .tar.gz asset");
+      return;
+    }
+    setFetchingRelease(true);
+    try {
+      const r = await api.upgradeFromUrl(selectedAssetUrl);
+      setStagingId(r.stagingId);
+      setStagingFile({ name: r.name, size: r.size });
+      message.success(`已拉取: ${r.name}`);
+      setAnalyzing(true);
+      try {
+        const rep = await api.upgradeAnalyze(r.stagingId);
+        setReport(rep);
+        setReportOpen(true);
+      } catch (e: any) {
+        message.error(`分析失败: ${e.message}`);
+      } finally {
+        setAnalyzing(false);
+      }
+    } catch (e: any) {
+      message.error(`拉取失败: ${e.message}`);
+    } finally {
+      setFetchingRelease(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     fetchCurrent();
     fetchHistory();
     pollStatus();
+    fetchReleases();
     return () => {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
@@ -248,8 +304,32 @@ export default function SystemUpgrade() {
     });
   };
 
-  const confirmEnabled = confirm1 && confirmText.trim() === "UPGRADE";
+  const sigOk = report?.signaturePresent ? report?.signatureValid === true : true;
+  const sigGate = sigOk || allowUnsigned;
+  const confirmEnabled = confirm1 && confirmText.trim() === "UPGRADE" && sigGate;
   const isRunning = status?.phase && !["idle", "done", "failed", "rolled-back"].includes(status.phase);
+
+  const beforeSigUpload = async (file: File) => {
+    if (!stagingId) {
+      message.error("请先上传升级包");
+      return false;
+    }
+    try {
+      await api.upgradeUploadSignature(stagingId, file);
+      message.success("签名已上传,重新分析中...");
+      // 重新 analyze 拉取签名结果
+      setAnalyzing(true);
+      try {
+        const rep = await api.upgradeAnalyze(stagingId);
+        setReport(rep);
+      } finally {
+        setAnalyzing(false);
+      }
+    } catch (e: any) {
+      message.error(`签名上传失败: ${e.message}`);
+    }
+    return false;
+  };
 
   const phaseColor =
     status?.phase === "done"
@@ -299,6 +379,79 @@ export default function SystemUpgrade() {
         )}
       </Card>
 
+      <Card
+        style={{ marginBottom: 16 }}
+        title="在线版本 (GitHub Releases)"
+        data-testid="upgrade-releases-card"
+        extra={
+          <Button size="small" icon={<ReloadOutlined />} onClick={fetchReleases} loading={releasesLoading}>
+            刷新
+          </Button>
+        }
+      >
+        {releasesError ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="未启用在线升级"
+            description={releasesError}
+            data-testid="upgrade-releases-error"
+          />
+        ) : releases.length === 0 && !releasesLoading ? (
+          <Empty description="暂无在线 Release" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <Row gutter={12} align="middle">
+            <Col span={8}>
+              <Select
+                placeholder="选择 Release"
+                value={selectedReleaseTag ?? undefined}
+                style={{ width: "100%" }}
+                loading={releasesLoading}
+                onChange={(v) => {
+                  setSelectedReleaseTag(v);
+                  const rel = releases.find((r) => r.tag === v);
+                  const firstAsset = rel?.assets.find((a) => /\.(tar\.gz|tgz)$/i.test(a.name));
+                  setSelectedAssetUrl(firstAsset?.url ?? null);
+                }}
+                options={releases.map((r) => ({ value: r.tag, label: `${r.tag} — ${r.name || r.tag}` }))}
+                data-testid="upgrade-release-select"
+              />
+            </Col>
+            <Col span={10}>
+              <Select
+                placeholder="选择 .tar.gz asset"
+                value={selectedAssetUrl ?? undefined}
+                style={{ width: "100%" }}
+                onChange={setSelectedAssetUrl}
+                options={(releases.find((r) => r.tag === selectedReleaseTag)?.assets || [])
+                  .filter((a) => /\.(tar\.gz|tgz)$/i.test(a.name))
+                  .map((a) => ({ value: a.url, label: `${a.name} (${fmtBytes(a.size)})` }))}
+                data-testid="upgrade-asset-select"
+              />
+            </Col>
+            <Col span={6}>
+              <Button
+                type="primary"
+                icon={<CloudDownloadOutlined />}
+                disabled={!selectedAssetUrl || isRunning === true}
+                loading={fetchingRelease || analyzing}
+                onClick={fetchFromRelease}
+                data-testid="upgrade-fetch-release-btn"
+              >
+                拉取并分析
+              </Button>
+            </Col>
+          </Row>
+        )}
+        {selectedReleaseTag && (
+          <div style={{ marginTop: 12 }}>
+            <Text type="secondary">
+              发布于: {releases.find((r) => r.tag === selectedReleaseTag)?.publishedAt || "-"}
+            </Text>
+          </div>
+        )}
+      </Card>
+
       <Card style={{ marginBottom: 16 }} title="① 选择升级源">
         <Dragger
           name="file"
@@ -323,6 +476,21 @@ export default function SystemUpgrade() {
             message={`已选:${stagingFile.name} (${fmtBytes(stagingFile.size)})`}
           />
         )}
+        {stagingId && (
+          <div style={{ marginTop: 12 }} data-testid="upgrade-signature-zone">
+            <Upload
+              accept=".asc"
+              showUploadList={false}
+              beforeUpload={beforeSigUpload}
+              disabled={!stagingId || isRunning === true}
+            >
+              <Button size="small">上传 .asc 签名 (可选)</Button>
+            </Upload>
+            <Text type="secondary" style={{ marginLeft: 8 }}>
+              用于校验升级包来源(PGP);未配置 UPGRADE_PGP_PUBKEY 时只显示警告。
+            </Text>
+          </div>
+        )}
       </Card>
 
       <Card style={{ marginBottom: 16 }} title="② 分析报告">
@@ -332,6 +500,36 @@ export default function SystemUpgrade() {
           <Empty description="尚未上传升级包" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         ) : (
           <>
+            {report.signaturePresent && report.signatureValid === true && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="success"
+                showIcon
+                message="签名有效"
+                description={`签名人: ${report.signedBy ?? "<unknown>"}`}
+                data-testid="upgrade-signature-valid"
+              />
+            )}
+            {report.signaturePresent && report.signatureValid === false && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="error"
+                showIcon
+                message="签名校验失败"
+                description={report.signatureError ?? "未知错误"}
+                data-testid="upgrade-signature-invalid"
+              />
+            )}
+            {!report.signaturePresent && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="warning"
+                showIcon
+                message="未提供 PGP 签名"
+                description="升级包未附 .asc 签名;建议从可信渠道获取并上传签名后再升级。"
+                data-testid="upgrade-signature-missing"
+              />
+            )}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="目标版本">{report.targetVersion}</Descriptions.Item>
               <Descriptions.Item label="新增 schema">{report.newSchemas.length} 个</Descriptions.Item>
@@ -456,6 +654,23 @@ export default function SystemUpgrade() {
           </>
         ) : (
           <>
+            {report && !sigOk && (
+              <Alert
+                style={{ marginBottom: 12 }}
+                type="warning"
+                showIcon
+                message={report.signaturePresent ? "升级包签名校验失败 — 默认禁用执行" : "升级包未签名 — 默认禁用执行"}
+                description={
+                  <Checkbox
+                    checked={allowUnsigned}
+                    onChange={(e) => setAllowUnsigned(e.target.checked)}
+                    data-testid="upgrade-allow-unsigned"
+                  >
+                    我已确认升级包来源可信,允许在签名不通过的情况下执行升级
+                  </Checkbox>
+                }
+              />
+            )}
             <Checkbox
               checked={confirm1}
               onChange={(e) => setConfirm1(e.target.checked)}

@@ -21,3 +21,4 @@ scripts/deploy-v2/package-lock.json
 scripts/backup/node_modules/
 scripts/backup/package-lock.json
 nul
+data/
