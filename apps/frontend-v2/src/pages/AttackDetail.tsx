@@ -121,59 +121,14 @@ export default function AttackDetail() {
   const [memberForm] = Form.useForm<{ 姓名: string; 角色: TeamRole }>();
   const [privacyForm] = Form.useForm<{ 授权人: string[]; 授权组: string[] }>();
 
-  // ---- early returns ----
-  if (data.accessDenied) {
-    return (
-      <div style={{ padding: 80, textAlign: "center" }}>
-        <LockOutlined style={{ fontSize: 48, color: "#fa8c16" }} />
-        <Title level={4} style={{ marginTop: 16 }}>
-          无权访问该攻关单
-        </Title>
-        <Text type="secondary">这是一个私密攻关单,仅创建人、成员及指定授权人/群组可见。</Text>
-        <div style={{ marginTop: 24 }}>
-          <Button onClick={() => navigate("/attack")}>返回列表</Button>
-        </div>
-      </div>
-    );
-  }
-  if (data.initialLoading || !data.node) return <Spin size="large" style={{ display: "block", marginTop: 100 }} />;
+  // ---- 派生值(允许 node=null,以便 hooks 全部固定调用顺序) ----
+  const node = data.node;
+  const propsObj = node?.properties ?? {};
+  const status = String(propsObj["状态"] ?? "");
+  const isPrivate = String(propsObj["私密"] ?? "") === "是";
+  const people = data.people;
 
-  const {
-    node,
-    schema,
-    progress,
-    helpers,
-    auditLogs,
-    people,
-    dailyReports,
-    supportNodes,
-    templates,
-    dynamicTabs,
-    emailGroups,
-    drLoading,
-    supportLoading,
-  } = data;
-  const props = node.properties;
-  const status = String(props["状态"] ?? "");
-  const isPrivate = String(props["私密"] ?? "") === "是";
-  const isCreator = !!props["创建人"] && auth.user?.username === props["创建人"];
-  const personOptions = people.map((p) => ({
-    value: (p.properties["姓名"] as string) ?? "",
-    label: `${p.properties["姓名"] ?? p.id} (${p.properties["部门"] ?? "-"})`,
-  }));
-  const basicFields = schema?.fields.filter((f) => !f.retired && !SUMMARY_FIELD_IDS.has(f.name)) ?? [];
-  const seen = new Set<string>();
-  const extraEditFields = (schema?.fields ?? []).filter((f) => {
-    if (f.retired || HARDCODED_EDIT_FIELDS.has(f.name) || seen.has(f.name)) return false;
-    seen.add(f.name);
-    return true;
-  });
-  const keyAudits = filterKeyAudits(auditLogs);
-  const SIDEBAR_CARD_OPTIONS = [
-    { key: "helpers", label: "找帮手推荐" },
-    ...(isLeader ? [{ key: "audit", label: "合规追溯" }] : []),
-  ];
-
+  // ---- hooks 必须无条件调用(React Hooks 规则) ----
   const h = useAttackDetailHandlers({
     id,
     node,
@@ -205,6 +160,58 @@ export default function AttackDetail() {
     setSupportModalOpen,
     setEditingNode,
   });
+
+  // ---- early returns(hooks 已全部调用,此处条件返回不违反 Hooks 规则) ----
+  if (data.accessDenied) {
+    return (
+      <div style={{ padding: 80, textAlign: "center" }}>
+        <LockOutlined style={{ fontSize: 48, color: "#fa8c16" }} />
+        <Title level={4} style={{ marginTop: 16 }}>
+          无权访问该攻关单
+        </Title>
+        <Text type="secondary">这是一个私密攻关单,仅创建人、成员及指定授权人/群组可见。</Text>
+        <div style={{ marginTop: 24 }}>
+          <Button onClick={() => navigate("/attack")}>返回列表</Button>
+        </div>
+      </div>
+    );
+  }
+  if (data.initialLoading || !data.node || !node) {
+    return <Spin size="large" style={{ display: "block", marginTop: 100 }} />;
+  }
+
+  // ---- 渲染期派生值(node 此时一定非空) ----
+  const {
+    schema,
+    progress,
+    helpers,
+    auditLogs,
+    dailyReports,
+    supportNodes,
+    templates,
+    dynamicTabs,
+    emailGroups,
+    drLoading,
+    supportLoading,
+  } = data;
+  const props = node.properties;
+  const isCreator = !!props["创建人"] && auth.user?.username === props["创建人"];
+  const personOptions = people.map((p) => ({
+    value: (p.properties["姓名"] as string) ?? "",
+    label: `${p.properties["姓名"] ?? p.id} (${p.properties["部门"] ?? "-"})`,
+  }));
+  const basicFields = schema?.fields.filter((f) => !f.retired && !SUMMARY_FIELD_IDS.has(f.name)) ?? [];
+  const seen = new Set<string>();
+  const extraEditFields = (schema?.fields ?? []).filter((f) => {
+    if (f.retired || HARDCODED_EDIT_FIELDS.has(f.name) || seen.has(f.name)) return false;
+    seen.add(f.name);
+    return true;
+  });
+  const keyAudits = filterKeyAudits(auditLogs);
+  const SIDEBAR_CARD_OPTIONS = [
+    { key: "helpers", label: "找帮手推荐" },
+    ...(isLeader ? [{ key: "audit", label: "合规追溯" }] : []),
+  ];
 
   const allTabItems = buildAllTabItems({
     id: id!,
