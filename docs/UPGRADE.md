@@ -128,6 +128,30 @@ chmod 0440 /etc/sudoers.d/combat-v2
 - `EnvironmentFile=/etc/combat-v2.env`(JWT_SECRET, COMBAT_ENCRYPT_KEY)
 - `Restart=always`
 
+### v2.4+ 部署故障排查 — JWT_SECRET 必须注入
+
+v2.4 起后端强制要求生产环境 `JWT_SECRET` 必须通过环境变量传入,否则启动失败:
+```
+[FATAL] JWT_SECRET 未设置,生产环境必须通过环境变量注入随机 32+ 字节密钥
+```
+
+systemd drop-in 修复:
+```bash
+ssh root@<host>
+SECRET=$(openssl rand -hex 32)
+mkdir -p /etc/systemd/system/combat-v2.service.d
+cat > /etc/systemd/system/combat-v2.service.d/jwt-secret.conf <<EOF
+[Service]
+Environment="JWT_SECRET=$SECRET"
+EOF
+systemctl daemon-reload
+systemctl restart combat-v2
+systemctl status combat-v2 --no-pager -l | head -10
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3001/api/health
+```
+
+> 长期方案: deploy-direct.mjs 应自动检测 drop-in 缺失时生成,保留 SECRET 在服务器侧(`/etc/combat-v2.env`),不进版本库。
+
 ### 现网首次升级前
 
 ```bash
