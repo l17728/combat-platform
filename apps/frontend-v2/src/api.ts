@@ -1154,6 +1154,111 @@ export class Api {
     opts.onProgress?.(100);
     return r;
   }
+
+  // 一键升级 (v2.3 / task #75)
+  upgradeCurrent(): Promise<{
+    version: string;
+    commit: string | null;
+    readableVersion: string;
+    uptimeSec: number;
+    dbBytes: number;
+    userFieldCount: number;
+  }> {
+    return this.req("/api/upgrade/current");
+  }
+
+  upgradeUpload(file: File): Promise<{ stagingId: string; size: number; name: string }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    return this.req("/api/upgrade/upload", { method: "POST", body: fd });
+  }
+
+  upgradeAnalyze(stagingId: string): Promise<{
+    stagingId: string;
+    targetVersion: string;
+    schemaReport: {
+      kept: { nodeType: string; fieldName: string }[];
+      conflicts: {
+        nodeType: string;
+        fieldName: string;
+        baselineType?: string;
+        userType?: string;
+        suggestion: string;
+      }[];
+      removed: unknown[];
+      userTables: { nodeType: string; fieldCount: number }[];
+    };
+    breaking: string[];
+    newSchemas: string[];
+    requiredEnv: string[];
+    warnings: string[];
+  }> {
+    return this.req("/api/upgrade/analyze", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stagingId }),
+    });
+  }
+
+  upgradeApply(stagingId: string): Promise<{ jobId: string; pid: number }> {
+    return this.req("/api/upgrade/apply", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ stagingId, confirm: true }),
+    });
+  }
+
+  upgradeStatus(): Promise<{
+    jobId?: string;
+    stagingId?: string;
+    phase:
+      | "idle"
+      | "queued"
+      | "backup"
+      | "extract"
+      | "schema-merge"
+      | "secrets"
+      | "code-swap"
+      | "restart"
+      | "health"
+      | "done"
+      | "failed"
+      | "rolled-back";
+    percent: number;
+    log: string[];
+    error?: string;
+    backupId?: string;
+    startedAt?: string;
+    endedAt?: string;
+    fromVersion?: string;
+    targetVersion?: string;
+  }> {
+    return this.req("/api/upgrade/status");
+  }
+
+  upgradeRollback(): Promise<{ jobId: string; backupId: string }> {
+    return this.req("/api/upgrade/rollback", { method: "POST" });
+  }
+
+  upgradeHistory(): Promise<
+    {
+      jobId: string;
+      stagingId: string;
+      fromVersion: string;
+      toVersion: string;
+      startedAt: string;
+      endedAt: string;
+      phase: string;
+      error?: string;
+      backupId?: string;
+    }[]
+  > {
+    return this.req("/api/upgrade/history");
+  }
+
+  upgradeLog(jobId: string): Promise<string> {
+    return this.req(`/api/upgrade/log/${jobId}`);
+  }
 }
 
 export interface DocItem {

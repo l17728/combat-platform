@@ -29,6 +29,7 @@ import {
   DownOutlined,
   EyeOutlined,
   DatabaseOutlined,
+  CloudUploadOutlined,
   QuestionCircleOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
@@ -62,6 +63,7 @@ function getSelectedKey(path: string): string {
       "/backup",
       "/merge",
       "/db-migration",
+      "/system-upgrade",
     ].includes(path)
   )
     return path;
@@ -84,6 +86,7 @@ function getOpenKeysForPath(path: string): string[] {
       "/backup",
       "/merge",
       "/db-migration",
+      "/system-upgrade",
     ].includes(path)
   )
     return ["system"];
@@ -175,6 +178,7 @@ export function AppLayout() {
         { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
         { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
         ...(isAdmin ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
+        ...(isAdmin ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }] : []),
         ...(isAdmin
           ? [

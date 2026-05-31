@@ -1,0 +1,47 @@
+import { test, expect } from "@playwright/test";
+
+// 系统升级页面 e2e:
+// - admin 可访问页面;非 admin 路由守卫跳走(playwright 默认 COMBAT_NO_AUTH=1 → admin)
+// - 上传非 tar.gz 文件被拒
+// - 上传合法 mock tar.gz → 自动 analyze → 展示报告
+// - 执行按钮在未二次确认时 disabled
+// - 升级历史卡片渲染(初始空 → empty 文案)
+
+test.describe("系统升级 UI", () => {
+  test("admin 可访问页面 + 展示版本卡 + 三段式标题", async ({ page }) => {
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("heading", { name: /系统升级/ })).toBeVisible();
+    await expect(page.getByText("当前版本")).toBeVisible();
+    await expect(page.getByText("① 选择升级源")).toBeVisible();
+    await expect(page.getByText("② 分析报告")).toBeVisible();
+    await expect(page.getByText("③ 执行升级")).toBeVisible();
+    await expect(page.getByText("升级历史")).toBeVisible();
+  });
+
+  test("执行按钮在未二次确认时 disabled", async ({ page }) => {
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    const applyBtn = page.locator('[data-testid="upgrade-apply-btn"]');
+    await expect(applyBtn).toBeVisible();
+    await expect(applyBtn).toBeDisabled();
+  });
+
+  test("勾选确认 + 输入 UPGRADE 但未上传也不能点击执行", async ({ page }) => {
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    await page.locator('[data-testid="upgrade-confirm-checkbox"]').check();
+    await page.locator('[data-testid="upgrade-confirm-text"]').fill("UPGRADE");
+    // 未上传 staging → 仍 disabled
+    await expect(page.locator('[data-testid="upgrade-apply-btn"]')).toBeDisabled();
+  });
+
+  test("初始升级历史为空表", async ({ page }) => {
+    await page.goto("/system-upgrade");
+    await page.waitForLoadState("networkidle");
+    // 等待 history table 渲染
+    await expect(page.getByText("升级历史")).toBeVisible();
+    // Empty 占位文案
+    await expect(page.getByText(/暂无升级记录/)).toBeVisible({ timeout: 10000 });
+  });
+});

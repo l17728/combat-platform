@@ -26,6 +26,7 @@ import RemindersPage from "./pages/RemindersPage.js";
 import BugReport from "./pages/BugReport.js";
 import UserManagement from "./pages/UserManagement.js";
 import DbMigration from "./pages/DbMigration.js";
+import SystemUpgrade from "./pages/SystemUpgrade.js";
 import OperationLog from "./pages/OperationLog.js";
 import BackupRestore from "./pages/BackupRestore.js";
 import DocumentCenter from "./pages/DocumentCenter.js";
@@ -148,6 +149,14 @@ function AppInner() {
           element={
             <AdminGuard>
               <DbMigration />
+            </AdminGuard>
+          }
+        />
+        <Route
+          path="/system-upgrade"
+          element={
+            <AdminGuard>
+              <SystemUpgrade />
             </AdminGuard>
           }
         />
