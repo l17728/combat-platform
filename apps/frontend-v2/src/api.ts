@@ -1033,11 +1033,16 @@ export class Api {
     });
   }
 
-  register(username: string, password: string, displayName?: string, role?: string): Promise<LoginResult> {
+  register(opts: {
+    username: string;
+    password: string;
+    displayName?: string;
+    inviteCode?: string;
+  }): Promise<LoginResult> {
     return this.req("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, displayName, role }),
+      body: JSON.stringify(opts),
     });
   }
 
@@ -1529,12 +1534,17 @@ export class Api {
     });
   }
 
-  previewDigest(): Promise<any> {
-    return this.req("/api/digest/preview");
+  previewDigest(days?: number): Promise<any> {
+    const q = days ? `?days=${days}` : "";
+    return this.req(`/api/digest/preview${q}`);
   }
 
-  sendDigest(): Promise<any> {
-    return this.req("/api/digest/send", { method: "POST" });
+  sendDigest(days?: number): Promise<any> {
+    return this.req("/api/digest/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(days ? { days } : {}),
+    });
   }
 
   addSchemaField(nodeType: string, field: Record<string, any>): Promise<any> {
@@ -1543,6 +1553,26 @@ export class Api {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action: "addField", field }),
     });
+  }
+
+  listInvitations(): Promise<any[]> {
+    return this.req("/api/invitations");
+  }
+
+  createInvitation(data: { role: string; email: string; displayName?: string; expiresInDays?: number }): Promise<any> {
+    return this.req("/api/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteInvitation(id: string): Promise<any> {
+    return this.req(`/api/invitations/${id}`, { method: "DELETE" });
+  }
+
+  checkInvite(code: string): Promise<any> {
+    return this.req(`/api/invitations/check/${code}`);
   }
 }
 

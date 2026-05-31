@@ -169,6 +169,7 @@ export function AppLayout() {
       children: [
         { key: "/search", label: "全局搜索", icon: <SearchOutlined /> },
         { key: "/kg", label: "知识图谱", icon: <DeploymentUnitOutlined /> },
+        { key: "/screen", label: "运营大屏", icon: <DashboardOutlined /> },
         { key: "/documents", label: "文档中心", icon: <FileTextOutlined /> },
         { key: "/bug-report", label: "问题反馈", icon: <BugOutlined /> },
         { key: "/manual", label: "帮助中心", icon: <QuestionCircleOutlined /> },
@@ -206,6 +207,7 @@ export function AppLayout() {
           : []),
         ...(isAdmin ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
+        ...(isAdmin ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
       ],
     },

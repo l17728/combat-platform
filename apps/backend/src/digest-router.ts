@@ -33,27 +33,26 @@ export function makeDigestRouter(adapter: DbAdapter, repo: Repository, mailSende
   r.get(
     "/digest/preview",
     adminMiddleware,
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
       const config = await digestRepo.getConfig();
-      const since =
-        config.frequency === "daily"
-          ? new Date(Date.now() - 24 * 60 * 60 * 1000)
-          : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const days = Number(req.query.days) || (config.frequency === "daily" ? 1 : 7);
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
       const summary = await buildDigestSummary(repo, since);
-      res.json({ since: since.toISOString(), ...summary });
+      res.json({ since: since.toISOString(), days, ...summary });
     })
   );
 
   r.post(
     "/digest/send",
     adminMiddleware,
-    asyncHandler(async (_req, res) => {
+    asyncHandler(async (req, res) => {
       const smtpConfig = await readConfig(repo);
       if (!smtpConfig) {
         res.status(400).json({ error: "请先配置 SMTP" });
         return;
       }
-      const result = await sendDigest(adapter, repo, mailSender, smtpConfig);
+      const customDays = req.body?.days ? Number(req.body.days) : undefined;
+      const result = await sendDigest(adapter, repo, mailSender, smtpConfig, customDays);
       res.json(result);
     })
   );

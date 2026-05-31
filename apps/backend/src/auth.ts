@@ -131,10 +131,11 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
   r.post(
     "/auth/register",
     asyncHandler(async (req, res) => {
-      const { username, password, displayName } = req.body as {
+      const { username, password, displayName, inviteCode } = req.body as {
         username?: string;
         password?: string;
         displayName?: string;
+        inviteCode?: string;
       };
       if (!username || !password) {
         return res.status(400).json({ error: "请输入用户名和密码" });
@@ -149,17 +150,38 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       if (existing) {
         return res.status(409).json({ error: "用户名已存在" });
       }
+
+      let userRole = "normal";
+      let invitationId: string | null = null;
+      if (inviteCode) {
+        const invRow = await adapter.queryOne<any>("SELECT * FROM invitations WHERE code = ?", [inviteCode]);
+        if (!invRow) {
+          return res.status(400).json({ error: "邀请码不存在" });
+        }
+        if (invRow.used_by) {
+          return res.status(400).json({ error: "邀请码已使用" });
+        }
+        if (new Date(invRow.expires_at) < new Date()) {
+          return res.status(400).json({ error: "邀请码已过期" });
+        }
+        userRole = invRow.role || "normal";
+        invitationId = invRow.id;
+      }
+
       const hash = bcrypt.hashSync(password, 10);
       const now = new Date().toISOString();
       const id = randomUUID();
-      // P0-1 安全:公开自注册强制 role=normal,忽略客户端传入的 role 字段。
-      // 提升权限(leader/admin)必须由已登录的 admin 通过 POST /api/users 创建。
-      const userRole = "normal";
       await adapter.run(
         "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [id, username, hash, userRole, displayName ?? username, now, now]
       );
-      log.info("auth.register", { username, role: userRole });
+
+      if (invitationId) {
+        await adapter.run("UPDATE invitations SET used_by = ?, used_at = ? WHERE id = ?", [id, now, invitationId]);
+        log.info("invitation.used", { id: invitationId, usedBy: username });
+      }
+
+      log.info("auth.register", { username, role: userRole, invited: !!inviteCode });
       const payload: JwtPayload = { userId: id, username, role: userRole };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
       const user = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
@@ -405,7 +427,15 @@ export function leaderMiddleware(req: Request, res: Response, next: NextFunction
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const path = req.path;
-  const publicPaths = ["/auth/login", "/auth/register", "/help/feedback/", "/bug-reports", "/health", "/metrics"];
+  const publicPaths = [
+    "/auth/login",
+    "/auth/register",
+    "/help/feedback/",
+    "/bug-reports",
+    "/health",
+    "/metrics",
+    "/invitations/check/",
+  ];
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
   }

@@ -18,6 +18,7 @@ import {
   Col,
 } from "antd";
 import { MailOutlined, SendOutlined, EyeOutlined } from "@ant-design/icons";
+import { InputNumber } from "antd";
 import { api } from "../api.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -54,6 +55,7 @@ const STATUS_COLOR: Record<string, string> = {
 export default function DigestSettings() {
   const [config, setConfig] = useState<DigestConfig | null>(null);
   const [preview, setPreview] = useState<DigestPreview | null>(null);
+  const [previewDays, setPreviewDays] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
@@ -99,7 +101,7 @@ export default function DigestSettings() {
 
   const handlePreview = async () => {
     try {
-      const data = await api.previewDigest();
+      const data = await api.previewDigest(previewDays);
       setPreview(data);
     } catch (e: any) {
       message.error("预览失败: " + e.message);
@@ -109,7 +111,7 @@ export default function DigestSettings() {
   const handleSend = async () => {
     try {
       setSending(true);
-      const res = await api.sendDigest();
+      const res = await api.sendDigest(previewDays);
       if (res.sent) {
         message.success("已发送");
         fetchConfig();
@@ -131,6 +133,15 @@ export default function DigestSettings() {
         <h4 style={{ margin: 0 }}>邮件摘要</h4>
         <Space>
           <HelpButton title={HELP.digestSettings.title} content={HELP.digestSettings.content} />
+          <span style={{ fontSize: 13, color: "#666" }}>天数</span>
+          <InputNumber
+            min={1}
+            max={90}
+            value={previewDays}
+            onChange={(v) => setPreviewDays(v || 1)}
+            size="small"
+            style={{ width: 70 }}
+          />
           <Button icon={<EyeOutlined />} onClick={handlePreview}>
             预览
           </Button>

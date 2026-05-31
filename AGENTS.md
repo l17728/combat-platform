@@ -900,6 +900,34 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-06-01 v2.2.0 — 邮件增强 + 邀请管理 + 运营大屏)
+
+**v2.2.0 = v2.11.0 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
+
+- 后端 vitest **768/768 全绿**（100 文件）
+- shared vitest **28/28 全绿**
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- `mailer.ts` 扩展支持 `html` + `attachments`（MailMessage 接口）
+- `digest.ts` 新增 `buildDigestHtml` HTML 模板生成（渐变头部 + 表格 + 统计卡片）
+- `digest.ts` `sendDigest` 支持 `customDays` 自定义时间段参数
+- `digest-router.ts` preview 和 send 端点支持 `days` 查询参数
+- 新增 `invitation.ts`（InvitationRepo CRUD + 邀请码生成 + 过期/使用标记）
+- 新增 `invitation-router.ts`（REST API: 创建邀请 + 邮件发送 + 验证邀请码 + 删除）
+- `auth.ts` register 端点支持 `inviteCode` 参数，有邀请码时使用预设角色
+- `auth.ts` publicPaths 添加 `/invitations/check/`
+- 新增前端 `InvitationPage.tsx`（邀请管理 + 发送邀请 + 复制链接）
+- 新增前端 `InviteRegister.tsx`（公开邀请注册页，预设角色自动生效）
+- 新增前端 `DashboardScreen.tsx`（深色全屏运营大屏 + KPI 卡片 + 状态分布 + 自动刷新）
+- `api.ts` 新增 invitation/dashboard 相关方法，register 改为对象参数支持 inviteCode
+- `AppLayout.tsx` 侧边栏增加邀请管理（admin）+ 运营大屏入口
+- `help-content.ts` 追加 v2.2.0 release notes + invitation/dashboardScreen 帮助页
+
+**关键设计决定**:
+
+1. **邀请码机制** — 12 位大写随机码，默认 7 天过期，注册时自动标记已使用；邀请邮件同时发送 HTML 和纯文本版本
+2. **HTML 邮件模板** — 内联 CSS 样式（不依赖外部样式表），渐变头部 + 表格 + 统计卡片，兼容主流邮件客户端
+3. **大屏独立页面** — 不依赖 Ant Design 组件，纯 CSS Grid 布局，深色主题，每 30 秒自动刷新，Fullscreen API 投屏
+
 ### 当前测试状态(2026-06-01 v2.11.0 — Webhook + 邮件摘要 + 内联字段)
 
 **v2.11.0 = v2.10.0 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**

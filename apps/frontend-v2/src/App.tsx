@@ -22,6 +22,9 @@ import SchemaWizard from "./pages/SchemaWizard.js";
 import ConfigCenter from "./pages/ConfigCenter.js";
 import WebhookSettings from "./pages/WebhookSettings.js";
 import DigestSettings from "./pages/DigestSettings.js";
+import InvitationPage from "./pages/InvitationPage.js";
+import InviteRegister from "./pages/InviteRegister.js";
+import DashboardScreen from "./pages/DashboardScreen.js";
 import SearchPage from "./pages/SearchPage.js";
 import KGGraph from "./pages/KGGraph.js";
 import ProposalsPage from "./pages/ProposalsPage.js";
@@ -96,6 +99,7 @@ function AppInner() {
     <Routes>
       <Route path="/login" element={<LoginRedirect />} />
       <Route path="/help/feedback/:token" element={<HelpFeedback />} />
+      <Route path="/invite" element={<InviteRegister />} />
       <Route
         element={
           <AuthGuard>
@@ -136,6 +140,8 @@ function AppInner() {
         <Route path="/config" element={<ConfigCenter />} />
         <Route path="/webhooks" element={<WebhookSettings />} />
         <Route path="/digest" element={<DigestSettings />} />
+        <Route path="/invitations" element={<InvitationPage />} />
+        <Route path="/screen" element={<DashboardScreen />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/kg" element={<KGGraph />} />
         <Route

@@ -51,6 +51,7 @@ import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
 import { makeWebhookRouter } from "./webhook-router.js";
 import { makeDigestRouter } from "./digest-router.js";
+import { makeInvitationRouter } from "./invitation-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
@@ -329,6 +330,7 @@ export function createApp(deps: {
     app.use("/api", makeDocumentRouter(adapter));
     app.use("/api", makeWebhookRouter(adapter));
     app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeInvitationRouter(adapter, deps.repo, mailSender));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for
