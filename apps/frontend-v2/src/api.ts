@@ -1259,6 +1259,26 @@ export class Api {
   upgradeLog(jobId: string): Promise<string> {
     return this.req(`/api/upgrade/log/${jobId}`);
   }
+
+  upgradeReleases(): Promise<
+    {
+      tag: string;
+      name: string;
+      publishedAt: string;
+      body: string;
+      assets: { name: string; url: string; size: number }[];
+    }[]
+  > {
+    return this.req("/api/upgrade/releases");
+  }
+
+  upgradeFromUrl(url: string): Promise<{ stagingId: string; size: number; name: string }> {
+    return this.req("/api/upgrade/upload-from-url", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+  }
 }
 
 export interface DocItem {

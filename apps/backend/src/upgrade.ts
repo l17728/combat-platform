@@ -180,9 +180,90 @@ export interface AnalyzeReport {
   warnings: string[];
 }
 
+export interface ReleaseAsset {
+  name: string;
+  url: string;
+  size: number;
+}
+export interface ReleaseInfo {
+  tag: string;
+  name: string;
+  publishedAt: string;
+  body: string;
+  assets: ReleaseAsset[];
+}
+
+/** 拉取 GitHub Releases。fetchFn 可注入用于测试。 */
+export async function fetchGithubReleases(
+  fetchFn: typeof fetch = globalThis.fetch
+): Promise<{ ok: true; releases: ReleaseInfo[] } | { ok: false; status: number; error: string }> {
+  const repo = process.env.UPGRADE_GITHUB_REPO;
+  if (!repo) {
+    return { ok: false, status: 503, error: "未配置 UPGRADE_GITHUB_REPO (期望 owner/repo)" };
+  }
+  if (!/^[^\s/]+\/[^\s/]+$/.test(repo)) {
+    return { ok: false, status: 400, error: `UPGRADE_GITHUB_REPO 格式错误: ${repo} (期望 owner/repo)` };
+  }
+  const url = `https://api.github.com/repos/${repo}/releases?per_page=20`;
+  const headers: Record<string, string> = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "combat-upgrade",
+  };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  let resp: Awaited<ReturnType<typeof fetch>>;
+  try {
+    resp = await fetchFn(url, { method: "GET", headers });
+  } catch (e) {
+    return { ok: false, status: 502, error: `GitHub 网络异常: ${(e as Error).message}` };
+  }
+  if (!resp.ok) {
+    return {
+      ok: false,
+      status: 502,
+      error: `GitHub 返回 ${resp.status} ${resp.statusText}`,
+    };
+  }
+  let raw: any;
+  try {
+    raw = await resp.json();
+  } catch (e) {
+    return { ok: false, status: 502, error: `GitHub 响应非 JSON: ${(e as Error).message}` };
+  }
+  if (!Array.isArray(raw)) {
+    return { ok: false, status: 502, error: "GitHub 响应不是 release 数组" };
+  }
+  const releases: ReleaseInfo[] = raw.map((r: any) => ({
+    tag: String(r.tag_name ?? ""),
+    name: String(r.name ?? r.tag_name ?? ""),
+    publishedAt: String(r.published_at ?? ""),
+    body: String(r.body ?? ""),
+    assets: Array.isArray(r.assets)
+      ? r.assets.map((a: any) => ({
+          name: String(a.name ?? ""),
+          url: String(a.browser_download_url ?? ""),
+          size: Number(a.size ?? 0),
+        }))
+      : [],
+  }));
+  return { ok: true, releases };
+}
+
 export function makeUpgradeRouter(sqlitePath: string): Router {
   const r = Router();
   r.use(adminOnly);
+
+  r.get(
+    "/upgrade/releases",
+    asyncHandler(async (_req, res) => {
+      const r2 = await fetchGithubReleases();
+      if (!r2.ok) {
+        res.status(r2.status).json({ error: r2.error });
+        return;
+      }
+      res.json(r2.releases);
+    })
+  );
 
   r.get(
     "/upgrade/current",
@@ -231,6 +312,51 @@ export function makeUpgradeRouter(sqlitePath: string): Router {
       writeFileSync(dst, req.file.buffer);
       log.info("upgrade.upload", { stagingId, size: req.file.size, name: original });
       res.json({ stagingId, size: req.file.size, name: original });
+    })
+  );
+
+  r.post(
+    "/upgrade/upload-from-url",
+    asyncHandler(async (req, res) => {
+      const { url } = req.body as { url?: string };
+      if (!url || typeof url !== "string") {
+        res.status(400).json({ error: "url 必填" });
+        return;
+      }
+      if (!/^https?:\/\//i.test(url)) {
+        res.status(400).json({ error: "url 必须以 http:// 或 https:// 开头" });
+        return;
+      }
+      const name = url.split("/").pop() || "upgrade.tar.gz";
+      if (!/\.(tar\.gz|tgz)$/i.test(name)) {
+        res.status(400).json({ error: "url 路径需以 .tar.gz / .tgz 结尾" });
+        return;
+      }
+      let resp: Awaited<ReturnType<typeof fetch>>;
+      try {
+        const headers: Record<string, string> = { "User-Agent": "combat-upgrade" };
+        if (process.env.GITHUB_TOKEN && /github/i.test(url)) {
+          headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+        }
+        resp = await fetch(url, { method: "GET", headers });
+      } catch (e) {
+        res.status(502).json({ error: `下载失败: ${(e as Error).message}` });
+        return;
+      }
+      if (!resp.ok) {
+        res.status(502).json({ error: `下载失败: HTTP ${resp.status}` });
+        return;
+      }
+      const buf = Buffer.from(await resp.arrayBuffer());
+      if (buf.length > 100 * 1024 * 1024) {
+        res.status(413).json({ error: "升级包不能超过 100MB" });
+        return;
+      }
+      const stagingId = randomUUID();
+      const dst = join(stagingDir(), `${stagingId}.tar.gz`);
+      writeFileSync(dst, buf);
+      log.info("upgrade.upload_from_url", { stagingId, size: buf.length, url });
+      res.json({ stagingId, size: buf.length, name });
     })
   );
 

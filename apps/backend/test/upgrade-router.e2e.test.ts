@@ -225,4 +225,166 @@ describe("upgrade router", () => {
       expect(typeof res.body.version).toBe("string");
     });
   });
+
+  describe("GET /api/upgrade/releases", () => {
+    const ORIGINAL_FETCH = globalThis.fetch;
+    const ORIGINAL_REPO = process.env.UPGRADE_GITHUB_REPO;
+    const ORIGINAL_TOKEN = process.env.GITHUB_TOKEN;
+
+    afterEach(() => {
+      globalThis.fetch = ORIGINAL_FETCH;
+      if (ORIGINAL_REPO === undefined) delete process.env.UPGRADE_GITHUB_REPO;
+      else process.env.UPGRADE_GITHUB_REPO = ORIGINAL_REPO;
+      if (ORIGINAL_TOKEN === undefined) delete process.env.GITHUB_TOKEN;
+      else process.env.GITHUB_TOKEN = ORIGINAL_TOKEN;
+    });
+
+    it("503 when UPGRADE_GITHUB_REPO not configured", async () => {
+      delete process.env.UPGRADE_GITHUB_REPO;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(503);
+      expect(res.body.error).toMatch(/UPGRADE_GITHUB_REPO/);
+    });
+
+    it("400 when UPGRADE_GITHUB_REPO has bad format", async () => {
+      process.env.UPGRADE_GITHUB_REPO = "no-slash";
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(400);
+    });
+
+    it("returns normalised release list", async () => {
+      process.env.UPGRADE_GITHUB_REPO = "owner/repo";
+      const fakeReleases = [
+        {
+          tag_name: "v2.4.0",
+          name: "v2.4.0",
+          published_at: "2026-06-01T00:00:00Z",
+          body: "release notes",
+          assets: [
+            {
+              name: "combat-v2.4.0.tar.gz",
+              browser_download_url: "https://example.com/combat.tar.gz",
+              size: 12345,
+            },
+            {
+              name: "combat-v2.4.0.tar.gz.asc",
+              browser_download_url: "https://example.com/combat.tar.gz.asc",
+              size: 800,
+            },
+          ],
+        },
+      ];
+      globalThis.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => fakeReleases,
+        text: async () => JSON.stringify(fakeReleases),
+      })) as any;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body[0].tag).toBe("v2.4.0");
+      expect(res.body[0].name).toBe("v2.4.0");
+      expect(res.body[0].publishedAt).toBe("2026-06-01T00:00:00Z");
+      expect(res.body[0].body).toBe("release notes");
+      expect(res.body[0].assets).toHaveLength(2);
+      expect(res.body[0].assets[0].url).toBe("https://example.com/combat.tar.gz");
+      expect(res.body[0].assets[0].size).toBe(12345);
+    });
+
+    it("502 when GitHub returns non-ok", async () => {
+      process.env.UPGRADE_GITHUB_REPO = "owner/repo";
+      globalThis.fetch = (async () => ({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+        text: async () => "Not Found",
+      })) as any;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(502);
+      expect(res.body.error).toMatch(/GitHub/);
+    });
+
+    it("forwards GITHUB_TOKEN as Authorization header when set", async () => {
+      process.env.UPGRADE_GITHUB_REPO = "owner/repo";
+      process.env.GITHUB_TOKEN = "secret-token";
+      let capturedHeaders: any = null;
+      globalThis.fetch = (async (_url: string, init: any) => {
+        capturedHeaders = init?.headers || {};
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => [],
+          text: async () => "[]",
+        };
+      }) as any;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(200);
+      expect(capturedHeaders.Authorization || capturedHeaders.authorization).toMatch(/secret-token/);
+    });
+
+    it("403 for non-admin", async () => {
+      const app = makeMiniAppWithRole("normal");
+      const res = await request(app).get("/api/upgrade/releases");
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe("POST /api/upgrade/upload-from-url", () => {
+    const ORIGINAL_FETCH = globalThis.fetch;
+    afterEach(() => {
+      globalThis.fetch = ORIGINAL_FETCH;
+    });
+
+    it("400 when url missing", async () => {
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).post("/api/upgrade/upload-from-url").send({});
+      expect(res.status).toBe(400);
+    });
+
+    it("400 when url is not http(s)", async () => {
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app).post("/api/upgrade/upload-from-url").send({ url: "file:///etc/passwd" });
+      expect(res.status).toBe(400);
+    });
+
+    it("downloads tar.gz from url and returns stagingId", async () => {
+      const fakeBuf = await makeFakeUpgradePkg("2.5.0");
+      globalThis.fetch = (async () => ({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        arrayBuffer: async () => fakeBuf.buffer.slice(fakeBuf.byteOffset, fakeBuf.byteOffset + fakeBuf.byteLength),
+        headers: new Map([["content-type", "application/gzip"]]),
+      })) as any;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app)
+        .post("/api/upgrade/upload-from-url")
+        .send({ url: "https://example.com/upgrade.tar.gz" });
+      expect(res.status).toBe(200);
+      expect(typeof res.body.stagingId).toBe("string");
+      expect(res.body.size).toBeGreaterThan(0);
+    });
+
+    it("502 when download fails", async () => {
+      globalThis.fetch = (async () => ({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      })) as any;
+      const app = makeMiniAppWithRole("admin");
+      const res = await request(app)
+        .post("/api/upgrade/upload-from-url")
+        .send({ url: "https://example.com/missing.tar.gz" });
+      expect(res.status).toBe(502);
+    });
+  });
 });

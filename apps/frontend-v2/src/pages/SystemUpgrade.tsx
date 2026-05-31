@@ -21,6 +21,7 @@ import {
   Modal,
   Tabs,
   Empty,
+  Select,
 } from "antd";
 import {
   WarningOutlined,
@@ -29,6 +30,7 @@ import {
   PlayCircleOutlined,
   InboxOutlined,
   FileSearchOutlined,
+  CloudDownloadOutlined,
 } from "@ant-design/icons";
 import { api } from "../api.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -99,6 +101,12 @@ export default function SystemUpgrade() {
   const [confirmText, setConfirmText] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const pollTimer = useRef<number | null>(null);
+  const [releases, setReleases] = useState<Awaited<ReturnType<typeof api.upgradeReleases>>>([]);
+  const [releasesLoading, setReleasesLoading] = useState(false);
+  const [releasesError, setReleasesError] = useState<string | null>(null);
+  const [selectedReleaseTag, setSelectedReleaseTag] = useState<string | null>(null);
+  const [selectedAssetUrl, setSelectedAssetUrl] = useState<string | null>(null);
+  const [fetchingRelease, setFetchingRelease] = useState(false);
 
   const fetchCurrent = async () => {
     setLoading(true);
@@ -139,11 +147,58 @@ export default function SystemUpgrade() {
     }
   };
 
+  const fetchReleases = async () => {
+    setReleasesLoading(true);
+    setReleasesError(null);
+    try {
+      const r = await api.upgradeReleases();
+      setReleases(r);
+      if (r.length > 0) {
+        setSelectedReleaseTag(r[0].tag);
+        const firstAsset = r[0].assets.find((a) => /\.(tar\.gz|tgz)$/i.test(a.name));
+        setSelectedAssetUrl(firstAsset?.url ?? null);
+      }
+    } catch (e: any) {
+      setReleasesError(e.message || "拉取 Release 列表失败");
+    } finally {
+      setReleasesLoading(false);
+    }
+  };
+
+  const fetchFromRelease = async () => {
+    if (!selectedAssetUrl) {
+      message.warning("请选择一个 .tar.gz asset");
+      return;
+    }
+    setFetchingRelease(true);
+    try {
+      const r = await api.upgradeFromUrl(selectedAssetUrl);
+      setStagingId(r.stagingId);
+      setStagingFile({ name: r.name, size: r.size });
+      message.success(`已拉取: ${r.name}`);
+      setAnalyzing(true);
+      try {
+        const rep = await api.upgradeAnalyze(r.stagingId);
+        setReport(rep);
+        setReportOpen(true);
+      } catch (e: any) {
+        message.error(`分析失败: ${e.message}`);
+      } finally {
+        setAnalyzing(false);
+      }
+    } catch (e: any) {
+      message.error(`拉取失败: ${e.message}`);
+    } finally {
+      setFetchingRelease(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     fetchCurrent();
     fetchHistory();
     pollStatus();
+    fetchReleases();
     return () => {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
@@ -296,6 +351,79 @@ export default function SystemUpgrade() {
               <Statistic title="用户字段数" value={current.userFieldCount} suffix="个" />
             </Col>
           </Row>
+        )}
+      </Card>
+
+      <Card
+        style={{ marginBottom: 16 }}
+        title="在线版本 (GitHub Releases)"
+        data-testid="upgrade-releases-card"
+        extra={
+          <Button size="small" icon={<ReloadOutlined />} onClick={fetchReleases} loading={releasesLoading}>
+            刷新
+          </Button>
+        }
+      >
+        {releasesError ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="未启用在线升级"
+            description={releasesError}
+            data-testid="upgrade-releases-error"
+          />
+        ) : releases.length === 0 && !releasesLoading ? (
+          <Empty description="暂无在线 Release" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <Row gutter={12} align="middle">
+            <Col span={8}>
+              <Select
+                placeholder="选择 Release"
+                value={selectedReleaseTag ?? undefined}
+                style={{ width: "100%" }}
+                loading={releasesLoading}
+                onChange={(v) => {
+                  setSelectedReleaseTag(v);
+                  const rel = releases.find((r) => r.tag === v);
+                  const firstAsset = rel?.assets.find((a) => /\.(tar\.gz|tgz)$/i.test(a.name));
+                  setSelectedAssetUrl(firstAsset?.url ?? null);
+                }}
+                options={releases.map((r) => ({ value: r.tag, label: `${r.tag} — ${r.name || r.tag}` }))}
+                data-testid="upgrade-release-select"
+              />
+            </Col>
+            <Col span={10}>
+              <Select
+                placeholder="选择 .tar.gz asset"
+                value={selectedAssetUrl ?? undefined}
+                style={{ width: "100%" }}
+                onChange={setSelectedAssetUrl}
+                options={(releases.find((r) => r.tag === selectedReleaseTag)?.assets || [])
+                  .filter((a) => /\.(tar\.gz|tgz)$/i.test(a.name))
+                  .map((a) => ({ value: a.url, label: `${a.name} (${fmtBytes(a.size)})` }))}
+                data-testid="upgrade-asset-select"
+              />
+            </Col>
+            <Col span={6}>
+              <Button
+                type="primary"
+                icon={<CloudDownloadOutlined />}
+                disabled={!selectedAssetUrl || isRunning === true}
+                loading={fetchingRelease || analyzing}
+                onClick={fetchFromRelease}
+                data-testid="upgrade-fetch-release-btn"
+              >
+                拉取并分析
+              </Button>
+            </Col>
+          </Row>
+        )}
+        {selectedReleaseTag && (
+          <div style={{ marginTop: 12 }}>
+            <Text type="secondary">
+              发布于: {releases.find((r) => r.tag === selectedReleaseTag)?.publishedAt || "-"}
+            </Text>
+          </div>
         )}
       </Card>
 
