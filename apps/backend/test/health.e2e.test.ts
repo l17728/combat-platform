@@ -4,7 +4,7 @@ import { makeTestApp } from "./helpers.js";
 
 describe("/health endpoint", () => {
   it("returns 200 with status ok + db connected", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     const res = await request(app).get("/api/health");
     expect(res.status).toBe(200);
     expect(res.body.status).toBe("ok");
@@ -16,7 +16,7 @@ describe("/health endpoint", () => {
   });
 
   it("does not require auth", async () => {
-    const { app } = makeTestApp();
+    const { app } = await makeTestApp();
     // even with no Authorization header (and disregard of COMBAT_NO_AUTH), /health
     // is publicly mounted before authMiddleware — verify it answers 200.
     const res = await request(app).get("/api/health");

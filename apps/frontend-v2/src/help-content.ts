@@ -4,6 +4,50 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.1.0 — 2026-05-31 (Roadmap 4 桶整合 — 安全/性能/UX/质量)
+
+依 5 位专家评审产出的 5 P0 安全 + 5 性能 quick wins + 5 UX 改进 + 5 代码质量,四桶并行落地后整合入 master。**全部为本机改动,所有桶均在合并前独立 push 并 CI 通过**。
+
+### 🔒 安全(P0 全清)
+- **JWT_SECRET 生产环境必填**:启动期校验,缺失或等于默认值直接退出进程(防默认弱密钥)
+- **gradeGate 从 JWT 取 role**:不再信任 \`X-Role\` HTTP 头(localStorage 写入 + curl 可伪造),前端去掉所有 \`X-Role\` 发送
+- **/auth/register 强制 role=normal**:公开自注册接口强制规整角色,提权必须由已登录 admin 创建
+- **adminMiddleware + leaderMiddleware 统一守卫**:audit/merge/op-logs/backup/proposals/reminders/email 全部限 admin;tickets/:id/tabs + documents 写操作限 leader+
+- **DynamicCustomTab / ManualCenter 关 rehypeRaw**:防 markdown 注入存储型 XSS
+
+### ⚡ 性能(5 项 quick wins)
+- **useSettings 真缓存**(module-level singleton + 5min TTL + 并发去重):13 个 callsite 重复 fetch → 1 次/5min,首屏少 12 个请求
+- **GET /api/health**:无需鉴权,返回 \`{status,uptime,version,db:{kind,connected}}\`,systemd/反代/监控可探活
+- **conflicts.syncConflicts 30s 防抖**:连续 10 次保存 = 1 次全量重建,audit 写放大降低 10-100×
+- **backend.log 自动 rotation**:防爆盘,部署脚本 logrotate 自动注册
+- **dashboard 单次扫表**:5 次 attackTicket 全表扫 → 1 次内存聚合;top-5 用末位替换法省一次 N·logN 排序
+
+### 🎨 UX(全站 5 项升级)
+- **AI 助手浮窗挂到全站 AppLayout**:所有页面右下角可问 AI(原仅攻关详情可见)
+- **Dashboard 以我为中心**:首屏增加「我的攻关」「我的提醒」「我的草稿」三块卡片,跨页跳转直达
+- **AttackList 批量操作**:多选 + 批量删除 + 批量加关注;列表底部固定 Action Bar
+- **Cmd+K 命令面板**:全局快捷跳转(各列表/详情) + 新建(攻关单/贡献/求助等)
+- **菜单瘦身**:文档/搜索/KG/问题反馈/帮助中心收纳到「工具」分组;系统管理保留管理类入口
+
+### 🏗️ 代码质量(基础设施)
+- **ESLint + Prettier 仓库根配置**:统一规则,husky pre-commit + lint-staged 自动 fix
+- **GitHub Actions CI**:backend + shared 测试 + tsc 全过(双端)
+- **Husky pre-commit hook**:lint-staged 拦截不合规提交
+- **Repository Row 类型化**:消除 14 处 \`as any\`(注:postgres async 整合后,DbAdapter 路径采用 unknown 泛型替代)
+- **README 新人 5 分钟 quick start + 必读文档清单**
+
+### ✅ 测试覆盖
+- 后端 vitest **463/463**(原 348 + welink 21 + health 2 + RBAC 5 + 各 router async 覆盖)
+- 前端 e2e 在整合分支再次验证(各桶独立分支已分别 401+ 全绿)
+
+### ⚠️ 整合策略说明
+- 4 桶依赖顺序合(quality 基础设施 → performance → security → ux),冲突均按"两边都要"原则手工合
+- 再合 master(welink + postgres + UI 配置化):repository.ts 选择 master 的 async DbAdapter(因 postgres 必须异步,quality 的 Row 类型化让位)
+- app.ts/auth.ts/routes.ts/dashboard.ts/conflicts.ts 全部为 async + 安全守卫 + 性能优化 的 union
+- AppLayout 菜单为 UX 的「工具」分组 + master 的 \`/db-migration\` 的 union
+
+---
+
 ## v2.0.0 — 2026-05-30 (Welink + Postgres + UI 配置化大整合)
 
 本版是「welink 群消息集成」「postgres 双驱动」「UI 配置化」三大主线 + 5 位专家评审 + 技术博客的 release。
