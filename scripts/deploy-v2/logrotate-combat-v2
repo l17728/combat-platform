@@ -1,0 +1,24 @@
+# /etc/logrotate.d/combat-v2
+#
+# combat-v2 backend.log 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log`
+# 持续 append-only 写入,不做 rotation 会撑爆磁盘(94 个 log 事件 + 每个 HTTP 请求一行)。
+#
+# 策略:
+#   - daily       每天 rotate 一次
+#   - size 50M    或单文件超 50MB 立即 rotate(优先级高于 daily)
+#   - rotate 7    保留 7 份历史(共 ≤ 350MB)
+#   - compress    gzip 老文件
+#   - copytruncate  原文件 truncate(systemd append 句柄不中断,无需 reload service)
+#   - notifempty  空文件不 rotate
+#   - missingok   首次没有文件不报错
+
+/opt/combat-v2/backend.log {
+    daily
+    size 50M
+    rotate 7
+    compress
+    delaycompress
+    copytruncate
+    notifempty
+    missingok
+}

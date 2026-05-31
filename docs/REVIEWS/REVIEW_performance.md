@@ -195,3 +195,29 @@ useEffect(() => {
 ## 一句话总结
 
 **当前架构是一个写得很认真、日志很自律、对自己的边界很诚实的"单机版"**。在 100 用户 / 几千节点的内部小工具语境里它打 7-8 分;一旦预期上升到"几万节点 / 几十并发用户 / 跨地域 HA",当前实现要重做的不是 DB,而是**算法热点 + 缓存策略 + 横向扩展能力**。PG 切换是必要不充分条件,真正要先动的是 `queryNodes` 之上的那 39 个全表扫调用点。
+
+---
+
+## 已实施(2026-05-31, 分支 `feature/roadmap-performance`)
+
+P0 + quick wins 全部落地,5 个独立 commit,均不引入新依赖、不动 Repository 同步 API。
+
+| # | 项 | 文件 | commit | 评审条目 |
+|---|----|------|--------|----------|
+| 1 | `useSettings` module-level singleton + 5min TTL + in-flight dedupe | `apps/frontend-v2/src/hooks/useSettings.ts` | `a4b40a5` | §8(P0 候选 2/3) |
+| 2 | `GET /api/health` 无鉴权探活端点(`{status,uptime,version,db:{kind,connected}}`) + 2 个 e2e 用例 | `apps/backend/src/health.ts` + `app.ts` + `auth.ts` + `test/health.e2e.test.ts` | `e01c715` | 弱项 ✗ 1 / P0 候选 1 |
+| 3 | `conflicts.syncConflicts` 30s debounce(`triggerPostSaveJobs` 内 setTimeout/clearTimeout module-level state;`NODE_ENV=test` 跳过) | `apps/backend/src/routes.ts` | `f7f6b56` | §2 + P0 候选 5 |
+| 4 | `backend.log` logrotate(daily / size 50M / rotate 7 / copytruncate / compress) | `scripts/deploy-v2/logrotate-combat-v2` + 部署时安装到 `/etc/logrotate.d/combat-v2` | `3fe00f3` | 弱项 ✗ 3 / P0 候选 4 |
+| 5 | Dashboard 5 次扫表 → 1 次内存聚合(`listConflictRows(repo, preloadedTickets?)` 复用 + top-N 增量维护省一次 N·logN 排序) | `apps/backend/src/dashboard.ts` + `conflicts.ts` | `1257a86` | §7 |
+
+**验证**:
+- baseline 347 backend tests → 改后 349(+2 health e2e),无回归
+- `npx tsc --noEmit` 双端均通过
+- 改动行数 ≈ 200 行,集中在 5 个文件;架构无改动,可滚动回退
+
+**未做**:
+- §1/§3 `queryNodes` 全表扫 + N+1 改写(动 Repository 同步 API,Phase 2 配合 PG 一起做)
+- §4 proposer N² + §5 hermes fallback(算法重写,Phase 2)
+- §6 seqNo race(better-sqlite3 同步下安全,PG 迁移时改 UNIQUE 约束 + 重试)
+- P1 dashboard summary 60s cache(本批已把 5 次扫合 1 次,缓存收益边际下降,留 Phase 2)
+- rate-limit 中间件(P1,需引入 `express-rate-limit` 新依赖,留下次)

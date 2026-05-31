@@ -75,11 +75,19 @@ export function syncConflicts(repo: Repository): ScanConflictsResult {
   return { conflicts, overlaps };
 }
 
-/** Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id. */
-export function listConflictRows(repo: Repository): ConflictRow[] {
-  // Preload all attackTicket nodes to avoid N+1 getNode calls
+/**
+ * Collect ConflictRow[] — undirected dedup: keep only edges where source.id < target.id.
+ *
+ * 可选 preloadedTickets:调用方(如 dashboard)若已扫过一遍 attackTicket,可直接复用
+ * 避免重复全表扫描 + JSON.parse(每个 ticket properties 都 parse 一次)。
+ */
+export function listConflictRows(
+  repo: Repository,
+  preloadedTickets?: import("@combat/shared").GraphNode[],
+): ConflictRow[] {
   const nodeMap = new Map<string, import("@combat/shared").GraphNode>();
-  for (const n of repo.queryNodes("attackTicket")) nodeMap.set(n.id, n);
+  const tickets = preloadedTickets ?? repo.queryNodes("attackTicket");
+  for (const n of tickets) nodeMap.set(n.id, n);
 
   const out: ConflictRow[] = [];
   for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {

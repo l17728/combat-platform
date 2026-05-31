@@ -36,6 +36,7 @@ import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
+import { makeHealthRouter } from "./health.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
@@ -50,6 +51,9 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use(requestLogger());
   // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
   app.use(express.json({ limit: '20mb' }));
+
+  // 健康检查:在 auth 之前注册,无需鉴权 — 系统级探活点,供 systemd / 反代 / 监控调用。
+  app.use("/api", makeHealthRouter(deps.db));
 
   if (deps.db) {
     app.use("/api", makeAuthRouter(deps.db));
