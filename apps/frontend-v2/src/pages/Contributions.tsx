@@ -14,9 +14,10 @@ import {
   Divider,
   Tooltip,
   Tag,
+  Segmented,
 } from "antd";
 import { PlusOutlined, SearchOutlined, ExportOutlined, EditOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
 import { CONTRIBUTION_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
 import StatusTag from "../components/StatusTag.js";
@@ -27,11 +28,22 @@ import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import dayjs from "dayjs";
 import { handleApiError } from "../utils/handleApiError.js";
+import ContributionPivot from "./contributions/ContributionPivot.js";
 
 const { Title } = Typography;
 
 export default function Contributions() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // v2.7: 视图切换器(table / pivot);默认 table
+  const [view, setView] = useState<"table" | "pivot">(() => (searchParams.get("view") === "pivot" ? "pivot" : "table"));
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (view !== "table") next.set("view", view);
+    else next.delete("view");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
   const { getValues } = useSettings();
   const CONTRIB_TYPES = getValues("贡献类型", ["实施", "发现", "协调", "指导", "支持"]);
   const CONTRIB_LEVELS = getValues("贡献等级", ["核心", "关键", "普通"]);
@@ -379,67 +391,88 @@ export default function Contributions() {
         </Space>
       </div>
 
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          placeholder="贡献等级"
-          allowClear
-          style={{ width: 120 }}
-          value={levelFilter}
-          onChange={setLevelFilter}
-          options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))}
-        />
-        <Input
-          placeholder="搜索贡献人/描述"
-          prefix={<SearchOutlined />}
-          style={{ width: 220 }}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-        />
-      </Space>
-
-      <Divider orientation="left">个人贡献</Divider>
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <FlexWrapper>
-          <Table
-            rowKey="id"
-            dataSource={filtered}
-            columns={flexCols}
-            components={tableComponents}
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: PAGE_SIZE,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (t) => `共 ${t} 条`,
-            }}
-            size="middle"
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <Space wrap>
+          <Select
+            placeholder="贡献等级"
+            allowClear
+            style={{ width: 120 }}
+            value={levelFilter}
+            onChange={setLevelFilter}
+            options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))}
           />
-        </FlexWrapper>
-      )}
-
-      <Divider orientation="left">团队贡献</Divider>
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 4 }} />
-      ) : (
-        <TeamFlexWrapper>
-          <Table
-            rowKey="id"
-            dataSource={teamNodes}
-            columns={teamFlexCols}
-            components={tableComponents}
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: PAGE_SIZE,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (t) => `共 ${t} 条`,
-            }}
-            size="middle"
+          <Input
+            placeholder="搜索贡献人/描述"
+            prefix={<SearchOutlined />}
+            style={{ width: 220 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
           />
-        </TeamFlexWrapper>
+        </Space>
+        <Segmented
+          data-testid="view-switcher"
+          value={view}
+          onChange={(v) => setView(v as "table" | "pivot")}
+          options={[
+            { label: "表格", value: "table" },
+            { label: "透视", value: "pivot" },
+          ]}
+        />
+      </div>
+
+      {view === "pivot" ? (
+        loading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : (
+          <ContributionPivot personNodes={filtered} teamNodes={teamNodes} contribTypes={CONTRIB_TYPES} />
+        )
+      ) : (
+        <>
+          <Divider orientation="left">个人贡献</Divider>
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 6 }} />
+          ) : (
+            <FlexWrapper>
+              <Table
+                rowKey="id"
+                dataSource={filtered}
+                columns={flexCols}
+                components={tableComponents}
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: PAGE_SIZE,
+                  showSizeChanger: true,
+                  pageSizeOptions: PAGE_SIZE_OPTIONS,
+                  showTotal: (t) => `共 ${t} 条`,
+                }}
+                size="middle"
+              />
+            </FlexWrapper>
+          )}
+
+          <Divider orientation="left">团队贡献</Divider>
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 4 }} />
+          ) : (
+            <TeamFlexWrapper>
+              <Table
+                rowKey="id"
+                dataSource={teamNodes}
+                columns={teamFlexCols}
+                components={tableComponents}
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: PAGE_SIZE,
+                  showSizeChanger: true,
+                  pageSizeOptions: PAGE_SIZE_OPTIONS,
+                  showTotal: (t) => `共 ${t} 条`,
+                }}
+                size="middle"
+              />
+            </TeamFlexWrapper>
+          )}
+        </>
       )}
 
       <Drawer
