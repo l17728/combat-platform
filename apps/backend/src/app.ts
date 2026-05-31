@@ -37,6 +37,7 @@ import { makeBugReportRouter } from "./bug-report.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
 import { makeHealthRouter } from "./health.js";
+import { makeMetricsRouter, metricsMiddleware } from "./metrics.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
@@ -62,11 +63,14 @@ export function createApp(deps: {
   const app = express();
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
+  // v2.2 P1 §7: metrics 中间件紧随 logger,统计每个请求的 in_flight/count/duration
+  app.use(metricsMiddleware());
   // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
   app.use(express.json({ limit: "20mb" }));
 
-  // 健康检查:在 auth 之前注册,无需鉴权 — 系统级探活点,供 systemd / 反代 / 监控调用。
+  // 健康检查 + Prometheus 指标:auth 之前注册,无需鉴权 — 系统级端点,供 systemd / 反代 / Prometheus 调用。
   app.use("/api", makeHealthRouter(deps.db));
+  app.use("/api", makeMetricsRouter());
 
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
