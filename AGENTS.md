@@ -53,12 +53,12 @@ Example: A test fails because `row.locator('a').filter({ hasText: '编辑' })` m
 echo "任务描述（如：review apps/backend/src/routes.ts 的安全性）" | claude --dangerously-skip-permissions -p
 
 # 指定工作目录
-claude --dangerously-skip-permissions -p "实现 XXX 功能，遵循 TDD 流程" --cwd D:\fighting
+claude --dangerously-skip-permissions -p "实现 XXX 功能，遵循 TDD 流程" --cwd /fighting
 
 # 常见任务类型
 claude --dangerously-skip-permissions -p "review 最近的 git diff，检查举一反三问题"    # Review
 claude --dangerously-skip-permissions -p "为 XXX 编写 e2e 测试"                      # 测试撰写
-claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"              # 代码撰写
+claude --dangerously-skip-permissions -p "实现 XXX 后端 API + CLI 命令"              # 代码撰写
 ```
 
 **原则**：
@@ -146,7 +146,7 @@ All writes go through the config-driven structured model (single source of truth
 | 6   | **Migration scripts**     | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added.      |
 | 7   | **API docs**              | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples.                                                                                                |
 | 8   | **Constants**             | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps.                                                                                           |
-| 9   | **Deploy**                | After all tests green: `git add -A && git commit` → `cd scripts/deploy-v2 && node deploy.mjs deploy`.                                                                               |
+| 9   | **Deploy**                | After all tests green: `git add -A && git commit` → `./dev-deploy.sh`.                                                                                                              |
 | 10  | **AGENTS.md updates**     | Document any new discoveries (Ant Design quirks, backend gotchas), update architecture descriptions if changed.                                                                     |
 
 ## Core Mission (核心使命)

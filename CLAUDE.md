@@ -28,14 +28,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### 6. CLI for Every Backend API
 **Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
 
-### 7. Local-First Development & Testing (本机先行，现网后行)
-**所有开发和测试必须先在本机完成，确认无误后再部署到现网。** 绝不能跳过本机验证直接部署到生产环境。
+### 7. Remote-First Development & Testing (远程优先，开发测试部署一体化)
+
+**所有开发、测试和部署均在远程服务器 `/fighting` 上完成。** SSH 登录 → claude/opencode 开发 → 测试 → 同机部署。
 
 **标准流程（严格顺序）**：
-1. **本机开发** — 编写代码 + 对应测试
-2. **本机后端测试** — `npm run test:backend` 全部通过
-3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
-4. **本机冒烟验证** — `npm run dev:backend` + `npm run dev:frontend-v2`，Playwright 脚本模拟真实用户操作，确认功能正常
+1. **开发** — 在 `/fighting` 编写代码 + 对应测试
+2. **后端测试** — `./dev-test.sh` 或 `npm run test:backend` 全部通过
+3. **E2E 测试** — `./dev-e2e.sh` 或 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
+4. **冒烟验证** — `./dev-with-snapshot.sh` + `./dev-frontend.sh`，Playwright 脚本模拟真实用户操作，确认功能正常
 5. **git commit** — 所有改动必须先提交
 6. **部署到现网** — `./dev-deploy.sh`（同机 rsync + systemctl restart）
 7. **现网验证** — Playwright 跑现网确认功能正常
