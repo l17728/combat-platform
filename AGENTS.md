@@ -883,8 +883,8 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 **v2.3.0 = v2.2.0(sec+perf+quality 三桶 P1)+ 一键升级 UI(schema overlay + upgrade router + SystemUpgrade page)**
 
-- 待合并后跑测:目标 backend vitest **~536**(v2.2 baseline 507 + upgrade-ui 29:schema-overlay 11 + upgrade router 18)
-- 前端 vitest 目标 **54/54**(v2.2 quality 继承)
+- 后端 vitest **536/536 全绿**(v2.2 baseline 507 + upgrade-ui 29:schema-overlay 11 + upgrade router 18 + metrics 4 + queryNodesByProperty 5 共 80 个测试文件)
+- 前端 vitest **54/54 全绿**(v2.2 quality 7 文件全继承)
 - 三端 `npx tsc --noEmit` 全 0 错(backend + shared + frontend-v2)
 - 前端 e2e 未跑(端口被占,集成机共用 5174/3001;各桶分支独立验证已绿)
 - 文档:`help-content.ts` 顶部追加 v2.3.0 release notes;`docs/UPGRADE.md` / `SECURITY_RUNBOOK.md` / `PERFORMANCE_TUNING.md` 已交付
