@@ -12,6 +12,7 @@ import type {
   ReminderStatus,
   AuditLogEntry,
 } from "@combat/shared";
+import { computeAuditHash, EMPTY_PREV_HASH } from "./audit-chain.js";
 
 /**
  * Phase 4 — adapter-aware JSON encode/decode.
@@ -63,12 +64,30 @@ export function decodeJsonFromAdapter(adapter: DbAdapter, value: unknown): any {
 export class SqliteRepository implements Repository {
   constructor(private adapter: DbAdapter) {}
 
+  // resilience(audit-merkle): monotonic per-process clock for audit performedAt.
+  // ISO timestamp can collide at sub-ms granularity, which makes (performedAt, id)
+  // ordering ambiguous (id is a UUID, not insertion-ordered). We bump by 1ms
+  // whenever Date.now() would not advance, so writer-side tail read and
+  // verifier-side walk see the SAME stable ordering.
+  private lastAuditTsMs = 0;
+  private nextMonotonicAuditIso(): string {
+    const now = Date.now();
+    const next = now > this.lastAuditTsMs ? now : this.lastAuditTsMs + 1;
+    this.lastAuditTsMs = next;
+    return new Date(next).toISOString();
+  }
+
   private flatten(properties: Record<string, unknown>): string {
     return Object.values(properties)
       .map((v) => (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "")))
       .join(" ");
   }
 
+  /**
+   * resilience(audit-merkle): write a chained audit row. Reads current tail.hash
+   * inside the transaction to ensure no concurrent insert breaks the chain,
+   * then writes prev_hash + hash atomically with the row.
+   */
   private async auditTx(
     tx: DbAdapter,
     action: string,
@@ -77,9 +96,16 @@ export class SqliteRepository implements Repository {
     changes: unknown,
     actor: string
   ): Promise<void> {
+    const tail = await tx.queryOne<{ hash: string }>(
+      `SELECT hash FROM audit_log ORDER BY "performedAt" DESC, id DESC LIMIT 1`
+    );
+    const prevHash = tail?.hash ?? EMPTY_PREV_HASH;
+    const performedAt = this.nextMonotonicAuditIso();
+    const id = randomUUID();
+    const hash = computeAuditHash({ prevHash, action, entityType, entityId, changes, performedAt });
     await tx.run(
-      `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), action, entityType, entityId, encodeJsonForAdapter(tx, changes), actor, new Date().toISOString()]
+      `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt", prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, action, entityType, entityId, encodeJsonForAdapter(tx, changes), actor, performedAt, prevHash, hash]
     );
   }
 
@@ -96,18 +122,10 @@ export class SqliteRepository implements Repository {
     req?: { user?: { username?: string } } | undefined
   ): Promise<void> {
     const actor = req?.user?.username || entry.actor;
-    await this.adapter.run(
-      `INSERT INTO audit_log (id, action, "entityType", "entityId", changes, "performedBy", "performedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        randomUUID(),
-        entry.action,
-        entry.entityType,
-        entry.entityId,
-        encodeJsonForAdapter(this.adapter, entry.changes),
-        actor,
-        new Date().toISOString(),
-      ]
-    );
+    // resilience(audit-merkle): wrap in transaction so tail read + insert is atomic.
+    await this.adapter.transaction(async (tx) => {
+      await this.auditTx(tx, entry.action, entry.entityType, entry.entityId, entry.changes, actor);
+    });
   }
 
   async listAuditLog(filter: {

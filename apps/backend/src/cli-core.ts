@@ -162,6 +162,12 @@ export const COMMANDS: CliCommand[] = [
     }),
   },
   {
+    name: "audit:verify",
+    summary: "校验 audit_log Merkle 链完整性,返回 {ok, verified, brokenAt?, reason?}",
+    usage: "audit:verify",
+    build: () => ({ method: "GET", path: "/api/audit/verify" }),
+  },
+  {
     name: "merge:preview",
     summary: "人员合并预览（只读）",
     usage: "merge:preview --from <id> --to <id>",
