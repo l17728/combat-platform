@@ -85,24 +85,25 @@ claude --dangerously-skip-permissions -p "实现 XXX 后端 API + CLI 命令"   
 
 **6 个一键脚本**（放在 `/fighting/` 根目录）：
 
-| 脚本 | 用途 | DB 路径 | 端口 |
-|---|---|---|---|
-| `./dev.sh` | 启 dev backend(空 db) | `/fighting/data/dev-combat.sqlite` | 3500 |
-| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend | 同上(覆盖为生产快照) | 3500 |
-| `./dev-frontend.sh` | 启 vite dev(proxy `/api` → :3500) | — | 5174 |
-| `./dev-test.sh` | 跑 vitest backend(in-memory db) | 临时 | — |
-| `./dev-e2e.sh` | 跑 Playwright(自启 webServer) | 临时 | — |
-| `./dev-deploy.sh` | 同机部署到生产(rsync + systemctl restart) | — | — |
+| 脚本                     | 用途                                      | DB 路径                            | 端口 |
+| ------------------------ | ----------------------------------------- | ---------------------------------- | ---- |
+| `./dev.sh`               | 启 dev backend(空 db)                     | `/fighting/data/dev-combat.sqlite` | 3500 |
+| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend            | 同上(覆盖为生产快照)               | 3500 |
+| `./dev-frontend.sh`      | 启 vite dev(proxy `/api` → :3500)         | —                                  | 5174 |
+| `./dev-test.sh`          | 跑 vitest backend(in-memory db)           | 临时                               | —    |
+| `./dev-e2e.sh`           | 跑 Playwright(自启 webServer)             | 临时                               | —    |
+| `./dev-deploy.sh`        | 同机部署到生产(rsync + systemctl restart) | —                                  | —    |
 
 **DB 隔离矩阵（铁律）**：
 
-| | 生产 db | dev 副本 | 测试 db |
-|---|---|---|---|
-| 路径 | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite` | tmpdir/in-memory |
-| 谁写 | 生产 systemd combat-v2.service | `./dev.sh` / `./dev-with-snapshot.sh` | vitest |
-| 互相影响 | ❌ 完全独立 | ❌ 完全独立 | ❌ 完全独立 |
+|          | 生产 db                             | dev 副本                              | 测试 db          |
+| -------- | ----------------------------------- | ------------------------------------- | ---------------- |
+| 路径     | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite`    | tmpdir/in-memory |
+| 谁写     | 生产 systemd combat-v2.service      | `./dev.sh` / `./dev-with-snapshot.sh` | vitest           |
+| 互相影响 | ❌ 完全独立                         | ❌ 完全独立                           | ❌ 完全独立      |
 
 **端口约定**：
+
 - `:3001` — 生产 backend(`/opt/combat-v2/`,systemd) — **绝不动**
 - `:3500` — `/fighting` dev backend
 - `:5174` — `/fighting` dev frontend(vite)
@@ -316,9 +317,9 @@ scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 | Dev backend    | `dev.sh`                              | `./dev.sh` — 启 dev backend(空 db) :3500                                                                                                                                                                        |
 | Dev snapshot   | `dev-with-snapshot.sh`                | `./dev-with-snapshot.sh` — 拷生产 db 快照后启 dev backend :3500                                                                                                                                                 |
 | Dev frontend   | `dev-frontend.sh`                     | `./dev-frontend.sh` — 启 vite dev :5174(proxy /api → :3500)                                                                                                                                                     |
-| Dev test       | `dev-test.sh`                         | `./dev-test.sh` — 跑 vitest backend(in-memory db)                                                                                                                                                                |
-| Dev e2e        | `dev-e2e.sh`                          | `./dev-e2e.sh` — 跑 Playwright(自启 webServer)                                                                                                                                                                   |
-| Dev deploy     | `dev-deploy.sh`                       | `./dev-deploy.sh` — 同机部署 /fighting → /opt/combat-v2(rsync + systemctl restart)                                                                                                                               |
+| Dev test       | `dev-test.sh`                         | `./dev-test.sh` — 跑 vitest backend(in-memory db)                                                                                                                                                               |
+| Dev e2e        | `dev-e2e.sh`                          | `./dev-e2e.sh` — 跑 Playwright(自启 webServer)                                                                                                                                                                  |
+| Dev deploy     | `dev-deploy.sh`                       | `./dev-deploy.sh` — 同机部署 /fighting → /opt/combat-v2(rsync + systemctl restart)                                                                                                                              |
 | Deploy v1      | `scripts/deploy/deploy.mjs`           | Old deployment for reference frontend only                                                                                                                                                                      |
 
 ## Build / Dev / Test Commands
@@ -899,6 +900,26 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-06-01 v2.8.0 — Hermes 高级能力: 写工具 + 会话记忆)
+
+**v2.8.0 = v2.7.0 + 三桶(r-write-tools / r-memory / r-docs-eval)**
+
+- 后端 vitest **~784/784 全绿**(含写工具 11 + 会话记忆 13 + golden set 扩展 5)
+- shared vitest **28/28 全绿**
+- 前端 tsc 0 错
+- **Golden set 20/20 全绿**(Q16-Q20 覆盖写工具 + 安全门控)
+- 新增 `hermes-tools-write.ts`(3 写工具: create_node / update_node / add_progress)
+- 新增 `hermes-sessions.ts`(会话记忆: hermes_sessions + hermes_messages 表 + REST API)
+- 前端 HermesChat 支持会话记忆(sessionId + 新对话按钮)
+- 新增文档: `docs/HERMES_WRITE_TOOLS.md` + `docs/HERMES_SESSIONS.md`
+- 环境变量: `HERMES_ENABLE_WRITE=1` 开启写工具(默认关闭)
+
+**关键设计决定**:
+
+1. **写工具三重安全** — env 门控 + admin/leader 角色检查 + `_confirm:'yes'` 二次确认
+2. **会话记忆** — 最近 10 轮历史注入 LLM 上下文,7 天自动过期,前端 auto-create session
+3. **TOOL_SCHEMAS 条件暴露** — 写工具仅在 `HERMES_ENABLE_WRITE=1` 时暴露给 LLM
+
 ### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 
 **v2.7.0 = v2.6.0 + 三桶(r-hermes-polish / r-schema-all / r-views)**
@@ -913,6 +934,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 文档:help-content 顶部追加 v2.7.0 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
 
 **关键设计决定**:
+
 1. **virtual schema** — helpRequest/bugReport/proposal/reminder 这些已有专用表存数据的 nodeType,仍写 schema 描述字段(让 UI 通用渲染),后端 `/api/nodes/<virtual>` 拒收避免双写;UI 视它们与普通 nodeType 一致
 2. **多视图 URL 同步** — `?view=table|kanban|calendar|pivot`,可直链分享;切换不重置 filter/搜索/分页
 3. **HTML5 native DnD** — Kanban 用浏览器原生拖拽 + 卡片底部 Select 降级,无新依赖
@@ -933,6 +955,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - Playwright 现网截图 `test-results/v2.6-trace.png` 留档
 
 **关键教训(v2.6 → v2.7)**:
+
 1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.4 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.6 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
 2. **provider key 的资源限额是隐式的** — zhipuai-coding-plan key 在 zhipu OpenAI 兼容 endpoint 上可访问 glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1 但都需余额(1113);唯独 `glm-4-flash` / `glm-4-flash-250414` 免费层可用。线上选 model 一定要先用 `GET /api/paas/v4/models` 列表 + 小请求实测,避免上线后 401/1113 才发现
 3. UI 配置后端的"测试连接"endpoint 必须支持 env-fallback(如果 admin 没存 DB 就直接走 env 实测);当前 router 仅看 body + DB,部分场景误报"缺 baseUrl"

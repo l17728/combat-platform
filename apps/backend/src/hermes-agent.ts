@@ -265,12 +265,10 @@ export interface RunToolCallingOptions {
   question: string;
   context?: string;
   ctx?: ToolCtx;
-  /** 覆盖工具列表(默认 TOOL_SCHEMAS) */
   tools?: ToolSchema[];
-  /** 覆盖执行器(默认 mock callTool;集成期切换 hermes-tools.callTool) */
   executor?: ToolExecutor;
-  /** 调试覆盖跳数上限(默认读 MAX_TOOL_HOPS) */
   maxHops?: number;
+  priorMessages?: LlmMessage[];
 }
 
 export interface RunToolCallingResult {
@@ -308,6 +306,10 @@ export const HERMES_SYSTEM_PROMPT = [
   "   - 默认 role=组员;只有用户明说「做组长」才传 「组长」。",
   "9. `hermes_welinkSetMemberRole(ticketId, name, role)`:改某成员角色;触发例「把张三设为组长」。",
   "10. `hermes_createEmailGroup(groupName, emails[], description?)`:建邮件群组;触发例「拉一个 xxx 邮件群」。",
+  "11. `create_node(nodeType, properties, _confirm)`:创建新节点(人员/攻关单/贡献等)。触发例「帮我新建一个攻关单」「添加一个人员」。必须传 `_confirm:'yes'` 才执行。",
+  "12. `update_node(id, properties, _confirm)`:更新节点字段。触发例「把这个攻关单的状态改为已解决」「更新张三的部门」。必须传 `_confirm:'yes'` 才执行。",
+  "13. `add_progress(nodeId, content, _confirm)`:给攻关单追加进展。触发例「追加一条进展」「记录今天做了XXX」。必须传 `_confirm:'yes'` 才执行。",
+  "- **所有写工具需要 admin/leader 角色,且参数必须包含 `_confirm:'yes'`。** 用户只说「帮我做X」不算确认——你需要在回答中先描述操作,再调用工具并附带 `_confirm:'yes'`。",
   "",
   "## 通用规则",
   "",
@@ -447,6 +449,7 @@ export async function runToolCalling(opts: RunToolCallingOptions): Promise<RunTo
 
   const messages: LlmMessage[] = [
     { role: "system", content: buildToolSystemPrompt(opts.registry, opts.context) },
+    ...(opts.priorMessages ?? []),
     { role: "user", content: opts.question },
   ];
 
@@ -523,7 +526,7 @@ export async function answerWithToolCalling(
   runner: ToolCallingRunner,
   context?: string,
   db?: DB,
-  opts?: { executor?: ToolExecutor; tools?: ToolSchema[]; maxHops?: number }
+  opts?: { executor?: ToolExecutor; tools?: ToolSchema[]; maxHops?: number; priorMessages?: LlmMessage[] }
 ): Promise<HermesAnswer> {
   const { content, trace } = await runToolCalling({
     runner,
@@ -534,6 +537,7 @@ export async function answerWithToolCalling(
     executor: opts?.executor,
     tools: opts?.tools,
     maxHops: opts?.maxHops,
+    priorMessages: opts?.priorMessages,
   });
   const { answer, citedIds, welinkHints } = parseAgentOutput(content);
   const nodeCitations = await buildCitations(repo, citedIds);

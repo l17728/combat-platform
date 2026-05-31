@@ -4,6 +4,18 @@ import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
 import { answerWithAgent, answerWithToolCalling, type AgentRunner, type ToolCallingRunner } from "./hermes-agent.js";
 import type { DB } from "./db.js";
+import {
+  createSession,
+  getSession,
+  listSessions,
+  deleteSession,
+  appendMessage,
+  loadRecentMessages,
+  updateSessionTitle,
+  pruneExpiredSessions,
+  resetSessionCache,
+  type HermesMessage,
+} from "./hermes-sessions.js";
 
 // §v2.5 桶 B: HERMES_MODE 控制 ask 路径
 //   - 'tool'  : 强制走 tool-calling agent;失败 fallback intent
@@ -520,6 +532,61 @@ export function makeHermesRouter(
   if (db && !opts.db) opts.db = db;
 
   const r = Router();
+
+  // --- Session REST routes ---
+  r.get(
+    "/hermes/sessions",
+    asyncHandler(async (req, res) => {
+      if (!opts.db) return res.json([]);
+      const userId = (req as any).user?.username ?? "anonymous";
+      const sessions = listSessions(opts.db, userId);
+      res.json(sessions);
+    })
+  );
+
+  r.post(
+    "/hermes/sessions",
+    asyncHandler(async (req, res) => {
+      if (!opts.db) return res.status(501).json({ error: "session unavailable" });
+      const userId = (req as any).user?.username ?? "anonymous";
+      const title = String(req.body?.title ?? "").trim() || undefined;
+      const session = createSession(opts.db, userId, title);
+      res.json(session);
+    })
+  );
+
+  r.get(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
+      const session = getSession(opts.db, req.params.id);
+      if (!session) return res.status(404).json({ error: "session not found" });
+      const messages = loadRecentMessages(opts.db, req.params.id, 200);
+      res.json({ ...session, messages });
+    })
+  );
+
+  r.delete(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
+      const ok = deleteSession(opts.db, req.params.id);
+      res.json({ ok });
+    })
+  );
+
+  r.patch(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.db) return res.status(504).json({ error: "session unavailable" });
+      const title = String(req.body?.title ?? "").trim();
+      if (!title) return res.status(400).json({ error: "title 必填" });
+      const ok = updateSessionTitle(opts.db, req.params.id, title);
+      res.json({ ok });
+    })
+  );
+
+  // --- Ask endpoint ---
   r.post(
     "/hermes/ask",
     asyncHandler(async (req, res) => {
@@ -529,6 +596,19 @@ export function makeHermesRouter(
       const requestedMode = parseMode(req.body?.mode ?? opts.defaultMode);
       const ticketIdHint = extractTicketIdHint(context);
       const startedAt = Date.now();
+      const sessionId = String(req.body?.sessionId ?? "").trim() || undefined;
+
+      let priorMessages: import("./hermes-agent.js").LlmMessage[] | undefined;
+      if (sessionId && opts.db) {
+        const session = getSession(opts.db, sessionId);
+        if (session) {
+          const history = loadRecentMessages(opts.db, sessionId);
+          priorMessages = history.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          }));
+        }
+      }
 
       // ===== mode dispatch =====
       // intent: 强制走规则引擎
@@ -559,9 +639,20 @@ export function makeHermesRouter(
       // ===== tool-calling path (新) =====
       if (plannedEngine === "tool" && opts.toolRunner) {
         try {
-          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, context, opts.db);
+          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, context, opts.db, {
+            priorMessages,
+          });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;
+          if (sessionId && opts.db) {
+            appendMessage(opts.db, sessionId, "user", q);
+            appendMessage(opts.db, sessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
+            if (q.length <= 40) {
+              try {
+                updateSessionTitle(opts.db, sessionId, q);
+              } catch {}
+            }
+          }
           log.info("hermes.ask.done", {
             intent: answer.intent,
             engine: "tool",

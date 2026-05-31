@@ -21,6 +21,7 @@ import { buildRelated } from "./related-core.js";
 import { recommendHelpers } from "./recommend.js";
 import { log } from "./logger.js";
 import type { DB } from "./db.js";
+import { ALL_WRITE_TOOLS, writeToolsEnabled } from "./hermes-tools-write.js";
 
 // ---------------------------------------------------------------------------
 // 通用类型 / context
@@ -984,9 +985,12 @@ export const ALL_TOOLS: ToolDefinition[] = [
   welinkSearchTool,
   welinkTimelineTool,
   welinkGapAnalysisTool,
+  ...ALL_WRITE_TOOLS,
 ];
 
 const TOOL_BY_NAME = new Map(ALL_TOOLS.map((t) => [t.name, t]));
+
+const WRITE_TOOL_NAMES = new Set(ALL_WRITE_TOOLS.map((t) => t.name));
 
 export function listTools(): { name: string; description: string }[] {
   return ALL_TOOLS.map((t) => ({ name: t.name, description: t.description }));
@@ -1004,6 +1008,9 @@ export async function callTool(name: string, input: unknown, ctx: HermesToolCtx)
   const tool = getTool(name);
   if (!tool) {
     return { ok: false, error: "unknown_tool", detail: name };
+  }
+  if (WRITE_TOOL_NAMES.has(name) && !writeToolsEnabled()) {
+    return { ok: false, error: "write_tools_disabled", detail: "设置 HERMES_ENABLE_WRITE=1 开启写工具" };
   }
   const t0 = Date.now();
   try {
@@ -1047,9 +1054,11 @@ export interface ToolSchema {
   };
 }
 
-/** OpenAI ChatCompletions `tools` 数组格式;由 ALL_TOOLS 派生。 */
-export const TOOL_SCHEMAS: ToolSchema[] = ALL_TOOLS.map((t) => ({
-  type: "function",
+/** OpenAI ChatCompletions `tools` 数组格式;写工具仅在 HERMES_ENABLE_WRITE=1 时暴露给 LLM。 */
+export const TOOL_SCHEMAS: ToolSchema[] = ALL_TOOLS.filter(
+  (t) => !WRITE_TOOL_NAMES.has(t.name) || writeToolsEnabled()
+).map((t) => ({
+  type: "function" as const,
   function: {
     name: t.name,
     description: t.description,

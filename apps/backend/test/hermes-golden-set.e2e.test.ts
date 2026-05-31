@@ -1,10 +1,11 @@
 /**
- * Hermes v2.5 评测 golden set — 15 题
+ * Hermes v2.8 评测 golden set — 20 题
  *
  * 直接调 callTool 验证「工具集是否能正确回答用户问题」,**不**依赖 LLM 选工具的能力
  * (LLM 端到端验证在 docs/V2.5_DESIGN.md §5 单独跑)。
  *
- * 通过门槛: 12/15 (80%)。每题给出 question / expected tool calls / 期望结果断言。
+ * 通过门槛: 16/20 (80%)。每题给出 question / expected tool calls / 期望结果断言。
+ * Q1-Q15: v2.5 基线; Q16-Q20: v2.8 新增(写工具)。
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
@@ -215,14 +216,71 @@ const cases: GoldenCase[] = [
       expect(r.ok === true || r.ok === false).toBe(true);
     },
   },
+  // 16) create_node — v2.8 写工具
+  {
+    id: "Q16",
+    question: "帮我新建一个人员",
+    tool: "create_node",
+    input: { nodeType: "person", properties: { 姓名: "黄金集测试" }, _confirm: "yes" },
+    assert: (r: any) => {
+      expect(r.ok).toBe(true);
+      expect(r.data.nodeType).toBe("person");
+      expect(r.data.properties["姓名"]).toBe("黄金集测试");
+    },
+  },
+  // 17) create_node — role gate
+  {
+    id: "Q17",
+    question: "(安全) normal 角色不能创建节点",
+    tool: "create_node",
+    input: { nodeType: "person", properties: { 姓名: "被拒" }, _confirm: "yes" },
+    assert: (r: any) => {
+      expect(r.ok).toBe(false);
+      expect(r.detail).toContain("permission_denied");
+    },
+    ctx: { user: { username: "normal", role: "normal" } },
+  },
+  // 18) update_node — update a field
+  {
+    id: "Q18",
+    question: "把这个人的部门改为测试部",
+    tool: "update_node",
+    input: { id: "PERSON_UPDATE_PLACEHOLDER", properties: { 部门: "测试部" }, _confirm: "yes" },
+    assert: (r: any) => {
+      expect(r.ok).toBe(true);
+      expect(r.data.updatedFields).toContain("部门");
+    },
+  },
+  // 19) add_progress — append to ticket
+  {
+    id: "Q19",
+    question: "追加一条进展",
+    tool: "add_progress",
+    input: { nodeId: "TICKET_PROGRESS_PLACEHOLDER", content: "黄金集进展验证", _confirm: "yes" },
+    assert: (r: any) => {
+      expect(r.ok).toBe(true);
+      expect(r.data.seqNo).toBeGreaterThanOrEqual(1);
+    },
+  },
+  // 20) create_node — confirm gate
+  {
+    id: "Q20",
+    question: "(安全) 无 _confirm 不能创建",
+    tool: "create_node",
+    input: { nodeType: "person", properties: { 姓名: "未确认" } },
+    assert: (r: any) => {
+      expect(r.ok).toBe(false);
+      expect(r.detail).toContain("confirm_required");
+    },
+  },
 ];
 
-describe("Hermes v2.5 golden set (15 题, threshold 12/15)", () => {
+describe("Hermes v2.8 golden set (20 题, threshold 16/20)", () => {
   let ctx: HermesToolCtx;
+  let normalCtx: HermesToolCtx;
 
   beforeAll(async () => {
     const { repo, registry, db } = await makeTestApp();
-    // seed 一些数据让评测有意义
     const p1 = await repo.createNode("person", { 姓名: "张三", 部门: "云平台" }, "admin");
     await repo.createNode("person", { 姓名: "李四", 部门: "网络" }, "admin");
     const t1 = await repo.createNode(
@@ -231,15 +289,18 @@ describe("Hermes v2.5 golden set (15 题, threshold 12/15)", () => {
       "admin"
     );
     await repo.createNode("attackTicket", { 标题: "OSS 上传超时", 状态: "已解决", 事件级别: "P0" }, "admin");
-    // 给 ticket 加个 progress 以测 get_progress
     await repo.appendProgress(t1.id, "首次响应", "处理中", "admin");
 
-    // 替换 placeholder 为真实 id
+    // v2.8 write tools: enable for golden set
+    process.env.HERMES_ENABLE_WRITE = "1";
+
     const realTicketId = t1.id;
     const realPersonId = p1.id;
     cases.forEach((c) => {
       if ((c.input as any).ticketId === "TICKET_PLACEHOLDER") (c.input as any).ticketId = realTicketId;
       if ((c.input as any).startId === "PERSON_PLACEHOLDER") (c.input as any).startId = realPersonId;
+      if ((c.input as any).id === "PERSON_UPDATE_PLACEHOLDER") (c.input as any).id = realPersonId;
+      if ((c.input as any).nodeId === "TICKET_PROGRESS_PLACEHOLDER") (c.input as any).nodeId = realTicketId;
     });
 
     ctx = {
@@ -248,14 +309,21 @@ describe("Hermes v2.5 golden set (15 题, threshold 12/15)", () => {
       db,
       user: { username: "admin", role: "admin" },
     };
+    normalCtx = {
+      repo: repo as Repository,
+      registry: registry as SchemaRegistry,
+      db,
+      user: { username: "normal", role: "normal" },
+    };
   });
 
   const results: { id: string; pass: boolean; error?: string }[] = [];
 
   cases.forEach((c) => {
     it(`${c.id}: ${c.question}`, async () => {
+      const testCtx = (c as any).ctx ? { ...ctx, ...(c as any).ctx } : ctx;
       try {
-        const r = await callTool(c.tool, c.input as Record<string, unknown>, ctx);
+        const r = await callTool(c.tool, c.input as Record<string, unknown>, testCtx);
         c.assert(r);
         results.push({ id: c.id, pass: true });
       } catch (e) {
@@ -265,13 +333,13 @@ describe("Hermes v2.5 golden set (15 题, threshold 12/15)", () => {
     });
   });
 
-  it("汇总: 通过门槛 12/15", () => {
+  it("汇总: 通过门槛 16/20", () => {
     const pass = results.filter((r) => r.pass).length;
     const total = results.length;
     console.log(`\n=== Golden Set 汇总 ${pass}/${total} ===`);
     results.forEach((r) =>
       console.log(`  ${r.pass ? "✓" : "✗"} ${r.id}${r.error ? " — " + r.error.slice(0, 80) : ""}`)
     );
-    expect(pass).toBeGreaterThanOrEqual(12);
+    expect(pass).toBeGreaterThanOrEqual(16);
   });
 });

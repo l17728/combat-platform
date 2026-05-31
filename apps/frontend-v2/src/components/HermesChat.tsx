@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip } from "antd";
-import { RobotOutlined, SendOutlined, UserOutlined, CloseOutlined, DragOutlined } from "@ant-design/icons";
+import {
+  RobotOutlined,
+  SendOutlined,
+  UserOutlined,
+  CloseOutlined,
+  DragOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api.js";
@@ -29,10 +36,6 @@ interface Msg {
   fallbackReason?: string;
 }
 
-/**
- * 可复用浮动 AI 问答。底层即 /hermes/ask(与攻关详情 AI 助手同一能力):
- * agent 开启时为 opencode 知识图谱问答,否则规则引擎;返回答案 + 可点击溯源引用。
- */
 export default function HermesChat({
   title = "AI 问答",
   placeholder = "基于知识库提问,如:PB-xxx 谁负责 / 最近的攻关单 / 某人贡献了什么",
@@ -44,11 +47,8 @@ export default function HermesChat({
   title?: string;
   placeholder?: string;
   bottom?: number;
-  /** 透传给 /hermes/ask 的上下文(如"当前攻关单 id=xxx") */
   context?: string;
-  /** 浮窗打开时由 AI 先发一条欢迎/提示语,可作场景 4 的 gap-analysis 入口 */
   greeting?: string;
-  /** Playwright 选择器 */
   testId?: string;
 }) {
   const navigate = useNavigate();
@@ -56,19 +56,16 @@ export default function HermesChat({
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  // 用户是否处于"贴底"状态。仅当贴底时自动滚动,避免 AI 思考期间用户上滑读历史被强行拽回底部
-  // —— 与浏览器 overflow-anchor 相互争抢正是滚动条上下抖动的根因。
   const stickToBottomRef = useRef(true);
 
-  // 用户手动滚动时实时更新"是否贴底"标记;阈值 24px 容忍亚像素抖动
   const handleScroll = () => {
     const el = listRef.current;
     if (!el) return;
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
   };
 
-  // 仅当用户处于贴底状态时才自动滚动;loading 不再触发滚动(Spin 提示自身不需要 reflow 滚动)
   useEffect(() => {
     if (!stickToBottomRef.current) return;
     const el = listRef.current;
@@ -79,6 +76,17 @@ export default function HermesChat({
     return () => cancelAnimationFrame(raf);
   }, [msgs]);
 
+  const ensureSession = async (): Promise<string | undefined> => {
+    if (sessionId) return sessionId;
+    try {
+      const s = await api.hermesCreateSession();
+      setSessionId(s.id);
+      return s.id;
+    } catch {
+      return undefined;
+    }
+  };
+
   const ask = async (raw?: string) => {
     const question = (raw ?? q).trim();
     if (!question || loading) return;
@@ -86,7 +94,8 @@ export default function HermesChat({
     setQ("");
     setLoading(true);
     try {
-      const res = await api.hermesAsk(question, context);
+      const sid = await ensureSession();
+      const res = await api.hermesAsk(question, context, sid ?? undefined);
       setMsgs((m) => [
         ...m,
         {
@@ -105,13 +114,16 @@ export default function HermesChat({
     }
   };
 
-  // 打开浮窗后,若提供了 greeting 且尚无消息,主动追加一条 assistant 欢迎语
+  const startNewSession = () => {
+    setSessionId(null);
+    setMsgs([]);
+  };
+
   useEffect(() => {
     if (open && greeting && msgs.length === 0) {
       setMsgs([{ role: "assistant", text: greeting }]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, greeting]);
+  }, [open, greeting, msgs.length]);
 
   const initial = {
     x: typeof window !== "undefined" ? Math.max(0, window.innerWidth - 464) : 100,
@@ -166,7 +178,12 @@ export default function HermesChat({
               <RobotOutlined style={{ color: "#1677ff" }} />
               <Text strong>{title}</Text>
             </Space>
-            <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+            <Space size={4}>
+              <Tooltip title="新对话">
+                <Button type="text" size="small" icon={<PlusOutlined />} onClick={startNewSession} />
+              </Tooltip>
+              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+            </Space>
           </div>
           <div style={{ padding: 12, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
             <div
@@ -177,9 +194,7 @@ export default function HermesChat({
                 flex: 1,
                 overflowY: "auto",
                 marginBottom: 12,
-                // overflowAnchor:none 关闭浏览器滚动锚定,避免它与我们的自动滚动相互争抢导致上下抖动
                 overflowAnchor: "none",
-                // contain:layout 让回答区高度变化不影响外层布局,降低 reflow 引起的抖动
                 contain: "layout",
               }}
             >

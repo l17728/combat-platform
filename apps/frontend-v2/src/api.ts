@@ -305,6 +305,27 @@ export interface HermesAskResult {
   fallback_reason?: string;
 }
 
+export interface HermesSession {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HermesSessionMessage {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant";
+  content: string;
+  citations?: string;
+  createdAt: string;
+}
+
+export interface HermesSessionDetail extends HermesSession {
+  messages: HermesSessionMessage[];
+}
+
 /**
  * 类型化的 API 错误。所有 api.* 调用失败统一抛 ApiError(而非裸 Error),
  * 调用方可以按 status 分支处理(如 403 隐藏 toast)。
@@ -796,11 +817,42 @@ export class Api {
     return this.req(`/api/query/search?${p.toString()}`);
   }
 
-  hermesAsk(question: string, context?: string): Promise<HermesAskResult> {
+  hermesAsk(question: string, context?: string, sessionId?: string): Promise<HermesAskResult> {
+    const body: Record<string, unknown> = { question };
+    if (context) body.context = context;
+    if (sessionId) body.sessionId = sessionId;
     return this.req("/api/hermes/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(context ? { question, context } : { question }),
+      body: JSON.stringify(body),
+    });
+  }
+
+  hermesListSessions(): Promise<HermesSession[]> {
+    return this.req("/api/hermes/sessions");
+  }
+
+  hermesCreateSession(title?: string): Promise<HermesSession> {
+    return this.req("/api/hermes/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(title ? { title } : {}),
+    });
+  }
+
+  hermesGetSession(id: string): Promise<HermesSessionDetail> {
+    return this.req(`/api/hermes/sessions/${id}`);
+  }
+
+  hermesDeleteSession(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/hermes/sessions/${id}`, { method: "DELETE" });
+  }
+
+  hermesUpdateSessionTitle(id: string, title: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/hermes/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title }),
     });
   }
 

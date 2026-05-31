@@ -4,6 +4,31 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.8.0 — 2026-06-01 (Hermes 高级能力: 写工具 + 会话记忆)
+
+本版赋予 Hermes 从"只读问答"进化为"可操作助手"的能力:三个写工具让 AI 能创建/修改数据,会话记忆让多轮对话上下文连贯。
+
+### ① 写工具 (HERMES_ENABLE_WRITE=1)
+
+- **create_node**: 创建新节点(人员/攻关单/贡献等),触发例"帮我新建一个攻关单"
+- **update_node**: 更新节点字段(merge 模式),触发例"把这个攻关单的状态改为已解决"
+- **add_progress**: 给攻关单追加进展,触发例"追加一条进展:已完成初步排查"
+- 安全: admin/leader 角色门控 + \`_confirm:'yes'\` 二次确认 + 私密单保护 + 审计日志
+- 环境变量 \`HERMES_ENABLE_WRITE=1\` 控制,未设置时写工具对 LLM 不可见
+
+### ② 会话记忆 (Session Memory)
+
+- 后端新增 \`hermes_sessions\` + \`hermes_messages\` 两张 SQLite 表(自动建表)
+- REST API: \`GET/POST /api/hermes/sessions\`、\`GET/PATCH/DELETE /api/hermes/sessions/:id\`
+- Ask 端点支持 \`sessionId\` 参数:自动加载最近 10 轮历史注入 LLM 上下文,问答后自动保存
+- 前端 HermesChat 自动管理:首次提问创建 session,后续复用;"新对话"按钮重置
+- 7 天未更新的会话自动过期清理
+
+### ③ 评测 & 文档
+
+- Golden set 从 15 题扩展到 **20 题**(Q16-Q20 覆盖写工具 + 安全门控),**20/20 全绿**
+- 新增文档: \`docs/HERMES_WRITE_TOOLS.md\`(写工具设计)、\`docs/HERMES_SESSIONS.md\`(会话记忆架构)
+
 ## v2.7.0 — 2026-06-01 (三桶 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 
 本版聚焦"把 v2.6 几条主线完整跑通":Hermes 体验收尾(动态 model 列表 + golden set 15/15 + 部署 drop-in 自愈)、Schema-as-UI 推到全部 7 个 nodeType、多视图(Kanban/Calendar/Pivot)首次落地。
