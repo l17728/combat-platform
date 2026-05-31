@@ -1203,3 +1203,29 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 2. 旋转 secret 同时所有现存 token 失效,通知现役账号重新登录
 3. 前端 `localStorage.removeItem('combat-role')` (已无用,但避免缓存残留),
    清理后端日志中遗留的 X-Role 痕迹(`grep "x-role" /opt/combat-v2/backend.log`)
+
+## 代码质量 P1 已实施 (v2.2)
+
+`feature/roadmap-quality-p1` 分支完成 4 项质量重构(已 PR 入 master):
+
+1. **AttackDetail.tsx 拆 6 子组件**(1823 → 327 行,目录 `apps/frontend-v2/src/pages/attackDetail/`):
+   - 子组件:Header / BasicInfoTab / MembersTab / ProgressTimelineTab / DailyReportTab / SupportNetworkTab / Sidebar / Drawers
+   - 自定义 hook:`useAttackDetailData`(数据)、`useAttackDetailHandlers`(交互)
+   - builder:`buildTabItems.tsx`(tab 配置)
+   - 新增 tab/字段类型应改子组件,不应触碰 page 文件
+2. **ApiError 类型化 + 401 自动跳登录**:`api.ts` 抛 `ApiError`,`main.tsx` 注册 `onUnauthorized` 钩子,`utils/handleApiError.ts` 集中处理。新代码推荐 `catch (e) { handleApiError(e, '操作失败') }`。
+3. **`makeRealSchemaTestApp` 单源**:merge/rbac/automation 测试不再各自重复 makeApp。
+4. **前端 vitest 单测落地**:`apps/frontend-v2/src/__tests__/` 7 文件 54 tests,`test:frontend:unit` script,CI 已挂。
+
+## 前端单测开发模式
+
+- 测试文件位置:`apps/frontend-v2/src/__tests__/{api,components,hooks,utils}/*.test.{ts,tsx}`
+- 跑测试:
+  ```bash
+  npm run test:frontend:unit          # 一次性运行
+  cd apps/frontend-v2 && npm run test:watch  # 监听模式
+  ```
+- 框架:vitest + jsdom + @testing-library/react,jest-dom matcher 已在 `setup.ts` 全局注入
+- mock 模块:`vi.mock('../../api.js', () => ({ ... }))` — 注意 vi.mock 会 hoist 到文件顶,如需引用外部变量用 `vi.hoisted({ ... })`
+- 涉及 module-level 缓存的 hook(如 useSettings):用 `vi.resetModules()` + 动态 `import()` 在每个 test 拿到干净 module
+- 跑前端 vitest 单测不需要后端启动,与 Playwright e2e 完全独立
