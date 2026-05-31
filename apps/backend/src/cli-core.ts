@@ -454,6 +454,22 @@ export const COMMANDS: CliCommand[] = [
     },
   },
   {
+    name: "hermes:tools",
+    summary: "列出 Hermes 通用工具集 (v2.5)",
+    usage: "hermes:tools",
+    build: () => ({ method: "GET", path: "/api/hermes/tools" }),
+  },
+  {
+    name: "hermes:tool",
+    summary: "调用 Hermes 工具 (v2.5);--input 为 JSON 入参",
+    usage: "hermes:tool <toolName> --input '<json>'",
+    build: (pos, opts) => {
+      requirePos(pos, 1, "hermes:tool <toolName> --input '<json>'");
+      const input = opts.input !== undefined ? jsonOpt(opts, "input") : {};
+      return { method: "POST", path: `/api/hermes/tool/${encodeURIComponent(pos[0])}`, body: { input } };
+    },
+  },
+  {
     name: "merge:person",
     summary: "执行人员合并（不可逆）",
     usage: "merge:person --from <id> --to <id>",
