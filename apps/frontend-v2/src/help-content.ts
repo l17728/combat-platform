@@ -4,6 +4,41 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.4.0 — 2026-05-31 (三桶 — 现网加固 + 架构韧性 + 升级 UI 真实化)
+
+本版聚焦"长期可运营":修末位 CVE、把 KG 派生改为可重放 outbox、给审计加完整性链、让升级 UI 能拉 GitHub Release 并校验 PGP 签名,真正具备生产可用性。
+
+### 三桶整合
+
+**① 现网加固 P2**
+- **exceljs 替换 xlsx**: 末位 CVE 清零;Excel 导入导出能力等价
+- **PM2 cluster 多进程**: 新增 \`ecosystem.config.cjs\`,生产可启用 cluster 模式(Postgres adapter 推荐)
+- **编译 dist 去 tsx**: 后端生产从 \`tsx src/server.ts\` 改为 \`node dist/server.js\`,冷启动更快、内存更稳
+- **异地备份脚本**: 新增 \`backup:offsite\` CLI + \`scripts/backup/offsite-backup.mjs\`,支持 SFTP 远端备份(含 dry-run)
+
+**② 架构韧性**
+- **KG outbox + worker**: KG 派生从 \`setImmediate\` 改为持久化 outbox 表 + 后台 worker,进程崩溃可重放;\`kg:outbox:status/list/replay/process\` 四个 CLI
+- **audit_log Merkle 链**: 每条审计记录带 \`prevHash/hash\`,任意篡改可被 \`audit:verify\` CLI 精确定位
+- **前端 catch 全迁移**: 70+ 处 \`catch (e: any)\` 统一为 \`handleApiError\` + \`ApiError\`,错误码/详情可见
+
+**③ 升级 UI 真实化**
+- **GitHub Release 拉取**: 在线列出 Release 并直接选版本升级(env \`UPGRADE_GITHUB_REPO\`)
+- **PGP 签名校验**: 升级包可附 \`.asc\` 签名;analyze 阶段自动校验,失败禁用 apply(可勾"允许未签名"二次确认放行)
+- **生产真跑演练**: \`scripts/upgrade/prod-rehearsal.mjs\` 支持 \`--dry-run\`(可达性 + 版本快照 + 打包) 与 \`--apply\`(真升级 + 自动 rollback)
+- **UPGRADE 文档补真实演练流程 + 失败恢复 SSH 介入步骤**
+
+### 关键文件 / 新增 CLI
+
+- \`apps/backend/src/kg-outbox.ts\` / \`audit-chain.ts\` / \`pgp.ts\` / \`xlsx-util.ts\`
+- \`scripts/backup/offsite-backup.mjs\` / \`scripts/upgrade/prod-rehearsal.mjs\` / \`ecosystem.config.cjs\`
+- 新 CLI: \`audit:verify\`、\`kg:outbox:*\` (4)、\`backup:offsite\`、\`upgrade:releases\`、\`upgrade:verify-signature\`
+
+### 测试
+
+- Backend: **573/573 通过**(85 文件)
+- Shared: **28/28 通过**
+- Frontend-v2: typecheck 0 错
+
 ## v2.3.0 — 2026-05-31 (旗舰特性:一键升级 UI + v2.2 P1 三桶继承)
 
 本版在 v2.2.0(sec/perf/quality 三桶 P1)基础上,叠加 **一键升级 UI** 旗舰特性 — 用户可在浏览器内完成版本升级、Schema 自动合并、失败自动回滚。
