@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Button, Dropdown, Empty, List, Tag, Tooltip, Typography, message } from "antd";
+import { Badge, Button, Dropdown, Empty, List, Tag, Tooltip, Typography, message, theme } from "antd";
 import { BellOutlined, CheckOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
@@ -22,6 +22,7 @@ function tagFor(kind: string) {
 }
 
 export default function NotificationBell() {
+  const { token: themeToken } = theme.useToken();
   const [items, setItems] = useState<InboxNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -106,7 +107,7 @@ export default function NotificationBell() {
       style={{
         width: 360,
         maxHeight: 480,
-        background: "#fff",
+        background: themeToken.colorBgContainer,
         borderRadius: 8,
         boxShadow: "0 6px 16px 0 rgba(0,0,0,0.08), 0 3px 6px -4px rgba(0,0,0,0.12)",
         overflow: "hidden",

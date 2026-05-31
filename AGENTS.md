@@ -900,19 +900,24 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-06-01 v2.8.0 — Hermes 高级能力: 写工具 + 会话记忆)
+### 当前测试状态(2026-06-01 v2.10.0 — UX 中期 II: 暗黑模式 + 产品引导 + 看板配置)
 
-**v2.8.0 = v2.7.0 + 三桶(r-write-tools / r-memory / r-docs-eval)**
+**v2.10.0 = v2.8.0 + 三桶(暗黑模式 / 产品Tour / Dashboard可配置)**
 
-- 后端 vitest **~784/784 全绿**(含写工具 11 + 会话记忆 13 + golden set 扩展 5)
+- 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
 - 前端 tsc 0 错
-- **Golden set 20/20 全绿**(Q16-Q20 覆盖写工具 + 安全门控)
-- 新增 `hermes-tools-write.ts`(3 写工具: create_node / update_node / add_progress)
-- 新增 `hermes-sessions.ts`(会话记忆: hermes_sessions + hermes_messages 表 + REST API)
-- 前端 HermesChat 支持会话记忆(sessionId + 新对话按钮)
-- 新增文档: `docs/HERMES_WRITE_TOOLS.md` + `docs/HERMES_SESSIONS.md`
-- 环境变量: `HERMES_ENABLE_WRITE=1` 开启写工具(默认关闭)
+- 新增 `hooks/useTheme.tsx`（亮/暗主题切换 + localStorage 持久化）
+- 新增 `hooks/useDashboardConfig.ts`（Dashboard 卡片显示/隐藏 + 排序配置）
+- 新增 `components/ProductTour.tsx`（通用 Tour 管理 + 完成标记持久化）
+- 新增 `tours/dashboardTour.tsx` + `tours/attackListTour.tsx` + `tours/adminTour.tsx`
+- `theme.ts` 扩展为双主题（lightTheme / darkTheme）
+- `main.tsx` 接入 ThemeProvider 动态主题
+- `AppLayout.tsx` 添加暗黑切换按钮 + Tour 重播入口
+- `Dashboard.tsx` 集成 Tour + 看板配置 Drawer
+- `AttackList.tsx` 集成 Tour + data-tour 标记
+- 浮动面板（HermesChat / NotificationBell / DynamicCustomTab）背景色跟随主题
+- `markdown.css` 暗黑模式适配
 
 **关键设计决定**:
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Input, Button, Space, message, Divider, Card, Tooltip } from "antd";
+import { Input, Button, Space, message, Divider, Card, Tooltip, theme } from "antd";
 import {
   DeleteOutlined,
   RobotOutlined,
@@ -60,6 +60,7 @@ interface Props {
 }
 
 export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }: Props) {
+  const { token: themeToken } = theme.useToken();
   const [blocks, setBlocks] = useState<ContentBlock[]>(() => parseContent(tab.content));
   const [chatOpen, setChatOpen] = useState(false);
   const [question, setQuestion] = useState("");
@@ -250,6 +251,7 @@ function AIChatPanel({
   handleAsk: () => void;
   onClose: () => void;
 }) {
+  const { token: themeToken } = theme.useToken();
   const initial = {
     x: typeof window !== "undefined" ? Math.max(0, window.innerWidth - 384) : 100,
     y: typeof window !== "undefined" ? Math.max(0, window.innerHeight - 280) : 100,
@@ -262,7 +264,7 @@ function AIChatPanel({
         left: pos.x,
         top: pos.y,
         width: 360,
-        background: "#fff",
+        background: themeToken.colorBgContainer,
         borderRadius: 8,
         boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
         zIndex: 1000,

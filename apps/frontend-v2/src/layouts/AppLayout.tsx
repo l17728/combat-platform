@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar } from "antd";
+import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip } from "antd";
 import BreadcrumbBar from "../components/BreadcrumbBar.js";
 import NotificationBell from "../components/NotificationBell.js";
 import {
@@ -32,12 +32,16 @@ import {
   DatabaseOutlined,
   CloudUploadOutlined,
   QuestionCircleOutlined,
+  MoonOutlined,
+  SunOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
 import FloatingFeedback from "../components/FloatingFeedback.js";
 import HermesChat from "../components/HermesChat.js";
 import CommandPalette from "../components/CommandPalette.js";
+import { useThemeContext } from "../hooks/useTheme.js";
+import { resetAllTours } from "../components/ProductTour.js";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -103,6 +107,7 @@ export function AppLayout() {
   const location = useLocation();
   const { token } = theme.useToken();
   const { user, logout, isAdmin } = useAuth();
+  const { isDark, toggleMode } = useThemeContext();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
 
@@ -265,7 +270,7 @@ export function AppLayout() {
             alignItems: "center",
             justifyContent: "space-between",
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            background: "#fff",
+            background: token.colorBgContainer,
             position: "sticky",
             top: 0,
             zIndex: 10,
@@ -281,6 +286,15 @@ export function AppLayout() {
             </span>
           </Space>
           <Space size="middle">
+            <Tooltip title={isDark ? "切换亮色" : "切换暗色"}>
+              <span
+                onClick={toggleMode}
+                style={{ cursor: "pointer", fontSize: 16, lineHeight: "48px" }}
+                data-testid="theme-toggle"
+              >
+                {isDark ? <SunOutlined /> : <MoonOutlined />}
+              </span>
+            </Tooltip>
             <NotificationBell />
             <Dropdown
               menu={{
@@ -296,12 +310,17 @@ export function AppLayout() {
                   },
                   { type: "divider" },
                   ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  { type: "divider" },
+                  { key: "replay-tour", label: "重播引导", icon: <QuestionCircleOutlined /> },
                   { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
                 ],
                 onClick: ({ key }) => {
                   if (key === "logout") {
                     logout();
                     navigate("/login");
+                  } else if (key === "replay-tour") {
+                    resetAllTours();
+                    window.location.reload();
                   } else if (key.startsWith("/")) navigate(key);
                 },
               }}

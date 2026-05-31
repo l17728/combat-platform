@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip } from "antd";
+import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip, theme } from "antd";
 import {
   RobotOutlined,
   SendOutlined,
@@ -52,6 +52,7 @@ export default function HermesChat({
   testId?: string;
 }) {
   const navigate = useNavigate();
+  const { token: themeToken } = theme.useToken();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [q, setQ] = useState("");
@@ -149,7 +150,7 @@ export default function HermesChat({
             top: pos.y,
             width: 440,
             maxHeight: "80vh",
-            background: "#fff",
+            background: themeToken.colorBgContainer,
             borderRadius: 8,
             boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
             zIndex: 1100,

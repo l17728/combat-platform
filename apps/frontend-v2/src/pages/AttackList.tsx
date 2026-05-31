@@ -36,6 +36,8 @@ import { useAuth } from "../hooks/useAuth.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
 import type { GraphNode, NodeSchema } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
+import ProductTour from "../components/ProductTour.js";
+import attackListTourSteps from "../tours/attackListTour.js";
 import HELP from "../help-content.js";
 import { buildMembersFromForm, syncMemberFields } from "../utils/teamMembers.js";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -523,10 +525,10 @@ export default function AttackList() {
           <HelpButton title={HELP.attackList.title} content={HELP.attackList.content} />
         </div>
         <Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)} data-tour="create-btn">
             新建攻关
           </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>
+          <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting} data-tour="export-btn">
             导出
           </Button>
         </Space>
@@ -561,7 +563,7 @@ export default function AttackList() {
         />
       </div>
 
-      <Space style={{ marginBottom: 16 }} wrap>
+      <Space style={{ marginBottom: 16 }} wrap data-tour="filters">
         <Select
           placeholder="选择筛选字段"
           allowClear
@@ -830,6 +832,7 @@ export default function AttackList() {
           )}
         </Form>
       </Drawer>
+      <ProductTour tourId="attackList" steps={attackListTourSteps} />
     </div>
   );
 }
