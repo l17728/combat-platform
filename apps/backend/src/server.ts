@@ -29,10 +29,11 @@ const DB_PATH = parsed.kind === "sqlite" ? parsed.sqlitePath! : "";
 // Top-level await is supported in NodeNext ESM — bootstrap async to wire the
 // correct adapter before createApp runs.
 let adapter: DbAdapter;
+let rawSqliteDb: import("./db.js").DB | undefined;
 if (parsed.kind === "sqlite") {
   applyRestorePending(DB_PATH);
-  const db = openDb(DB_PATH);
-  adapter = new SqliteAdapter(db);
+  rawSqliteDb = openDb(DB_PATH);
+  adapter = new SqliteAdapter(rawSqliteDb);
   log.info("server.driver", { kind: "sqlite", path: DB_PATH });
 } else {
   // Postgres: enable phase2 marker so openDbFromUrl skips the stub warning.
@@ -47,7 +48,9 @@ if (parsed.kind === "sqlite") {
 
 const repo = new SqliteRepository(adapter);
 const registry = new FileSchemaRegistry(join(process.cwd(), "..", "..", "config", "schemas"));
-const app = createApp({ repo, registry, adapter, dbPath: DB_PATH });
+// Pass rawSqliteDb so welink router (SQLite-only) gets mounted; undefined on
+// Postgres path keeps welink disabled until async-refactored.
+const app = createApp({ repo, registry, adapter, db: rawSqliteDb, dbPath: DB_PATH });
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
