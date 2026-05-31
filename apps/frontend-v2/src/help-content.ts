@@ -646,7 +646,15 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 求助网络支持模板一键应用，比逐个创建支撑节点更高效
 
 ### v2.4.1 修复
-- 修复:打开攻关单详情页直接显示"页面出了点问题/重试"(React #310 hooks 调用顺序违规),原因为 \`useAttackDetailHandlers\` hook 调用位于 early return 之后,已搬到 hooks 之前固定调用顺序`,
+- 修复:打开攻关单详情页直接显示"页面出了点问题/重试"(React #310 hooks 调用顺序违规),原因为 \`useAttackDetailHandlers\` hook 调用位于 early return 之后,已搬到 hooks 之前固定调用顺序
+
+### v2.6: Schema 驱动详情页
+- **基础信息 Tab 全部 schema 驱动**:从 \`schema.fields\` 按 \`group\` 自动分 Card(基础信息 / 人员信息 / 详细信息 / 系统字段 等)+ Descriptions 渲染,不再硬编码 SUMMARY_FIELD_IDS
+- **编辑抽屉全部 schema 驱动**:移除 HARDCODED_EDIT_FIELDS 常量,Form.Item 从 schema 派生(按 group 加 Divider 分隔),新字段在 SchemaWizard 加好后**详情页自动出现表单项**,无需改前端代码
+- **字段渲染器**:\`components/SchemaField.tsx\` 通用渲染器,支持 string/number/boolean/enum/textarea/date/datetime/ref(person)/array/json 全部类型;view 模式只读、edit 模式 antd 受控组件
+- **特殊字段保留专用 UI**:specialControl=member-multi/member-list/private-flag/private-grants/system 等字段保留各自 Tab/Drawer,不会被通用渲染器抢占
+- **字段管理 Popover**:字段管理 Popover 显示分组信息(分组名以"·"在 label 后展示),方便定位
+- 详细介绍:在 SchemaWizard 加字段 → 选好分组 → 立即在攻关单详情可见;再去看 \`docs/SCHEMA_AS_UI.md\``,
   },
 
   peopleList: {
@@ -1286,7 +1294,18 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 查找现有字段
 - 点击「查找现有字段」按钮
 - 根据当前字段名搜索已有表中的相似字段
-- 可一键复用已有字段的概念和锚点配置`,
+- 可一键复用已有字段的概念和锚点配置
+
+### v2.6: 字段分组管理(Schema as UI)
+- **字段分组面板**:选中一张表后,详情卡顶部出现「字段分组」面板,列出当前 schema 所有分组 + 字段数;旁边的「新分组名」输入 + 「新建分组」按钮把第一个未分组字段作为占位移入新组(分组语义是字段属性派生,没有"裸创建分组")
+- **行内分组切换**:字段表格新增「分组」列,行内下拉切换字段所属分组 → 后端 PATCH /api/schema/<nt> 走 op=updateField → 立即生效到详情页
+- **顺序调整**:字段表格新增「顺序」列,显示当前 order 数字 + ↑ / ↓ 按钮,点击与组内上/下邻居交换 order(后端 updateField order 写回)
+- **新增字段自动归组**:「添加新字段」面板加「分组(可选)」Select,选好分组直接落到指定位置
+- **可见性条件**:FieldSchema 支持 visible 表达式(简易 eq/ne/in DSL,绝不 eval),如 \`状态 != "已关闭"\`,详情页基础信息 Tab 按表达式动态过滤显示字段
+- **校验规则**:FieldSchema 支持 validation:{ pattern, min, max, minLength, maxLength },自动翻译为 AntD Form rules
+- **默认值**:FieldSchema 支持 defaultValue(任意类型),用作新建表单的 initialValues
+
+> 完整字段语义见 docs/SCHEMA_AS_UI.md。`,
   },
 
   configCenter: {
