@@ -4,93 +4,48 @@ import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
-import { syncConflicts, syncConflictsForOne } from "./conflicts.js";
-import { scanEscalation } from "./escalation.js";
-import { scanAndCreateReminders } from "./reminders.js";
 import { verifyAuth } from "./auth.js";
 import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
 
 /**
- * 节点保存后异步触发后台扫描任务（fire-and-forget）。
- * 仅对 attackTicket 变更调用，不阻塞 API 响应，失败只写日志。
- * scanAndCreateReminders 同时需要 registry，一并触发。
+ * resilience(outbox): 业务路由用此接口把 KG 派生任务投递到 `kg_outbox` 表,
+ * 取代旧的 `setImmediate(syncToKG)` fire-and-forget — 进程重启不丢任务,
+ * 失败可重放(详见 kg-outbox.ts)。
  *
- * v2.2 P1 §3: conflicts 走 30s 防抖 + 增量算法。
- * - 窗口内同一 ticket 多次保存合并成 1 次 syncConflictsForOne(只重算这单一个 ticket)
- * - 多 ticket 累积:每个 ticket 各跑 1 次 syncConflictsForOne
- * - 兜底:>50 ticket 窗口内变更则降级到全量 syncConflicts(避免逐个增量也变 O(N²))
- *
- * 这把单 ticket 保存的 audit 写从 ~Σk²(全量) 降到 ~k(单 ticket 同组大小),
- * N 次保存窗口内合并的写放大降低 10-100×。escalation/reminders 仍走 setImmediate(开销小)。
+ * createApp 在挂载 makeRouter 前注入一个真实 enqueuer(写 SQLite/Postgres);
+ * 测试/CLI 不传则 fallback 到 noop(老 setImmediate 路径已删除,任务被吞)。
  */
-const CONFLICTS_DEBOUNCE_MS = 30_000;
-const CONFLICTS_FULL_RESCAN_THRESHOLD = 50;
-let conflictsDebounceTimer: NodeJS.Timeout | null = null;
-let conflictsDebounceRepo: Repository | null = null;
-const conflictsDebounceTicketIds = new Set<string>();
-
-async function runDebouncedConflicts(): Promise<void> {
-  const r = conflictsDebounceRepo;
-  const ids = Array.from(conflictsDebounceTicketIds);
-  conflictsDebounceTicketIds.clear();
-  conflictsDebounceRepo = null;
-  if (!r) return;
-  try {
-    if (ids.length === 0 || ids.length > CONFLICTS_FULL_RESCAN_THRESHOLD) {
-      // 兜底全量:无 id 信息或变更面太广(>50),走全量比逐个增量更便宜
-      await syncConflicts(r);
-      log.info("post_save.conflicts.debounced_full", { ticketCount: ids.length });
-    } else {
-      for (const id of ids) {
-        await syncConflictsForOne(r, id);
-      }
-      log.info("post_save.conflicts.debounced_incremental", { ticketCount: ids.length });
-    }
-  } catch (e) {
-    log.warn("post_save.conflicts.fail", { error: (e as Error).message });
-  }
+export interface OutboxEnqueuer {
+  enqueue(eventType: string, payload: Record<string, unknown>): Promise<void>;
 }
 
-function scheduleConflictsSync(repo: Repository, ticketId?: string): void {
-  conflictsDebounceRepo = repo;
-  if (ticketId) conflictsDebounceTicketIds.add(ticketId);
-  if (conflictsDebounceTimer) clearTimeout(conflictsDebounceTimer);
-  conflictsDebounceTimer = setTimeout(async () => {
-    conflictsDebounceTimer = null;
-    await runDebouncedConflicts();
-  }, CONFLICTS_DEBOUNCE_MS);
-  conflictsDebounceTimer.unref?.();
-}
-
-/** Test helper: flush pending debounced conflict scan immediately. Not used in prod. */
-export async function __flushConflictsDebounceForTest(): Promise<void> {
-  if (conflictsDebounceTimer) {
-    clearTimeout(conflictsDebounceTimer);
-    conflictsDebounceTimer = null;
-    await runDebouncedConflicts();
-  }
-}
-
-function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry, ticketId?: string): void {
+/**
+ * resilience(outbox): 节点保存后,把派生任务投递到 `kg_outbox` 表(durable queue),
+ * 由后台 KgOutboxWorker 异步消费。比旧的 setImmediate fire-and-forget 更可靠:
+ * 进程崩溃/重启不丢任务,失败可重放(`kg:outbox:replay`)。
+ *
+ * 投递三类事件:
+ *   - attackTicket.saved (含 ticketId)  → worker 跑 syncConflictsForOne
+ *   - attackTicket.escalation           → worker 跑 scanEscalation
+ *   - attackTicket.reminders            → worker 跑 scanAndCreateReminders
+ *
+ * 老的 30s 防抖被去掉(worker 自身轮询节流;短时间多次保存会写多条 outbox,
+ * 但每条 conflicts 是 syncConflictsForOne 增量算法,代价线性)。
+ */
+function triggerPostSaveJobs(outbox: OutboxEnqueuer | undefined, ticketId?: string): void {
   // Skip in test environment to avoid interfering with tests that explicitly
   // call scan endpoints (scans are idempotent — auto-trigger would consume the
   // first run, making the explicit test call return 0).
   if (process.env.NODE_ENV === "test") return;
-  scheduleConflictsSync(repo, ticketId);
-  setImmediate(async () => {
-    try {
-      await scanEscalation(repo);
-    } catch (e) {
-      log.warn("post_save.escalation.fail", { error: (e as Error).message });
-    }
-    try {
-      await scanAndCreateReminders(repo, registry);
-    } catch (e) {
-      log.warn("post_save.reminders.fail", { error: (e as Error).message });
-    }
-  });
+  if (!outbox) return; // legacy path (no adapter in test app)
+  void Promise.resolve()
+    .then(async () => {
+      await outbox.enqueue("attackTicket.saved", { ticketId });
+      await outbox.enqueue("attackTicket.escalation", {});
+      await outbox.enqueue("attackTicket.reminders", {});
+    })
+    .catch((e) => log.warn("post_save.outbox.enqueue_fail", { error: (e as Error).message }));
 }
-
 
 // §50: gate 贡献等级 标定 to privileged roles. P0-3 修复:role 必须从 JWT payload 取,
 // 严禁信任客户端可控的 X-Role 头(localStorage 写入,curl 可任意伪造)。
@@ -119,7 +74,7 @@ export function actorOf(req: unknown, fallback = "api"): string {
   return (req as { user?: { username?: string } })?.user?.username || fallback;
 }
 
-export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
+export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: OutboxEnqueuer): Router {
   const r = Router();
 
   r.get("/schema/:nodeType", (req, res) => {
@@ -214,7 +169,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     await syncRefEdges(repo, registry, node, req.body, actor);
     await syncAnchorEdges(repo, registry, node, req.body, actor);
-    if (nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, node.id);
+    if (nodeType === "attackTicket") triggerPostSaveJobs(outbox, node.id);
     res.status(201).json(node);
   });
 
@@ -232,7 +187,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     log.info("node.update", { id: req.params.id, nodeType: cur.nodeType, actor });
     await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
-    if (cur.nodeType === "attackTicket") triggerPostSaveJobs(repo, registry, req.params.id);
+    if (cur.nodeType === "attackTicket") triggerPostSaveJobs(outbox, req.params.id);
     res.json(updated);
   });
 
@@ -282,7 +237,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
     const progress = await repo.appendProgress(node.id, content, toStatus, actor);
     log.info("node.transition", { id: node.id, toStatus, actor });
-    triggerPostSaveJobs(repo, registry, node.id);
+    triggerPostSaveJobs(outbox, node.id);
     res.json({ node: updated, progress });
   });
 

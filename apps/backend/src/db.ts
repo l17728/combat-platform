@@ -149,7 +149,8 @@ const SQLITE_SCHEMA_DDL = `
       content TEXT NOT NULL, statusSnapshot TEXT, updatedBy TEXT, updatedAt TEXT);
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY, action TEXT NOT NULL, entityType TEXT, entityId TEXT,
-      changes TEXT, performedBy TEXT, performedAt TEXT);
+      changes TEXT, performedBy TEXT, performedAt TEXT,
+      prev_hash TEXT NOT NULL DEFAULT '', hash TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL,
       relation_type TEXT NOT NULL, confidence REAL, proposer_source TEXT,
@@ -286,7 +287,8 @@ const POSTGRES_SCHEMA_DDL = `
       content TEXT NOT NULL, "statusSnapshot" TEXT, "updatedBy" TEXT, "updatedAt" TEXT);
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY, action TEXT NOT NULL, "entityType" TEXT, "entityId" TEXT,
-      changes JSONB DEFAULT NULL, "performedBy" TEXT, "performedAt" TEXT);
+      changes JSONB DEFAULT NULL, "performedBy" TEXT, "performedAt" TEXT,
+      prev_hash TEXT NOT NULL DEFAULT '', hash TEXT NOT NULL DEFAULT '');
     CREATE TABLE IF NOT EXISTS proposals (
       id TEXT PRIMARY KEY, source_node_id TEXT NOT NULL, target_node_id TEXT NOT NULL,
       relation_type TEXT NOT NULL, confidence DOUBLE PRECISION, proposer_source TEXT,

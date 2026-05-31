@@ -174,3 +174,51 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 | SMTP 加密            | `apps/backend/src/crypto.ts`, `email.ts`  | AES-256-GCM + 启动期迁移             |
 | audit actor 强制     | `apps/backend/src/repository.ts:logAudit` | req.user 优先于调用方传字符串        |
 | 路由 actor helper    | `apps/backend/src/routes.ts:actorOf`      | 统一 req.user.username \|\| fallback |
+| Audit Merkle 链      | `apps/backend/src/audit-chain.ts`         | computeAuditHash + verifyAuditChain  |
+
+---
+
+## 6. Audit 完整性校验 (Merkle Chain)
+
+### 6.1 背景
+
+audit_log 是单纯 append-only 在 SQLite 文件级保护(只有 root/admin 能直接动 DB)。
+但只要文件被改,审计 = 不可信。v2.4+ 引入 **Merkle 链**:每条 audit row 携带
+`prev_hash` 和 `hash` 两列;链中任何一条被改/删,verifyAuditChain 立刻能定位断点。
+
+Hash 计算公式:
+
+```
+hash = sha256(prev_hash + entityType + entityId + action + stableJSON(changes) + performedAt)
+```
+
+stableJSON 对 object key 按字典序输出,确保跨进程/重启的可重现性。
+
+### 6.2 日常巡检命令
+
+```bash
+# 本机 (开发)
+COMBAT_NO_AUTH=1 npm run cli -- audit:verify
+
+# 现网 (需先 auth:login 拿到 admin token,或在 ssh 隧道里直接打 localhost:3001)
+ssh root@124.156.193.122 'COMBAT_API=http://localhost:3001 curl -s http://localhost:3001/api/audit/verify'
+# 返回 {"ok": true, "verified": N} 即通过
+```
+
+### 6.3 断链响应
+
+当 `audit:verify` 返回 `{ ok: false, brokenAt: <id>, reason: ... }`:
+
+1. **不要 rebuild**:rebuild 会覆盖断点,失去取证证据
+2. **立即归档当前 SQLite 文件**(`cp combat.sqlite combat.sqlite.tampered-$(date +%s)`)
+3. **核对 `brokenAt` id 周边的 audit row**(往前 10 条 + 往后 10 条)定位篡改时间窗口
+4. **查 backend.log 的 http.request**:同一时间窗口内的写请求来源,定位攻击 IP / 账号
+5. **修复后**:从可信备份还原,再走一遍 verify;如果只是 column 缺失(老库升级期),
+   重启自动 ALTER 即可,后续新行进入链;旧行 hash 列为空,verify 会一并报告它们
+
+### 6.4 已知边界
+
+- v2.4 升级前的历史 audit 行 `prev_hash=''`, `hash=''`(默认值)。verify 会从首条新行
+  开始检查;若需补链,需停机重写所有旧行(待 v2.5)
+- COMBAT_NO_AUTH=1 模式下任何客户端都能写 audit,但 hash 仍然按 actor=req.user 计算 —
+  伪造 actor 不会通过链校验(因为后端拒绝从 body 取 actor,详见 §3 audit actor 强制)

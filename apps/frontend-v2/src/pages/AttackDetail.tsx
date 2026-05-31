@@ -305,8 +305,8 @@ export default function AttackDetail() {
                         try {
                           await api.deleteTicketTab(id!, targetKey);
                           data.setDynamicTabs((prev) => prev.filter((t) => t.id !== targetKey));
-                        } catch (e: any) {
-                          message.error("删除标签失败: " + e.message);
+                        } catch (e) {
+                          message.error("删除标签失败: " + (e instanceof Error ? e.message : String(e)));
                         }
                       },
                     });

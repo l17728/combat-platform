@@ -66,8 +66,8 @@ export default function HermesChat({
     try {
       const res = await api.hermesAsk(question, context);
       setMsgs((m) => [...m, { role: "assistant", text: res.answer || "未找到相关记录。", citations: res.citations }]);
-    } catch (e: any) {
-      setMsgs((m) => [...m, { role: "assistant", text: `出错了:${e.message}` }]);
+    } catch (e) {
+      setMsgs((m) => [...m, { role: "assistant", text: `出错了:${e instanceof Error ? e.message : String(e)}` }]);
     } finally {
       setLoading(false);
     }

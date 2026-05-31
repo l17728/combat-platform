@@ -340,8 +340,8 @@ export default function WelinkChatView({ messages, reload, loading, highlightMes
       setNameMap(m);
       await reload();
       message.success("已刷新");
-    } catch (e: any) {
-      message.error(`刷新失败: ${e.message || e}`);
+    } catch (e) {
+      message.error(`刷新失败: ${(e instanceof Error ? e.message : String(e)) || e}`);
     }
   };
 

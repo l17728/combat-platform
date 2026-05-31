@@ -162,6 +162,12 @@ export const COMMANDS: CliCommand[] = [
     }),
   },
   {
+    name: "audit:verify",
+    summary: "校验 audit_log Merkle 链完整性,返回 {ok, verified, brokenAt?, reason?}",
+    usage: "audit:verify",
+    build: () => ({ method: "GET", path: "/api/audit/verify" }),
+  },
+  {
     name: "merge:preview",
     summary: "人员合并预览（只读）",
     usage: "merge:preview --from <id> --to <id>",
@@ -328,6 +334,33 @@ export const COMMANDS: CliCommand[] = [
     summary: "全量重建派生 KG",
     usage: "kg:rebuild",
     build: () => ({ method: "POST", path: "/api/kg/rebuild" }),
+  },
+  {
+    name: "kg:outbox:status",
+    summary: "查看 KG 派生 outbox 队列状态(pending/done/failed 计数)",
+    usage: "kg:outbox:status",
+    build: () => ({ method: "GET", path: "/api/kg-outbox/status" }),
+  },
+  {
+    name: "kg:outbox:list",
+    summary: "列出 KG 派生 outbox 行(--status pending|done|failed)",
+    usage: "kg:outbox:list [--status S] [--limit N]",
+    build: (_pos, opts) => ({
+      method: "GET",
+      path: `/api/kg-outbox${qs({ status: str(opts.status), limit: str(opts.limit) })}`,
+    }),
+  },
+  {
+    name: "kg:outbox:replay",
+    summary: "重置所有 failed → pending 并立即处理一轮(进程崩溃后兜底)",
+    usage: "kg:outbox:replay",
+    build: () => ({ method: "POST", path: "/api/kg-outbox/replay" }),
+  },
+  {
+    name: "kg:outbox:process",
+    summary: "立即处理一轮 pending(无需等 worker 1s 轮询)",
+    usage: "kg:outbox:process",
+    build: () => ({ method: "POST", path: "/api/kg-outbox/process" }),
   },
   {
     name: "daily-report:publish",

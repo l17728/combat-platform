@@ -18,6 +18,7 @@ import remarkGfm from "remark-gfm";
 // 原始 HTML 标签会被当字面量字符串显示,等价于安全白名单。
 import { api, type TicketTab } from "../api.js";
 import { useDraggable } from "../hooks/useDraggable.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { TextArea } = Input;
 
@@ -80,8 +81,8 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
             content: serializeContent(newBlocks),
           });
           onUpdate(updated);
-        } catch (e: any) {
-          message.error("自动保存失败: " + e.message);
+        } catch (e) {
+          message.error("自动保存失败: " + (e instanceof Error ? e.message : String(e)));
         }
       }, 2000);
     },
@@ -118,8 +119,8 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
       setBlocks(newBlocks);
       saveContent(newBlocks);
       setQuestion("");
-    } catch (e: any) {
-      message.error(e.message);
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setChatLoading(false);
     }

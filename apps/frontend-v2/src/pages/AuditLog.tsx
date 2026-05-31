@@ -1,14 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Tooltip, theme, Button } from 'antd';
-import { ReloadOutlined, CloseOutlined } from '@ant-design/icons';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { api } from '../api.js';
-import { PAGE_SIZE, PAGE_SIZE_OPTIONS, ACTION_COLOR, ACTION_LABEL, ENTITY_TYPE_LABEL, DATE_FORMAT_FULL } from '../constants.js';
-import { nodeLabel } from '../utils/nodeLabel.js';
-import type { AuditLogEntry } from '@combat/shared';
-import HelpButton from '../components/HelpButton.js';
-import HELP from '../help-content.js';
-import dayjs from 'dayjs';
+import { useEffect, useMemo, useState } from "react";
+import { Typography, Table, Select, Space, Input, message, Skeleton, Tag, Tooltip, theme, Button } from "antd";
+import { ReloadOutlined, CloseOutlined } from "@ant-design/icons";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { api } from "../api.js";
+import {
+  PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  ACTION_COLOR,
+  ACTION_LABEL,
+  ENTITY_TYPE_LABEL,
+  DATE_FORMAT_FULL,
+} from "../constants.js";
+import { nodeLabel } from "../utils/nodeLabel.js";
+import type { AuditLogEntry } from "@combat/shared";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
+import dayjs from "dayjs";
+import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title } = Typography;
 
@@ -22,24 +30,33 @@ export default function AuditLog() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   // 从 URL ?entityId= 自动过滤(供攻关单详情「合规追溯」卡跳转使用)
-  const entityIdFilter = useMemo(() => searchParams.get('entityId') || undefined, [searchParams]);
+  const entityIdFilter = useMemo(() => searchParams.get("entityId") || undefined, [searchParams]);
 
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      setLogs(await api.listAudit({ action: actionFilter, entityType: entityTypeFilter, entityId: entityIdFilter, limit: 200 }));
-    } catch (e: any) {
-      message.error(e.message);
+      setLogs(
+        await api.listAudit({
+          action: actionFilter,
+          entityType: entityTypeFilter,
+          entityId: entityIdFilter,
+          limit: 200,
+        })
+      );
+    } catch (e) {
+      handleApiError(e);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchLogs(); }, [actionFilter, entityTypeFilter, entityIdFilter]);
+  useEffect(() => {
+    fetchLogs();
+  }, [actionFilter, entityTypeFilter, entityIdFilter]);
 
   const clearEntityFilter = () => {
     const next = new URLSearchParams(searchParams);
-    next.delete('entityId');
+    next.delete("entityId");
     setSearchParams(next, { replace: true });
   };
 
@@ -47,39 +64,51 @@ export default function AuditLog() {
   useEffect(() => {
     const need = new Set<string>();
     for (const l of logs) {
-      if (l.entityType === 'node' && l.entityId && !(l.entityId in entityNames)) need.add(l.entityId);
+      if (l.entityType === "node" && l.entityId && !(l.entityId in entityNames)) need.add(l.entityId);
     }
     if (need.size === 0) return;
     let cancelled = false;
     (async () => {
       const updates: Record<string, string> = {};
-      await Promise.all([...need].map(async (id) => {
-        try { const n = await api.getNode(id); updates[id] = nodeLabel(n); }
-        catch { updates[id] = '(已删除)'; }
-      }));
+      await Promise.all(
+        [...need].map(async (id) => {
+          try {
+            const n = await api.getNode(id);
+            updates[id] = nodeLabel(n);
+          } catch {
+            updates[id] = "(已删除)";
+          }
+        })
+      );
       if (!cancelled) setEntityNames((prev) => ({ ...prev, ...updates }));
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [logs]);
 
   const renderChanges = (v: unknown) => {
-    if (!v || typeof v !== 'object') return '-';
+    if (!v || typeof v !== "object") return "-";
     const entries = Object.entries(v as Record<string, any>);
-    if (entries.length === 0) return '-';
+    if (entries.length === 0) return "-";
     return (
       <Space size={4} wrap>
         {entries.map(([key, change]) => {
-          if (typeof change === 'object' && change !== null && 'from' in change && 'to' in change) {
+          if (typeof change === "object" && change !== null && "from" in change && "to" in change) {
             return (
               <span key={key} style={{ fontSize: 12 }}>
                 <Tag style={{ margin: 0 }}>{key}</Tag>
                 <span style={{ color: token.colorTextSecondary }}>{String(change.from)}</span>
-                <span style={{ margin: '0 4px' }}>→</span>
+                <span style={{ margin: "0 4px" }}>→</span>
                 <span style={{ color: token.colorPrimary }}>{String(change.to)}</span>
               </span>
             );
           }
-          return <Tag key={key} style={{ margin: 0 }}>{key}: {JSON.stringify(change)}</Tag>;
+          return (
+            <Tag key={key} style={{ margin: 0 }}>
+              {key}: {JSON.stringify(change)}
+            </Tag>
+          );
         })}
       </Space>
     );
@@ -87,48 +116,54 @@ export default function AuditLog() {
 
   const columns = [
     {
-      title: '时间',
-      dataIndex: 'performedAt',
+      title: "时间",
+      dataIndex: "performedAt",
       width: 150,
-      render: (v: string) => <Tooltip title={dayjs(v).format(DATE_FORMAT_FULL)}>{dayjs(v).format('MM-DD HH:mm')}</Tooltip>,
+      render: (v: string) => (
+        <Tooltip title={dayjs(v).format(DATE_FORMAT_FULL)}>{dayjs(v).format("MM-DD HH:mm")}</Tooltip>
+      ),
     },
     {
-      title: '操作人',
-      dataIndex: 'performedBy',
+      title: "操作人",
+      dataIndex: "performedBy",
       width: 100,
       ellipsis: true,
     },
     {
-      title: '操作',
-      dataIndex: 'action',
+      title: "操作",
+      dataIndex: "action",
       width: 90,
       render: (v: string) => <Tag color={ACTION_COLOR[v]}>{ACTION_LABEL[v] || v}</Tag>,
     },
     {
-      title: '实体类型',
-      dataIndex: 'entityType',
+      title: "实体类型",
+      dataIndex: "entityType",
       width: 90,
       render: (v: string) => ENTITY_TYPE_LABEL[v] || v,
     },
     {
-      title: '实体',
-      dataIndex: 'entityId',
+      title: "实体",
+      dataIndex: "entityId",
       width: 200,
       ellipsis: true,
       render: (id: string, row: AuditLogEntry) => {
         // 仅显示语义化名称;不再向用户暴露内部 UUID(技术追溯可通过浏览器开发工具或 changes 列查阅)
-        if (row.entityType === 'node') {
+        if (row.entityType === "node") {
           const nm = entityNames[id];
-          return nm
-            ? <Tooltip title={nm}><span>{nm}</span></Tooltip>
-            : <Tag>(加载中)</Tag>;
+          return nm ? (
+            <Tooltip title={nm}>
+              <span>{nm}</span>
+            </Tooltip>
+          ) : (
+            <Tag>(加载中)</Tag>
+          );
         }
         return <Tag>{ENTITY_TYPE_LABEL[row.entityType] ?? row.entityType}</Tag>;
       },
     },
     {
-      title: '变更详情',
-      dataIndex: 'changes',
+      title: "变更详情",
+      dataIndex: "changes",
       ellipsis: true,
       render: renderChanges,
     },
@@ -136,13 +171,17 @@ export default function AuditLog() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Title level={4} style={{ margin: 0 }}>审计日志</Title>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            审计日志
+          </Title>
           <HelpButton title={HELP.auditLog.title} content={HELP.auditLog.content} />
         </div>
         <Space>
-          <span onClick={fetchLogs} style={{ cursor: 'pointer', color: token.colorPrimary }}><ReloadOutlined /> 刷新</span>
+          <span onClick={fetchLogs} style={{ cursor: "pointer", color: token.colorPrimary }}>
+            <ReloadOutlined /> 刷新
+          </span>
         </Space>
       </div>
 
@@ -165,7 +204,7 @@ export default function AuditLog() {
         />
         {entityIdFilter && (
           <Tag color="blue" closable closeIcon={<CloseOutlined />} onClose={clearEntityFilter}>
-            已过滤实体: {entityNames[entityIdFilter] ? entityNames[entityIdFilter] : '(加载中)'}
+            已过滤实体: {entityNames[entityIdFilter] ? entityNames[entityIdFilter] : "(加载中)"}
           </Tag>
         )}
       </Space>
@@ -177,7 +216,12 @@ export default function AuditLog() {
           rowKey="id"
           dataSource={logs}
           columns={columns}
-          pagination={{ pageSize: PAGE_SIZE, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: (t) => `共 ${t} 条` }}
+          pagination={{
+            pageSize: PAGE_SIZE,
+            showSizeChanger: true,
+            pageSizeOptions: PAGE_SIZE_OPTIONS,
+            showTotal: (t) => `共 ${t} 条`,
+          }}
           size="middle"
         />
       )}

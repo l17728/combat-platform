@@ -105,8 +105,8 @@ export default function SystemUpgrade() {
     try {
       const r = await api.upgradeCurrent();
       setCurrent(r);
-    } catch (e: any) {
-      message.error(e.message || "获取版本信息失败");
+    } catch (e) {
+      message.error((e instanceof Error ? e.message : String(e)) || "获取版本信息失败");
     } finally {
       setLoading(false);
     }
@@ -115,7 +115,7 @@ export default function SystemUpgrade() {
   const fetchHistory = async () => {
     try {
       setHistory(await api.upgradeHistory());
-    } catch (e: any) {
+    } catch (e) {
       // silent
     }
   };
@@ -178,13 +178,13 @@ export default function SystemUpgrade() {
         const rep = await api.upgradeAnalyze(r.stagingId);
         setReport(rep);
         setReportOpen(true);
-      } catch (e: any) {
-        message.error(`分析失败:${e.message}`);
+      } catch (e) {
+        message.error(`分析失败:${e instanceof Error ? e.message : String(e)}`);
       } finally {
         setAnalyzing(false);
       }
-    } catch (e: any) {
-      message.error(`上传失败:${e.message}`);
+    } catch (e) {
+      message.error(`上传失败:${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setUploading(false);
     }
@@ -219,8 +219,8 @@ export default function SystemUpgrade() {
           if (pollTimer.current) window.clearInterval(pollTimer.current);
           pollTimer.current = window.setInterval(() => pollStatus(), 1500);
           await pollStatus();
-        } catch (e: any) {
-          message.error(`启动失败:${e.message}`);
+        } catch (e) {
+          message.error(`启动失败:${e instanceof Error ? e.message : String(e)}`);
         } finally {
           setApplying(false);
         }
@@ -241,8 +241,8 @@ export default function SystemUpgrade() {
           setActiveJobId(r.jobId);
           if (pollTimer.current) window.clearInterval(pollTimer.current);
           pollTimer.current = window.setInterval(() => pollStatus(), 1500);
-        } catch (e: any) {
-          message.error(`回滚失败:${e.message}`);
+        } catch (e) {
+          message.error(`回滚失败:${e instanceof Error ? e.message : String(e)}`);
         }
       },
     });
