@@ -1484,6 +1484,66 @@ export class Api {
       body: JSON.stringify({ url }),
     });
   }
+
+  listWebhooks(): Promise<any[]> {
+    return this.req("/api/webhooks");
+  }
+
+  getWebhookEvents(): Promise<string[]> {
+    return this.req("/api/webhooks/events");
+  }
+
+  createWebhook(url: string, events: string[]): Promise<any> {
+    return this.req("/api/webhooks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url, events }),
+    });
+  }
+
+  updateWebhook(id: string, data: { url?: string; events?: string[]; enabled?: boolean }): Promise<any> {
+    return this.req(`/api/webhooks/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteWebhook(id: string): Promise<any> {
+    return this.req(`/api/webhooks/${id}`, { method: "DELETE" });
+  }
+
+  testWebhook(id: string): Promise<any> {
+    return this.req(`/api/webhooks/${id}/test`, { method: "POST" });
+  }
+
+  getDigestConfig(): Promise<any> {
+    return this.req("/api/digest/config");
+  }
+
+  updateDigestConfig(data: Record<string, any>): Promise<any> {
+    return this.req("/api/digest/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  previewDigest(): Promise<any> {
+    return this.req("/api/digest/preview");
+  }
+
+  sendDigest(): Promise<any> {
+    return this.req("/api/digest/send", { method: "POST" });
+  }
+
+  addSchemaField(nodeType: string, field: Record<string, any>): Promise<any> {
+    return this.req(`/api/schema/${nodeType}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "addField", field }),
+    });
+  }
 }
 
 export interface DocItem {

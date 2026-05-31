@@ -49,6 +49,8 @@ import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
 import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
+import { makeWebhookRouter } from "./webhook-router.js";
+import { makeDigestRouter } from "./digest-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
@@ -208,7 +210,7 @@ export function createApp(deps: {
     app.use("/api", makeKgOutboxRouter(adapter, deps.repo, deps.registry));
   }
 
-  app.use("/api", makeRouter(deps.repo, deps.registry, outboxEnqueuer));
+  app.use("/api", makeRouter(deps.repo, deps.registry, outboxEnqueuer, adapter));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
   app.use("/api", makeHonorRouter(deps.repo));
   app.use("/api", makeExportRouter(deps.repo, deps.registry));
@@ -325,6 +327,8 @@ export function createApp(deps: {
     app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(adapter));
     app.use("/api", makeDocumentRouter(adapter));
+    app.use("/api", makeWebhookRouter(adapter));
+    app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for

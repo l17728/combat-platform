@@ -6,6 +6,8 @@ import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { createApp } from "./app.js";
 import { tickScheduledJobs } from "./jobs.js";
+import { DigestRepo, sendDigest } from "./digest.js";
+import { NodemailerSender } from "./mailer.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
@@ -98,4 +100,23 @@ app.listen(PORT, () => {
 
 setInterval(() => {
   tickScheduledJobs(repo, registry).catch((e) => console.error("[jobs.tick]", e));
+}, 3600_000).unref();
+
+setInterval(() => {
+  (async () => {
+    const digestRepo = new DigestRepo(adapter);
+    const config = await digestRepo.getConfig();
+    if (!config.enabled || config.recipients.length === 0) return;
+    const now = new Date();
+    const last = config.lastSentAt ? new Date(config.lastSentAt) : null;
+    const shouldSend =
+      config.frequency === "daily"
+        ? !last || last.toDateString() !== now.toDateString()
+        : !last || now.getTime() - last.getTime() > 7 * 24 * 60 * 60 * 1000;
+    if (!shouldSend) return;
+    const { readConfig } = await import("./email.js");
+    const smtpConfig = await readConfig(repo);
+    if (!smtpConfig) return;
+    await sendDigest(adapter, repo, new NodemailerSender(), smtpConfig);
+  })().catch((e) => log.warn("digest.auto_send.fail", { error: (e as Error).message }));
 }, 3600_000).unref();

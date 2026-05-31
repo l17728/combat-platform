@@ -239,6 +239,10 @@ export default function AttackDetail() {
     handleApplyTemplate: h.handleApplyTemplate,
     dynamicTabs,
     setDynamicTabs: data.setDynamicTabs,
+    onSchemaRefresh: () => {
+      data.fetchSchema();
+    },
+    allFieldNames: schema?.fields?.map((f: any) => f.name) || [],
   });
 
   return (

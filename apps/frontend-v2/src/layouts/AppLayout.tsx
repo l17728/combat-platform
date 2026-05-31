@@ -31,6 +31,7 @@ import {
   EyeOutlined,
   DatabaseOutlined,
   CloudUploadOutlined,
+  ApiOutlined,
   QuestionCircleOutlined,
   MoonOutlined,
   SunOutlined,
@@ -183,6 +184,7 @@ export function AppLayout() {
         { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
         { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
         { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
+        { key: "/digest", label: "邮件摘要", icon: <MailOutlined /> },
         ...(isAdmin ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
         { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
         { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
@@ -203,6 +205,7 @@ export function AppLayout() {
             ]
           : []),
         ...(isAdmin ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
+        ...(isAdmin ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
       ],
     },

@@ -900,31 +900,32 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-06-01 v2.10.0 — UX 中期 II: 暗黑模式 + 产品引导 + 看板配置)
+### 当前测试状态(2026-06-01 v2.11.0 — Webhook + 邮件摘要 + 内联字段)
 
-**v2.10.0 = v2.8.0 + 三桶(暗黑模式 / 产品Tour / Dashboard可配置)**
+**v2.11.0 = v2.10.0 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
-- 前端 tsc 0 错
-- 新增 `hooks/useTheme.tsx`（亮/暗主题切换 + localStorage 持久化）
-- 新增 `hooks/useDashboardConfig.ts`（Dashboard 卡片显示/隐藏 + 排序配置）
-- 新增 `components/ProductTour.tsx`（通用 Tour 管理 + 完成标记持久化）
-- 新增 `tours/dashboardTour.tsx` + `tours/attackListTour.tsx` + `tours/adminTour.tsx`
-- `theme.ts` 扩展为双主题（lightTheme / darkTheme）
-- `main.tsx` 接入 ThemeProvider 动态主题
-- `AppLayout.tsx` 添加暗黑切换按钮 + Tour 重播入口
-- `Dashboard.tsx` 集成 Tour + 看板配置 Drawer
-- `AttackList.tsx` 集成 Tour + data-tour 标记
-- 浮动面板（HermesChat / NotificationBell / DynamicCustomTab）背景色跟随主题
-- `markdown.css` 暗黑模式适配
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- 新增 `webhooks.ts`（WebhookSubscription CRUD + dispatchWebhook 异步推送）
+- 新增 `webhook-router.ts`（REST API: CRUD + 测试推送 + 事件列表）
+- 新增 `digest.ts`（DigestConfig 配置 + buildDigestSummary 汇总 + sendDigest 发送）
+- 新增 `digest-router.ts`（REST API: 配置 CRUD + 预览 + 手动发送）
+- 新增 `server.ts` 每小时 digest 定时检查（daily/weekly 自动发送）
+- `routes.ts` 增加 webhookAdapter 参数，5 处事件点触发 dispatchWebhook
+- `email.ts` readConfig 导出为 public
+- `api.ts` 新增 webhook/digest/addSchemaField 公共方法
+- 新增前端 `WebhookSettings.tsx`（订阅管理 + 启停 + 测试推送）
+- 新增前端 `DigestSettings.tsx`（配置 + 预览 + 手动发送）
+- `AttackBasicInfoTab.tsx` 增加「添加字段」按钮 + Modal（字段类型/分组/枚举配置中心绑定）
+- `AppLayout.tsx` 侧边栏增加 Webhook 订阅 + 邮件摘要菜单（admin only）
+- `help-content.ts` 追加 v2.11.0 release notes + webhookSettings/digestSettings 帮助页
 
 **关键设计决定**:
 
-1. **写工具三重安全** — env 门控 + admin/leader 角色检查 + `_confirm:'yes'` 二次确认
-2. **会话记忆** — 最近 10 轮历史注入 LLM 上下文,7 天自动过期,前端 auto-create session
-3. **TOOL_SCHEMAS 条件暴露** — 写工具仅在 `HERMES_ENABLE_WRITE=1` 时暴露给 LLM
-4. **双 DB 支持** — `hermes-sessions.ts` + `health.ts` 均通过 `DbAdapter` 异步接口实现 SQLite/PG 双兼容；DDL 按 `adapter.kind` 分方言（`datetime('now')` vs `now()::text`）；其余 DB 直调（welink/backup）为已知 SQLite-only 模块，PG 模式下不挂载
+1. **Webhook 异步不阻塞** — dispatchWebhook 在事件触发后 fire-and-forget，10s 超时，失败只记日志不影响主流程
+2. **Digest 定时检查** — 每小时检查 lastSentAt，daily 按天去重、weekly 按 7 天间隔
+3. **内联字段与 SchemaWizard 联动** — AttackBasicInfoTab 通过 `api.addSchemaField()` 直接写 schema，`fetchSchema()` 刷新后新字段立即出现
 
 ### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 

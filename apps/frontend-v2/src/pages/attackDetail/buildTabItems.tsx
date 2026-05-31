@@ -71,6 +71,10 @@ export interface BuildTabItemsArgs {
   // dynamic tabs
   dynamicTabs: TicketTab[];
   setDynamicTabs: React.Dispatch<React.SetStateAction<TicketTab[]>>;
+
+  // inline field add
+  onSchemaRefresh?: () => void;
+  allFieldNames?: string[];
 }
 
 export function buildAllTabItems(a: BuildTabItemsArgs) {
@@ -88,6 +92,8 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           basicFields={a.basicFields}
           hiddenBasicFields={a.hiddenBasicFields}
           onHiddenChange={a.setHiddenBasicFields}
+          onSchemaRefresh={a.onSchemaRefresh}
+          allFieldNames={a.allFieldNames}
         />
       ),
     },

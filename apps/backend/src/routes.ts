@@ -6,6 +6,8 @@ import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
 import { verifyAuth } from "./auth.js";
 import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
+import type { DbAdapter } from "./db-adapter.js";
+import { dispatchWebhook } from "./webhooks.js";
 
 /**
  * resilience(outbox): 业务路由用此接口把 KG 派生任务投递到 `kg_outbox` 表,
@@ -74,7 +76,12 @@ export function actorOf(req: unknown, fallback = "api"): string {
   return (req as { user?: { username?: string } })?.user?.username || fallback;
 }
 
-export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: OutboxEnqueuer): Router {
+export function makeRouter(
+  repo: Repository,
+  registry: SchemaRegistry,
+  outbox?: OutboxEnqueuer,
+  webhookAdapter?: DbAdapter
+): Router {
   const r = Router();
 
   r.get("/schema/:nodeType", (req, res) => {
@@ -168,6 +175,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const actor = actorOf(req);
     const node = await repo.createNode(nodeType, req.body, actor);
     log.info("node.create", { nodeType, id: node.id, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.created", { nodeType, id: node.id, properties: node.properties });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
@@ -196,6 +205,12 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const actor = actorOf(req);
     const updated = await repo.updateNode(req.params.id, req.body, actor);
     log.info("node.update", { id: req.params.id, nodeType: cur.nodeType, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.updated", {
+        id: req.params.id,
+        nodeType: cur.nodeType,
+        properties: updated.properties,
+      });
     await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     if (cur.nodeType === "attackTicket") triggerPostSaveJobs(outbox, req.params.id);
@@ -218,6 +233,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const actor = actorOf(req);
     await repo.deleteNode(req.params.id, actor);
     log.info("node.delete", { id: req.params.id, actor });
+    if (webhookAdapter) dispatchWebhook(webhookAdapter, "node.deleted", { id: req.params.id, nodeType: cur.nodeType });
     res.json({ ok: true });
   });
 
@@ -226,7 +242,10 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const { content, statusSnapshot } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
     // body.actor 不再被信任(P1 防伪造);req.user 缺失才退回 "api"
-    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req)));
+    const prog = await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req));
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "progress.added", { nodeId: req.params.id, content, statusSnapshot });
+    res.status(201).json(prog);
   });
 
   // §41: atomic state transition — update 状态 + append a status-snapshotted
@@ -248,6 +267,13 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
     const progress = await repo.appendProgress(node.id, content, toStatus, actor);
     log.info("node.transition", { id: node.id, toStatus, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.transition", {
+        id: node.id,
+        nodeType: node.nodeType,
+        fromStatus,
+        toStatus,
+      });
     triggerPostSaveJobs(outbox, node.id);
     res.json({ node: updated, progress });
   });

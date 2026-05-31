@@ -20,6 +20,8 @@ import RelatedPage from "./pages/RelatedPage.js";
 import MergePage from "./pages/MergePage.js";
 import SchemaWizard from "./pages/SchemaWizard.js";
 import ConfigCenter from "./pages/ConfigCenter.js";
+import WebhookSettings from "./pages/WebhookSettings.js";
+import DigestSettings from "./pages/DigestSettings.js";
 import SearchPage from "./pages/SearchPage.js";
 import KGGraph from "./pages/KGGraph.js";
 import ProposalsPage from "./pages/ProposalsPage.js";
@@ -132,6 +134,8 @@ function AppInner() {
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/schema" element={<SchemaWizard />} />
         <Route path="/config" element={<ConfigCenter />} />
+        <Route path="/webhooks" element={<WebhookSettings />} />
+        <Route path="/digest" element={<DigestSettings />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/kg" element={<KGGraph />} />
         <Route
