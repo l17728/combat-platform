@@ -7,6 +7,7 @@ import { log } from "./logger.js";
 import { syncConflicts } from "./conflicts.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
+import { verifyAuth } from "./auth.js";
 
 /**
  * 节点保存后异步触发后台扫描任务（fire-and-forget）。
@@ -46,7 +47,13 @@ export function __flushConflictsDebounceForTest(): void {
     conflictsDebounceTimer = null;
     const r = conflictsDebounceRepo;
     conflictsDebounceRepo = null;
-    if (r) { try { syncConflicts(r); } catch { /* swallow */ } }
+    if (r) {
+      try {
+        syncConflicts(r);
+      } catch {
+        /* swallow */
+      }
+    }
   }
 }
 
@@ -57,8 +64,16 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
   if (process.env.NODE_ENV === "test") return;
   scheduleConflictsSync(repo);
   setImmediate(() => {
-    try { scanEscalation(repo); } catch (e) { log.warn("post_save.escalation.fail", { error: (e as Error).message }); }
-    try { scanAndCreateReminders(repo, registry); } catch (e) { log.warn("post_save.reminders.fail", { error: (e as Error).message }); }
+    try {
+      scanEscalation(repo);
+    } catch (e) {
+      log.warn("post_save.escalation.fail", { error: (e as Error).message });
+    }
+    try {
+      scanAndCreateReminders(repo, registry);
+    } catch (e) {
+      log.warn("post_save.reminders.fail", { error: (e as Error).message });
+    }
   });
 }
 
@@ -67,7 +82,7 @@ function triggerPostSaveJobs(repo: Repository, registry: SchemaRegistry): void {
 function canAccessPrivateAttackTicket(
   repo: Repository,
   node: { properties: Record<string, unknown> },
-  user: { username?: string; displayName?: string },
+  user: { username?: string; displayName?: string }
 ): boolean {
   const p = node.properties as Record<string, unknown>;
   const username = user.username || "";
@@ -85,7 +100,9 @@ function canAccessPrivateAttackTicket(
           if (n && (n === displayName || n === username)) return true;
         }
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   // 私密授权人 (姓名数组,JSON)
   const authRaw = p["私密授权人"];
@@ -98,7 +115,9 @@ function canAccessPrivateAttackTicket(
           if (s && (s === displayName || s === username)) return true;
         }
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   // 私密授权组 (组名数组,JSON):展开为邮箱 → 人员姓名 → 比对 displayName/username
   const groupRaw = p["私密授权组"];
@@ -109,7 +128,10 @@ function canAccessPrivateAttackTicket(
         for (const groupName of groups) {
           const gNodes = repo.queryNodes("emailGroup", { 组名: String(groupName) });
           for (const g of gNodes) {
-            const emails = String(g.properties?.["成员邮箱"] ?? "").split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
+            const emails = String(g.properties?.["成员邮箱"] ?? "")
+              .split(/[,，;；]/)
+              .map((s) => s.trim())
+              .filter(Boolean);
             for (const email of emails) {
               const persons = repo.queryNodes("person", { 邮箱: email });
               for (const person of persons) {
@@ -120,21 +142,28 @@ function canAccessPrivateAttackTicket(
           }
         }
       }
-    } catch { /* fall through */ }
+    } catch {
+      /* fall through */
+    }
   }
   return false;
 }
 
-// §50: gate 贡献等级 标定 to privileged roles. Absent X-Role header = trusted
-// system access (CLI / import / tests) → allowed. Returns an error string to
-// send as 403, or null when allowed.
+// §50: gate 贡献等级 标定 to privileged roles. P0-3 修复:role 必须从 JWT payload 取,
+// 严禁信任客户端可控的 X-Role 头(localStorage 写入,curl 可任意伪造)。
+// - 缺失 Authorization (CLI / import / 测试 / COMBAT_NO_AUTH) → 信任
+// - JWT 有效 + role ∈ PRIVILEGED_ROLES → 信任
+// - 其他 → 403
 function gradeGate(req: { headers: Record<string, unknown>; body: unknown }, nodeType: string): string | null {
   if (nodeType !== "contribution") return null;
   const grade = String((req.body as Record<string, unknown>)?.["贡献等级"] ?? "").trim();
   if (!grade) return null;
-  const role = req.headers["x-role"];
-  if (role === undefined) return null; // trusted (no role asserted)
-  if (PRIVILEGED_ROLES.includes(String(role) as Role)) return null;
+  if (process.env.COMBAT_NO_AUTH === "1") return null;
+  const auth = (req.headers["authorization"] as string | undefined) ?? undefined;
+  if (!auth) return null; // trusted CLI / 后端内部调用
+  const payload = verifyAuth(req as { headers: Record<string, unknown> });
+  if (!payload) return "未登录或 token 已过期";
+  if (PRIVILEGED_ROLES.includes(payload.role as Role)) return null;
   return "仅 Leader 可标定贡献等级";
 }
 
@@ -160,8 +189,13 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     }
     try {
       const s = registry.applyFieldOp(nodeType, req.body);
-      repo.logAudit({ action: `SCHEMA_${req.body?.op}`, entityType: "schema",
-        entityId: nodeType, changes: req.body, actor: "api" });
+      repo.logAudit({
+        action: `SCHEMA_${req.body?.op}`,
+        entityType: "schema",
+        entityId: nodeType,
+        changes: req.body,
+        actor: "api",
+      });
       log.info("schema.fieldOp", { nodeType, op: req.body?.op });
       res.json(s);
     } catch (e) {
@@ -199,7 +233,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     // 与 /auth/me 返回的默认管理员一致,便于 e2e 走删除路径。
     if (nodeType === "attackTicket" && !req.body?.["创建人"]) {
       const creator = (req as any).user?.username || "admin";
-      req.body = { ...req.body, "创建人": creator };
+      req.body = { ...req.body, 创建人: creator };
     }
     const v = registry.validateNode(nodeType, req.body);
     if (!v.ok) return res.status(400).json({ errors: v.errors });
@@ -209,8 +243,9 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
         const tickets = repo.queryNodes("attackTicket");
-        const target = tickets.find(t => String(t.properties["攻关单号"] ?? "") === ref)
-          ?? tickets.find(t => String(t.properties["标题"] ?? "") === ref);
+        const target =
+          tickets.find((t) => String(t.properties["攻关单号"] ?? "") === ref) ??
+          tickets.find((t) => String(t.properties["标题"] ?? "") === ref);
         if (target) repo.createEdge("CONTRIBUTED_TO", node.id, target.id, {}, "api");
       }
     }
@@ -271,7 +306,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry): Router {
     const toStatus = String(req.body?.toStatus ?? "").trim();
     const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
     const schema = registry.getNodeSchema(node.nodeType);
-    const statusField = schema?.fields.find(f => f.id === "状态");
+    const statusField = schema?.fields.find((f) => f.id === "状态");
     const allowed = statusField?.enumValues ?? [];
     if (!toStatus || !allowed.includes(toStatus))
       return res.status(400).json({ error: `非法目标状态：${toStatus || "(空)"}` });

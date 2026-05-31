@@ -5,10 +5,13 @@ Guidance for agentic coding agents working in this repository.
 ## Core Development Principles
 
 ### 1. Parallelize Development
+
 **Any task that CAN run in parallel MUST run in parallel.** Identify independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency.
 
 ### 2. Recursive Convergence (举一反三递归收敛)
+
 **When a problem is found, fix the entire CLASS of problems, then check if the fix introduced new problems, and keep recursing until the error count converges to zero.** This is not "fix one, move on" — it's:
+
 1. **Identify** the root cause pattern (not the symptom)
 2. **Search** the entire codebase for ALL instances of the same pattern
 3. **Fix** every instance (not just the one that failed)
@@ -17,27 +20,34 @@ Guidance for agentic coding agents working in this repository.
 6. **Converge**: stop only when zero failures remain
 
 Example: A test fails because `row.locator('a').filter({ hasText: '编辑' })` matches both the name cell link AND the edit button. The fix is NOT to change just that one test — it's to:
+
 - Search all 20+ test files for the same `row.locator('a')` anti-pattern
 - Replace ALL instances with `opsCell(row).locator('a')` (scoped to last `<td>`)
 - Re-run ALL tests to check the fix didn't break anything
 - Check if `opsCell()` itself has edge cases (e.g., tables without fixed columns)
 
 ### 3. Fast MVP, TDD, Full E2E Coverage
+
 **Ship the leanest usable vertical slice fast, then iterate on real feedback.** Trim scope, not rigor — cut features to reach a usable end-to-end product quickly; defer non-essential work to later iterations. **All work is TDD** (failing test → minimal code → green → commit). **Design e2e test cases covering all functionality, both frontend and backend**; every feature must be covered.
 
 ### 4. Run to Completion (Autonomous Execution)
+
 **Do not stop until all functional e2e tests (frontend + backend) pass and the product is manually usable.** Keep running through implementation, failures, and fixes autonomously. When a decision is required mid-execution, choose the most-recommended option and proceed — do not block on the user for routine decisions.
 
 ### 5. Generalize Fixes (举一反三)
+
 **When a problem is found, fix the entire class of problems, not just the single instance.** Trace every divergent/leaf-node issue, and keep resolving until the problem space converges.
 
 ### 6. CLI for Every Backend API
+
 **Every backend HTTP API MUST have a corresponding CLI command.** The CLI is how agents drive the system programmatically. **When implementing ANY new backend API, synchronously implement its CLI command** — this is part of the backend definition-of-done, never deferred. CLI registry: `apps/backend/src/cli-core.ts`.
 
 ### 7. Claude-as-Agent (邀请 Claude 参与任务分发)
+
 开发任务可以拆分为多个 agent 并行执行。**每次分发任务时，必须邀请 Claude 作为一个独立 agent 参与。** 邀请方式是通过 `claude` CLI 的 headless 无头模式分配任务（review、代码撰写、测试等），Claude 会自动读取 `CLAUDE.md` 获取独立指导原则。
 
 **调用方式**（通过 Bash 工具执行）：
+
 ```bash
 # 无头模式：分配任务给 Claude，等待返回结果
 echo "任务描述（如：review apps/backend/src/routes.ts 的安全性）" | claude --dangerously-skip-permissions -p
@@ -52,15 +62,18 @@ claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"  
 ```
 
 **原则**：
+
 - Claude 的指导文件是 `CLAUDE.md`（包含并行化、举一反三、TDD、CLI 同步、部署后验证等原则）
 - `AGENTS.md` = opencode agent 指导，`CLAUDE.md` = Claude Code agent 指导，两者原则一致但表述不同
 - 并行化指令优先级最高——"能并行的任务一定要并行处理，使用多个agent"
 - Claude CLI 执行的任务可以和 opencode 的 Task subagent 并行运行，互不阻塞
 
 ### 8. Local-First Development & Testing (本机先行，现网后行)
+
 **所有开发和测试必须先在本机完成，确认无误后再部署到现网。** 绝不能跳过本机验证直接部署到生产环境。
 
 **标准流程（严格顺序）**：
+
 1. **本机开发** — 编写代码 + 对应测试
 2. **本机后端测试** — `npm run test:backend` 全部通过
 3. **本机 E2E 测试** — `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line` 全部通过
@@ -71,52 +84,61 @@ claude --dangerically-skip-permissions -p "实现 XXX 后端 API + CLI 命令"  
 8. **关闭 issue** — 更新问题反馈状态为"已关闭"
 
 **本机冒烟验证脚本示例**：
+
 ```javascript
 // 用 Playwright 在本机 localhost:5174 跑冒烟测试
-const { chromium } = require('playwright');
+const { chromium } = require("playwright");
 // 登录 → 仪表盘 → 攻关列表 → 人员列表 → 导出 → 关闭
 ```
 
 **原则**：
+
 - 本机是第一道防线，现网是最终确认
 - 现网验证不要删除原有数据，测试数据测试后清理
 - 部署后如果发现问题，先在本机复现，修复后再重新走流程
 - 现网问题反馈读取后，在本机环境复现和修复，不要直接在现网调试
 
 ### 8.1 Deploy After Green
+
 **After every milestone reaches all-green (`npm run test:all` fully passing), deploy to the test server** so the user can manually verify. Deploy credentials are in `.env.deploy` (gitignored) — **never hardcode server passwords in any committed file**.
 
 ### 9. Domain Language: Chinese Only
+
 Domain enum values are **Chinese string literals and are canonical** — preserve verbatim in code, schemas, tests; never translate or normalize to English. **Interact with the user in Chinese.**
+
 ```ts
-enumValues: ["待响应", "处理中", "已解决", "已关闭"]
-toStatus === "已解决"
+enumValues: ["待响应", "处理中", "已解决", "已关闭"];
+toStatus === "已解决";
 ```
 
 ### 10. Config-Driven, No DDL Migrations
+
 Adding/removing a field is a **config change** (JSON file), never a DB migration. Business data lives in `properties` JSON columns. Never hardcode business field names in any layer. UI renders from schema config at runtime.
 
 ### 11. One Data Model, Many Views
+
 **Do not build per-table CRUD silos.** Build one unified model; each "combat table" is a projection/view over it. The core problem is cross-view association — the same person/task appears across many tables and must be linked.
 
 ### 12. Structured Is Authoritative, KG Is Derived
+
 All writes go through the config-driven structured model (single source of truth). The Knowledge Graph is **derived** from structured data (auto-synced, fully rebuildable) and used only for cross-view association, search, and Q&A. The KG never accepts direct writes.
 
 ### 13. Post-Implementation Sync Checklist (特性完工例行检查)
+
 **Every feature implementation MUST complete the following checklist before marking done.** No exceptions, no deferrals:
 
-| # | Check | What to Do |
-|---|-------|-----------|
-| 1 | **E2E tests** | Write/update Playwright e2e tests covering the new feature. Run full suite (`npx playwright test --config=apps/frontend-v2/playwright.config.ts`). Fix any failures. |
-| 2 | **Backend tests** | If backend changed, run `npm run test:backend`. Fix any failures. |
-| 3 | **AGENTS.md test status** | Update "当前测试状态" section with date + count. |
-| 4 | **CLI commands** | New backend API → new CLI command in `apps/backend/src/cli-core.ts`. Verify with `npm run cli -- help`. |
-| 5 | **Mock/seed scripts** | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs`. If feature adds new config items, update `scripts/settings-seed.mjs`. Verify both run correctly. |
-| 6 | **Migration scripts** | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added. |
-| 7 | **API docs** | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples. |
-| 8 | **Constants** | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps. |
-| 9 | **Deploy** | After all tests green: `git add -A && git commit` → `cd scripts/deploy-v2 && node deploy.mjs deploy`. |
-| 10 | **AGENTS.md updates** | Document any new discoveries (Ant Design quirks, backend gotchas), update architecture descriptions if changed. |
+| #   | Check                     | What to Do                                                                                                                                                                          |
+| --- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **E2E tests**             | Write/update Playwright e2e tests covering the new feature. Run full suite (`npx playwright test --config=apps/frontend-v2/playwright.config.ts`). Fix any failures.                |
+| 2   | **Backend tests**         | If backend changed, run `npm run test:backend`. Fix any failures.                                                                                                                   |
+| 3   | **AGENTS.md test status** | Update "当前测试状态" section with date + count.                                                                                                                                    |
+| 4   | **CLI commands**          | New backend API → new CLI command in `apps/backend/src/cli-core.ts`. Verify with `npm run cli -- help`.                                                                             |
+| 5   | **Mock/seed scripts**     | If feature adds new nodeTypes or data shapes, update `scripts/mock-data/seed.mjs`. If feature adds new config items, update `scripts/settings-seed.mjs`. Verify both run correctly. |
+| 6   | **Migration scripts**     | If feature changes data model, verify `scripts/migrate/export.mjs` and `scripts/migrate/import.mjs` still work with the new schema. Update NODE_TYPES list if new types added.      |
+| 7   | **API docs**              | If `docs/API_REFERENCE.md` exists, add new endpoints with request/response examples.                                                                                                |
+| 8   | **Constants**             | If new UI enum values added, update `apps/frontend-v2/src/constants.ts` color/label maps.                                                                                           |
+| 9   | **Deploy**                | After all tests green: `git add -A && git commit` → `cd scripts/deploy-v2 && node deploy.mjs deploy`.                                                                               |
+| 10  | **AGENTS.md updates**     | Document any new discoveries (Ant Design quirks, backend gotchas), update architecture descriptions if changed.                                                                     |
 
 ## Core Mission (核心使命)
 
@@ -125,6 +147,7 @@ frontend (`apps/frontend/`) serves as a **reference only** — it must NOT be mo
 The new frontend will be a separate app within this monorepo.
 
 Rules:
+
 1. **DO NOT modify `apps/frontend/`** — treat it as read-only reference code.
 2. **DO NOT modify existing backend code** (`apps/backend/src/*`) unless there is no alternative
    (conflict, missing capability). Prefer adding new backend files/modules.
@@ -135,6 +158,7 @@ Rules:
 6. Shared types in `packages/shared/` can be extended (additive only) but not broken.
 
 The new frontend should leverage the full backend API surface:
+
 - Config-driven CRUD for 16+ nodeTypes (attackTicket, person, contribution, teamContribution, infoCard, etc.) — new nodeTypes need only a `config/schemas/<type>.json`; the generic `/api/nodes/:nodeType` API serves them with no new endpoint/CLI
 - Cross-view relations (REF edges, ANCHORED_TO anchors, concept grouping)
 - Hermes Q&A, search, recommendation, proposals approval
@@ -150,6 +174,7 @@ Do NOT create or modify any files under `apps/frontend/`.
 ## Deployment
 
 ### Production Server (生产环境 — 唯一部署目标)
+
 - **服务器**: `124.156.193.122`（直连 SSH，用户 `root`，密码见 `.env.deploy`）
 - **部署路径**: `/opt/combat-v2/`
 - **访问地址**: `http://124.156.193.122:3001`（**唯一端口**，后端 Express 同时服务 API + 前端静态文件）
@@ -160,6 +185,7 @@ Do NOT create or modify any files under `apps/frontend/`.
 > **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 #### 部署命令（从 repo 根目录执行）
+
 ```bash
 # 前提：所有改动必须先 git commit（deploy 打包 git HEAD）
 git add -A && git commit -m "your message"
@@ -175,6 +201,7 @@ ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 ```
 
 #### 部署架构（2026-05-28 更新）
+
 - **单端口 :3001**：后端 Express 服务 API (`/api/*`) + 前端静态文件（`apps/frontend-v2/dist/`）
 - **systemd 管理**：`combat-v2.service`，`Restart=always`，开机自启
 - **直连部署**：`deploy-direct.mjs` 直连 SSH 到 124.156.193.122，无需跳板机
@@ -183,17 +210,19 @@ ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
 
 **三层日志架构**，所有操作均有迹可查：
 
-| 层级 | 存储 | 覆盖范围 | 查看方式 |
-|------|------|----------|----------|
-| 结构化日志 | 文件 | 所有后端操作（94个日志点）+ 每个HTTP请求 | `tail -f /opt/combat-v2/backend.log` |
-| 审计日志 | SQLite `audit_log` 表 | 所有数据变更（CREATE/UPDATE/DELETE/PROGRESS/ESCALATE/MERGE 等，21个审计点） | 前端"审计日志"页面 |
-| 操作日志 | SQLite `op_logs` 表 | 前端API调用、路由导航、全局错误 | 前端"操作日志"页面 |
+| 层级       | 存储                  | 覆盖范围                                                                    | 查看方式                             |
+| ---------- | --------------------- | --------------------------------------------------------------------------- | ------------------------------------ |
+| 结构化日志 | 文件                  | 所有后端操作（94个日志点）+ 每个HTTP请求                                    | `tail -f /opt/combat-v2/backend.log` |
+| 审计日志   | SQLite `audit_log` 表 | 所有数据变更（CREATE/UPDATE/DELETE/PROGRESS/ESCALATE/MERGE 等，21个审计点） | 前端"审计日志"页面                   |
+| 操作日志   | SQLite `op_logs` 表   | 前端API调用、路由导航、全局错误                                             | 前端"操作日志"页面                   |
 
 **生产环境日志文件路径**：
+
 - 生产机 (124.156.193.122): **`/opt/combat-v2/backend.log`**
 - 由 systemd `StandardOutput=append:/opt/combat-v2/backend.log` 写入
 
 **日志查看命令**：
+
 ```bash
 # SSH 直连查看实时日志
 ssh root@124.156.193.122 'tail -f /opt/combat-v2/backend.log'
@@ -207,6 +236,7 @@ ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 ```
 
 **后端日志事件速查**（`logger.ts` 中的 event 名称，可用于 grep）：
+
 - 认证: `auth.login`, `auth.register`, `auth.password_changed`, `auth.user_created/updated/deleted`
 - 节点CRUD: `node.create`, `node.update`, `node.delete`, `node.transition`
 - Schema: `schema.fieldOp`, `schema.create`, `schema.delete`
@@ -222,6 +252,7 @@ ssh root@124.156.193.122 'journalctl -u combat-v2 --no-pager -n 50'
 - 动态标签: `ticket_tab.created`, `ticket_tab.updated`, `ticket_tab.deleted`, `ticket_tab.reordered`
 
 ### Existing Deployment (参考前端，不要修改，已停止更新)
+
 - **服务器**: `47.103.99.229`（Alibaba Cloud Linux）
 - **路径**: `/opt/combat/`
 - **前端端口**: 5173（vite preview）
@@ -250,23 +281,24 @@ scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 
 ## Scripts Inventory
 
-| Script | Path | Usage |
-|--------|------|-------|
-| Demo seed | `scripts/mock-data/demo-seed.mjs` | `node scripts/mock-data/demo-seed.mjs --api http://HOST:3001` — full-featured demo data seeder (22 people, 30 tickets, 98 progress, 26 contributions, help requests, bug reports, proposals, tabs, edges, etc.) |
-| Mock seed | `scripts/mock-data/seed.mjs` | `node scripts/mock-data/seed.mjs [--api URL] [--count N]` — creates N people, attackTickets, contributions |
-| Mock wipe | `scripts/mock-data/wipe.mjs` | `node scripts/mock-data/wipe.mjs [--api URL] [--yes]` — deletes ALL nodes (irreversible!) |
-| Settings seed | `scripts/settings-seed.mjs` | `node scripts/settings-seed.mjs [--api URL]` — populates config center with default dropdown options |
-| Migrate export | `scripts/migrate/export.mjs` | `node scripts/migrate/export.mjs [--api URL] [--out DIR]` — exports all nodeTypes to xlsx files |
-| Migrate import | `scripts/migrate/import.mjs` | `node scripts/migrate/import.mjs [--api URL] [--dir DIR] [--dryRun]` — imports xlsx files via upsert |
-| Deploy v2 | `scripts/deploy-v2/deploy.mjs` | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline (跳板机→目标机) |
-| Deploy direct | `scripts/deploy-v2/deploy-direct.mjs` | `cd scripts/deploy-v2 && node deploy-direct.mjs <host> <user> <pass>` — direct SSH deploy (e.g. 124.156.193.122) |
-| Deploy v1 | `scripts/deploy/deploy.mjs` | Old deployment for reference frontend only |
+| Script         | Path                                  | Usage                                                                                                                                                                                                           |
+| -------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Demo seed      | `scripts/mock-data/demo-seed.mjs`     | `node scripts/mock-data/demo-seed.mjs --api http://HOST:3001` — full-featured demo data seeder (22 people, 30 tickets, 98 progress, 26 contributions, help requests, bug reports, proposals, tabs, edges, etc.) |
+| Mock seed      | `scripts/mock-data/seed.mjs`          | `node scripts/mock-data/seed.mjs [--api URL] [--count N]` — creates N people, attackTickets, contributions                                                                                                      |
+| Mock wipe      | `scripts/mock-data/wipe.mjs`          | `node scripts/mock-data/wipe.mjs [--api URL] [--yes]` — deletes ALL nodes (irreversible!)                                                                                                                       |
+| Settings seed  | `scripts/settings-seed.mjs`           | `node scripts/settings-seed.mjs [--api URL]` — populates config center with default dropdown options                                                                                                            |
+| Migrate export | `scripts/migrate/export.mjs`          | `node scripts/migrate/export.mjs [--api URL] [--out DIR]` — exports all nodeTypes to xlsx files                                                                                                                 |
+| Migrate import | `scripts/migrate/import.mjs`          | `node scripts/migrate/import.mjs [--api URL] [--dir DIR] [--dryRun]` — imports xlsx files via upsert                                                                                                            |
+| Deploy v2      | `scripts/deploy-v2/deploy.mjs`        | `cd scripts/deploy-v2 && node deploy.mjs <check\|deploy\|restart\|logs>` — full deploy pipeline (跳板机→目标机)                                                                                                 |
+| Deploy direct  | `scripts/deploy-v2/deploy-direct.mjs` | `cd scripts/deploy-v2 && node deploy-direct.mjs <host> <user> <pass>` — direct SSH deploy (e.g. 124.156.193.122)                                                                                                |
+| Deploy v1      | `scripts/deploy/deploy.mjs`           | Old deployment for reference frontend only                                                                                                                                                                      |
 
 ## Build / Dev / Test Commands
 
 All commands run from repo root unless noted. This is an npm workspaces monorepo.
 
 ### Development
+
 ```bash
 npm run dev:backend          # Start backend on :3001 (tsx watch)
 npm run dev:frontend         # Start frontend on :5173 (vite dev)
@@ -274,11 +306,13 @@ npm run dev:frontend-v2      # Start frontend-v2 on :5174 (vite dev)
 ```
 
 ### Run All Tests (full CI gate)
+
 ```bash
 npm run test:all             # shared + backend + frontend unit + frontend e2e + frontend-v2 e2e (resets schemas between suites)
 ```
 
 ### Run Tests by Package
+
 ```bash
 npm run test:shared          # packages/shared vitest unit tests
 npm run test:backend         # apps/backend vitest e2e tests
@@ -288,6 +322,7 @@ npm run test:frontend-v2:e2e # Playwright browser e2e tests (apps/frontend-v2/e2
 ```
 
 ### Run a Single Test File
+
 ```bash
 # Backend (from apps/backend/):
 npx vitest run test/import.e2e.test.ts
@@ -308,12 +343,14 @@ npx playwright test --config=apps/frontend-v2/playwright.config.ts e2e/bug-repor
 ```
 
 ### Run a Single Test by Name Pattern
+
 ```bash
 npx vitest run -t "creates and reads"     # matches test name substring
 npx playwright test -g "attack detail"     # Playwright grep
 ```
 
 ### CLI (agent-operable)
+
 ```bash
 npm run cli -- <command> [args] [--opts]   # reads COMBAT_API env (default http://localhost:3001)
 npm run cli -- help                        # lists all commands with usage
@@ -321,12 +358,15 @@ npm run cli -- help nodes:create           # per-command detail
 ```
 
 ### Schemas Reset (tests mutate schema files)
+
 ```bash
 npm run reset:schemas        # git checkout -- config/schemas/
 ```
 
 ### Lint / Typecheck
+
 No ESLint or Prettier config exists yet. TypeScript strict mode is enforced:
+
 ```bash
 npx tsc --noEmit --workspace=@combat/backend
 npx tsc --noEmit --workspace=@combat/shared
@@ -335,11 +375,13 @@ npx tsc --noEmit --workspace=@combat/shared
 ## Code Style Guidelines
 
 ### TypeScript Configuration
+
 - **Target:** ES2022, **Module:** NodeNext, **ModuleResolution:** NodeNext
 - **Strict mode** enabled (`strict: true` in tsconfig.base.json)
 - **ESM throughout** (`"type": "module"` in all package.json files)
 
 ### Imports
+
 - **Always use `.js` extensions** on relative/local imports (NodeNext requirement):
   ```ts
   import { openDb } from "./db.js";
@@ -358,6 +400,7 @@ npx tsc --noEmit --workspace=@combat/shared
 - Use `import type` for type-only imports.
 
 ### Formatting
+
 - No auto-formatter configured. Follow existing style:
   - 2-space indentation
   - Single quotes for strings
@@ -366,9 +409,11 @@ npx tsc --noEmit --workspace=@combat/shared
   - Keep lines under ~120 chars
 
 ### Comments
+
 - **Do NOT add comments** unless explicitly asked. This is a standing directive.
 
 ### Naming Conventions
+
 - **Files:** camelCase (`repository.ts`, `cli-core.ts`, `makeRouter`)
 - **React components:** PascalCase exports (`EntityTable`, `AttackDetail`)
 - **Backend routers:** `makeXxxRouter()` factory functions
@@ -378,17 +423,19 @@ npx tsc --noEmit --workspace=@combat/shared
 - **CLI commands:** kebab-case or colon-separated (`nodes:list`, `schema:get`)
 
 ### Type Patterns
+
 - Entity properties live in `Record<string, unknown>` — never hardcode field names.
 - Domain enum values are **Chinese string literals** and are canonical. Never translate them.
   ```ts
   // Correct — preserve Chinese verbatim
-  enumValues: ["待响应", "处理中", "已解决", "已关闭"]
-  toStatus === "已解决"
+  enumValues: ["待响应", "处理中", "已解决", "已关闭"];
+  toStatus === "已解决";
   ```
 - Use `interface` for data shapes, `type` for unions and utility types.
 - Shared types go in `packages/shared/src/types.ts`; re-export from `index.ts`.
 
 ### Error Handling
+
 - Express routes: validate input, return `{ error: string }` with appropriate HTTP status.
 - Backend errors use structured logger: `log.warn/error(event, { fields })`.
 - Async Express handlers wrapped with `asyncHandler()` from `logger.ts`.
@@ -396,6 +443,7 @@ npx tsc --noEmit --workspace=@combat/shared
 - User-facing error messages in Chinese where domain-appropriate.
 
 ### Backend Patterns
+
 - **Router factory pattern:** each feature file exports `makeXxxRouter(repo, registry)` → Express Router.
 - **Dependency injection:** `createApp({ repo, registry })` — no globals, testable.
 - **Audit logging:** every mutating action calls `repo.logAudit(...)` or `repo.audit(...)`.
@@ -404,15 +452,17 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Never import `server.ts` in tests** — it starts listening. Use `createApp()` from `app.ts`.
 
 ### Frontend Patterns
+
 - **API client:** `Api` class in `src/api.ts`, singleton `api` exported. All backend calls go through it.
 - **Pages:** functional components using hooks (`useState`, `useEffect`, `useCallback`).
 - **UI library:** Ant Design (`Table`, `Form`, `Modal`, `message`, etc.).
 - **Routing:** react-router-dom v6 with `BrowserRouter` in `App.tsx`.
 - **Config-driven tables:** `EntityTable` component renders columns from `NodeSchema.fields`.
-- **Frontend unit tests** use vitest (src/**/*.test.tsx); **e2e tests** use Playwright (e2e/**/*.spec.ts).
+- **Frontend unit tests** use vitest (src/**/\*.test.tsx); **e2e tests** use Playwright (e2e/**/\*.spec.ts).
 - **Playwright config:** `fullyParallel: false, workers: 1` — sequential execution, single worker.
 
 ### Config-Driven Schema Rules
+
 - Entity schemas are JSON files in `config/schemas/` (e.g., `attackTicket.json`, `person.json`).
 - **Adding/removing a field is a config change, never a DB migration.**
 - Business data lives in a `properties` JSON column on `nodes`/`edges` tables.
@@ -455,6 +505,7 @@ npx tsc --noEmit --workspace=@combat/shared
 - **Config-OptionsKey binding:** schema fields with `type: "enum"` have an `optionsKey` property pointing to a config center key; binding is managed in SchemaWizard; config center delete shows impact analysis before confirming
 
 ### UI 配置化原则(强制)
+
 **所有"业务枚举"下拉/筛选/单选必须走配置中心,严禁源码硬编码** — Bug 严重程度、攻关单状态、贡献等级、团队角色这类业务可变枚举,统一从 `useSettings().getValues(key, fallback)` 读。
 
 ```ts
@@ -468,6 +519,7 @@ const severities = getValues('Bug 严重程度', ['严重', '较高', '一般', 
 ```
 
 铁律:
+
 1. **fallback 必填**(string[]),且保留原硬编码默认值 — 离线 / 未 seed 也能渲染。
 2. 新增 settings key → `scripts/settings-seed.mjs` 同步加 `await put(...)`,部署时跑一次。
 3. 配置项一览见 `docs/UI_CONFIG_AUDIT.md` 和 `help-content.ts` 的 `configCenter` 条目。
@@ -476,12 +528,15 @@ const severities = getValues('Bug 严重程度', ['严重', '较高', '一般', 
 ## E2E Test Hard-Won Discoveries (Frontend-v2)
 
 ### Ant Design 5 自动在2字符中文按钮文本间插入空格
+
 Ant Design 5 自动在 `<Button>` 文本为恰好2个中文字符时插入空格。Playwright 选择器需用正则匹配如 `/导\s?出/`、`/确\s?定/`、`/删\s?除/`、`/添\s?加/`。4字符按钮如"新建攻关"不受影响。
 
 ### Ant Design Select 下拉 — "Element is outside of the viewport"
+
 Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `.click()` 会报 "outside viewport" 错误。**修复：使用 `dispatchEvent('click')` 代替 `.click()`**，通过 `.ant-select-dropdown:not(.ant-select-dropdown-hidden)` 定位活动下拉框，在其中找 `.ant-select-item-option`。见 `e2e/helpers.ts` 的 `selectOption()` 函数。
 
 ### 页面上多个 Select 的索引规则
+
 - Header 不再有 `.ant-select`（已替换为 Dropdown 用户菜单）
 - 页面级筛选 Select 从 index 0 开始
 - Drawer 内的 Select 用 `drawer.locator('.ant-select')` 独立索引，从 0 开始
@@ -489,12 +544,15 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 - **Contributions drawer 内有 5 个 Select**：贡献人[0], 贡献类型[1], 贡献等级[2], 关联攻关单[3], 周期(非Select)
 
 ### Backend 审计日志 action 和 entityType 是大写英文
+
 - **action 值为大写**: `CREATE`, `UPDATE`, `DELETE`, `PROGRESS`, `SETTING`, `ESCALATE`, `MERGE`
 - **entityType 值是通用类型**: `node`, `edge`, `schema`, `setting`, `proposal`, `reminder`（**不是** `person`、`attackTicket` 等 nodeType 名称）
 - 前端 AuditLog 页面的筛选选项必须与这些大写值精确匹配
 
 ### 贡献等级(贡献等级) 创建需要 Leader/Admin 角色
+
 后端 `gradeGate()` 函数（`routes.ts:31`）对 `contribution` nodeType 的 `贡献等级` 字段做了角色门控：
+
 - `X-Role` header 缺失 → 信任（允许，如 CLI/测试）
 - `X-Role: normal` → **403 Forbidden**
 - `X-Role: leader` 或 `admin` → 允许
@@ -502,14 +560,17 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 - **E2E 测试创建带贡献等级的贡献时，必须用 `page.addInitScript(() => localStorage.setItem('combat-role', 'leader'))` 设置角色**
 
 ### Playwright 多次 Toast 消息导致严格模式违规
+
 当连续操作产生多条 Ant Design message toast 时（如快速连续状态流转），`getByText('状态流转成功')` 可能匹配到多条。**必须用 `.first()` 或更精确的选择器**。
 
 ### Drawer 关闭不会提交数据
+
 测试验证：打开 drawer、填写数据、点击关闭按钮（`.ant-drawer-close`）不会创建任何数据。这是回归防护测试之一。
 
 ## Deploy Infrastructure (2026-05-28 更新)
 
 ### 直连部署（当前方式）
+
 - **生产服务器**: `124.156.193.122`（直连 SSH，无需跳板机）
 - **部署脚本**: `scripts/deploy-v2/deploy-direct.mjs`
 - **Node 版本**: v22.22.3（通过 nvm 管理）
@@ -518,9 +579,11 @@ Ant Design 5 Select 下拉选项渲染在 body 级 portal 中，Playwright 的 `
 > **注意**: 旧跳板机部署 (`60.204.199.234` via `47.103.99.229`) 已废弃，不再使用。
 
 ### 部署流程
+
 ```bash
 cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 ```
+
 - 从 git HEAD 打包 → 直连 SFTP 到生产机 → tar 解压 → npm install → build frontend-v2 → systemctl restart combat-v2
 - 前端 build 产物在 `apps/frontend-v2/dist/`，由后端 Express 静态服务
 
@@ -553,15 +616,16 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 
 所有表单抽屉必须遵循：
 
-| 属性 | 值 | 原因 |
-|------|-----|------|
-| `width` | 创建/编辑: 480, 详情: 560 | 表单紧凑，详情宽松 |
-| `destroyOnClose` | `true` | 避免残留状态 |
-| `maskClosable` | `false` | 防误触关闭 |
-| 提交按钮位置 | `extra={<Button>}` | 固定在顶部，始终可见 |
-| 关闭时 | `form.resetFields()` | 清空表单 |
+| 属性             | 值                        | 原因                 |
+| ---------------- | ------------------------- | -------------------- |
+| `width`          | 创建/编辑: 480, 详情: 560 | 表单紧凑，详情宽松   |
+| `destroyOnClose` | `true`                    | 避免残留状态         |
+| `maskClosable`   | `false`                   | 防误触关闭           |
+| 提交按钮位置     | `extra={<Button>}`        | 固定在顶部，始终可见 |
+| 关闭时           | `form.resetFields()`      | 清空表单             |
 
 **字段分组**：表单内用 `<Divider orientation="left" orientationMargin={0}>组名</Divider>` 分隔：
+
 - 基础信息 / 人员信息 / 详细信息（AttackList、AttackDetail）
 - 贡献详情 / 关联信息（Contributions）
 - 组织信息（PeopleList）
@@ -575,23 +639,25 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
   rowKey="id"
   dataSource={data}
   columns={columns}
-  size="middle"                           // 列表用middle，详情内嵌用small
+  size="middle" // 列表用middle，详情内嵌用small
   pagination={{
-    pageSize: PAGE_SIZE,                  // 20
+    pageSize: PAGE_SIZE, // 20
     showSizeChanger: true,
-    pageSizeOptions: PAGE_SIZE_OPTIONS,   // [10, 20, 50, 100]
-    showTotal: (t) => `共 ${t} 条`
+    pageSizeOptions: PAGE_SIZE_OPTIONS, // [10, 20, 50, 100]
+    showTotal: (t) => `共 ${t} 条`,
   }}
 />
 ```
 
 **Scroll 规则**（2026-05-27 更新）：
+
 - 有固定列（`fixed: 'left'` 或 `fixed: 'right'`）的表格：`scroll={{ x: true }}`
 - 无固定列的表格：**不设 scroll prop**，让浏览器原生 `table-layout: auto` 自动分配列宽
 - 每个表格有且仅有 1 个"弹性列"（内容最多的列），设 `ellipsis: true`，不设 `width`
 - 其他短内容列设合理的固定 `width`
 
 **列定义模式**：
+
 - 名称/标题列：`fixed: 'left'`，可点击跳转用 `<a>`
 - 状态列：`<StatusTag>` 组件，宽度 120
 - 时间列：`<Tooltip title={完整时间}>{短时间}</Tooltip>`，默认 `defaultSortOrder: 'descend'`
@@ -632,6 +698,7 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 **StatusTag 组件**：统一通过 `<StatusTag status={v} type="status|level|contribution" />` 渲染。
 
 **颜色体系**（在 `constants.ts` 中集中管理）：
+
 - `STATUS_COLOR`：待响应=gold, 处理中=blue, 进行中=cyan, 已解决=green, 已关闭=default
 - `STATUS_BAR_COLOR`：同上色系的 hex 值（用于图表柱状）
 - `LEVEL_COLOR`：高=red, 中=orange, 低=blue
@@ -662,10 +729,8 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
   showSearch
   allowClear
   placeholder="从全员名单搜索"
-  options={personOptions}    // [{value: '姓名', label: '姓名 (部门)'}]
-  filterOption={(input, option) =>
-    (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
-  }
+  options={personOptions} // [{value: '姓名', label: '姓名 (部门)'}]
+  filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
 />
 ```
 
@@ -674,15 +739,15 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 
 ### 7. 交互模式
 
-| 场景 | 模式 |
-|------|------|
-| 创建 | Drawer + Form + extra按钮 |
-| 编辑 | 独立 editOpen Drawer，预填 `editForm.setFieldsValue(node.properties)` |
-| 详情 | Drawer(width:560) + Descriptions(bordered, column:1) |
-| 删除 | `Popconfirm title="确认删除XX？"` + `<a style={{color:'#ff4d4f'}}>` |
-| 状态流转 | Drawer + Steps可视化 + Select选目标状态 |
-| 导出 | `api.exportNodes()` → Blob → `<a download>` |
-| 导入 | Drawer + Upload.Dragger |
+| 场景     | 模式                                                                  |
+| -------- | --------------------------------------------------------------------- |
+| 创建     | Drawer + Form + extra按钮                                             |
+| 编辑     | 独立 editOpen Drawer，预填 `editForm.setFieldsValue(node.properties)` |
+| 详情     | Drawer(width:560) + Descriptions(bordered, column:1)                  |
+| 删除     | `Popconfirm title="确认删除XX？"` + `<a style={{color:'#ff4d4f'}}>`   |
+| 状态流转 | Drawer + Steps可视化 + Select选目标状态                               |
+| 导出     | `api.exportNodes()` → Blob → `<a download>`                           |
+| 导入     | Drawer + Upload.Dragger                                               |
 
 ### 8. 加载与空状态
 
@@ -694,6 +759,7 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 ### 9. 常量管理
 
 所有可复用值集中在 `constants.ts`：
+
 - 颜色映射：`STATUS_COLOR`, `LEVEL_COLOR`, `CONTRIBUTION_COLOR`, `ACTION_COLOR`
 - 标签映射：`ACTION_LABEL`, `ENTITY_TYPE_LABEL`
 - 分页：`PAGE_SIZE=20`, `PAGE_SIZE_OPTIONS=[10,20,50,100]`
@@ -701,14 +767,14 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 
 ### 10. 命名约定
 
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 页面文件 | PascalCase | `AttackDetail.tsx`, `PeopleList.tsx` |
-| 状态变量 | `xxxOpen` | `editOpen`, `drawerOpen`, `transitionOpen` |
-| 提交中状态 | `xxxSubmitting` | `editSubmitting`, `transSubmitting` |
-| 加载状态 | `loading` / `initialLoading` | 列表用 loading，详情用 initialLoading |
-| Fetch函数 | `fetchData` / `fetchXxx` | `fetchDailyReports`, `fetchSupportNodes` |
-| 数据过滤 | `filtered` | `filteredNodes`, `filtered` |
+| 类型       | 规范                         | 示例                                       |
+| ---------- | ---------------------------- | ------------------------------------------ |
+| 页面文件   | PascalCase                   | `AttackDetail.tsx`, `PeopleList.tsx`       |
+| 状态变量   | `xxxOpen`                    | `editOpen`, `drawerOpen`, `transitionOpen` |
+| 提交中状态 | `xxxSubmitting`              | `editSubmitting`, `transSubmitting`        |
+| 加载状态   | `loading` / `initialLoading` | 列表用 loading，详情用 initialLoading      |
+| Fetch函数  | `fetchData` / `fetchXxx`     | `fetchDailyReports`, `fetchSupportNodes`   |
+| 数据过滤   | `filtered`                   | `filteredNodes`, `filtered`                |
 
 ### 11. 表格单元格防换行规范
 
@@ -732,6 +798,7 @@ cd scripts/deploy-v2 && node deploy-direct.mjs 124.156.193.122 root <password>
 所有列表页面表格支持列宽拖拽调整和列顺序拖拽排序，通过 `useFlexTable` hook 统一集成。
 
 **使用方式**（每个列表页面必须遵循）：
+
 ```tsx
 import { useFlexTable, FlexHeaderCell } from '../hooks/useFlexTable.js';
 
@@ -751,6 +818,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 ```
 
 **技术实现**：
+
 - 列宽拖拽：`react-resizable` — 拖拽列右边框调整宽度，范围 50-600px
 - 列顺序拖拽：`@dnd-kit/sortable` — 拖拽列头左右移动调整顺序
 - 列偏好持久化：`localStorage`（`combat-col-w-*` 存宽度，`combat-col-o-*` 存顺序）
@@ -759,7 +827,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 ### 本会话新增特性（2026-05-29）
 
 #### 1. Hermes agent 问答(opencode serve + SDK)
+
 "Hermes" 是"用 agent 做只读问答"的稳定概念,opencode 为可替换的具体 agent。`/api/hermes/ask` 契约不变(返回 `HermesAnswer`),实现可在规则引擎 ↔ agent 间切换。
+
 - **确定性核心** `apps/backend/src/hermes-agent.ts`:`AgentRunner` 接口 + `buildHermesPrompt`(数据字典) + `parseAgentOutput`(拆答案/引用 id) + `buildCitations`(按 id 回查节点做 **a2 校验**,丢弃编造 id = 防幻觉) + `answerWithAgent`。
 - **agent 实现** `apps/backend/src/opencode-runner.ts`:`createOpencodeServer` + `@opencode-ai/sdk`(`session.create`/`prompt`),取 `text` part 拼答案;失败/超时静默**回退规则引擎**。
 - **只读工作区** `apps/backend/hermes-workspace/.opencode/`:`tools/hermes.ts`(只读工具 `hermes_lookup` 一步检索 search+context、`hermes_recommendHelpers`,经 Bearer 调本机只读端点)+ `agents/hermes.md`(受限 agent,`bash/edit/write/webfetch: deny`)+ `opencode.json`(禁全局重型 MCP、glm-5 关 thinking)。`.opencode/node_modules` 由 opencode 自动安装、已 gitignore。
@@ -768,14 +838,18 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **未完**:切片5 现网部署(需 prod 装 opencode workspace 依赖 + 设 `HERMES_AGENT=1` + prod opencode.json 华为云凭据);默认不开时走规则引擎,可安全先部署。
 
 #### 2. 灵活容错 Excel 导入(未知列自动建字段)
+
 不要求 Excel 列与内置字段完全一致:`detectNewColumns` 识别未匹配 name/label/alias 的列;`/import?createFields=1` 逐列 `applyFieldOp` 建为 string 字段后用更新 schema 重映射导入(失败只记日志不阻断);`dryRun` 预览返回 `newColumns`。前端 ImportExport 预览展示未匹配列 + 勾选「自动创建字段」+ 复用已预览文件(免再弹原生框)。
 
 #### 3. 知识图谱可视化(`/kg` 菜单)
+
 后端 `GET /api/kg/graph?types=&q=&limit=`(`buildGraph` 跨类型筛节点+取其间边);前端 `KGGraph.tsx` 用 **@antv/g6 v5** 力导向图:按 nodeType 着色+图例、顶部多选筛选+关键词搜索、双击跳详情。
+
 - **单击节点折叠/展开切换**:展开取 1 跳邻域(复用 `/graph/snapshot`,含上钻/下钻方向);引用计数(`addedBy`)追踪邻居由谁引入,折叠移除本节点独占且非基图的邻居(级联),刷新=折叠全部。
 - **浮动 AI 问答**:可复用组件 `components/HermesChat.tsx`(FloatButton+Drawer)挂在 KG 页,底层即 `/hermes/ask`(与攻关详情 AI 助手**同一能力**);答案 markdown + 可点击溯源引用(跳对应节点)。agent 开启时为 opencode 图谱问答,否则规则引擎。
 
 > **现网 agent 已启用(2026-05-29)**:opencode agent 通过 **systemd drop-in** `/etc/systemd/system/combat-v2.service.d/hermes.conf`(`HERMES_AGENT=1` + `HERMES_MODEL=huawei_cloud/glm-5` 等)持久开启,**跨部署不丢**。
+>
 > - 为何用 drop-in 而非 `combat-v2-direct.service`:该服务文件的 HERMES env 会被(钩子/lint)反复剥离,故改用 drop-in,既启用 agent 又不与之冲突。
 > - 现网验证:问「你好」→ `intent=agent`、~19s(暖服务、无需调工具);数据类问题需 lookup/读笔记,~1-2min。简单问答快、复杂稍慢均可用,失败/超时自动回退规则引擎。
 > - 关闭办法:删除该 drop-in + `systemctl daemon-reload && systemctl restart combat-v2`。
@@ -792,15 +866,16 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 依 `docs/REVIEWS/REVIEW_performance.md` (4.0/10) 落地 5 项 P0,代码改动小、不引入新依赖:
 
-| # | 项 | commit | 收益(预估) |
-|---|----|--------|-----------|
-| 1 | `useSettings` 真缓存(module-level singleton + 5min TTL + 并发去重) | `a4b40a5` | 13 callsite 重复 fetch → 1 次/5min,首屏少 12 个请求 |
-| 2 | `GET /api/health` 端点(无需鉴权,返回 `{status,uptime,version,db:{kind,connected}}`) | `e01c715` | systemd/反代/监控可探活,识别"进程在但 DB 断连" |
-| 3 | `conflicts.syncConflicts` 30s debounce(连续保存合并成 1 次扫描) | `f7f6b56` | 10 次连续创建攻关单 audit 写放大 10-100× → 1× |
-| 4 | `backend.log` logrotate(daily/50MB/keep 7,copytruncate 不打断 systemd append) | `3fe00f3` | 防 append-only 撑爆磁盘,日志上限 ≤ 350MB |
-| 5 | Dashboard 5 次扫表 → 1 次内存聚合(`listConflictRows(repo, preloadedTickets)` 复用 + top-5 增量维护) | `1257a86` | 2 次 attackTicket 全表扫 + 2N 次 JSON.parse → 1 次 + N 次,10k 节点级 ~50% IO 削减 |
+| #   | 项                                                                                                  | commit    | 收益(预估)                                                                        |
+| --- | --------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------- |
+| 1   | `useSettings` 真缓存(module-level singleton + 5min TTL + 并发去重)                                  | `a4b40a5` | 13 callsite 重复 fetch → 1 次/5min,首屏少 12 个请求                               |
+| 2   | `GET /api/health` 端点(无需鉴权,返回 `{status,uptime,version,db:{kind,connected}}`)                 | `e01c715` | systemd/反代/监控可探活,识别"进程在但 DB 断连"                                    |
+| 3   | `conflicts.syncConflicts` 30s debounce(连续保存合并成 1 次扫描)                                     | `f7f6b56` | 10 次连续创建攻关单 audit 写放大 10-100× → 1×                                     |
+| 4   | `backend.log` logrotate(daily/50MB/keep 7,copytruncate 不打断 systemd append)                       | `3fe00f3` | 防 append-only 撑爆磁盘,日志上限 ≤ 350MB                                          |
+| 5   | Dashboard 5 次扫表 → 1 次内存聚合(`listConflictRows(repo, preloadedTickets)` 复用 + top-5 增量维护) | `1257a86` | 2 次 attackTicket 全表扫 + 2N 次 JSON.parse → 1 次 + N 次,10k 节点级 ~50% IO 削减 |
 
 实施纪律:
+
 - 每项独立 commit + 立刻 push。
 - 改动前 baseline 347 tests pass;改动后 349 tests pass(+2 新增 health e2e),无回归。
 - typecheck 双端均通过。
@@ -815,12 +890,12 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > ⚠️ **数据累积抖动注意**:people/honor/help-center 等少数用例在**机器被并发重负载占用时**会因数据累积(DB 仅启动清一次)触发严格模式重复匹配而偶发失败;**干净机器跑全绿**。跑全量 e2e 时勿同时跑其它重任务(后端测试/构建/agent 冒烟)。
 
-| 类 | 用例 | 实证真根因 | 修复 |
-|---|------|-----------|------|
-| **配置污染** | 状态流转 ×5（lifecycle 4.2/4.5/6.2/6.3、regression:64） | `config-center.spec.ts:62` 盲点配置表**第一行**「编辑」改成「新值A/B/C」。全量下第一行恰是 `config:状态`（启动 `seedConfigFromSchemas` 从 alarmGovernance/告警治理跟踪 首次 seed）→ attackTicket 状态流转下拉读**共享全局 `config:状态` 键**，丢失"处理中"等。残留 DB `config:状态={新值A,新值B,新值C}` 为铁证。 | 改为精确编辑自建的 `e2eTestConfig` 行（仿 :89 删除用例 + 搜索过滤），不碰第一行 |
-| **审计刷屏** | audit-log-extended :10/:86 | E2E webServer 未设 `NODE_ENV=test` → 每次建/改单触发 `routes.ts` postSave 的 `syncConflicts` 全量重建 O(n²) 冲突边，海量「创建 关系」审计把目标节点 CREATE 挤出「最新 200 条」窗口（同文件带筛选的 :24/:46/:63 不受影响，反向印证）。 | `playwright.config.ts` 后端 env 加 `NODE_ENV=test`，激活 `routes.ts:20` 的 postSave 跳过 |
-| **数据累积** | info-square:11 | 断言「暂无信息」空态，但全量下前序用例累积了 infoCard。 | 断言前用 `page.request` GET `/api/nodes/infoCard` + 逐个 DELETE 再 reload |
-| **真实失效** | dynamic-tabs ×4（:82/:95/:227/:255） | `DynamicCustomTab` 编辑器默认折叠（`editorOpen=false`，commit 550b82e/accadba 的有意 UX），测试未点「展开编辑」即断言 Markdown 框——**隔离即复现，与负载无关**。 | 4 用例断言/填写 Markdown 框前先点「展开编辑」 |
+| 类           | 用例                                                    | 实证真根因                                                                                                                                                                                                                                                                                                       | 修复                                                                                     |
+| ------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **配置污染** | 状态流转 ×5（lifecycle 4.2/4.5/6.2/6.3、regression:64） | `config-center.spec.ts:62` 盲点配置表**第一行**「编辑」改成「新值A/B/C」。全量下第一行恰是 `config:状态`（启动 `seedConfigFromSchemas` 从 alarmGovernance/告警治理跟踪 首次 seed）→ attackTicket 状态流转下拉读**共享全局 `config:状态` 键**，丢失"处理中"等。残留 DB `config:状态={新值A,新值B,新值C}` 为铁证。 | 改为精确编辑自建的 `e2eTestConfig` 行（仿 :89 删除用例 + 搜索过滤），不碰第一行          |
+| **审计刷屏** | audit-log-extended :10/:86                              | E2E webServer 未设 `NODE_ENV=test` → 每次建/改单触发 `routes.ts` postSave 的 `syncConflicts` 全量重建 O(n²) 冲突边，海量「创建 关系」审计把目标节点 CREATE 挤出「最新 200 条」窗口（同文件带筛选的 :24/:46/:63 不受影响，反向印证）。                                                                            | `playwright.config.ts` 后端 env 加 `NODE_ENV=test`，激活 `routes.ts:20` 的 postSave 跳过 |
+| **数据累积** | info-square:11                                          | 断言「暂无信息」空态，但全量下前序用例累积了 infoCard。                                                                                                                                                                                                                                                          | 断言前用 `page.request` GET `/api/nodes/infoCard` + 逐个 DELETE 再 reload                |
+| **真实失效** | dynamic-tabs ×4（:82/:95/:227/:255）                    | `DynamicCustomTab` 编辑器默认折叠（`editorOpen=false`，commit 550b82e/accadba 的有意 UX），测试未点「展开编辑」即断言 Markdown 框——**隔离即复现，与负载无关**。                                                                                                                                                  | 4 用例断言/填写 Markdown 框前先点「展开编辑」                                            |
 
 - 辅助加固：`e2e/helpers.ts` `pickOption` 先等下拉内任一 option 渲染再过滤目标 + 超时 4→5s / 重试 3→4 次（吸收 AntD 下拉 portal 渲染竞态）。
 - 关键教训：**"隔离过、全量挂"未必是时序抖动**；配置/数据是整段 webServer 生命周期共享（DB 仅启动清一次），跨用例污染共享全局 key（如 `config:状态`）才是常见真因——务必查残留 DB / 失败快照取实证，勿臆测"负载抖动"。
@@ -829,6 +904,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 **硬核发现（环境约束）**：受控/企业浏览器可在策略层禁用「系统文件选择对话框」(如 Chrome `AllowFileSelectionDialogs=Disabled`)，此时**任何**点击式文件上传(含原生 `<input type=file>`)都弹不出对话框、前端无法绕过；**拖拽上传 / Ctrl+V 粘贴 / html2canvas 截图**走的是非对话框通道，是这类环境下唯一可用的上传方式 —— 新增上传入口务必提供拖拽/粘贴兜底。
 
 **（历史）团队贡献特性**
+
 - **319/319 backend vitest tests passing** (52 test files，含新增 teamContribution 4 项)
 - **团队贡献特性 e2e（honor-contributions 15/15）+ column-drag 2/2 隔离运行通过**
 - ⚠️ 全量回归存在 **预存 flaky 用例**（auth-flow 等约 6 个登录/登出态切换用例 + 级联）：已用 `git stash` 在未含本特性的基线(2e523d0)上复现同样失败，证明与团队贡献特性无关，属机器负载/时序敏感的历史问题，待单独处理。
@@ -846,29 +922,35 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 ## 工作流程规范
 
 ### 测试状态标记机制
+
 **当所有测试通过时，必须在 AGENTS.md 的"当前测试状态"部分记录通过时间和数量。** 下次会话开始时先检查此标记：
+
 - 如果标记日期是今天且数量一致 → **跳过测试**，直接进入开发或部署
 - 如果代码有改动 → 运行测试后更新标记
 - 如果标记过期（>1天）→ 建议重新运行测试确认
 
 格式：
+
 ```
 ### 当前测试状态（YYYY-MM-DD 最后验证）
 - **NN/NN e2e tests passing**
 ```
 
 ### 修改代码后必须做的事
+
 1. 修改前端源码 → 运行 `npx playwright test --config=apps/frontend-v2/playwright.config.ts --reporter=line`
 2. 修改后端源码 → 运行 `npm run test:backend`
 3. 全部通过后 → 更新 AGENTS.md 的"当前测试状态"标记
 4. 全部通过后 → **先 git commit** → 再执行 `cd scripts/deploy-v2 && node deploy.mjs deploy`
 
 ### 部署前必须 git commit
+
 `git archive HEAD` 只打包已提交的文件。**未 commit 的改动不会出现在部署包中**，这是多次"部署后页面没变化"的根因。
 
 ## Auth System (认证系统)
 
 ### Backend
+
 - **File**: `apps/backend/src/auth.ts` — auth router + user admin router + JWT middleware + bcrypt hashing
 - **DB**: `users` table (id, username, password_hash, role, display_name, created_at, updated_at)
 - **Default admin**: auto-created on first boot (`admin` / `admin123`)
@@ -878,6 +960,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **COMBAT_NO_AUTH=1**: bypasses auth entirely (for E2E tests); `/api/auth/me` returns default admin without token
 
 ### Frontend
+
 - **AuthProvider**: `src/hooks/useAuth.tsx` — context provider with login/logout/isAdmin/isLeader
 - **LoginPage**: `src/pages/LoginPage.tsx` — username/password form
 - **UserManagement**: `src/pages/UserManagement.tsx` — admin-only user CRUD (Modal-based)
@@ -887,18 +970,21 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **Role from auth**: role is derived from logged-in user, NOT from manual Select dropdown
 
 ### E2E Test Bypass
+
 - `COMBAT_NO_AUTH=1` set in `playwright.config.ts` webServer env
 - Backend returns admin user for unauthenticated `/api/auth/me` requests
 - Frontend `AuthProvider` calls `api.getMe()` on startup → gets admin user → logged in automatically
 - All page-level `.ant-select` indices shifted from N to N-1 (no more header Select at index 0)
 
 ### CLI Commands
+
 - `auth:login`, `auth:register`, `auth:me`, `auth:change-password`
 - `users:list`, `users:create`, `users:update`, `users:delete`
 
 ## Op-Log System (操作追踪系统)
 
 ### Backend
+
 - **File**: `apps/backend/src/op-log.ts` — op-log router（独立 SQLite 表，不经过通用 CRUD）
 - **DB**: `op_logs` table (id, session_id, user_name, category, detail, timestamp, created_at)
 - **Settings**: 开关存在 `app_settings` 表，key=`op_log_enabled`，默认 true
@@ -910,6 +996,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
   - `PUT /api/op-logs/settings` — 切换开关（`{enabled: boolean}`）
 
 ### Frontend
+
 - **自动捕获**: `src/utils/op-logger.ts` — 拦截 API 调用、路由导航、全局错误
 - **页面**: `src/pages/OperationLog.tsx` — 管理员可见，带开关、过滤、清理
 - **API hook**: `src/api.ts` 的 `req()` 方法自动调用 `logApiCall()`
@@ -917,9 +1004,11 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **Self-filtering**: op-logger 跳过记录自身 API 调用（`POST /api/op-logs`, `GET /api/op-logs/settings`）
 
 ### CLI Commands
+
 - `op-logs:list`, `op-logs:settings`, `op-logs:enable`, `op-logs:disable`, `op-logs:cleanup`
 
 ### Test Coverage
+
 - **15 backend unit tests**: `apps/backend/test/op-log.test.ts`（需 `COMBAT_NO_AUTH=1`）
 - **12 E2E tests**: `apps/frontend-v2/e2e/op-log.spec.ts`
 
@@ -928,6 +1017,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 现网用户通过"问题反馈"页面（`/bug-report`）提交问题，数据存储在 `bug_reports` 表。
 
 ### 读取现网问题
+
 ```bash
 # 登录获取 token
 TOKEN=$(curl -s -X POST http://124.156.193.122:3001/api/auth/login \
@@ -944,6 +1034,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 ```
 
 ### 修复流程（标准 6 步）
+
 1. **读取问题** — 从现网 `GET /api/bug-reports?status=` 获取所有待处理问题
 2. **分析 & 分类** — bug 立即修，功能需求记录为 feature request
 3. **修复代码** — TDD：先写/改测试 → 改代码 → 确认测试通过
@@ -955,13 +1046,14 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
       -H "Authorization: Bearer $TOKEN" \
       -H "content-type: application/json" \
       -d '{"status":"已关闭","resolution":"已修复并部署","resolvedBy":"系统管理员"}'
-    ```
+   ```
 
 ## 踩坑记录 (Lessons Learned)
 
 **修复 BUG 引入的问题必须做到两点：一是总结根因记入此文档避免再犯，二是补充回归测试用例。**
 
 ### L1. auth.ts publicPaths 路径前缀错误 (2026-05-28)
+
 - **现象**：匿名 POST /bug-reports 返回 401，导出 Excel 返回 401
 - **根因**：`authMiddleware` 挂载在 `/api` 下，`req.path` 已经去掉了 `/api` 前缀，但 `publicPaths` 写成了 `/api/auth/login`、`/api/bug-reports`（多了 `/api` 前缀）
 - **修复**：publicPaths 改为 `/auth/login`、`/bug-reports` 等
@@ -969,6 +1061,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **回归测试**：`apps/backend/test/auth.test.ts` 已覆盖 publicPaths 验证
 
 ### L2. exportNodes/downloadBackup 缺少 auth header (2026-05-28)
+
 - **现象**：前端导出功能返回 401 Unauthorized
 - **根因**：`api.ts` 的 `exportNodes()` 和 `downloadBackup()` 使用原始 `this.f()` 发请求，没有带 Authorization header
 - **修复**：新增 `authFetch()` 私有方法，自动注入 Bearer token，所有 blob 下载改用 `authFetch()`
@@ -976,6 +1069,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **回归测试**：需补充 E2E 测试验证导出功能在 auth 模式下正常
 
 ### L3. HelpButton 位置不一致导致布局偏移 (2026-05-28)
+
 - **现象**：HelpButton 在 14 个页面中的 DOM 位置不统一（有的在 Title 上方，有的在 Title 右侧），导致修改时容易引入布局回归
 - **根因**：没有统一的 HelpButton 放置规范，各页面自行决定位置
 - **修复**：14 个页面统一为 `<div style={{ display:'flex', alignItems:'center', gap:8 }}><Title/><HelpButton/></div>` 模式
@@ -983,6 +1077,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **回归测试**：AttackDetail 布局回归被 Claude CLI review 发现并修复
 
 ### L4. 部署后灰屏 — 浏览器缓存旧 JS bundle (2026-05-28)
+
 - **现象**：用户部署后报告"登录后灰屏"
 - **排查**：Playwright 实测生产环境完全正常（Root HTML 23655 chars，仪表盘正常渲染），发现 `/api/auth/me` 有 401 但不影响功能（AuthProvider 竞态）
 - **根因**：浏览器缓存了旧版本 JS bundle，新部署后没有强制刷新。Vite build 的文件名带 hash，但 `index.html` 可能被浏览器缓存
@@ -991,8 +1086,56 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **预防**：部署脚本应自动重启服务 + 前端验证脚本应带 `cache: 'no-cache'`
 
 ### L5. demo-seed 生成假 bug report 污染问题反馈 (2026-05-28)
+
 - **现象**：现网问题反馈页面出现 8 条虚假 issue（报告人：李四、王五、赵敏等），与真实用户反馈混在一起
 - **根因**：`demo-seed.mjs` 为了"覆盖多状态"在 bug_report 表插入了假 issue，reporter 是虚构人名，与用户真实提交的反馈无法区分
 - **修复**：1) 清理现网假 issue（按 reporter 筛选删除）；2) demo-seed 改为只创建 2 条已关闭的"演示数据"并明确标注
 - **教训**：seed/mock 脚本绝对不能生成伪造的用户反馈、审计日志、操作日志等业务数据。问题反馈是用户真实输入，填充假数据会误导开发和运维
 - **预防**：demo-seed 只生成结构性数据（人员、攻关单、贡献），不生成反馈类数据
+
+## 安全 P0 修复 (2026-05-31)
+
+依据 `docs/REVIEWS/REVIEW_security.md`(OWASP 红蓝队评分 3/10)实施 P0 修复,
+合并前总评 D 级,合并后核心鉴权链路达 C+。分支 `feature/roadmap-security`。
+
+| #    | 漏洞                                                                                      | 文件                                                                                                         | commit  |
+| ---- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------- |
+| P0-1 | 公开自注册任意提权                                                                        | `apps/backend/src/auth.ts:82-110`                                                                            | 9c87975 |
+| P0-2 | JWT 默认硬编码 secret                                                                     | `apps/backend/src/auth.ts:8-43`                                                                              | f3915aa |
+| P0-3 | X-Role 头由 localStorage 决定                                                             | `apps/backend/src/routes.ts:94-107`, `apps/frontend-v2/src/api.ts:146`                                       | 315828f |
+| P0-4 | 敏感路由零守卫(merge/backup/email/op-log/audit/proposals/reminders/ticket-tabs/documents) | `apps/backend/src/auth.ts:270-318`, `apps/backend/src/app.ts:60-79`                                          | cbb2106 |
+| P0-5 | rehypeRaw 存储型 XSS                                                                      | `apps/frontend-v2/src/components/DynamicCustomTab.tsx:157`, `apps/frontend-v2/src/pages/ManualCenter.tsx:62` | 4999208 |
+
+### 关键设计点
+
+- **JWT_SECRET 启动校验** (`auth.ts:resolveJwtSecret`):
+  - production 未设置/等于默认串 → `process.exit(1)`
+  - dev/test 未设置 → console.warn 但允许默认串(测试 bypass)
+  - 部署 systemd Unit 必须 `EnvironmentFile=/etc/combat-v2.env` 注入 32+ 字节随机串
+
+- **adminMiddleware/leaderMiddleware** (`auth.ts`):
+  - `COMBAT_NO_AUTH=1` → 直放(保留 e2e bypass,348 测试全绿)
+  - 无效 token → 401;角色不足 → 403 + audit log
+
+- **挂载策略**:仅当 `deps.db` 存在且非 COMBAT_NO_AUTH 时挂载,
+  无 db 的纯 e2e 单元测试(如 audit/reminders/email)继续 bypass
+
+- **gradeGate 改造**:`req.headers["x-role"]` → `verifyAuth(req).role`,
+  curl 伪造 `X-Role: admin` 不再奏效;前端 api.ts 同步移除 X-Role 头注入
+
+- **rehypeRaw 移除**:`DynamicCustomTab` + `ManualCenter` 均不再渲染原始 HTML,
+  markdown 内 `<script>` 等会作为字面量字符串显示。`highlightMd` 一并简化。
+
+### 回归测试
+
+- backend: 348/348 通过(基线一致)
+- TypeScript: backend + frontend-v2 `tsc --noEmit` 均无报错
+- 前端 e2e 因端口被占未跑,改在并入 master 前由 deploy 流水线验证
+
+### 部署前必须做
+
+1. 现网 systemd `combat-v2.service` 增加 `Environment=JWT_SECRET=<32+ 字节随机>`
+   或 `EnvironmentFile=/etc/combat-v2.env`(600 权限,owner root)
+2. 旋转 secret 同时所有现存 token 失效,通知现役账号重新登录
+3. 前端 `localStorage.removeItem('combat-role')` (已无用,但避免缓存残留),
+   清理后端日志中遗留的 X-Role 痕迹(`grep "x-role" /opt/combat-v2/backend.log`)

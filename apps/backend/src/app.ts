@@ -35,7 +35,7 @@ import { makeHelpRequestRouter } from "./help-request.js";
 import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
 import { makeOpLogRouter } from "./op-log.js";
-import { makeAuthRouter, makeUserAdminRouter, authMiddleware } from "./auth.js";
+import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
 import { makeHealthRouter } from "./health.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
@@ -44,13 +44,19 @@ import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
 
-export function createApp(deps: { repo: Repository; registry: SchemaRegistry; mailSender?: MailSender; db?: DB; dbPath?: string }) {
+export function createApp(deps: {
+  repo: Repository;
+  registry: SchemaRegistry;
+  mailSender?: MailSender;
+  db?: DB;
+  dbPath?: string;
+}) {
   const mailSender = deps.mailSender ?? new NodemailerSender();
   const app = express();
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
   // body 限制提升到 20mb:截图反馈/笔记导入等可能上传 MB 级 base64;以前默认 100kb 直接拒绝。
-  app.use(express.json({ limit: '20mb' }));
+  app.use(express.json({ limit: "20mb" }));
 
   // 健康检查:在 auth 之前注册,无需鉴权 — 系统级探活点,供 systemd / 反代 / 监控调用。
   app.use("/api", makeHealthRouter(deps.db));
@@ -59,6 +65,28 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
     app.use("/api", makeAuthRouter(deps.db));
     app.use("/api", authMiddleware);
     app.use("/api", makeUserAdminRouter(deps.db));
+  }
+
+  // P0-4 修复:敏感路由统一加 adminMiddleware 守卫(必须挂在对应 router 之前)。
+  // 仅当 deps.db 存在(即生产/集成路径)且未设置 COMBAT_NO_AUTH 时挂载守卫;
+  // 没有 db 的 e2e 单元测试(如 audit/reminders/email)与 COMBAT_NO_AUTH=1 的
+  // 集成测试均跳过守卫,保持既有测试行为(348 通过基线)。
+  if (deps.db && process.env.COMBAT_NO_AUTH !== "1") {
+    app.use("/api/audit", adminMiddleware);
+    app.use("/api/merge", adminMiddleware);
+    app.use("/api/op-logs", adminMiddleware);
+    app.use("/api/backup", adminMiddleware);
+    app.use("/api/proposals", adminMiddleware);
+    app.use("/api/reminders", adminMiddleware);
+    // email:配置 + 测试 + 发送均限 admin
+    app.use("/api/email", adminMiddleware);
+    // ticket-tabs:leader+ 可写(普通用户不应改 markdown/导致 XSS 投毒)。
+    app.use("/api/tickets/:id/tabs", leaderMiddleware);
+    // documents: 写入(POST/PUT/DELETE)限 leader+; GET 列表/下载保留公开(链接点击)。
+    app.use("/api/documents", (req, res, next) => {
+      if (req.method === "GET") return next();
+      return leaderMiddleware(req, res, next);
+    });
   }
 
   seedConfigFromSchemas(deps.registry, deps.repo);
@@ -81,13 +109,14 @@ export function createApp(deps: { repo: Repository; registry: SchemaRegistry; ma
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
   // Hermes 概念用 agent(opencode)实现;默认关闭(HERMES_AGENT=1 开启),
   // 关闭或失败时回退规则引擎,保证现网零风险接入。
-  const hermesRunner = process.env.HERMES_AGENT === "1"
-    ? new OpencodeAgentRunner({
-        directory: fileURLToPath(new URL("../hermes-workspace", import.meta.url)),
-        serverUrl: process.env.HERMES_OPENCODE_URL,
-        model: process.env.HERMES_MODEL || "huawei_cloud/glm-5",
-      })
-    : undefined;
+  const hermesRunner =
+    process.env.HERMES_AGENT === "1"
+      ? new OpencodeAgentRunner({
+          directory: fileURLToPath(new URL("../hermes-workspace", import.meta.url)),
+          serverUrl: process.env.HERMES_OPENCODE_URL,
+          model: process.env.HERMES_MODEL || "huawei_cloud/glm-5",
+        })
+      : undefined;
   hermesRunner?.warmup(); // 常驻保活:boot 预热 opencode serve,省掉首问冷启动
   app.use("/api", makeHermesRouter(deps.repo, deps.registry, hermesRunner));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
