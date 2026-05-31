@@ -38,6 +38,7 @@ import { makeSettingsRouter } from "./settings.js";
 import { makeBugReportRouter } from "./bug-report.js";
 import { makeOpLogRouter } from "./op-log.js";
 import { makeAuthRouter, makeUserAdminRouter, authMiddleware, adminMiddleware, leaderMiddleware } from "./auth.js";
+import { csrfMiddleware } from "./csrf.js";
 import { makeHealthRouter } from "./health.js";
 import { makeBackupRouter } from "./backup.js";
 import { makeTicketTabsRouter } from "./ticket-tabs.js";
@@ -122,6 +123,8 @@ export function createApp(deps: {
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
+    // P1 CSRF:同源 Origin/Referer 校验,挂在 auth 之后(只对已登录的写请求生效)。
+    app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
   }
 
