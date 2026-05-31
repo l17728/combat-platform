@@ -28,6 +28,8 @@ import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import dayjs from "dayjs";
 import { handleApiError } from "../utils/handleApiError.js";
+import { useNodeSchema, editableFieldsOf } from "../hooks/useSchema.js";
+import { SchemaFormBody } from "../components/SchemaField.js";
 
 const { Title, Text } = Typography;
 
@@ -48,6 +50,9 @@ export default function HelpCenter() {
   const [hasNewReply, setHasNewReply] = useState(false);
   const seenRepliedRef = useRef<Set<string> | null>(null);
   const navigate = useNavigate();
+  // v2.7: 创建求助抽屉 schema 驱动 — 字段定义来自 helpRequest virtual schema
+  const { schema: helpSchema } = useNodeSchema("helpRequest");
+  const helpFields = editableFieldsOf(helpSchema);
 
   const feedbackUrl = (r: HelpRequest) => `${window.location.origin}/help/feedback/${r.feedbackToken}`;
   const copyLink = async (r: HelpRequest) => {
@@ -272,47 +277,46 @@ export default function HelpCenter() {
         }
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="ticketId" label="关联攻关单" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              placeholder="搜索攻关单"
-              options={ticketOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="requesterName" label="求助人" rules={[{ required: true }]}>
-            <Select
-              showSearch
-              placeholder="您的姓名"
-              options={personOptions.map((p) => ({ value: p.value, label: p.label }))}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="targetName" label="求助对象（从名单选择）">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从全员名单搜索"
-              options={personOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-              onChange={(val) => {
-                const person = personOptions.find((p) => p.value === val);
-                if (person?.email) form.setFieldValue("targetEmail", person.email);
-              }}
-            />
-          </Form.Item>
-          <Form.Item name="targetEmail" label="求助对象邮箱" rules={[{ required: true, type: "email" }]}>
-            <Input placeholder="email@example.com" />
-          </Form.Item>
-          <Form.Item name="category" label="求助类型" rules={[{ required: true }]}>
-            <Select options={CATEGORY_OPTIONS.map((c) => ({ value: c, label: c }))} />
-          </Form.Item>
-          <Form.Item name="question" label="求助内容" rules={[{ required: true }]}>
-            <Input.TextArea rows={4} placeholder="请描述您需要帮助的内容..." />
-          </Form.Item>
-          <Form.Item name="extraNote" label="附加说明">
-            <Input.TextArea rows={2} placeholder="可选" />
-          </Form.Item>
+          {/* v2.7: schema 驱动 — helpRequest virtual schema 决定字段 + 分组 */}
+          <SchemaFormBody
+            fields={helpFields}
+            personOptions={personOptions.map((p) => ({ value: p.value, label: p.label }))}
+            refOptions={{
+              attackTicket: ticketOptions,
+              person: personOptions.map((p) => ({ value: p.value, label: p.label })),
+            }}
+            renderField={(f) => {
+              // 求助对象选定后自动填邮箱(联动逻辑保留 — schema 表达不了)
+              if (f.name === "targetName") {
+                return (
+                  <Form.Item name={f.name} label={f.label}>
+                    <Select
+                      showSearch
+                      allowClear
+                      placeholder="从全员名单搜索"
+                      options={personOptions}
+                      filterOption={(input, option) =>
+                        (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
+                      }
+                      onChange={(val) => {
+                        const person = personOptions.find((p) => p.value === val);
+                        if (person?.email) form.setFieldValue("targetEmail", person.email);
+                      }}
+                    />
+                  </Form.Item>
+                );
+              }
+              // schema 里 category 是 enum,enumValues 默认走 schema;若 settings 覆盖了求助分类,优先用 settings
+              if (f.name === "category" && CATEGORY_OPTIONS.length > 0) {
+                return (
+                  <Form.Item name={f.name} label={f.label} rules={[{ required: true, message: "请选择求助类型" }]}>
+                    <Select options={CATEGORY_OPTIONS.map((c) => ({ value: c, label: c }))} />
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          />
         </Form>
       </Drawer>
 

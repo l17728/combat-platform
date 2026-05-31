@@ -116,7 +116,13 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
 
   r.get("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
-    if (registry.getNodeSchema(nodeType)) {
+    const schema = registry.getNodeSchema(nodeType);
+    if (schema) {
+      // v2.7: virtual schemas (helpRequest/bugReport/proposal/reminder) are UI-only,
+      // they MUST NOT be served via the generic node CRUD — their data lives in dedicated tables.
+      if (schema.virtual) {
+        return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });
+      }
       // Express parses repeated query params as arrays; queryNodes does strict === on
       // string property values, so collapse each param to its first scalar value.
       const filter: Record<string, string> = {};
@@ -144,6 +150,11 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
 
   r.post("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
+    // v2.7: 虚拟 schema 拒绝 POST(数据存自己表里)
+    const schemaForPost = registry.getNodeSchema(nodeType);
+    if (schemaForPost?.virtual) {
+      return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });
+    }
     const gate = gradeGate(req, nodeType);
     if (gate) return res.status(403).json({ error: gate });
     // 攻关单注入「创建人」=当前登录用户;COMBAT_NO_AUTH 模式下退回 'admin',

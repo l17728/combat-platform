@@ -3,18 +3,26 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 import { Client } from "ssh2";
+import { planDropInCleanup } from "./dropin-cleanup.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
 
-const TARGET_HOST = process.argv[2] || "";
-const TARGET_USER = process.argv[3] || "root";
-const TARGET_PASS = process.argv[4] || "";
+// §v2.7: 可选 flag — `--keep-old-drop-ins` 关闭自动清理(谨慎模式)
+const POSITIONAL = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const FLAGS = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
+const TARGET_HOST = POSITIONAL[0] || "";
+const TARGET_USER = POSITIONAL[1] || "root";
+const TARGET_PASS = POSITIONAL[2] || "";
+const KEEP_OLD_DROP_INS = FLAGS.has("--keep-old-drop-ins");
 const DEPLOY_PATH = "/opt/combat-v2";
 
 if (!TARGET_HOST || !TARGET_PASS) {
-  console.log("Usage: node deploy-direct.mjs <host> <user> <password>");
+  console.log("Usage: node deploy-direct.mjs <host> <user> <password> [--keep-old-drop-ins]");
   console.log("Example: node deploy-direct.mjs 1.2.3.4 root MyPass123");
+  console.log("");
+  console.log("Flags:");
+  console.log("  --keep-old-drop-ins   Disable automatic systemd drop-in conflict cleanup");
   process.exit(1);
 }
 
@@ -101,6 +109,56 @@ function uploadFile(c, localPath, remotePath) {
   });
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// §v2.7: 在目标机扫描 /etc/systemd/system/combat-v2.service.d/*.conf,
+// 解析每个文件 Environment= 行,检测多文件覆盖同 env key 的冲突,
+// 备份(改 .bak)旧 drop-in 保留权威 hermes-llm.conf。
+// --keep-old-drop-ins flag 可关闭。
+async function runDropInCleanup(c) {
+  if (KEEP_OLD_DROP_INS) {
+    log("drop-in", "--keep-old-drop-ins 已传,跳过 drop-in 清理检查");
+    return;
+  }
+  const dropInDir = "/etc/systemd/system/combat-v2.service.d";
+  // 列文件 + 一次性 cat,把内容打包成 `=== name === content` 格式便于解析
+  const listR = await run(
+    c,
+    `if [ -d ${dropInDir} ]; then ` +
+      `for f in ${dropInDir}/*.conf; do ` +
+      `[ -f "$f" ] || continue; echo "=== $(basename $f) ==="; cat "$f"; echo "=== END ==="; ` +
+      `done; ` +
+      `else echo "NO_DROPIN_DIR"; fi`,
+    "drop-in"
+  );
+  if (listR.out.includes("NO_DROPIN_DIR")) {
+    log("drop-in", "目标机无 drop-in 目录,跳过清理");
+    return;
+  }
+  // 解析为 [{name, content}]
+  const files = [];
+  const blocks = listR.out.split(/=== END ===/);
+  for (const block of blocks) {
+    const m = block.match(/=== (.+?) ===\n([\s\S]*)/);
+    if (!m) continue;
+    files.push({ name: m[1].trim(), content: m[2] });
+  }
+  if (files.length === 0) {
+    log("drop-in", "未找到任何 *.conf,跳过清理");
+    return;
+  }
+  log("drop-in", `发现 ${files.length} 个 drop-in 文件: ${files.map((f) => f.name).join(", ")}`);
+  const plan = planDropInCleanup(files, { authoritative: ["hermes-llm.conf"] });
+  log("drop-in", plan.log);
+  if (plan.toBackup.length === 0) {
+    log("drop-in", "✓ 无冲突,无需清理");
+    return;
+  }
+  // 执行 backup:把冲突文件改名 .bak.<timestamp>
+  const ts = Date.now();
+  const cmds = plan.toBackup.map((n) => `mv ${dropInDir}/${n} ${dropInDir}/${n}.bak.${ts}`);
+  await run(c, cmds.join(" && "), "drop-in");
+  log("drop-in", `✓ 已备份 ${plan.toBackup.length} 个冲突文件(.bak.${ts}),保留 ${plan.toKeep.join(", ")}`);
+}
 
 async function ensureNode22(c) {
   log("node", "installing Node.js v22 via nvm...");
@@ -239,6 +297,10 @@ WantedBy=multi-user.target`;
       "logrotate"
     );
   }
+
+  // §v2.7: systemd drop-in 健康检查 + 自动清理冲突文件
+  // v2.6 教训:多个 *.conf 覆盖同一 env key(如 HERMES_MODEL),改值后老 drop-in 偷偷复活
+  await runDropInCleanup(c);
 
   await run(
     c,

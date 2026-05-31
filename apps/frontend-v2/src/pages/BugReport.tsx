@@ -35,6 +35,8 @@ import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { useSettings } from "../hooks/useSettings.js";
 import { handleApiError } from "../utils/handleApiError.js";
+import { useNodeSchema, editableFieldsOf } from "../hooks/useSchema.js";
+import { SchemaFormBody } from "../components/SchemaField.js";
 import dayjs from "dayjs";
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,6 +58,11 @@ export default function BugReport() {
   const [consoleLogs, setConsoleLogs] = useState<string>("");
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
+  // v2.7: bugReport virtual schema 驱动创建/编辑抽屉 — 截图/Console 日志是 specialControl 单独渲染
+  const { schema: bugSchema } = useNodeSchema("bugReport");
+  const bugFields = editableFieldsOf(bugSchema);
+  // 编辑抽屉只覆盖基础信息(状态/解决方案等系统字段已被 EXCLUDED_EDIT_SPECIAL 过滤掉)
+  const editBugFields = editableFieldsOf(bugSchema, { excludedNames: ["consoleLogs", "screenshot"] });
 
   const fetchData = useCallback(
     async (silent?: boolean) => {
@@ -397,26 +404,29 @@ export default function BugReport() {
           </Button>
         }
       >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: "请输入问题标题" }]}>
-            <Input placeholder="简要描述发现的问题" />
-          </Form.Item>
-          <Form.Item name="severity" label="严重程度" initialValue="一般">
-            <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="description" label="问题描述">
-            <TextArea rows={4} placeholder="详细描述问题现象、复现步骤、预期行为等" />
-          </Form.Item>
-          <Form.Item name="reporter" label="报告人">
-            <Input placeholder="您的姓名（可选）" />
-          </Form.Item>
-          <Form.Item
-            name="pageUrl"
-            label="问题页面"
-            initialValue={typeof window !== "undefined" ? window.location.href : ""}
-          >
-            <Input placeholder="问题发生时的页面地址" />
-          </Form.Item>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+          initialValues={{
+            severity: "一般",
+            pageUrl: typeof window !== "undefined" ? window.location.href : "",
+          }}
+        >
+          {/* v2.7: schema 驱动 — bugReport virtual schema 决定基础字段 + 顺序 */}
+          <SchemaFormBody
+            fields={bugFields.filter((f) => f.name !== "consoleLogs" && f.name !== "screenshot")}
+            renderField={(f) => {
+              if (f.name === "severity") {
+                return (
+                  <Form.Item name={f.name} label={f.label}>
+                    <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          />
 
           <div style={{ marginBottom: 16 }} ref={pasteAreaRef} tabIndex={0}>
             <div style={{ marginBottom: 8, fontWeight: 500 }}>
@@ -643,21 +653,20 @@ export default function BugReport() {
         }
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          <Form.Item name="title" label="问题标题" rules={[{ required: true, message: "请输入问题标题" }]}>
-            <Input placeholder="简要描述发现的问题" />
-          </Form.Item>
-          <Form.Item name="severity" label="严重程度">
-            <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="description" label="问题描述">
-            <TextArea rows={4} placeholder="详细描述问题现象、复现步骤、预期行为等" />
-          </Form.Item>
-          <Form.Item name="reporter" label="报告人">
-            <Input placeholder="您的姓名（可选）" />
-          </Form.Item>
-          <Form.Item name="pageUrl" label="问题页面">
-            <Input placeholder="问题发生时的页面地址" />
-          </Form.Item>
+          {/* v2.7: schema 驱动 — 编辑只覆盖基础信息(状态/解决方案走 specialControl=system 已过滤) */}
+          <SchemaFormBody
+            fields={editBugFields}
+            renderField={(f) => {
+              if (f.name === "severity") {
+                return (
+                  <Form.Item name={f.name} label={f.label}>
+                    <Select options={BUG_SEVERITIES.map((v) => ({ value: v, label: v }))} />
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
+          />
         </Form>
       </Drawer>
     </div>

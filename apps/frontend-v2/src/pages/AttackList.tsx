@@ -16,6 +16,7 @@ import {
   Checkbox,
   Popover,
   Tabs,
+  Segmented,
 } from "antd";
 import {
   PlusOutlined,
@@ -38,6 +39,8 @@ import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { buildMembersFromForm, syncMemberFields } from "../utils/teamMembers.js";
 import { handleApiError } from "../utils/handleApiError.js";
+import AttackKanban from "./attackList/AttackKanban.js";
+import AttackCalendar from "./attackList/AttackCalendar.js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/zh-cn";
@@ -86,6 +89,11 @@ export default function AttackList() {
   const [activeTab, setActiveTab] = useState<"all" | "favorites">(() =>
     searchParams.get("tab") === "favorites" ? "favorites" : "all"
   );
+  // v2.7: 视图切换器(table / kanban / calendar);默认 table 保持 v2.6 行为
+  const [view, setView] = useState<"table" | "kanban" | "calendar">(() => {
+    const v = searchParams.get("view");
+    return v === "kanban" || v === "calendar" ? v : "table";
+  });
   const { user } = useAuth();
   const currentKey = useMemo(() => favKey(user?.username), [user]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -132,8 +140,8 @@ export default function AttackList() {
   const STATUS_OPTIONS = getValues("状态", ["待响应", "处理中", "进行中", "已解决", "已关闭"]);
   const LEVEL_OPTIONS = getValues("事件级别", ["P1", "P2", "P3", "P4", "P4A", "P4B"]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [nodeList, schemaData] = await Promise.all([api.listNodes("attackTicket"), api.getSchema("attackTicket")]);
       setNodes(nodeList);
@@ -141,7 +149,7 @@ export default function AttackList() {
     } catch (e) {
       handleApiError(e, "加载攻关单列表失败");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -213,8 +221,9 @@ export default function AttackList() {
     if (filterField) next.set("field", filterField);
     filterValues.forEach((v) => next.append("val", v));
     if (searchText) next.set("q", searchText);
+    if (view !== "table") next.set("view", view);
     setSearchParams(next, { replace: true });
-  }, [filterField, filterValues, searchText, setSearchParams]);
+  }, [filterField, filterValues, searchText, view, setSearchParams]);
 
   const personOptions = people.map((p) => ({
     value: (p.properties["姓名"] as string) ?? "",
@@ -523,22 +532,34 @@ export default function AttackList() {
         </Space>
       </div>
 
-      <Tabs
-        activeKey={activeTab}
-        onChange={(k) => setActiveTab(k as "all" | "favorites")}
-        style={{ marginBottom: 8 }}
-        items={[
-          { key: "all", label: "全部" },
-          {
-            key: "favorites",
-            label: (
-              <span>
-                <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favorites.size > 0 ? ` (${favorites.size})` : ""}
-              </span>
-            ),
-          },
-        ]}
-      />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <Tabs
+          activeKey={activeTab}
+          onChange={(k) => setActiveTab(k as "all" | "favorites")}
+          style={{ marginBottom: 0 }}
+          items={[
+            { key: "all", label: "全部" },
+            {
+              key: "favorites",
+              label: (
+                <span>
+                  <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favorites.size > 0 ? ` (${favorites.size})` : ""}
+                </span>
+              ),
+            },
+          ]}
+        />
+        <Segmented
+          data-testid="view-switcher"
+          value={view}
+          onChange={(v) => setView(v as "table" | "kanban" | "calendar")}
+          options={[
+            { label: "表格", value: "table" },
+            { label: "看板", value: "kanban" },
+            { label: "日历", value: "calendar" },
+          ]}
+        />
+      </div>
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Select
@@ -643,6 +664,15 @@ export default function AttackList() {
 
       {loading ? (
         <Skeleton active paragraph={{ rows: 6 }} />
+      ) : view === "kanban" ? (
+        <AttackKanban
+          nodes={filteredNodes}
+          schema={schema}
+          statusValues={STATUS_OPTIONS}
+          onChanged={() => fetchData(true)}
+        />
+      ) : view === "calendar" ? (
+        <AttackCalendar nodes={filteredNodes} />
       ) : (
         <FlexWrapper>
           <Table

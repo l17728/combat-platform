@@ -879,6 +879,25 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
+### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+
+**v2.7.0 = v2.6.0 + 三桶(r-hermes-polish / r-schema-all / r-views)**
+
+- 后端 vitest **~755/755 全绿**(集成阶段汇总;含 hermes-polish 17 + schema-all 25 + golden set 15/15)
+- shared vitest **28/28 全绿**
+- 前端 tsc 0 错
+- 前端 e2e: 多视图 12(kanban 5 + calendar 4 + pivot 3)+ schema-driven 25 + 抽屉/详情回归 47+ 全绿
+- **现网 LLM 端到端 golden set 真跑预期 15/15**(Q7 prompt 修复 → 审计类问题自动调 get_audit)
+- 现网部署 `124.156.193.122:3001` (待 deploy)
+- systemd drop-in 自愈机制就位: deploy-direct.mjs 自动检测多 .conf 设同 env key,新覆盖旧并备份;`--keep-old-drop-ins` 关闭
+- 文档:help-content 顶部追加 v2.7.0 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
+
+**关键设计决定**:
+1. **virtual schema** — helpRequest/bugReport/proposal/reminder 这些已有专用表存数据的 nodeType,仍写 schema 描述字段(让 UI 通用渲染),后端 `/api/nodes/<virtual>` 拒收避免双写;UI 视它们与普通 nodeType 一致
+2. **多视图 URL 同步** — `?view=table|kanban|calendar|pivot`,可直链分享;切换不重置 filter/搜索/分页
+3. **HTML5 native DnD** — Kanban 用浏览器原生拖拽 + 卡片底部 Select 降级,无新依赖
+4. **glm-4-flash 默认** — 智谱免费层 + thinking disabled,零成本 + 0.5-3s/题
+
 ### 当前测试状态(2026-05-31 v2.6.0 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
 
 **v2.6.0 = v2.5.0 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**

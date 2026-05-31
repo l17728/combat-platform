@@ -1,0 +1,127 @@
+{
+  "nodeType": "bugReport",
+  "label": "问题反馈",
+  "identityKeys": [],
+  "derivedToKG": false,
+  "virtual": true,
+  "fields": [
+    {
+      "id": "title",
+      "name": "title",
+      "type": "string",
+      "label": "问题标题",
+      "required": true,
+      "group": "基础信息",
+      "order": 1
+    },
+    {
+      "id": "severity",
+      "name": "severity",
+      "type": "enum",
+      "label": "严重程度",
+      "enumValues": ["严重", "较高", "一般", "建议"],
+      "defaultValue": "一般",
+      "optionsKey": "Bug 严重程度",
+      "group": "基础信息",
+      "order": 2
+    },
+    {
+      "id": "description",
+      "name": "description",
+      "type": "textarea",
+      "label": "问题描述",
+      "group": "基础信息",
+      "order": 3
+    },
+    {
+      "id": "reporter",
+      "name": "reporter",
+      "type": "string",
+      "label": "报告人",
+      "group": "基础信息",
+      "order": 4
+    },
+    {
+      "id": "pageUrl",
+      "name": "pageUrl",
+      "type": "string",
+      "label": "问题页面",
+      "group": "基础信息",
+      "order": 5
+    },
+    {
+      "id": "screenshot",
+      "name": "screenshot",
+      "type": "string",
+      "label": "截图",
+      "group": "证据材料",
+      "order": 1,
+      "specialControl": "screenshot"
+    },
+    {
+      "id": "consoleLogs",
+      "name": "consoleLogs",
+      "type": "textarea",
+      "label": "Console 日志",
+      "group": "证据材料",
+      "order": 2,
+      "specialControl": "console-logs"
+    },
+    {
+      "id": "userAgent",
+      "name": "userAgent",
+      "type": "string",
+      "label": "浏览器",
+      "group": "证据材料",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "status",
+      "name": "status",
+      "type": "enum",
+      "label": "状态",
+      "enumValues": ["待处理", "处理中", "已解决", "已关闭"],
+      "optionsKey": "Bug 状态",
+      "group": "处理状态",
+      "order": 1,
+      "specialControl": "system"
+    },
+    {
+      "id": "resolution",
+      "name": "resolution",
+      "type": "textarea",
+      "label": "解决方案",
+      "group": "处理状态",
+      "order": 2,
+      "specialControl": "system"
+    },
+    {
+      "id": "resolvedBy",
+      "name": "resolvedBy",
+      "type": "string",
+      "label": "处理人",
+      "group": "处理状态",
+      "order": 3,
+      "specialControl": "system"
+    },
+    {
+      "id": "resolvedAt",
+      "name": "resolvedAt",
+      "type": "datetime",
+      "label": "处理时间",
+      "group": "处理状态",
+      "order": 4,
+      "specialControl": "system"
+    },
+    {
+      "id": "createdAt",
+      "name": "createdAt",
+      "type": "datetime",
+      "label": "提交时间",
+      "group": "系统字段",
+      "order": 1,
+      "specialControl": "system"
+    }
+  ]
+}

@@ -1,18 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  Typography,
-  Table,
-  Tag,
-  Space,
-  Select,
-  Button,
-  Popconfirm,
-  message,
-  Empty,
-  Tooltip,
-  Card,
-  Descriptions,
-} from "antd";
+import { Typography, Table, Tag, Space, Select, Button, Popconfirm, message, Empty, Tooltip, Card } from "antd";
 import { ScanOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { RelationProposal } from "../api.js";
@@ -21,6 +8,8 @@ import { nodeLabel } from "../utils/nodeLabel.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { useSettings } from "../hooks/useSettings.js";
+import { useNodeSchema, viewFieldsOf } from "../hooks/useSchema.js";
+import { SchemaViewBody } from "../components/SchemaField.js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -37,6 +26,9 @@ export default function ProposalsPage() {
   const [scanning, setScanning] = useState(false);
   const [detail, setDetail] = useState<RelationProposal | null>(null);
   const [nodesCache, setNodesCache] = useState<Record<string, { name: string; type: string }>>({});
+  // v2.7: proposal virtual schema 驱动详情面板字段顺序/分组
+  const { schema: proposalSchema } = useNodeSchema("proposal");
+  const proposalFields = viewFieldsOf(proposalSchema);
 
   const fetchData = useCallback(
     async (silent?: boolean) => {
@@ -242,19 +234,21 @@ export default function ProposalsPage() {
             </Button>
           }
         >
-          <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="来源">{getNodeName(detail.sourceNodeId)}</Descriptions.Item>
-            <Descriptions.Item label="目标">{getNodeName(detail.targetNodeId)}</Descriptions.Item>
-            <Descriptions.Item label="关系类型">{detail.relationType}</Descriptions.Item>
-            <Descriptions.Item label="置信度">{(detail.confidence * 100).toFixed(0)}%</Descriptions.Item>
-            <Descriptions.Item label="依据" span={2}>
-              {detail.rationale}
-            </Descriptions.Item>
-            <Descriptions.Item label="来源算法">{detail.proposerSource}</Descriptions.Item>
-            <Descriptions.Item label="状态">
-              <Tag color={PROPOSAL_STATUS_COLOR[detail.status]}>{detail.status}</Tag>
-            </Descriptions.Item>
-          </Descriptions>
+          {/* v2.7: schema 驱动 — proposal virtual schema 的 group/order 决定字段排布 */}
+          <SchemaViewBody
+            fields={proposalFields}
+            values={detail as unknown as Record<string, unknown>}
+            column={2}
+            renderValue={(f, v) => {
+              if (f.name === "sourceNodeId") return getNodeName(detail.sourceNodeId);
+              if (f.name === "targetNodeId") return getNodeName(detail.targetNodeId);
+              if (f.name === "confidence" && typeof v === "number") return `${(v * 100).toFixed(0)}%`;
+              if (f.name === "status" && typeof v === "string") {
+                return <Tag color={PROPOSAL_STATUS_COLOR[v]}>{v}</Tag>;
+              }
+              return null;
+            }}
+          />
         </Card>
       )}
 

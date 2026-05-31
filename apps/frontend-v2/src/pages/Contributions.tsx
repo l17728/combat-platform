@@ -14,26 +14,40 @@ import {
   Divider,
   Tooltip,
   Tag,
+  Segmented,
 } from "antd";
 import { PlusOutlined, SearchOutlined, ExportOutlined, EditOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
 import { CONTRIBUTION_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
 import StatusTag from "../components/StatusTag.js";
 import { useSettings } from "../hooks/useSettings.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
+import { useNodeSchema, editableFieldsOf } from "../hooks/useSchema.js";
+import { SchemaFormBody } from "../components/SchemaField.js";
 import type { GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import dayjs from "dayjs";
 import { handleApiError } from "../utils/handleApiError.js";
+import ContributionPivot from "./contributions/ContributionPivot.js";
 
 const { Title } = Typography;
 
 export default function Contributions() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // v2.7: 视图切换器(table / pivot);默认 table
+  const [view, setView] = useState<"table" | "pivot">(() => (searchParams.get("view") === "pivot" ? "pivot" : "table"));
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (view !== "table") next.set("view", view);
+    else next.delete("view");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
   const { getValues } = useSettings();
-  const CONTRIB_TYPES = getValues("贡献类型", ["实施", "发现", "协调", "指导", "支持"]);
+  // CONTRIB_LEVELS still used for the level filter; CONTRIB_TYPES now driven by schema
   const CONTRIB_LEVELS = getValues("贡献等级", ["核心", "关键", "普通"]);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [teamNodes, setTeamNodes] = useState<GraphNode[]>([]);
@@ -56,6 +70,11 @@ export default function Contributions() {
   const [teamEditSubmitting, setTeamEditSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [tickets, setTickets] = useState<GraphNode[]>([]);
+  // v2.7: 创建/编辑抽屉 schema 驱动 — 字段定义来自 contribution / teamContribution schema。
+  const { schema: contribSchema } = useNodeSchema("contribution");
+  const { schema: teamSchema } = useNodeSchema("teamContribution");
+  const contribFields = editableFieldsOf(contribSchema);
+  const teamFields = editableFieldsOf(teamSchema);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -197,6 +216,32 @@ export default function Contributions() {
     value: (t.properties["标题"] as string) ?? t.id,
     label: `${t.properties["标题"] ?? "(无标题)"}${t.properties["问题单号"] ? ` · ${t.properties["问题单号"]}` : ""}`,
   }));
+  // 给 schema 驱动的 ref 字段提供 refType→options 映射:关联攻关单字段是 string,
+  // 但 attackTicket 这种 refType 我们仍把候选传进去,SchemaField 会按 string 走;
+  // 真正用 refOptions 的是 person ref 字段(直接走 personOptions 参数)。
+  const refOptions = { attackTicket: ticketSelectOptions, person: personSelectOptions };
+
+  // v2.7: 关联攻关单是 string 类型而非 ref,需要单独的 Select override 才能拿到 ticketOptions
+  const renderContribField = (f: import("@combat/shared").FieldSchema) => {
+    if (f.name === "关联攻关单") {
+      return (
+        <Form.Item
+          name={f.name}
+          label={f.label}
+          rules={f.required ? [{ required: true, message: `${f.label}必填` }] : []}
+        >
+          <Select
+            showSearch
+            allowClear
+            placeholder="搜索攻关单"
+            options={ticketSelectOptions}
+            filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
+          />
+        </Form.Item>
+      );
+    }
+    return null;
+  };
 
   const columns = [
     {
@@ -379,67 +424,88 @@ export default function Contributions() {
         </Space>
       </div>
 
-      <Space style={{ marginBottom: 16 }} wrap>
-        <Select
-          placeholder="贡献等级"
-          allowClear
-          style={{ width: 120 }}
-          value={levelFilter}
-          onChange={setLevelFilter}
-          options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))}
-        />
-        <Input
-          placeholder="搜索贡献人/描述"
-          prefix={<SearchOutlined />}
-          style={{ width: 220 }}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-        />
-      </Space>
-
-      <Divider orientation="left">个人贡献</Divider>
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <FlexWrapper>
-          <Table
-            rowKey="id"
-            dataSource={filtered}
-            columns={flexCols}
-            components={tableComponents}
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: PAGE_SIZE,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (t) => `共 ${t} 条`,
-            }}
-            size="middle"
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <Space wrap>
+          <Select
+            placeholder="贡献等级"
+            allowClear
+            style={{ width: 120 }}
+            value={levelFilter}
+            onChange={setLevelFilter}
+            options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))}
           />
-        </FlexWrapper>
-      )}
-
-      <Divider orientation="left">团队贡献</Divider>
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 4 }} />
-      ) : (
-        <TeamFlexWrapper>
-          <Table
-            rowKey="id"
-            dataSource={teamNodes}
-            columns={teamFlexCols}
-            components={tableComponents}
-            scroll={{ x: true }}
-            pagination={{
-              pageSize: PAGE_SIZE,
-              showSizeChanger: true,
-              pageSizeOptions: PAGE_SIZE_OPTIONS,
-              showTotal: (t) => `共 ${t} 条`,
-            }}
-            size="middle"
+          <Input
+            placeholder="搜索贡献人/描述"
+            prefix={<SearchOutlined />}
+            style={{ width: 220 }}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
           />
-        </TeamFlexWrapper>
+        </Space>
+        <Segmented
+          data-testid="view-switcher"
+          value={view}
+          onChange={(v) => setView(v as "table" | "pivot")}
+          options={[
+            { label: "表格", value: "table" },
+            { label: "透视", value: "pivot" },
+          ]}
+        />
+      </div>
+
+      {view === "pivot" ? (
+        loading ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : (
+          <ContributionPivot personNodes={filtered} teamNodes={teamNodes} contribTypes={CONTRIB_TYPES} />
+        )
+      ) : (
+        <>
+          <Divider orientation="left">个人贡献</Divider>
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 6 }} />
+          ) : (
+            <FlexWrapper>
+              <Table
+                rowKey="id"
+                dataSource={filtered}
+                columns={flexCols}
+                components={tableComponents}
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: PAGE_SIZE,
+                  showSizeChanger: true,
+                  pageSizeOptions: PAGE_SIZE_OPTIONS,
+                  showTotal: (t) => `共 ${t} 条`,
+                }}
+                size="middle"
+              />
+            </FlexWrapper>
+          )}
+
+          <Divider orientation="left">团队贡献</Divider>
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 4 }} />
+          ) : (
+            <TeamFlexWrapper>
+              <Table
+                rowKey="id"
+                dataSource={teamNodes}
+                columns={teamFlexCols}
+                components={tableComponents}
+                scroll={{ x: true }}
+                pagination={{
+                  pageSize: PAGE_SIZE,
+                  showSizeChanger: true,
+                  pageSizeOptions: PAGE_SIZE_OPTIONS,
+                  showTotal: (t) => `共 ${t} 条`,
+                }}
+                size="middle"
+              />
+            </TeamFlexWrapper>
+          )}
+        </>
       )}
 
       <Drawer
@@ -459,42 +525,13 @@ export default function Contributions() {
         }
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          <Form.Item name="贡献人" label="贡献人" rules={[{ required: true, message: "请选择贡献人" }]}>
-            <Select
-              showSearch
-              allowClear
-              placeholder="从名单搜索"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            贡献详情
-          </Divider>
-          <Form.Item name="贡献类型" label="贡献类型" rules={[{ required: true, message: "请选择类型" }]}>
-            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="贡献等级" label="贡献等级" rules={[{ required: true, message: "请选择等级" }]}>
-            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: "请输入描述" }]}>
-            <Input.TextArea rows={3} placeholder="贡献描述" />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            关联信息
-          </Divider>
-          <Form.Item name="关联攻关单" label="关联攻关单">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索攻关单"
-              options={ticketSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="周期" label="周期">
-            <Input placeholder="例: 2026-Q2" />
-          </Form.Item>
+          {/* v2.7: schema 驱动 — 字段定义来自 contribution schema (SchemaWizard 可改) */}
+          <SchemaFormBody
+            fields={contribFields}
+            personOptions={personSelectOptions}
+            refOptions={refOptions}
+            renderField={renderContribField}
+          />
         </Form>
       </Drawer>
 
@@ -515,42 +552,12 @@ export default function Contributions() {
         }
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          <Form.Item name="贡献人" label="贡献人" rules={[{ required: true, message: "请选择贡献人" }]}>
-            <Select
-              showSearch
-              allowClear
-              placeholder="从名单搜索"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            贡献详情
-          </Divider>
-          <Form.Item name="贡献类型" label="贡献类型" rules={[{ required: true, message: "请选择类型" }]}>
-            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="贡献等级" label="贡献等级">
-            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: "请输入描述" }]}>
-            <Input.TextArea rows={3} placeholder="贡献描述" />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            关联信息
-          </Divider>
-          <Form.Item name="关联攻关单" label="关联攻关单">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索攻关单"
-              options={ticketSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="周期" label="周期">
-            <Input placeholder="例: 2026-Q2" />
-          </Form.Item>
+          <SchemaFormBody
+            fields={contribFields}
+            personOptions={personSelectOptions}
+            refOptions={refOptions}
+            renderField={renderContribField}
+          />
         </Form>
       </Drawer>
 
@@ -571,55 +578,13 @@ export default function Contributions() {
         }
       >
         <Form form={teamForm} layout="vertical" onFinish={handleCreateTeam}>
-          <Divider orientation="left" orientationMargin={0}>
-            团队信息
-          </Divider>
-          <Form.Item name="团队名称" label="团队名称" rules={[{ required: true, message: "请输入团队名称" }]}>
-            <Input placeholder="团队名称" />
-          </Form.Item>
-          <Form.Item name="贡献类型" label="贡献类型">
-            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="贡献等级" label="贡献等级" rules={[{ required: true, message: "请选择等级" }]}>
-            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: "请输入描述" }]}>
-            <Input.TextArea rows={3} placeholder="贡献描述" />
-          </Form.Item>
-          <Form.Item name="组长" label="组长">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从名单搜索"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="组员" label="组员">
-            <Select
-              mode="multiple"
-              showSearch
-              allowClear
-              placeholder="从名单多选"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            关联信息
-          </Divider>
-          <Form.Item name="关联攻关单" label="关联攻关单">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索攻关单"
-              options={ticketSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="周期" label="周期">
-            <Input placeholder="例: 2026-Q2" />
-          </Form.Item>
+          {/* v2.7: schema 驱动 — 组长(ref person)/ 组员(specialControl=member-multi) 由 SchemaField 自动渲染 */}
+          <SchemaFormBody
+            fields={teamFields}
+            personOptions={personSelectOptions}
+            refOptions={refOptions}
+            renderField={renderContribField}
+          />
         </Form>
       </Drawer>
 
@@ -640,55 +605,12 @@ export default function Contributions() {
         }
       >
         <Form form={teamEditForm} layout="vertical" onFinish={handleEditTeam}>
-          <Divider orientation="left" orientationMargin={0}>
-            团队信息
-          </Divider>
-          <Form.Item name="团队名称" label="团队名称" rules={[{ required: true, message: "请输入团队名称" }]}>
-            <Input placeholder="团队名称" />
-          </Form.Item>
-          <Form.Item name="贡献类型" label="贡献类型">
-            <Select placeholder="选择类型" options={CONTRIB_TYPES.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="贡献等级" label="贡献等级" rules={[{ required: true, message: "请选择等级" }]}>
-            <Select placeholder="选择等级" options={CONTRIB_LEVELS.map((v) => ({ value: v, label: v }))} />
-          </Form.Item>
-          <Form.Item name="描述" label="贡献描述" rules={[{ required: true, message: "请输入描述" }]}>
-            <Input.TextArea rows={3} placeholder="贡献描述" />
-          </Form.Item>
-          <Form.Item name="组长" label="组长">
-            <Select
-              showSearch
-              allowClear
-              placeholder="从名单搜索"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="组员" label="组员">
-            <Select
-              mode="multiple"
-              showSearch
-              allowClear
-              placeholder="从名单多选"
-              options={personSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Divider orientation="left" orientationMargin={0}>
-            关联信息
-          </Divider>
-          <Form.Item name="关联攻关单" label="关联攻关单">
-            <Select
-              showSearch
-              allowClear
-              placeholder="搜索攻关单"
-              options={ticketSelectOptions}
-              filterOption={(input, option) => (option?.label as string)?.toLowerCase().includes(input.toLowerCase())}
-            />
-          </Form.Item>
-          <Form.Item name="周期" label="周期">
-            <Input placeholder="例: 2026-Q2" />
-          </Form.Item>
+          <SchemaFormBody
+            fields={teamFields}
+            personOptions={personSelectOptions}
+            refOptions={refOptions}
+            renderField={renderContribField}
+          />
         </Form>
       </Drawer>
     </div>

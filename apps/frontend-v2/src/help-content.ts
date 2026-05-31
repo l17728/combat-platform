@@ -4,6 +4,43 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v2.7.0 — 2026-06-01 (三桶 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+
+本版聚焦"把 v2.6 几条主线完整跑通":Hermes 体验收尾(动态 model 列表 + golden set 15/15 + 部署 drop-in 自愈)、Schema-as-UI 推到全部 7 个 nodeType、多视图(Kanban/Calendar/Pivot)首次落地。
+
+### 三桶整合
+
+**① Hermes 体验收尾**
+- **GET /api/llm-settings/models 动态拉取 provider 实际 model 列表**: 走 OpenAI 兼容 \`/v1/models\` endpoint;UI 把 defaultModel/smallModel 从 AutoComplete 改为动态 Select + 「刷新」按钮,看到的就是 provider 真支持的
+- **/api/llm-settings/test 修 env-fallback**: admin 未存 DB 也能走 env 实测连接,补 v2.6 漏洞
+- **Hermes prompt 优化**: 审计追溯类问题("admin 改过哪些"/"张三干过什么")LLM 现在会优先 \`get_audit(actor='X')\` 而非让用户澄清;golden set **15/15 通过**(v2.6 是 14/15)
+- **deploy-direct.mjs 自愈 systemd drop-in**: 自动检测多个 drop-in 设同一 env key 时备份旧的、保留新的(吃下 v2.6 \`hermes.conf\` 累加坑);\`--keep-old-drop-ins\` flag 关闭自动清理
+- 默认 model **glm-4-flash**(智谱免费层,零成本可用,首次部署即工作)
+
+**② Schema-as-UI 全栈化**
+- **v2.6 的 attackTicket 模式推到全部 7 个 nodeType**: contribution / teamContribution / person / helpRequest / bugReport / proposal / reminder
+- **新概念 \`virtual: true\` schema**: helpRequest/bugReport/proposal/reminder 这些数据存在专用表(不走 nodes 表),仍写 \`config/schemas/*.json\` 描述字段;后端 \`/api/nodes/<virtual>\` 拒收防止双写,但 UI 照样 schema 驱动
+- **新 hook \`useSchema\` + 高阶组件 \`SchemaFormBody\` / \`SchemaViewBody\`**: 按 group 自动 Divider/Card 渲染,从此抽屉表单 = 一行 JSX
+- **所有抽屉移除硬编码 Form.Item**: 加字段 → \`SchemaWizard\` → 全部相关页面自动出现,零前端代码改动
+- 攻关 v2.4.1 React #310 Hooks 修复仍保留
+
+**③ 多视图 (One Data Model, Many Views)**
+- **Kanban (\`/attack?view=kanban\`)**: 按"状态"列 + HTML5 native DnD 拖拽改状态 + 卡片底部 Select 降级 + 乐观更新 + 失败回滚(写后端 \`api.transitionNode\`)
+- **Calendar (\`/attack?view=calendar\`)**: antd \`<Calendar fullscreen>\` 月视图 + 按创建/解决时间切换 + 色块标 P0/P1/P2/P3 + 点单元格 Popover 列当日攻关
+- **Pivot (\`/contributions?view=pivot\`)**: 贡献人 × 贡献类型 透视表 + 加权积分(核心3/关键2/普通1) + 颜色梯度 + 行尾小计 + 列尾总计 + Grand Total + 个人/团队透视模式 Segmented 切换
+- **AttackList / Contributions 顶部 Segmented 视图切换器**: URL \`?view=table|kanban|calendar|pivot\` 同步,直链分享 + 切换不重置 filter
+
+### 测试
+
+- Backend: **~755/755** 通过(集成阶段汇总;含 hermes-polish 17 + schema-all 25 + golden set 15/15)
+- Shared: **28/28**
+- Frontend tsc: 0 错
+- Frontend e2e: 多视图 12 + schema-driven 25 + 抽屉/详情回归 47+ 全绿
+
+### 经验沉淀
+
+> v2.6 完成的是"用户可见的中期 UX 槽位填上"(Inbox/面包屑/LLM UI);v2.7 完成的是把这些主线**贯穿落地** — Schema-as-UI 从 1 个 nodeType 到 7 个 + 视图从 1 种到 4 种 + LLM 从 14/15 到 15/15 + 部署从手工到自愈。这是把"组件化能力"转向"产品成熟度"的关键一版。配合 v2.6 的 LLM 直连 + UI 配置,**v2.7 之后管理员的全部日常运维都在浏览器里完成**:加字段、改 LLM、看通知、切视图,**无需 SSH、无需重启**。
+
 ## v2.6.0 — 2026-05-31 (四桶 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
 
 本版三件大事:**完全去掉 opencode 依赖** + 把"用户可见的中期 UX 槽位"全部填上(站内 inbox/面包屑/通知铃铛) + **详情页全部 Schema 驱动**——这些一起把"配置 / 升级 / 体验"三条主线推到一个新台阶。
@@ -623,7 +660,14 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 快捷操作
 - 在搜索框输入客户名称可快速定位该客户的所有攻关单
 - 关注重点攻关单后，在「我的关注」Tab 一屏看全自己关心的工作
-- 表格列宽可拖拽调整，横向滚动查看更多字段`,
+- 表格列宽可拖拽调整，横向滚动查看更多字段
+
+### v2.7 新增 — 多视图切换
+- 顶部「视图切换」Segmented 三选一: **表格 / 看板 / 日历**;URL 同步 \`?view=table|kanban|calendar\`,可直链分享
+- **看板**:按 \`状态\` 枚举 5 列(待响应/处理中/进行中/已解决/已关闭),拖拽卡片改状态(乐观更新 + 失败回滚);不支持拖拽时,卡片底部 Select 是降级路径
+- **日历**:antd Calendar 月视图,单元格按事件级别色块(P0/P1红 / P2橙 / P3+蓝),顶部 Switch 切「创建时间/更新时间」轴;点单元格弹小卡列出当日攻关单
+- 切换视图**不重置 filter / 搜索 / 关注 Tab**;同一筛选可在三视图间任意切换
+- 详细操作 / 截图技巧见 \`docs/MULTI_VIEW.md\``,
   },
 
   attackDetail: {
@@ -754,7 +798,12 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 ### 快捷操作
 - 搜索框支持中文姓名部分匹配，输入「张」即可找到所有姓张的人员
 - 导入前先导出当前数据，可快速了解现有人员的字段格式和数据结构
-- 点击「荣誉」按钮可直接跳转查看某人的贡献统计，无需先去荣誉殿堂查找`,
+- 点击「荣誉」按钮可直接跳转查看某人的贡献统计，无需先去荣誉殿堂查找
+
+### v2.7 — 详情页/抽屉全部 schema 驱动
+- 创建、编辑、详情抽屉里的字段全部来自 person schema（在 SchemaWizard 维护）
+- 在 SchemaWizard 给 person 加新字段（如手机号、办公地点、入职日期），抽屉与详情自动出现该字段，无需改前端代码
+- 字段按 group 分组渲染（基础信息 / 组织信息），group/order 都在 SchemaWizard 改`,
   },
 
   contributions: {
@@ -812,7 +861,18 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 修复:嵌入页面的 AI 助手在思考阶段(Hermes 流式返回时)滚动条上下抖动(bug \`de1bf88e\`),用户上滑离开底部后不会再被强制拖回底部
 
 ### v2.6 新增
-- **面包屑已上线**:列表页顶部新增「首页 → 人员与荣誉 → 贡献录入」面包屑,可点击逐级返回`,
+- **面包屑已上线**:列表页顶部新增「首页 → 人员与荣誉 → 贡献录入」面包屑,可点击逐级返回
+
+### v2.7 — 详情页/抽屉全部 schema 驱动 + 透视视图
+- 「录入个人贡献」/「录入团队贡献」抽屉的字段、必填项、分组都来自 contribution / teamContribution schema(SchemaWizard 可改)
+- 在 SchemaWizard 给 contribution 加字段(如外部链接、PR编号),抽屉立刻出现,无需改前端代码
+- 团队贡献的「组员」字段标了 specialControl=member-multi → 自动渲染人员多选,组长则是 person ref → 自动渲染单选
+- 顶部「视图切换」Segmented 二选一: **表格 / 透视**;URL 同步 \`?view=table|pivot\`,可直链分享
+- **透视(Pivot)**: 行 = 贡献人 / 团队名称,列 = 贡献类型,值 = 次数 + 加权积分(核心=3、关键=2、普通=1);单元格背景按积分梯度变深一目了然
+- 行尾「小计」+ 列尾「总计」+ 右下角 Grand Total
+- 透视内部再有 Segmented 切「个人贡献 / 团队贡献」两种透视模式
+- 切换视图**不重置 filter / 搜索**;同一筛选可在表格 / 透视间任意切换
+- 详细操作 / 适用场景 / 截图技巧见 \`docs/MULTI_VIEW.md\``,
   },
 
   honor: {
@@ -939,7 +999,13 @@ v2.3.0 完整继承 v2.2.0 所有 P1 改造,无回退:
 - 通过状态筛选「待回复」可快速找到还未获得反馈的求助，及时跟催
 
 ### v2.6 更新
-LLM 全部 UI 配置，无需后台手工部署。详见左侧「系统管理 → LLM 设置」（仅 admin 可见）。`,
+LLM 全部 UI 配置，无需后台手工部署。详见左侧「系统管理 → LLM 设置」（仅 admin 可见）。
+
+### v2.7 — 发起求助抽屉 schema 驱动
+- 抽屉里的字段、必填项、分组现在来自 helpRequest virtual schema
+- 「求助类型」枚举仍可被 系统管理 → 配置中心 的「求助分类」覆盖（运行时优先 settings）
+- 在 SchemaWizard 给 helpRequest 加字段(如紧急程度、期望响应时间),抽屉立刻出现,无需改前端代码
+- 注:helpRequest 是 virtual schema,数据存在专用表 \`help_requests\`,不走 /api/nodes`,
   },
 
   helpFeedback: {
@@ -1508,7 +1574,13 @@ npm run cli -- notifications:create --user <u> --kind <k> --title <t> [--body <b
 - 可查看截图、Console 日志、浏览器信息等
 
 ### Console 日志自动捕获
-系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。`,
+系统在页面加载时自动捕获浏览器 console 输出（log/warn/error/info/debug），提交问题时一并上传，便于问题诊断。
+
+### v2.7 — 创建/编辑抽屉 schema 驱动
+- 抽屉里的基础字段(标题/严重程度/描述/报告人/页面)现在来自 bugReport virtual schema
+- 截图、Console 日志保留 specialControl 专用 UI(粘贴/拖拽/捕获)
+- 在 SchemaWizard 给 bugReport 加字段(如复现步骤、预期结果),抽屉立刻出现,无需改前端代码
+- 注:bugReport 是 virtual schema,数据存在专用表 \`bug_reports\`,不走 /api/nodes`,
   },
   userManagement: {
     title: "用户管理 - 使用帮助",
@@ -1675,7 +1747,23 @@ npm run cli -- llm:set --provider zhipuai-coding-plan --base-url https://open.bi
 npm run cli -- llm:test --model glm-4.6
 \`\`\`
 
-agent 自动化部署、批量改 model 时直接走 CLI，避免人工 UI 操作。`,
+agent 自动化部署、批量改 model 时直接走 CLI，避免人工 UI 操作。
+
+### v2.7 新增能力
+
+**1. 动态拉取 provider 实际可用模型**
+- defaultModel / smallModel 标签旁多了「🔄 刷新模型列表」按钮
+- 点击后调 \`GET /api/llm-settings/models\`，透传 provider 的 OpenAI 兼容 \`/models\` endpoint，把真实可用 model 列表注入到 Select 选项
+- 智谱、华为云等 provider 上新 model 后，UI 一刷新就能看到，不再受硬编码列表束缚
+- 失败时自动降级回内置 PROVIDER_DEFAULTS.models + 警告 toast
+
+**2. /test env-fallback**
+- v2.6 的「测试连接」按钮要求 DB 已有配置或 form 临时输入 apiKey 才能工作；v2.7 起新增 env fallback（\`HERMES_LLM_*\`）：admin 即使没存 DB，只要 backend 启动时设了 env 就能一键测试，方便首次配置引导
+- 优先级链：body → DB → env → 默认
+
+**3. 默认 model 改 glm-4-flash**
+- 智谱 zhipu apiKey 在 OpenAI 兼容 endpoint 下，glm-4.5/4.6/5 都需要余额；glm-4-flash 免费可用
+- 全栈默认值同步改为 glm-4-flash（app.ts / PROVIDER_DEFAULTS / models 提示列表第一位）`,
   },
 };
 
