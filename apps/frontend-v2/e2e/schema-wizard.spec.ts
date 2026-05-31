@@ -116,23 +116,30 @@ test.describe("表结构管理", () => {
         fields: [{ id: "name", name: "name", label: "名称", type: "string" }],
       },
     });
-    if (res.ok()) {
-      await page.reload();
-      await page.waitForLoadState("domcontentloaded");
+    try {
+      if (res.ok()) {
+        await page.reload();
+        await page.waitForLoadState("domcontentloaded");
 
-      const row = page.locator(".ant-table-row").filter({ hasText: "e2eDelTest" });
-      if (await row.isVisible()) {
-        const deleteBtn = row.locator(".ant-btn-dangerous");
-        if (await deleteBtn.isVisible()) {
-          await deleteBtn.click();
-          await page.waitForTimeout(300);
-          await page
-            .locator(".ant-popconfirm")
-            .getByRole("button", { name: /确\s?定|OK/ })
-            .click();
-          await page.waitForTimeout(1000);
+        const row = page.locator(".ant-table-row").filter({ hasText: "e2eDelTest" });
+        if (await row.isVisible()) {
+          const deleteBtn = row.locator(".ant-btn-dangerous");
+          if (await deleteBtn.isVisible()) {
+            await deleteBtn.click();
+            await page.waitForTimeout(300);
+            await page
+              .locator(".ant-popconfirm")
+              .getByRole("button", { name: /确\s?定|OK/ })
+              .click();
+            await page.waitForTimeout(1000);
+          }
         }
       }
+    } finally {
+      // 兜底 — UI 删除路径无论是否走完,确保 schema 文件被清理(否则下一个测试会看到 23/22 偏差)
+      await page.request
+        .delete(`${API}/api/schema/nodeType/e2eDelTest`, { headers: { "X-Role": "admin" } })
+        .catch(() => {});
     }
   });
 
