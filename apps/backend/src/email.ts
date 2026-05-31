@@ -58,7 +58,8 @@ async function resolveRecipients(repo: Repository, req: EmailSendRequest): Promi
   for (const name of req.groupNames ?? []) {
     const trimmed = String(name ?? "").trim();
     if (!trimmed) continue;
-    for (const g of await repo.queryNodes("emailGroup", { 组名: trimmed })) {
+    // v2.2 P1 §2: SQL 下推 emailGroup.组名 等值查找
+    for (const g of await repo.queryNodesByProperty("emailGroup", "组名", trimmed)) {
       const members = String(g.properties["成员邮箱"] ?? "");
       for (const m of members.split(",")) raw.push(m);
     }

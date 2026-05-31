@@ -926,6 +926,48 @@ Postgres 支持全阶段完成:
 
 **前端 e2e 全量套件 401/401 全绿**（~14min，单 worker，`NODE_ENV=test`，干净机器跑）；后端 **349/349**（60 文件，新增 health.e2e.test.ts 2 用例）。
 
+### 性能 P1（2026-05-31 实施，分支 `feature/roadmap-perf-p1`）
+
+依 `docs/REVIEWS/REVIEW_performance.md` (4.0/10) 落地 7 项 P1,主攻**算法/架构热点**:
+
+| #   | 项                                                                                                    | commit    | 关键收益                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `Repository.queryNodesByProperty` SQL 下推 + 9 个热点 key 表达式索引                                  | `cc9d915` | 单键等值过滤从 O(N) 全表 + N·JSON.parse 降到 O(log N) 索引 + k·parse。bench 实测 10k 节点 4.9× speedup,EXPLAIN 验证 `SEARCH nodes USING INDEX idx_nodes_prop_status` 走索引 |
+| 2   | 5 处 callsite 改用下推:emailGroup.组名/person.邮箱(2)、attackTicket.问题单号、anchor.key、import 主键 | `8b22423` | 私密授权组授权 + 邮件发送 + Hermes find-helpers + anchor 创建 + import 行级查找全部消除应用层 N 次扫表 + filter                                                             |
+| 3   | `conflicts.syncConflictsForOne` 增量 O(N²) → O(N) + post-save 防抖累计 ticketId 集                    | `6548942` | 单 ticket 保存的 audit 写从 ~Σk²(全量) 降到 ~k(单 ticket 同组大小);兜底 >50 ticket 累计降级到全量(避免逐个增量也 O(N²))                                                     |
+| 4   | `recommend.recommendHelpers` 消除 N+1                                                                 | `b69bbac` | 5k contributions × queryEdges 从 O(N)·SQL roundtrip 降到 1 次 queryEdges + 内存 join                                                                                        |
+| 5   | `proposer.HeuristicRelationProposer` levenshtein 长度差预筛                                           | `28bc9a9` | `Δlen > threshold` 直接跳过 O(L²) leven 调用,中文 1k 人样本约 99% 候选对被筛掉;dist=0 路径(完全同名)不受影响                                                                |
+| 6   | `appendProgress` 原子 seqNo:INSERT...SELECT COALESCE(MAX+1)                                           | `93fd37a` | 单条 SQL 取号+插入,SQLite/PG 兼容;消除 select-then-insert race(异步驱动下经典问题)                                                                                          |
+| 7   | Prometheus metrics `/api/metrics`(无 auth)+ 默认 Node 指标                                            | `d383a89` | combat_http_requests_total/duration_ms/in_flight + combat_db_queries_total + nodejs/process 默认 metrics;支撑 Grafana p99/error-rate 监控                                   |
+
+**EXPLAIN 实测**(`scripts/bench-explain.mjs`):
+
+```
+EXPLAIN QUERY PLAN — queryNodesByProperty equivalent:
+  {"detail":"SEARCH nodes USING INDEX idx_nodes_prop_status (nodeType=? AND <expr>=?)"}
+
+EXPLAIN QUERY PLAN — queryNodes 全表扫:
+  {"detail":"SCAN nodes"}
+```
+
+**Benchmark 实测**(`scripts/bench-queryNodes.mjs`,SQLite,本机):
+
+| N      | queryNodes (filter) median | queryNodesByProperty median | speedup |
+| ------ | -------------------------- | --------------------------- | ------- |
+| 100    | 0.72 ms                    | 0.24 ms                     | 3.0×    |
+| 1 000  | 3.53 ms                    | 0.69 ms                     | 5.1×    |
+| 5 000  | 19.41 ms                   | 3.43 ms                     | 5.7×    |
+| 10 000 | 39.53 ms                   | 7.99 ms                     | 4.9×    |
+
+**实施纪律**:
+
+- 7 个独立 commit + 每个 commit 立刻 push origin。
+- baseline 463 backend tests → 477 全绿(+5 queryNodesByProperty +5 conflicts-incremental +4 metrics,无回归)。
+- typecheck 双端均通过(backend + shared)。
+- 新增 1 个 npm 依赖:`prom-client@15`(零 native binding,纯 JS)。
+- 新增文档:`docs/PERFORMANCE_TUNING.md`(何时用哪个 API、metrics 解读)。
+- SQLite 同步语义不动(better-sqlite3 单进程串行是 design),仅增加优化兼容。
+
 ### 性能 quick wins（2026-05-31 实施，分支 `feature/roadmap-performance`）
 
 依 `docs/REVIEWS/REVIEW_performance.md` (4.0/10) 落地 5 项 P0,代码改动小、不引入新依赖:

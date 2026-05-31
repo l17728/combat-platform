@@ -46,13 +46,22 @@ export async function recommendHelpers(
     }
   }
 
+  // v2.2 P1 §4: 消除 N+1 — 原来 contributions × queryEdges 是 O(N)·SQL roundtrip。
+  // 改成单次 queryEdges({edgeType:"REF"}) 拉全部 REF 边,内存里按 sourceId+field 分桶。
+  // 5k contributions × O(1) SQL roundtrip → 1 次 SQL + 内存 join。
   const fbCount = new Map<string, number>();
-  for (const c of await repo.queryNodes("contribution")) {
+  const contributions = await repo.queryNodes("contribution");
+  const eligible = new Set<string>();
+  for (const c of contributions) {
     const lvl = String(c.properties["贡献等级"] ?? "");
-    if (lvl !== "核心" && lvl !== "关键") continue;
-    for (const pid of await refPersons(repo, c.id, "贡献人")) {
-      // last-resort: skip self AND anyone already credited via shared-anchor
-      // evidence (acc is fully built by the anchor pass above)
+    if (lvl === "核心" || lvl === "关键") eligible.add(c.id);
+  }
+  if (eligible.size > 0) {
+    const allRefEdges = await repo.queryEdges({ edgeType: "REF" });
+    for (const e of allRefEdges) {
+      if (!eligible.has(e.sourceId)) continue;
+      if (String(e.properties["field"] ?? "") !== "贡献人") continue;
+      const pid = e.targetId;
       if (self.has(pid) || acc.has(pid)) continue;
       fbCount.set(pid, (fbCount.get(pid) ?? 0) + 1);
     }
