@@ -21,7 +21,10 @@ export async function syncAnchorEdges(
     resolved.set(f.anchor, { value: v, field: f.id });
   }
   for (const [kind, { value, field }] of resolved) {
-    const existing = (await repo.queryNodes(kind)).find((n) => String(n.properties["key"] ?? "") === value);
+    // v2.2 P1 §2: SQL 下推 anchor key 等值查找(高频:每个 ref 字段创建/更新都触发)
+    const existing = (await repo.queryNodesByProperty(kind, "key", value)).find(
+      (n) => String(n.properties["key"] ?? "") === value
+    );
     const anchor = existing ?? (await repo.createNode(kind, { key: value }, actor));
     await repo.createEdge("ANCHORED_TO", node.id, anchor.id, { anchorKind: kind, field }, actor);
   }

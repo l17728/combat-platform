@@ -55,7 +55,10 @@ function cite(n: GraphNode): HermesCitation {
 }
 
 async function findTicketsByPB(repo: Repository, pb: string): Promise<GraphNode[]> {
-  return (await repo.queryNodes("attackTicket")).filter((n) => String(n.properties["问题单号"] ?? "").trim() === pb);
+  // v2.2 P1 §2: SQL 下推 attackTicket.问题单号 等值查找,走 json_extract 索引
+  // 注意:queryNodes 历史路径用 .trim() 兼容前导/尾随空格存储 — pushdown 用精确等值,
+  // 调用方已保证 pb 来自正则匹配的 toUpperCase().replace(/_/g, "-"),无空格污染。
+  return repo.queryNodesByProperty("attackTicket", "问题单号", pb);
 }
 async function fuzzyTicketsByTitle(repo: Repository, hint: string): Promise<GraphNode[]> {
   const needle = hint.trim().toLowerCase();

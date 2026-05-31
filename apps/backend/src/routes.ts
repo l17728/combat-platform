@@ -126,14 +126,15 @@ async function canAccessPrivateAttackTicket(
       const groups = JSON.parse(groupRaw);
       if (Array.isArray(groups) && groups.length > 0) {
         for (const groupName of groups) {
-          const gNodes = await repo.queryNodes("emailGroup", { 组名: String(groupName) });
+          // v2.2 P1 §2: SQL 下推 emailGroup.组名 + person.邮箱 等值查找,走 json_extract 索引
+          const gNodes = await repo.queryNodesByProperty("emailGroup", "组名", String(groupName));
           for (const g of gNodes) {
             const emails = String(g.properties?.["成员邮箱"] ?? "")
               .split(/[,，;；]/)
               .map((s) => s.trim())
               .filter(Boolean);
             for (const email of emails) {
-              const persons = await repo.queryNodes("person", { 邮箱: email });
+              const persons = await repo.queryNodesByProperty("person", "邮箱", email);
               for (const person of persons) {
                 const n = String(person.properties?.["姓名"] ?? "").trim();
                 if (n && (n === displayName || n === username)) return true;
