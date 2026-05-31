@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { writeSheetBuffer } from "../src/xlsx-util.js";
 import { writeFileSync, mkdtempSync as mkdtemp } from "node:fs";
 import { runCli, renderHelp, parseArgs, COMMANDS, type HttpFn, type HttpRequest } from "../src/cli-core.js";
 import { openDb } from "../src/db.js";
@@ -211,12 +211,9 @@ describe("§43 CLI core", () => {
     );
     const app = createApp({ repo, registry: new FileSchemaRegistry(CFG) });
     // write a real xlsx fixture
-    const ws = XLSX.utils.json_to_sheet([{ 标题: "CLI导入单", 状态: "进行中" }]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "S");
     const dir = mkdtemp(join(tmpdir(), "combat-cli-xlsx-"));
     const fixture = join(dir, "in.xlsx");
-    writeFileSync(fixture, XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+    writeFileSync(fixture, await writeSheetBuffer([{ 标题: "CLI导入单", 状态: "进行中" }], ["标题", "状态"]));
     // http adapter: handle uploadFile via supertest .attach
     const http: HttpFn = async ({ method, path, body, uploadFile }) => {
       const apiPath = `/api${path.replace(/^\/api/, "")}`;

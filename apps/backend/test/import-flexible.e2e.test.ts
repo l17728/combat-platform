@@ -1,19 +1,12 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { makeTestApp } from "./helpers.js";
-
-function xlsxBuffer(rows: Record<string, unknown>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
-}
 
 describe("灵活 Excel 导入(未知列自动建字段)", () => {
   it("dryRun 预览报告未匹配的新列", async () => {
     const { app } = await makeTestApp();
-    const buf = xlsxBuffer([{ 标题: "灵活预览单", 状态: "待响应", 定位措施: "重启网关", 影响范围: "3租户" }]);
+    const buf = await xlsxBuffer([{ 标题: "灵活预览单", 状态: "待响应", 定位措施: "重启网关", 影响范围: "3租户" }]);
     const res = await request(app).post("/api/import?type=attackTicket&dryRun=1").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.newColumns).toEqual(expect.arrayContaining(["定位措施", "影响范围"]));
@@ -24,7 +17,7 @@ describe("灵活 Excel 导入(未知列自动建字段)", () => {
 
   it("createFields=1:未知列自动建为字段,数据落库", async () => {
     const { app } = await makeTestApp();
-    const buf = xlsxBuffer([{ 标题: "灵活导入单", 状态: "待响应", 定位措施: "已重启网关" }]);
+    const buf = await xlsxBuffer([{ 标题: "灵活导入单", 状态: "待响应", 定位措施: "已重启网关" }]);
     const res = await request(app).post("/api/import?type=attackTicket&createFields=1").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(1);
@@ -48,7 +41,7 @@ describe("灵活 Excel 导入(未知列自动建字段)", () => {
     const before = await request(app).get("/api/schema/attackTicket");
     const beforeCount = before.body.fields.length;
 
-    const buf = xlsxBuffer([{ 标题: "仅匹配单", 状态: "处理中", 神秘列: "应被忽略" }]);
+    const buf = await xlsxBuffer([{ 标题: "仅匹配单", 状态: "处理中", 神秘列: "应被忽略" }]);
     const res = await request(app).post("/api/import?type=attackTicket").attach("file", buf, "t.xlsx");
     expect(res.status).toBe(200);
     expect(res.body.created).toBe(1);

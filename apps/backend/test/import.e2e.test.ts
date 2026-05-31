@@ -1,19 +1,12 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import { xlsxBuffer } from "./xlsx-test-util.js";
 import { makeTestApp } from "./helpers.js";
-
-function xlsxBuffer(rows: Record<string, string>[]): Buffer {
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-}
 
 describe("import e2e", () => {
   it("BE-8 imports tickets and resolves same Person once", async () => {
     const { app, repo } = await makeTestApp();
-    const buf = xlsxBuffer([
+    const buf = await xlsxBuffer([
       { 标题: "断连A", 状态: "进行中", 攻关申请人: "洪瑞哲", 攻关申请人工号: "WX1497394" },
       { 标题: "断连B", 状态: "进行中", 攻关申请人: "洪瑞哲", 攻关申请人工号: "WX1497394" },
     ]);

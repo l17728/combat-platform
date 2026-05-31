@@ -133,3 +133,57 @@ combat_http_in_flight
 - 463 backend tests → 478 全绿(+5 queryNodesByProperty +5 conflicts-incremental +4 metrics +health/dashboard 既有)
 - baseline 测试时长无显著退化(86s → 76s)
 - 9 个 SQLite 表达式索引共占用约 < 100 KB / 10k 节点
+
+## PM2 Cluster 使用说明 (v2.4 harden)
+
+仓库根 `ecosystem.config.cjs` 是 PM2 的进程编排清单。默认 `instances: "1" / fork` 模式,
+和现在 systemd 单实例完全等价 — 可直接接入 SQLite 生产部署作为对等替代品(零行为差异)。
+
+### 何时切到 cluster
+
+**仅在切换到 Postgres adapter 后**才允许把 `COMBAT_PM2_INSTANCES` 设为 `max` (或 ≥2)。
+better-sqlite3 是单进程同步引擎,SQLite WAL 也只允许单写者;cluster 模式下多个 worker
+对同一 `combat.sqlite` 文件并发写会触发文件锁竞争 → 行为未定义(最严重的情况:WAL 撕裂、
+读端拿到不一致快照)。Postgres 走 MVCC + 行锁,天然支持多进程并发。
+
+### 启动方式
+
+| 场景                        | 命令                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| 单实例 / SQLite             | `pm2 start ecosystem.config.cjs`                                                |
+| 多实例 / Postgres           | `COMBAT_PM2_INSTANCES=max DB_URL=postgres://... pm2 start ecosystem.config.cjs` |
+| 前台 (CI / systemd-wrapped) | `pm2 start ecosystem.config.cjs --no-daemon`                                    |
+| 滚动重载 (零中断)           | `pm2 reload combat-v2`                                                          |
+
+### 与 systemd 的取舍
+
+| 维度              | systemd (现状)                           | PM2 cluster                    |
+| ----------------- | ---------------------------------------- | ------------------------------ |
+| 单实例 SQLite     | ✓ 简单                                   | ✓ 行为等价,多了一层进程管理    |
+| 多实例 (Postgres) | ✗ 需要外层 nginx 做反代 + 端口轮转       | ✓ 内建负载均衡                 |
+| 零中断重载        | ✗ restart 会中断连接                     | ✓ `pm2 reload` 滚动            |
+| 内存防御          | ✗ 需另写 watchdog                        | ✓ `max_memory_restart: 1G`     |
+| 日志路径          | `/opt/combat-v2/backend.log` (logrotate) | 同路径 (`out_file/error_file`) |
+| 开机自启          | systemctl enable                         | `pm2 startup` + `pm2 save`     |
+| 监控指标          | journalctl + Prometheus                  | + pm2 plus (可选)              |
+
+### 当前部署模式
+
+生产 124.156.193.122 仍是 systemd + SQLite + fork(单进程)。`ecosystem.config.cjs` 已落地
+但**未启用**,留作 Postgres 切换时的零成本横向扩展开关。
+
+### 验证清单
+
+本地验证步骤(任意 NODE_ENV=production 平台):
+
+```bash
+npm run build --workspace=@combat/shared
+npm run build --workspace=@combat/backend
+JWT_SECRET=$(openssl rand -hex 32) \
+  COMBAT_PM2_LOG_DIR=./logs \
+  pm2 start ecosystem.config.cjs --no-daemon
+# 另一窗口
+curl -sf http://localhost:3001/api/health && echo "OK"
+pm2 list && pm2 logs combat-v2 --lines 5
+pm2 delete combat-v2 && pm2 kill
+```

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -48,8 +48,22 @@ describe("export e2e", () => {
     expect(r.status).toBe(200);
     expect(r.headers["content-type"]).toContain("spreadsheetml.sheet");
     expect(r.headers["content-disposition"]).toMatch(/attachment; filename="attackTicket-.*\.xlsx"/);
-    const wb = XLSX.read(r.body, { type: "buffer" });
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[wb.SheetNames[0]]);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.body);
+    const ws = wb.worksheets[0];
+    const headers: string[] = [];
+    ws.getRow(1).eachCell((c, i) => (headers[i - 1] = String(c.value ?? "")));
+    const rows: Record<string, unknown>[] = [];
+    ws.eachRow({ includeEmpty: false }, (row, rn) => {
+      if (rn === 1) return;
+      const obj: Record<string, unknown> = {};
+      row.eachCell({ includeEmpty: false }, (c, i) => {
+        const v = c.value;
+        if (v === null || v === undefined || v === "") return;
+        obj[headers[i - 1]] = v;
+      });
+      rows.push(obj);
+    });
     expect(rows).toHaveLength(2);
     expect(rows.map((x) => x["标题"]).sort()).toEqual(["单A", "单B"]);
     expect(rows[0]).toHaveProperty("状态");
@@ -72,9 +86,15 @@ describe("export e2e", () => {
         res.on("end", () => cb(null, Buffer.concat(chunks)));
       });
     expect(r.status).toBe(200);
-    const wb = XLSX.read(r.body, { type: "buffer" });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    expect(XLSX.utils.sheet_to_json(ws)).toHaveLength(0);
-    expect(ws["A1"]?.v).toBe("标题"); // header row present (active field labels), zero data rows
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.body);
+    const ws = wb.worksheets[0];
+    // header row only — first data row (row 2) should be empty / absent
+    const dataRows: any[] = [];
+    ws.eachRow({ includeEmpty: false }, (row, rn) => {
+      if (rn > 1) dataRows.push(row);
+    });
+    expect(dataRows).toHaveLength(0);
+    expect(String(ws.getRow(1).getCell(1).value ?? "")).toBe("标题"); // header row present
   });
 });

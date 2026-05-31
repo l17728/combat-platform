@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import multer from "multer";
 import Database from "better-sqlite3";
 import { log, asyncHandler } from "./logger.js";
@@ -148,6 +149,83 @@ export function makeBackupRouter(adapter: DbAdapter, dbPath: string): Router {
       await unlink(fp);
       log.info("backup.deleted", { filename: fn });
       res.json({ deleted: fn });
+    })
+  );
+
+  // harden v2.4: offsite backup — kick the standalone script which tar's
+  // combat.db + config/schemas + data/schemas-overlay and SFTPs them to a
+  // remote host. The script's own CLI is the source of truth; this endpoint
+  // is the wire for `npm run cli -- backup:offsite` (per CLAUDE.md §6).
+  r.post(
+    "/backup/offsite",
+    asyncHandler(async (req, res) => {
+      const body = (req.body || {}) as Record<string, unknown>;
+      const scriptPath = join(
+        dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "..",
+        "..",
+        "scripts",
+        "backup",
+        "offsite-backup.mjs"
+      );
+      const flags: string[] = [];
+      const pushFlag = (k: string, v: unknown) => {
+        if (v === undefined || v === null || v === "") return;
+        if (v === true) flags.push(`--${k}`);
+        else flags.push(`--${k}`, String(v));
+      };
+      pushFlag("host", body.host);
+      pushFlag("user", body.user);
+      pushFlag("port", body.port);
+      pushFlag("remote-dir", body.remoteDir);
+      pushFlag("key", body.keyPath);
+      pushFlag("db", body.dbPath);
+      pushFlag("schemas", body.schemasDir);
+      pushFlag("overlay", body.overlayDir);
+      if (body.dryRun) flags.push("--dry-run");
+      const env: NodeJS.ProcessEnv = { ...process.env };
+      if (typeof body.sshPassword === "string") env.COMBAT_BACKUP_SSH_PASSWORD = body.sshPassword;
+      log.info("backup.offsite.start", {
+        host: body.host,
+        remoteDir: body.remoteDir,
+        dryRun: !!body.dryRun,
+      });
+      const proc = spawn("node", [scriptPath, ...flags], { env, stdio: ["ignore", "pipe", "pipe"] });
+      let stdout = "",
+        stderr = "";
+      proc.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
+      proc.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+      const code: number = await new Promise((resolve, reject) => {
+        proc.on("error", reject);
+        proc.on("close", (c) => resolve(c ?? 1));
+      });
+      if (code !== 0) {
+        log.warn("backup.offsite.fail", { code, stderr: stderr.slice(0, 500) });
+        return res.status(500).json({ error: stderr.trim() || `offsite-backup exited ${code}`, stdout, stderr });
+      }
+      // The script prints a JSON summary at the tail of stdout (potentially
+      // preceded by [plan]/[archive]/[uploaded] log lines). Find the last
+      // top-level JSON object by scanning forward for a line beginning with `{`
+      // and consuming through end of output.
+      let summary: unknown = null;
+      try {
+        const lines = stdout.split("\n");
+        let startIdx = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          if (lines[i].startsWith("{")) {
+            startIdx = i;
+            break;
+          }
+        }
+        if (startIdx !== -1) {
+          summary = JSON.parse(lines.slice(startIdx).join("\n").trim());
+        }
+      } catch {
+        // ignore — stdout already returned for debugging
+      }
+      log.info("backup.offsite.done", { summary });
+      res.json({ ok: true, summary, stdout });
     })
   );
 
