@@ -168,3 +168,40 @@ npm run cli -- llm:test
 ```
 
 `hermes-tools.ts` 末尾的兼容层导出 `TOOL_SCHEMAS / ToolSchema / ToolCtx / callToolUnwrap` 给 agent;`callToolUnwrap` 拆解 `ToolResult{ok, data, error}` 为「成功返 data, 失败抛 Error」。
+
+## v2.7 — 模型列表动态获取 + 审计追溯类问题指引
+
+### GET /api/llm-settings/models endpoint
+
+从 v2.7 起新增 `GET /api/llm-settings/models`(admin only),透传 provider 的 OpenAI 兼容 `/models` endpoint。前端「LLM 设置」页面的「刷新模型列表」按钮调本接口,把硬编码的 `PROVIDER_DEFAULTS.models` 替换成 provider 真实可用的列表。
+
+**实现要点**:
+
+- 凭据来源:DB `llm_settings` → env `HERMES_LLM_BASE_URL` / `HERMES_LLM_API_KEY` fallback
+- 调 `${baseURL}/models`,15s 超时
+- 兼容三种返回格式:`{data: [...]}` (OpenAI 标准) / 数组 / `{models: [...]}`
+- 返回:`{models: [{id, owned_by?}]}` 或 `{error: 'HTTP 404: ...'}`(失败不抛 500,仅返结构化错误)
+- 失败时前端降级为内置 PROVIDER_DEFAULTS.models + `message.warning`
+
+**CLI 暂未提供** — UI 上的「刷新」按钮即可,CLI 场景里 provider 模型列表查找通常已有别的渠道。
+
+### POST /api/llm-settings/test 的 env-fallback (v2.7)
+
+`/test` 的凭据优先级链由 v2.6 的 `body → DB` 扩展为 `body → DB → env`:
+
+- 新部署时 admin 还没存 DB,直接走 systemd Environment=HERMES_LLM_API_KEY 启动 → UI 一进「测试连接」就能验通
+- 单测覆盖三条 fallback 路径
+
+### Hermes prompt — 审计追溯类问题指引
+
+SYSTEM_PROMPT 新增章节,LLM 应"直接调 `get_audit(actor='X')`,不要让用户澄清":
+
+- 用户问「X 改过哪些 / 干过什么 / 操作过哪些」 → 直接 `get_audit`
+- 用户名疑似拼写错误(`amind` / `admni`)仍尝试用原样 actor 调,查不到再如实回答
+- get_audit 结果按时间倒序简要列出动作类型 + 实体 + 时间
+
+golden set Q7 强化为「验证返回每条记录 performedBy === 'admin'」,15/15 通过。
+
+### 默认 model — glm-4-flash
+
+`apps/backend/src/app.ts` 三层 fallback 链最末端的默认 model 由 `glm-4.5-air` 改为 `glm-4-flash`(免费可用,无需余额),前端 `PROVIDER_DEFAULTS.zhipuai-coding-plan.defaultModel` 同步。
