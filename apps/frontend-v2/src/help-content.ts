@@ -29,6 +29,14 @@ const HELP: Record<string, { title: string; content: string }> = {
 - Golden set 从 15 题扩展到 **20 题**(Q16-Q20 覆盖写工具 + 安全门控),**20/20 全绿**
 - 新增文档: \`docs/HERMES_WRITE_TOOLS.md\`(写工具设计)、\`docs/HERMES_SESSIONS.md\`(会话记忆架构)
 
+### ④ 双 DB 支持
+
+- \`hermes-sessions.ts\` 会话记忆模块通过 \`DbAdapter\` 异步接口实现 **SQLite + PostgreSQL 双兼容**
+- DDL 按 \`adapter.kind\` 分方言:SQLite 用 \`datetime('now')\`、PG 用 \`now()::text\`
+- \`health.ts\` 健康检查端点同样适配 \`DbAdapter\`,PG 模式下正确返回 \`db.kind: "postgres"\`
+- 写工具(\`hermes-tools-write.ts\`)通过 \`Repository\` 操作,天然双库兼容
+- 全库审查完成:剩余 DB 直调仅在已知 SQLite-only 模块(welink/backup),PG 模式下不挂载
+
 ## v2.7.0 — 2026-06-01 (三桶 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 
 本版聚焦"把 v2.6 几条主线完整跑通":Hermes 体验收尾(动态 model 列表 + golden set 15/15 + 部署 drop-in 自愈)、Schema-as-UI 推到全部 7 个 nodeType、多视图(Kanban/Calendar/Pivot)首次落地。
