@@ -1,18 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  Typography,
-  Table,
-  Tag,
-  Space,
-  Select,
-  Button,
-  Popconfirm,
-  message,
-  Empty,
-  Tooltip,
-  Drawer,
-  Descriptions,
-} from "antd";
+import { Typography, Table, Tag, Space, Select, Button, Popconfirm, message, Empty, Tooltip, Drawer } from "antd";
 import { ScanOutlined, SendOutlined, StopOutlined, EyeOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { Reminder } from "../api.js";
@@ -20,6 +7,8 @@ import { REMINDER_STATUS_COLOR, PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT } from
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { useSettings } from "../hooks/useSettings.js";
+import { useNodeSchema, viewFieldsOf } from "../hooks/useSchema.js";
+import { SchemaViewBody } from "../components/SchemaField.js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -36,6 +25,9 @@ export default function RemindersPage() {
   const [scanning, setScanning] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<Reminder | null>(null);
+  // v2.7: reminder virtual schema 驱动详情抽屉
+  const { schema: reminderSchema } = useNodeSchema("reminder");
+  const reminderFields = viewFieldsOf(reminderSchema);
 
   const fetchData = useCallback(
     async (silent?: boolean) => {
@@ -229,22 +221,21 @@ export default function RemindersPage() {
         maskClosable={false}
       >
         {detail && (
-          <Descriptions bordered size="small" column={1}>
-            <Descriptions.Item label="类型">{detail.kind}</Descriptions.Item>
-            <Descriptions.Item label="收件人">{detail.recipientName}</Descriptions.Item>
-            <Descriptions.Item label="主题">{detail.subject}</Descriptions.Item>
-            <Descriptions.Item label="状态">
-              <Tag color={REMINDER_STATUS_COLOR[detail.status]}>{detail.status}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="内容">
-              <Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{detail.body}</Paragraph>
-            </Descriptions.Item>
-            <Descriptions.Item label="创建时间">{dayjs(detail.createdAt).format(DATE_FORMAT)}</Descriptions.Item>
-            {detail.decidedBy && <Descriptions.Item label="处理人">{detail.decidedBy}</Descriptions.Item>}
-            {detail.decidedAt && (
-              <Descriptions.Item label="处理时间">{dayjs(detail.decidedAt).format(DATE_FORMAT)}</Descriptions.Item>
-            )}
-          </Descriptions>
+          /* v2.7: schema 驱动 — reminder virtual schema 决定字段排布 */
+          <SchemaViewBody
+            fields={reminderFields}
+            values={detail as unknown as Record<string, unknown>}
+            column={1}
+            renderValue={(f, v) => {
+              if (f.name === "status" && typeof v === "string") {
+                return <Tag color={REMINDER_STATUS_COLOR[v]}>{v}</Tag>;
+              }
+              if (f.name === "body" && typeof v === "string") {
+                return <Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{v}</Paragraph>;
+              }
+              return null;
+            }}
+          />
         )}
       </Drawer>
     </div>
