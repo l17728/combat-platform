@@ -1,8 +1,7 @@
 const HELP: Record<string, { title: string; content: string }> = {
   releaseNotes: {
     title: "Release Notes - 版本发布说明",
-    content:
-      `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
+    content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
 ## v2.12.0 — 2026-06-01 (知识库 + API文档 + 前端代码拆分)
@@ -19,9 +18,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 
 ### ② API 自动文档
 
-- 访问 ` /
-        api -
-      docs` 即可查看完整的 Swagger UI 交互式 API 文档
+- 访问 /api-docs 即可查看完整的 Swagger UI 交互式 API 文档
 - 自动从后端路由生成 OpenAPI 3.0 规范（50+ 端点）
 - 支持 Try it out 在线调试（自动携带登录 token）
 - 按 10 个标签分组：认证、节点CRUD、Schema、搜索与关联、仪表盘、导入导出、邮件、AI、邀请管理、系统管理
