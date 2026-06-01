@@ -78,6 +78,8 @@ if (existsSync(frontendDist)) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");
+        } else if (/\.[a-f0-9]{8,}\.(js|css|woff2?|svg|png|jpg)$/.test(path)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
       },
     })
