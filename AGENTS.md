@@ -1490,6 +1490,14 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **教训**：**每新增一个独立表的 ensureTable，必须同时检查 3 处**：① SQLite DDL ② Postgres DDL（db.ts）③ Postgres DDL（模块自身的 PG 路径）。三处缺一不可
 - **预防**：新模块建表的 checklist：SQLite ensureTable + db.ts POSTGRES_SCHEMA_DDL + 模块内 PG DDL（如自建）
 
+### L8. rsync --delete 覆盖生产数据库 (2026-06-01) — 最严重
+
+- **现象**：每次 `./dev-deploy.sh` 部署后生产数据被清空（combat.sqlite 从 416KB 变为 4KB 空库）
+- **根因**：`dev-deploy.sh` 的 rsync exclude 只排除了 `data/dev-combat.sqlite*`，没有排除整个 `data/` 目录。rsync `--delete` 会删除目标中源目录没有的文件，导致生产的 `combat.sqlite`、`backups/`、wiki 文章全部被删除
+- **修复**：`--exclude='data/dev-combat.sqlite*'` → `--exclude='data/'`，排除整个 data 目录
+- **教训**：**部署脚本的 rsync exclude 必须排除整个 `data/` 目录，绝不能只排除特定文件**。`data/` 下有 combat.sqlite（生产数据库）、backups/（自动备份）、wiki 文章等所有用户数据，任何部署操作都不应触碰
+- **预防**：AGENTS.md 1.5 节已作为核心铁律写入；每次改部署脚本必须 dry-run 验证 exclude 生效
+
 ## 安全 P0 修复 (2026-05-31)
 
 依据 `docs/REVIEWS/REVIEW_security.md`(OWASP 红蓝队评分 3/10)实施 P0 修复,
