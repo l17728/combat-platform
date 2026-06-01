@@ -900,9 +900,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-06-01 v2.3.0 — 知识库 + API文档 + Code-split)
+### 当前测试状态(2026-06-01 v2.12.0 — 知识库 + API文档 + Code-split)
 
-**v2.3.0 = v2.2.0 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
+**v2.12.0 = v2.11.0 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
@@ -924,9 +924,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **OpenAPI 静态 spec** — 手工维护的 spec 对象，覆盖 50+ 端点、10 个标签分组；Swagger UI CDN 加载，自动携带 JWT token
 3. **Code-splitting** — React.lazy + Suspense 包裹整个 Routes，LoginPage/ErrorBoundary 保持 eager load；PageLoader 统一 loading 态
 
-### 当前测试状态(2026-06-01 v2.2.0 — 邮件增强 + 邀请管理 + 运营大屏)
+### 当前测试状态(2026-06-01 v2.11.0 — 邮件增强 + 邀请管理 + 运营大屏)
 
-**v2.2.0 = v2.11.0 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
+**v2.11.0 = v2.10.0 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
@@ -952,9 +952,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **HTML 邮件模板** — 内联 CSS 样式（不依赖外部样式表），渐变头部 + 表格 + 统计卡片，兼容主流邮件客户端
 3. **大屏独立页面** — 不依赖 Ant Design 组件，纯 CSS Grid 布局，深色主题，每 30 秒自动刷新，Fullscreen API 投屏
 
-### 当前测试状态(2026-06-01 v2.11.0 — Webhook + 邮件摘要 + 内联字段)
+### 当前测试状态(2026-06-01 v2.10.0 — Webhook + 邮件摘要 + 内联字段)
 
-**v2.11.0 = v2.10.0 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
+**v2.10.0 = v2.9.0 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**

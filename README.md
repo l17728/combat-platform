@@ -295,9 +295,9 @@ npm run cli -- help                        # 列出所有命令
 └── SYSTEM_REFERENCE.md    # 系统参考文档
 ```
 
-## 测试状态(2026-06-01,v2.7.0)
+## 测试状态(2026-06-01,v2.12.0)
 
-- **739/739** 后端 Vitest 通过(98 test files)
+- **768/768** 后端 Vitest 通过(100 test files)
 - **28/28** shared vitest 通过
 - Frontend tsc 0 错
 - Frontend e2e:多视图 12 + schema-driven 25 + 抽屉/详情回归 47+ 全绿
@@ -305,22 +305,27 @@ npm run cli -- help                        # 列出所有命令
 
 ## 当前版本
 
-- **v2.7.0** — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图(Kanban/Calendar/Pivot)
+- **v2.12.0** — 知识库 Wiki + API 自动文档 + 前端代码拆分
 - 完整版本历史见 [docs/V2.7_RELEASE.md](docs/V2.7_RELEASE.md) 与 [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ### 已交付里程碑
 
-| 版本 | 主题 |
-|---|---|
-| v2.0 | Welink + Postgres + UI 配置化 |
-| v2.1 | Roadmap 4 桶整合(安全/性能/UX/质量) |
-| v2.2 | P1 三桶(sec/perf/quality) |
-| v2.3 | 一键升级 UI + Schema overlay |
-| v2.4 | harden + resilience + upgrade-real |
-| v2.4.1 | hot-fix React #310 + AI 抖动 |
-| v2.5 | Hermes Tool-using Agent + 14 通用工具 |
-| v2.6 | LLM 端到端 + Inbox + 面包屑 + Schema-as-UI(attackTicket) |
-| **v2.7** | **Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图** |
+| 版本      | 主题                                                     |
+| --------- | -------------------------------------------------------- |
+| v2.0      | Welink + Postgres + UI 配置化                            |
+| v2.1      | Roadmap 4 桶整合(安全/性能/UX/质量)                      |
+| v2.2      | P1 三桶(sec/perf/quality)                                |
+| v2.3      | 一键升级 UI + Schema overlay                             |
+| v2.4      | harden + resilience + upgrade-real                       |
+| v2.4.1    | hot-fix React #310 + AI 抖动                             |
+| v2.5      | Hermes Tool-using Agent + 14 通用工具                    |
+| v2.6      | LLM 端到端 + Inbox + 面包屑 + Schema-as-UI(attackTicket) |
+| v2.7      | Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图           |
+| v2.8      | Hermes 写工具 + 会话记忆                                 |
+| v2.9      | 暗黑模式 + 产品引导 + Dashboard 看板配置                 |
+| v2.10     | Webhook 事件订阅 + 邮件摘要 + 内联字段                   |
+| v2.11     | 邮件增强 + 邀请管理 + 运营大屏                           |
+| **v2.12** | **知识库 Wiki + API 自动文档 + 前端代码拆分**            |
 
 ## License
 
