@@ -714,9 +714,229 @@ async function seed() {
   console.log(`   ✓ ${wikiTabCount} 个 wiki 标签\n`);
 
   // ═══════════════════════════════════════════
+  // 18. Welink 群消息 mock — 为前 3 张攻关单导入模拟对话
+  // ═══════════════════════════════════════════
+  console.log("18. Welink 群消息 — 为前 3 张攻关单导入模拟对话...");
+  const welinkParticipants = ["张三", "李四", "王五", "赵敏", "刘洋", "马超", "何雪", "朱峰", "林鹏"];
+  const welinkScenarios = [
+    // 场景 1: 线上问题排查群
+    {
+      messages: [
+        {
+          serverSendTime: Date.now() - 3600000 * 5,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "大家注意，客户反馈线上出现 502 错误，目前影响范围还不确定，我先拉个群",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 5 + 30000,
+          sender: "李四",
+          contentType: "TEXT_MSG",
+          content: "收到，我先看下 nginx access log",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 5 + 60000,
+          sender: "王五",
+          contentType: "TEXT_MSG",
+          content: "我这边看到 upstream 超时了，后端响应时间从 200ms 飙到 30s",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 4.5,
+          sender: "李四",
+          contentType: "TEXT_MSG",
+          content: "找到原因了，数据库连接池满了，大量请求排队。SHOW PROCESSLIST 有 200+ 个连接",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 4.5 + 30000,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "紧急处理：先把 max_connections 调大到 500，然后排查连接泄漏",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 4,
+          sender: "王五",
+          contentType: "TEXT_MSG",
+          content: "调完之后连接数降到 80 了，响应时间恢复正常 200ms 左右",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 3.5,
+          sender: "赵敏",
+          contentType: "TEXT_MSG",
+          content: "@张三 根因定位了吗？是不是之前上线那个批量任务导致的？",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 3.5 + 60000,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "是的，凌晨 3 点跑的数据同步任务没有释放连接，是 ORM 的 connection leak",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 3,
+          sender: "刘洋",
+          contentType: "TEXT_MSG",
+          content: "建议在 ORM 层加 finally 释放 + 连接池监控告警，我这边提个 bug 单",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 2.5,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "同意。先修 hotfix 上线，监控 24h 确认不再泄漏。@马超 你跟进下 hotfix 发布",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 2.5 + 30000,
+          sender: "马超",
+          contentType: "TEXT_MSG",
+          content: "收到，已经在准备 hotfix 分支了，预计 1 小时内完成",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 1.5,
+          sender: "马超",
+          contentType: "TEXT_MSG",
+          content: "hotfix 已部署到灰度环境，测试通过，准备全量发布",
+        },
+        {
+          serverSendTime: Date.now() - 3600000 * 1,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "全量发布完成，监控指标正常。连接数稳定在 50 左右。问题已解决",
+        },
+        {
+          serverSendTime: Date.now() - 1800000,
+          sender: "何雪",
+          contentType: "TEXT_MSG",
+          content: "我来整理下复盘报告，明天早上发出",
+        },
+      ],
+    },
+    // 场景 2: 版本发布群
+    {
+      messages: [
+        {
+          serverSendTime: Date.now() - 7200000 * 8,
+          sender: "朱峰",
+          contentType: "TEXT_MSG",
+          content: "v2.3.10 发版计划：今天下午 3 点开始，预计 4 点完成。各模块负责人确认下自己负责的部分",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 8 + 120000,
+          sender: "林鹏",
+          contentType: "TEXT_MSG",
+          content: "后端 API 变更已全部完成，单元测试 790/790 通过，可以发",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 7,
+          sender: "赵敏",
+          contentType: "TEXT_MSG",
+          content: "前端构建完成，bundle size 3.5MB，首次加载 1.2s，可以接受",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 6,
+          sender: "朱峰",
+          contentType: "TEXT_MSG",
+          content: "开始灰度发布，先切 10% 流量",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 5,
+          sender: "刘洋",
+          contentType: "TEXT_MSG",
+          content: "灰度监控正常，错误率 0.01%，P99 延迟 200ms，和之前持平",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 4,
+          sender: "朱峰",
+          contentType: "TEXT_MSG",
+          content: "全量发布完成。所有指标正常，无告警",
+        },
+        {
+          serverSendTime: Date.now() - 7200000 * 3,
+          sender: "何雪",
+          contentType: "TEXT_MSG",
+          content: "发版完成通知已发出。新功能：知识库 Wiki + API 自动文档 + 前端代码拆分",
+        },
+      ],
+    },
+    // 场景 3: 客户问题跟进群
+    {
+      messages: [
+        {
+          serverSendTime: Date.now() - 86400000,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "客户反馈接口响应变慢，从 200ms 变到 2s，大家关注下",
+        },
+        {
+          serverSendTime: Date.now() - 86400000 + 300000,
+          sender: "李四",
+          contentType: "TEXT_MSG",
+          content: "看了 APM 追踪，发现是 Redis 缓存命中率从 95% 掉到 30%",
+        },
+        {
+          serverSendTime: Date.now() - 86400000 + 600000,
+          sender: "王五",
+          contentType: "TEXT_MSG",
+          content: "Redis 内存快满了，大量 key 被 LRU 淘汰。当前 used_memory 7.8G / maxmemory 8G",
+        },
+        {
+          serverSendTime: Date.now() - 86400000 + 900000,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "紧急方案：扩大 Redis 到 16G。长期方案：优化缓存策略，减少不必要的缓存",
+        },
+        {
+          serverSendTime: Date.now() - 86400000 + 1800000,
+          sender: "马超",
+          contentType: "TEXT_MSG",
+          content: "Redis 已扩容到 16G，缓存命中率恢复到 92%",
+        },
+        {
+          serverSendTime: Date.now() - 86400000 + 3600000,
+          sender: "赵敏",
+          contentType: "TEXT_MSG",
+          content: "接口响应时间恢复正常，客户确认不再慢了",
+        },
+        {
+          serverSendTime: Date.now() - 43200000,
+          sender: "刘洋",
+          contentType: "TEXT_MSG",
+          content: "后续优化方案：1) 缓存 key 加 TTL 2) 热点数据用本地缓存 3) 定期清理无效缓存",
+        },
+        {
+          serverSendTime: Date.now() - 21600000,
+          sender: "张三",
+          contentType: "TEXT_MSG",
+          content: "优化方案已评审通过，安排到下个迭代执行",
+        },
+      ],
+    },
+  ];
+  let welinkCount = 0;
+  for (let i = 0; i < Math.min(3, tickets.length); i++) {
+    const ticket = tickets[i];
+    const scenario = welinkScenarios[i];
+    if (!scenario) continue;
+    const messages = scenario.messages.map((m, idx) => ({
+      messageId: `demo-wl-${ticket.id.slice(0, 8)}-${idx}`,
+      serverSendTime: m.serverSendTime,
+      sender: m.sender,
+      contentType: m.contentType,
+      content: m.content,
+    }));
+    try {
+      const res = await post(`/tickets/${ticket.id}/welink-messages`, { messages });
+      if (res.inserted || res.updated) {
+        welinkCount++;
+        console.log(`   ✓ 攻关单「${ticket.properties["标题"]}」导入 ${messages.length} 条 Welink 消息`);
+      }
+    } catch (e) {
+      console.log(`   - 攻关单 ${i + 1} Welink 导入跳过: ${e.message}`);
+    }
+  }
+  console.log(`   ✓ ${welinkCount} 个攻关单已导入 Welink 消息\n`);
+
+  // ═══════════════════════════════════════════
   // Summary
   // ═══════════════════════════════════════════
-  console.log("15. 数据备份 — 创建备份...");
+  console.log("19. 数据备份 — 创建备份...");
   try {
     const backupRes = await fetch(`${API}/api/backup`, { method: "POST", headers });
     if (backupRes.ok) console.log("   ✓ 备份已创建");
@@ -754,6 +974,7 @@ async function seed() {
   console.log("  /email        邮件设置");
   console.log("  /users        用户管理");
   console.log("  /backup       数据库备份恢复");
+  console.log("  Welink消息    前3张攻关单模拟群聊对话");
   console.log("  /login        登录页面");
   console.log("══════════════════════════════════════════");
   console.log(`\n  访问: ${API.replace("/api", "")}`);
