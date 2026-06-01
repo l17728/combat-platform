@@ -44,6 +44,7 @@ import HermesChat from "../components/HermesChat.js";
 import CommandPalette from "../components/CommandPalette.js";
 import { useThemeContext } from "../hooks/useTheme.js";
 import { resetAllTours } from "../components/ProductTour.js";
+import { api } from "../api.js";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -334,7 +335,10 @@ export function AppLayout() {
                     navigate("/login");
                   } else if (key === "replay-tour") {
                     resetAllTours();
-                    window.location.reload();
+                    api
+                      .resetTours()
+                      .then(() => window.location.reload())
+                      .catch(() => window.location.reload());
                   } else if (key.startsWith("/")) navigate(key);
                 },
               }}

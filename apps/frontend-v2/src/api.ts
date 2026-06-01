@@ -1061,6 +1061,20 @@ export class Api {
     });
   }
 
+  completeTour(tourId: string): Promise<{ completed: string[] }> {
+    return this.req("/api/auth/tour", {
+      method: "PUT",
+      body: JSON.stringify({ tourId }),
+    });
+  }
+
+  resetTours(): Promise<void> {
+    return this.req("/api/auth/tour", {
+      method: "PUT",
+      body: JSON.stringify({ tourId: "__reset__" }),
+    });
+  }
+
   listUsers(): Promise<AuthUser[]> {
     return this.req("/api/users");
   }
@@ -1658,6 +1672,7 @@ export interface AuthUser {
   username: string;
   role: string;
   displayName: string;
+  tourCompleted: string[];
   createdAt: string;
   updatedAt: string;
 }

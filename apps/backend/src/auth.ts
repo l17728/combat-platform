@@ -50,6 +50,7 @@ export interface AuthUser {
   username: string;
   role: string;
   displayName: string;
+  tourCompleted: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -72,11 +73,16 @@ export function signServiceToken(): string {
 }
 
 function toUser(r: any): AuthUser {
+  let tourCompleted: string[] = [];
+  try {
+    tourCompleted = JSON.parse(r.tour_completed || "[]");
+  } catch {}
   return {
     id: r.id,
     username: r.username,
     role: r.role,
     displayName: r.display_name,
+    tourCompleted,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -207,6 +213,41 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       // P1 强制改密:admin 若仍是默认密 admin123 → 持续返回 mustChange,直到改成功。
       const mustChange = row.username === "admin" && bcrypt.compareSync("admin123", row.password_hash);
       res.json({ user: toUser(row), passwordMustChange: mustChange });
+    })
+  );
+
+  r.put(
+    "/auth/tour",
+    asyncHandler(async (req, res) => {
+      const payload = verifyAuth(req);
+      if (!payload) {
+        return res.status(401).json({ error: "未登录" });
+      }
+      const { tourId } = req.body as { tourId?: string };
+      if (!tourId) {
+        return res.status(400).json({ error: "tourId 必填" });
+      }
+      if (tourId === "__reset__") {
+        await adapter.run("UPDATE users SET tour_completed = '[]', updated_at = ? WHERE id = ?", [
+          new Date().toISOString(),
+          payload.userId,
+        ]);
+        return res.json({ completed: [] });
+      }
+      const row = await adapter.queryOne<any>("SELECT tour_completed FROM users WHERE id = ?", [payload.userId]);
+      let completed: string[] = [];
+      try {
+        completed = JSON.parse(row?.tour_completed || "[]");
+      } catch {}
+      if (!completed.includes(tourId)) {
+        completed.push(tourId);
+        await adapter.run("UPDATE users SET tour_completed = ?, updated_at = ? WHERE id = ?", [
+          JSON.stringify(completed),
+          new Date().toISOString(),
+          payload.userId,
+        ]);
+      }
+      res.json({ completed });
     })
   );
 

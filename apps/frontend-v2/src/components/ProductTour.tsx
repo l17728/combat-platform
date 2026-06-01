@@ -1,28 +1,10 @@
 import { useState, useMemo } from "react";
 import { Tour } from "antd";
 import type { TourProps } from "antd";
+import { useAuth } from "../hooks/useAuth.js";
+import { api } from "../api.js";
 
 const TOUR_KEY = "combat-tour-completed";
-
-export function getCompletedTours(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(TOUR_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function markTourCompleted(id: string) {
-  const done = getCompletedTours();
-  if (!done.includes(id)) {
-    done.push(id);
-    localStorage.setItem(TOUR_KEY, JSON.stringify(done));
-  }
-}
-
-export function isTourCompleted(id: string): boolean {
-  return getCompletedTours().includes(id);
-}
 
 export function resetAllTours() {
   localStorage.removeItem(TOUR_KEY);
@@ -34,7 +16,8 @@ interface ProductTourProps {
 }
 
 export default function ProductTour({ tourId, steps }: ProductTourProps) {
-  const completed = isTourCompleted(tourId);
+  const { user } = useAuth();
+  const completed = user?.tourCompleted?.includes(tourId) ?? false;
   const [open, setOpen] = useState(!completed);
 
   const validSteps = useMemo(() => {
@@ -52,8 +35,8 @@ export default function ProductTour({ tourId, steps }: ProductTourProps) {
   }, [steps]);
 
   if (!open || validSteps.length === 0) {
-    if (open && validSteps.length === 0) {
-      markTourCompleted(tourId);
+    if (open && validSteps.length === 0 && !completed) {
+      api.completeTour(tourId).catch(() => {});
     }
     return null;
   }
@@ -62,12 +45,12 @@ export default function ProductTour({ tourId, steps }: ProductTourProps) {
     <Tour
       open={open}
       onClose={() => {
-        markTourCompleted(tourId);
         setOpen(false);
+        api.completeTour(tourId).catch(() => {});
       }}
       onFinish={() => {
-        markTourCompleted(tourId);
         setOpen(false);
+        api.completeTour(tourId).catch(() => {});
       }}
       steps={validSteps}
     />

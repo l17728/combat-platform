@@ -92,7 +92,15 @@ export function openDb(path: string): DB {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
   db.exec(SQLITE_SCHEMA_DDL);
+  migrateSqlite(db);
   return db;
+}
+
+function migrateSqlite(db: Database.Database): void {
+  const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "tour_completed")) {
+    db.exec("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+  }
 }
 
 /**
@@ -237,6 +245,7 @@ const SQLITE_SCHEMA_DDL = `
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'normal',
       display_name TEXT NOT NULL DEFAULT '',
+      tour_completed TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -379,6 +388,7 @@ const POSTGRES_SCHEMA_DDL = `
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'normal',
       display_name TEXT NOT NULL DEFAULT '',
+      tour_completed TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -522,6 +532,12 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(POSTGRES_SCHEMA_DDL);
+    const { rows } = await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tour_completed'"
+    );
+    if (rows.length === 0) {
+      await client.query("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+    }
   } finally {
     client.release();
   }
