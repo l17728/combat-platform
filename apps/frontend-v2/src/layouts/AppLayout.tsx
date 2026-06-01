@@ -57,11 +57,14 @@ function getSelectedKey(path: string): string {
   if (path === "/proposals") return "/proposals";
   if (path === "/reminders") return "/reminders";
   if (path.startsWith("/related")) return "/attack";
-  if (["/search", "/kg", "/documents", "/bug-report", "/manual"].includes(path)) return path;
+  if (["/search", "/kg", "/screen", "/documents", "/bug-report", "/manual"].includes(path)) return path;
   if (
     [
       "/import",
       "/email",
+      "/digest",
+      "/webhooks",
+      "/invitations",
       "/llm-settings",
       "/audit",
       "/schema",
@@ -72,6 +75,7 @@ function getSelectedKey(path: string): string {
       "/merge",
       "/db-migration",
       "/system-upgrade",
+      "/notifications",
     ].includes(path)
   )
     return path;
@@ -86,6 +90,9 @@ function getOpenKeysForPath(path: string): string[] {
     [
       "/import",
       "/email",
+      "/digest",
+      "/webhooks",
+      "/invitations",
       "/llm-settings",
       "/audit",
       "/schema",
@@ -96,10 +103,11 @@ function getOpenKeysForPath(path: string): string[] {
       "/merge",
       "/db-migration",
       "/system-upgrade",
+      "/notifications",
     ].includes(path)
   )
     return ["system"];
-  if (["/documents", "/search", "/kg", "/bug-report", "/manual"].includes(path)) return ["tools"];
+  if (["/documents", "/search", "/kg", "/screen", "/bug-report", "/manual"].includes(path)) return ["tools"];
   return [];
 }
 
