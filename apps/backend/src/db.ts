@@ -244,17 +244,17 @@ const SQLITE_SCHEMA_DDL = `
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
-      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
-      title TEXT NOT NULL,
-      tab_order INTEGER NOT NULL DEFAULT 0,
-      config TEXT NOT NULL DEFAULT '{}',
-      content TEXT NOT NULL DEFAULT '',
-      created_by TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
-    CREATE TABLE IF NOT EXISTS welink_messages (
+       tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
+       title TEXT NOT NULL,
+       tab_order INTEGER NOT NULL DEFAULT 0,
+       config TEXT NOT NULL DEFAULT '{}',
+       content TEXT NOT NULL DEFAULT '',
+       created_by TEXT NOT NULL DEFAULT '',
+       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+     );
+     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+     CREATE TABLE IF NOT EXISTS welink_messages (
       id           TEXT PRIMARY KEY,
       ticket_id    TEXT NOT NULL,
       message_id   TEXT NOT NULL,
@@ -386,17 +386,17 @@ const POSTGRES_SCHEMA_DDL = `
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
-      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
-      title TEXT NOT NULL,
-      tab_order INTEGER NOT NULL DEFAULT 0,
-      config TEXT NOT NULL DEFAULT '{}',
-      content TEXT NOT NULL DEFAULT '',
-      created_by TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
-      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
-    );
-    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
-    CREATE TABLE IF NOT EXISTS bug_reports (
+       tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
+       title TEXT NOT NULL,
+       tab_order INTEGER NOT NULL DEFAULT 0,
+       config TEXT NOT NULL DEFAULT '{}',
+       content TEXT NOT NULL DEFAULT '',
+       created_by TEXT NOT NULL DEFAULT '',
+       created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+       updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+     );
+     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+     CREATE TABLE IF NOT EXISTS bug_reports (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
