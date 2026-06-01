@@ -8,6 +8,18 @@ Guidance for agentic coding agents working in this repository.
 
 **Any task that CAN run in parallel MUST run in parallel.** Identify independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency.
 
+### 1.5 Never Delete Production Data (部署绝不删数据)
+
+**`./dev-deploy.sh` 的 rsync 必须排除整个 `data/` 目录。** 生产数据库 (`combat.sqlite`)、备份 (`backups/`)、wiki 文章、所有用户数据都存放在 `data/` 目录下，rsync `--delete` 会删除源目录中不存在的目标文件。**任何部署操作都不得触碰生产数据目录。** 这是铁律，无例外。
+
+```bash
+# ✓ 正确：排除整个 data/ 目录
+--exclude='data/'
+
+# ✗ 错误：只排除特定文件（会漏掉 combat.sqlite、backups 等）
+--exclude='data/dev-combat.sqlite*'
+```
+
 ### 2. Recursive Convergence (举一反三递归收敛)
 
 **When a problem is found, fix the entire CLASS of problems, then check if the fix introduced new problems, and keep recursing until the error count converges to zero.** This is not "fix one, move on" — it's:

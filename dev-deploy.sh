@@ -72,7 +72,7 @@ echo "================================================================"
 rsync -a --delete $DRY \
   --exclude='node_modules' \
   --exclude='.git' \
-  --exclude='data/dev-combat.sqlite*' \
+  --exclude='data/' \
   --exclude='backups/' \
   --exclude='test-results/' \
   --exclude='playwright-report/' \

@@ -50,6 +50,7 @@ interface Props {
 }
 
 export default function WikiPanel({ scope, scopeId }: Props) {
+  const storageKey = `wiki-selected-${scope}${scopeId ? `-${scopeId}` : ""}`;
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [keyword, setKeyword] = useState("");
@@ -61,16 +62,32 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const [editContent, setEditContent] = useState("");
   const [createContent, setCreateContent] = useState("");
 
+  const selectArticle = useCallback(
+    (article: WikiArticle | null) => {
+      setSelected(article);
+      if (article) {
+        localStorage.setItem(storageKey, article.id);
+      }
+    },
+    [storageKey]
+  );
+
   const fetchData = useCallback(
     async (silent?: boolean) => {
       if (!silent) setLoading(true);
       try {
-        if (keyword) {
-          const result = await api.searchWiki(scope, keyword, scopeId);
-          setArticles(result);
+        const result = keyword ? await api.searchWiki(scope, keyword, scopeId) : await api.listWiki(scope, scopeId);
+        setArticles(result);
+
+        const prevId = localStorage.getItem(storageKey);
+        const target = prevId ? result.find((a: WikiArticle) => a.id === prevId) : null;
+        if (target) {
+          setSelected(target);
+        } else if (result.length > 0) {
+          setSelected(result[0]);
+          localStorage.setItem(storageKey, result[0].id);
         } else {
-          const result = await api.listWiki(scope, scopeId);
-          setArticles(result);
+          setSelected(null);
         }
       } catch (e) {
         handleApiError(e);
@@ -78,7 +95,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
         setLoading(false);
       }
     },
-    [scope, scopeId, keyword]
+    [scope, scopeId, keyword, storageKey]
   );
 
   useEffect(() => {
