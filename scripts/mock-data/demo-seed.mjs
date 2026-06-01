@@ -922,7 +922,7 @@ async function seed() {
       content: m.content,
     }));
     try {
-      const res = await post(`/tickets/${ticket.id}/welink-messages`, { messages });
+      const res = await post(`/api/tickets/${ticket.id}/welink-messages`, { messages });
       if (res.inserted || res.updated) {
         welinkCount++;
         console.log(`   ✓ 攻关单「${ticket.properties["标题"]}」导入 ${messages.length} 条 Welink 消息`);
