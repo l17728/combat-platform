@@ -136,4 +136,19 @@ describe("Hermes session REST API", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
   });
+
+  it("POST /api/hermes/ask with nonexistent sessionId does not crash", async () => {
+    const res = await request(app)
+      .post("/api/hermes/ask")
+      .send({ question: "测试问题", sessionId: "nonexistent-session-uuid-12345" });
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toBeDefined();
+    expect(res.body.error).toBeUndefined();
+  });
+
+  it("POST /api/hermes/ask without sessionId works normally", async () => {
+    const res = await request(app).post("/api/hermes/ask").send({ question: "你好" });
+    expect(res.status).toBe(200);
+    expect(res.body.answer).toBeDefined();
+  });
 });
