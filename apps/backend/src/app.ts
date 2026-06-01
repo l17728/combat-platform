@@ -105,7 +105,7 @@ export function createApp(deps: {
   // P1 全局限流:60 req/IP/min,COMBAT_RATE_LIMIT_PER_MIN env 可调。
   // 跳过 NODE_ENV=test 与 COMBAT_NO_AUTH=1(e2e 走 supertest,每个 case 都会被打挂)。
   const skipRate = process.env.NODE_ENV === "test" || process.env.COMBAT_NO_AUTH === "1";
-  const perMin = Number(process.env.COMBAT_RATE_LIMIT_PER_MIN || 60);
+  const perMin = Number(process.env.COMBAT_RATE_LIMIT_PER_MIN || 600);
   app.use(
     rateLimit({
       windowMs: 60_000,
