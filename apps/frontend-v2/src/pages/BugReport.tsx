@@ -37,6 +37,7 @@ import { useSettings } from "../hooks/useSettings.js";
 import { handleApiError } from "../utils/handleApiError.js";
 import { useNodeSchema, editableFieldsOf } from "../hooks/useSchema.js";
 import { SchemaFormBody } from "../components/SchemaField.js";
+import { useAuth } from "../hooks/useAuth.js";
 import dayjs from "dayjs";
 
 const { Title, Text, Paragraph } = Typography;
@@ -44,6 +45,7 @@ const { TextArea } = Input;
 
 export default function BugReport() {
   const { getValues } = useSettings();
+  const { isGuest } = useAuth();
   const BUG_STATUSES = getValues("Bug 状态", ["待处理", "处理中", "已解决", "已关闭"]);
   const BUG_SEVERITIES = getValues("Bug 严重程度", ["严重", "较高", "一般", "建议"]);
   const [data, setData] = useState<any[]>([]);
@@ -314,33 +316,37 @@ export default function BugReport() {
           >
             详情
           </a>
-          <a
-            onClick={() => {
-              setEditingBug(record);
-              editForm.setFieldsValue({
-                title: record.title,
-                description: record.description,
-                severity: record.severity,
-                pageUrl: record.pageUrl,
-                reporter: record.reporter,
-              });
-              setEditOpen(true);
-            }}
-          >
-            编辑
-          </a>
-          {record.status === "待处理" && <a onClick={() => handleUpdate(record.id, "处理中")}>开始处理</a>}
-          {record.status === "处理中" && (
-            <a style={{ color: "#52c41a" }} onClick={() => handleUpdate(record.id, "已解决")}>
-              已解决
-            </a>
+          {!isGuest && (
+            <>
+              <a
+                onClick={() => {
+                  setEditingBug(record);
+                  editForm.setFieldsValue({
+                    title: record.title,
+                    description: record.description,
+                    severity: record.severity,
+                    pageUrl: record.pageUrl,
+                    reporter: record.reporter,
+                  });
+                  setEditOpen(true);
+                }}
+              >
+                编辑
+              </a>
+              {record.status === "待处理" && <a onClick={() => handleUpdate(record.id, "处理中")}>开始处理</a>}
+              {record.status === "处理中" && (
+                <a style={{ color: "#52c41a" }} onClick={() => handleUpdate(record.id, "已解决")}>
+                  已解决
+                </a>
+              )}
+              {record.status === "已解决" && <a onClick={() => handleUpdate(record.id, "已关闭")}>关闭</a>}
+              <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
+                <a style={{ color: "#ff4d4f" }}>
+                  <DeleteOutlined /> 删除
+                </a>
+              </Popconfirm>
+            </>
           )}
-          {record.status === "已解决" && <a onClick={() => handleUpdate(record.id, "已关闭")}>关闭</a>}
-          <Popconfirm title="确认删除？" onConfirm={() => handleDelete(record.id)}>
-            <a style={{ color: "#ff4d4f" }}>
-              <DeleteOutlined /> 删除
-            </a>
-          </Popconfirm>
         </Space>
       ),
     },

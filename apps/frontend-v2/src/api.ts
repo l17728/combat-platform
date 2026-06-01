@@ -1033,6 +1033,13 @@ export class Api {
     });
   }
 
+  guestLogin(): Promise<LoginResult> {
+    return this.req("/api/auth/guest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   register(opts: {
     username: string;
     password: string;

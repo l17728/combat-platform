@@ -239,7 +239,78 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
     })
   );
 
+  r.post(
+    "/auth/guest",
+    asyncHandler(async (_req, res) => {
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const username = `guest-${suffix}`;
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      await adapter.run(
+        "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [id, username, "GUEST_NO_PASSWORD", "guest", "游客", now, now]
+      );
+      log.info("auth.guest_created", { username });
+      const payload: JwtPayload = { userId: id, username, role: "guest" };
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+      const row = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
+      res.status(201).json({ token, user: toUser(row) });
+    })
+  );
+
   return r;
+}
+
+export function verifyAuth(req: { headers: Record<string, unknown> }): JwtPayload | null {
+  const auth = req.headers["authorization"] as string | undefined;
+  if (!auth?.startsWith("Bearer ")) return null;
+  try {
+    return jwt.verify(auth.slice(7), JWT_SECRET) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | null {
+  if (process.env.COMBAT_NO_AUTH === "1") {
+    return { userId: "no-auth-admin", username: "admin", role: "admin" };
+  }
+  const payload = verifyAuth(req);
+  if (!payload) return null;
+  if (payload.role !== "admin") return null;
+  return payload;
+}
+
+export function adminMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const payload = verifyAuth(req);
+  if (!payload) {
+    res.status(401).json({ error: "未登录或 token 已过期" });
+    return;
+  }
+  if (payload.role !== "admin") {
+    log.warn("auth.admin_denied", { username: payload.username, role: payload.role, path: req.path });
+    res.status(403).json({ error: "仅管理员可访问" });
+    return;
+  }
+  (req as any).user = payload;
+  next();
+}
+
+export function leaderMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const payload = verifyAuth(req);
+  if (!payload) {
+    res.status(401).json({ error: "未登录或 token 已过期" });
+    return;
+  }
+  if (payload.role !== "admin" && payload.role !== "leader") {
+    log.warn("auth.leader_denied", { username: payload.username, role: payload.role, path: req.path });
+    res.status(403).json({ error: "仅 Leader 或管理员可访问" });
+    return;
+  }
+  (req as any).user = payload;
+  next();
 }
 
 export function makeUserAdminRouter(adapter: DbAdapter): Router {
@@ -361,75 +432,13 @@ export function makeUserAdminRouter(adapter: DbAdapter): Router {
   return r;
 }
 
-export function verifyAuth(req: { headers: Record<string, unknown> }): JwtPayload | null {
-  const auth = req.headers["authorization"] as string | undefined;
-  if (!auth?.startsWith("Bearer ")) return null;
-  try {
-    return jwt.verify(auth.slice(7), JWT_SECRET) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | null {
-  if (process.env.COMBAT_NO_AUTH === "1") {
-    return { userId: "no-auth-admin", username: "admin", role: "admin" };
-  }
-  const payload = verifyAuth(req);
-  if (!payload) return null;
-  if (payload.role !== "admin") return null;
-  return payload;
-}
-
-/**
- * P0-4 修复:管理员守卫中间件。挂在敏感路由(merge/backup/email/op-log/audit/
- * proposals/reminders 等)前,确保只有 admin JWT 才能调用。
- * - COMBAT_NO_AUTH=1 → 直放(e2e 测试 bypass)
- * - 缺失/无效 token → 401
- * - role !== 'admin' → 403
- */
-export function adminMiddleware(req: Request, res: Response, next: NextFunction): void {
-  if (process.env.COMBAT_NO_AUTH === "1") return next();
-  const payload = verifyAuth(req);
-  if (!payload) {
-    res.status(401).json({ error: "未登录或 token 已过期" });
-    return;
-  }
-  if (payload.role !== "admin") {
-    log.warn("auth.admin_denied", { username: payload.username, role: payload.role, path: req.path });
-    res.status(403).json({ error: "仅管理员可访问" });
-    return;
-  }
-  (req as any).user = payload;
-  next();
-}
-
-/**
- * P0-4 修复:Leader+ 守卫中间件(admin 或 leader 角色)。挂在不应让 normal 调用
- * 但 leader 又确有合法需求的路由上(如 ticket-tabs/documents 编辑)。
- */
-export function leaderMiddleware(req: Request, res: Response, next: NextFunction): void {
-  if (process.env.COMBAT_NO_AUTH === "1") return next();
-  const payload = verifyAuth(req);
-  if (!payload) {
-    res.status(401).json({ error: "未登录或 token 已过期" });
-    return;
-  }
-  if (payload.role !== "admin" && payload.role !== "leader") {
-    log.warn("auth.leader_denied", { username: payload.username, role: payload.role, path: req.path });
-    res.status(403).json({ error: "仅 Leader 或管理员可访问" });
-    return;
-  }
-  (req as any).user = payload;
-  next();
-}
-
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const path = req.path;
   const publicPaths = [
     "/auth/login",
     "/auth/register",
+    "/auth/guest",
     "/help/feedback/",
     "/bug-reports",
     "/health",
@@ -439,8 +448,6 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
   }
-  // Public document download: links embedded in MD content are clicked in a new
-  // tab without a Bearer token, so allow GET /documents/:id/download only.
   if (req.method === "GET" && /^\/documents\/[^/]+\/download$/.test(path)) {
     return next();
   }

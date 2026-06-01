@@ -31,12 +31,14 @@ import { SchemaFormBody, SchemaViewBody } from "../components/SchemaField.js";
 import type { GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
+import { useAuth } from "../hooks/useAuth.js";
 import dayjs from "dayjs";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
 export default function PeopleList() {
+  const { isGuest } = useAuth();
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
@@ -194,19 +196,23 @@ export default function PeopleList() {
       fixed: "right" as const,
       render: (_: unknown, r: GraphNode) => (
         <Space>
-          <a
-            onClick={() => {
-              setEditingNode(r);
-              editForm.setFieldsValue(r.properties as any);
-              setEditOpen(true);
-            }}
-          >
-            编辑
-          </a>
           <a onClick={() => navigate(`/honor/${encodeURIComponent(String(r.properties["姓名"] ?? r.id))}`)}>荣誉</a>
-          <Popconfirm title={`确认删除「${r.properties["姓名"] ?? ""}」？`} onConfirm={() => handleDelete(r.id)}>
-            <a style={{ color: "#ff4d4f" }}>删除</a>
-          </Popconfirm>
+          {!isGuest && (
+            <>
+              <a
+                onClick={() => {
+                  setEditingNode(r);
+                  editForm.setFieldsValue(r.properties as any);
+                  setEditOpen(true);
+                }}
+              >
+                编辑
+              </a>
+              <Popconfirm title={`确认删除「${r.properties["姓名"] ?? ""}」？`} onConfirm={() => handleDelete(r.id)}>
+                <a style={{ color: "#ff4d4f" }}>删除</a>
+              </Popconfirm>
+            </>
+          )}
         </Space>
       ),
     },

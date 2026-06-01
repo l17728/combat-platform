@@ -76,6 +76,16 @@ export function actorOf(req: unknown, fallback = "api"): string {
   return (req as { user?: { username?: string } })?.user?.username || fallback;
 }
 
+function isGuest(req: unknown): boolean {
+  return (req as { user?: { role?: string } })?.user?.role === "guest";
+}
+
+function guestOwns(node: { properties?: Record<string, unknown> }, req: unknown): boolean {
+  const username = (req as { user?: { username?: string } })?.user?.username ?? "";
+  const creator = String(node.properties?.["创建人"] ?? "").trim();
+  return creator === username;
+}
+
 export function makeRouter(
   repo: Repository,
   registry: SchemaRegistry,
@@ -198,6 +208,9 @@ export function makeRouter(
   r.put("/nodes/:id", async (req, res) => {
     const cur = await repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
+    if (isGuest(req) && !guestOwns(cur, req)) {
+      return res.status(403).json({ error: "游客只能修改自己创建的数据" });
+    }
     const gate = gradeGate(req, cur.nodeType);
     if (gate) return res.status(403).json({ error: gate });
     const v = registry.validateNode(cur.nodeType, { ...cur.properties, ...req.body });
@@ -220,9 +233,9 @@ export function makeRouter(
   r.delete("/nodes/:id", async (req, res) => {
     const cur = await repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
-    // 攻关单删除:仅创建人本人可删,管理员也不行。
-    // 老数据无创建人 → 视为孤儿,UI 不显示删除;必要时管理员走 CLI/直连 DB 清理。
-    // 无 req.user(test/CLI/COMBAT_NO_AUTH bypass):放行,保留既有行为;真实生产链路 authMiddleware 必然填充 req.user。
+    if (isGuest(req) && !guestOwns(cur, req)) {
+      return res.status(403).json({ error: "游客只能删除自己创建的数据" });
+    }
     const reqUser = (req as any).user?.username as string | undefined;
     if (cur.nodeType === "attackTicket" && reqUser) {
       const creator = String(cur.properties?.["创建人"] ?? "").trim();
@@ -239,6 +252,11 @@ export function makeRouter(
 
   r.get("/nodes/:id/progress", async (req, res) => res.json(await repo.listProgress(req.params.id)));
   r.post("/nodes/:id/progress", async (req, res) => {
+    const node = await repo.getNode(req.params.id);
+    if (!node) return res.status(404).json({ error: "not found" });
+    if (isGuest(req) && !guestOwns(node, req)) {
+      return res.status(403).json({ error: "游客只能在自己的数据上追加进展" });
+    }
     const { content, statusSnapshot } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
     // body.actor 不再被信任(P1 防伪造);req.user 缺失才退回 "api"
@@ -253,6 +271,9 @@ export function makeRouter(
   r.post("/nodes/:id/transition", async (req, res) => {
     const node = await repo.getNode(req.params.id);
     if (!node) return res.status(404).json({ error: "not found" });
+    if (isGuest(req) && !guestOwns(node, req)) {
+      return res.status(403).json({ error: "游客只能流转自己创建的攻关单" });
+    }
     if (node.nodeType !== "attackTicket") return res.status(400).json({ error: "仅攻关单支持状态流转" });
     const toStatus = String(req.body?.toStatus ?? "").trim();
     const note = typeof req.body?.note === "string" ? req.body.note.trim() : "";
