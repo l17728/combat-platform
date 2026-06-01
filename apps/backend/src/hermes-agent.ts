@@ -210,7 +210,7 @@ export async function answerWithAgent(
 }
 
 // ===================================================================
-// §v2.5: Tool-calling agent (OpenAI-compatible protocol)
+// §v2.3.3: Tool-calling agent (OpenAI-compatible protocol)
 // -------------------------------------------------------------------
 // 设计要点:
 // 1. 多轮: LLM 返回 tool_calls → 本地执行 callTool() → 把结果 role:'tool' 推回
@@ -280,7 +280,7 @@ export interface RunToolCallingResult {
 }
 
 /**
- * §v2.6: 完整的 Hermes 系统提示。原内容来自
+ * §v2.3.4: 完整的 Hermes 系统提示。原内容来自
  *   apps/backend/hermes-workspace/.opencode/agents/hermes.md
  * 现内联进 backend 源码,去掉对 opencode workspace 的依赖。
  *

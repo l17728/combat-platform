@@ -25,7 +25,7 @@ export default function RemindersPage() {
   const [scanning, setScanning] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<Reminder | null>(null);
-  // v2.7: reminder virtual schema 驱动详情抽屉
+  // v2.3.5: reminder virtual schema 驱动详情抽屉
   const { schema: reminderSchema } = useNodeSchema("reminder");
   const reminderFields = viewFieldsOf(reminderSchema);
 
@@ -221,7 +221,7 @@ export default function RemindersPage() {
         maskClosable={false}
       >
         {detail && (
-          /* v2.7: schema 驱动 — reminder virtual schema 决定字段排布 */
+          /* v2.3.5: schema 驱动 — reminder virtual schema 决定字段排布 */
           <SchemaViewBody
             fields={reminderFields}
             values={detail as unknown as Record<string, unknown>}

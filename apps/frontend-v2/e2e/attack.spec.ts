@@ -289,7 +289,7 @@ test.describe("攻关详情", () => {
 
     await page.goto(`/attack/${ticket.id}`);
     await expect(page.getByRole("heading", { name: /E2E详情展示/ })).toBeVisible();
-    // v2.6: 基础信息 tab 由 schema 驱动渲染所有字段 → 同字段可能同时出现在摘要 + 基础信息 tab
+    // v2.3.4: 基础信息 tab 由 schema 驱动渲染所有字段 → 同字段可能同时出现在摘要 + 基础信息 tab
     await expect(page.getByText("PB20260524001").first()).toBeVisible();
     await expect(page.getByText("王五").first()).toBeVisible();
     await expect(page.getByText("华为云").first()).toBeVisible();
@@ -376,7 +376,7 @@ test.describe("攻关详情", () => {
     await page.locator(".ant-drawer").getByLabel("问题单号").fill("PB999");
     await page.locator(".ant-drawer-extra button").click();
     await expect(page.getByText("更新成功")).toBeVisible();
-    // v2.6: 标题/问题单号 同时出现在标题栏 + 基础信息 tab → first()
+    // v2.3.4: 标题/问题单号 同时出现在标题栏 + 基础信息 tab → first()
     await expect(page.getByText("E2E编辑后标题").first()).toBeVisible();
     await expect(page.getByText("PB999").first()).toBeVisible();
   });

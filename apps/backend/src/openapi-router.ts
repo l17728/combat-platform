@@ -22,7 +22,7 @@ function buildOpenApiSpec() {
     openapi: "3.0.3",
     info: {
       title: "作战管理平台 API",
-      version: "2.3.0",
+      version: "2.3.10",
       description: "Config-driven combat management platform with 50+ endpoints",
     },
     servers: [{ url: "/api", description: "Current server" }],

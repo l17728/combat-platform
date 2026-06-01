@@ -24,7 +24,7 @@ import type {
   ConflictItem,
 } from "@combat/shared";
 
-// §v2.6 LLM settings DTOs
+// §v2.3.4 LLM settings DTOs
 export type LlmThinkingMode = "disabled" | "enabled" | "auto";
 export interface LlmSettingsMaskedDTO {
   provider: string;
@@ -592,7 +592,7 @@ export class Api {
     return this.req<SmtpConfigMasked>("/api/email/config");
   }
 
-  // §v2.6 LLM settings
+  // §v2.3.4 LLM settings
   getLlmSettings(): Promise<LlmSettingsMaskedDTO> {
     return this.req<LlmSettingsMaskedDTO>("/api/llm-settings");
   }
@@ -610,7 +610,7 @@ export class Api {
       body: JSON.stringify(body),
     });
   }
-  /** §v2.7 透传 provider /models 真实可用列表;失败返 {error}。 */
+  /** §v2.3.5 透传 provider /models 真实可用列表;失败返 {error}。 */
   listLlmModels(): Promise<LlmModelsResult> {
     return this.req<LlmModelsResult>("/api/llm-settings/models");
   }

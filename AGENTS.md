@@ -1025,9 +1025,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 文档:help-content 顶部追加 v2.3.4 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
 - Playwright 现网截图 `test-results/v2.6-trace.png` 留档
 
-**关键教训(v2.6 → v2.7)**:
+**关键教训(v2.3.4 → v2.3.5)**:
 
-1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.4 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.6 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
+1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.3.1 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.3.4 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
 2. **provider key 的资源限额是隐式的** — zhipuai-coding-plan key 在 zhipu OpenAI 兼容 endpoint 上可访问 glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1 但都需余额(1113);唯独 `glm-4-flash` / `glm-4-flash-250414` 免费层可用。线上选 model 一定要先用 `GET /api/paas/v4/models` 列表 + 小请求实测,避免上线后 401/1113 才发现
 3. UI 配置后端的"测试连接"endpoint 必须支持 env-fallback(如果 admin 没存 DB 就直接走 env 实测);当前 router 仅看 body + DB,部分场景误报"缺 baseUrl"
 
@@ -1108,7 +1108,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 前端 SystemUpgrade 页面(三段式 + 双重确认 + 实时 log tail)
 - 详细文档 `docs/UPGRADE.md`
 
-**MVP 限制**(留 v2.4):仅本地上传(不支持 GitHub Release)、无 PGP 签名校验、自我升级需在 staging 测一次再上线。
+**MVP 限制**(留 v2.3.1):仅本地上传(不支持 GitHub Release)、无 PGP 签名校验、自我升级需在 staging 测一次再上线。
 
 ---
 
@@ -1484,7 +1484,7 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 
 ### L7. 新增功能的 Postgres DDL 必须同步补充 (2026-06-01)
 
-- **现象**：v2.5+ 新增的 wiki/webhooks/digest/invitations 表在 Postgres 模式下不存在
+- **现象**：v2.3.3+ 新增的 wiki/webhooks/digest/invitations 表在 Postgres 模式下不存在
 - **根因**：各模块的 `ensureTable()` 只处理 SQLite 路径（`if (adapter.kind === "sqlite") return`），Postgres DDL 依赖 `db.ts` 的 `POSTGRES_SCHEMA_DDL`，但新增模块忘记同步追加
 - **修复**：在 `db.ts` Postgres DDL 中补齐 wiki_articles/invitations，在 webhooks.ts/digest.ts 中补充 Postgres DDL 路径，wiki.ts 的 ensureWikiTable 区分 `datetime('now')`/`now()::text`
 - **教训**：**每新增一个独立表的 ensureTable，必须同时检查 3 处**：① SQLite DDL ② Postgres DDL（db.ts）③ Postgres DDL（模块自身的 PG 路径）。三处缺一不可

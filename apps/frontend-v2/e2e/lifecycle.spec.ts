@@ -145,7 +145,7 @@ test.describe("生命周期故事 — 第三章：攻关单创建", () => {
     await page.locator(".ant-drawer-extra button").click();
     await expect(page.getByText("创建成功")).toBeVisible();
     await expect(page).toHaveURL(/\/attack\//);
-    // v2.6: 标题/问题单号 同时出现在标题栏(heading) + 基础信息 tab → first()
+    // v2.3.4: 标题/问题单号 同时出现在标题栏(heading) + 基础信息 tab → first()
     await expect(page.getByText("Lifecycle华为云MaaS服务503故障").first()).toBeVisible();
     await expect(page.getByText("PB20260526001").first()).toBeVisible();
   });
@@ -166,7 +166,7 @@ test.describe("生命周期故事 — 第三章：攻关单创建", () => {
 
     await page.goto(`/attack/${ticket.id}`);
     await expect(page.getByRole("heading", { name: /Lifecycle详情确认单/ })).toBeVisible();
-    // v2.6: 问题单号 同时出现在摘要 + 基础信息 tab → first()
+    // v2.3.4: 问题单号 同时出现在摘要 + 基础信息 tab → first()
     await expect(page.getByText("PB-LC-001").first()).toBeVisible();
     await expect(page.getByText("待响应").first()).toBeVisible();
   });

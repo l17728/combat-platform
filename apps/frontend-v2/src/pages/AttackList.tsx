@@ -91,7 +91,7 @@ export default function AttackList() {
   const [activeTab, setActiveTab] = useState<"all" | "favorites">(() =>
     searchParams.get("tab") === "favorites" ? "favorites" : "all"
   );
-  // v2.7: 视图切换器(table / kanban / calendar);默认 table 保持 v2.6 行为
+  // v2.3.5: 视图切换器(table / kanban / calendar);默认 table 保持 v2.3.4 行为
   const [view, setView] = useState<"table" | "kanban" | "calendar">(() => {
     const v = searchParams.get("view");
     return v === "kanban" || v === "calendar" ? v : "table";

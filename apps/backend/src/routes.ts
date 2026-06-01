@@ -125,7 +125,7 @@ export function makeRouter(
     const { nodeType } = req.params;
     const schema = registry.getNodeSchema(nodeType);
     if (schema) {
-      // v2.7: virtual schemas (helpRequest/bugReport/proposal/reminder) are UI-only,
+      // v2.3.5: virtual schemas (helpRequest/bugReport/proposal/reminder) are UI-only,
       // they MUST NOT be served via the generic node CRUD — their data lives in dedicated tables.
       if (schema.virtual) {
         return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });
@@ -157,7 +157,7 @@ export function makeRouter(
 
   r.post("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
-    // v2.7: 虚拟 schema 拒绝 POST(数据存自己表里)
+    // v2.3.5: 虚拟 schema 拒绝 POST(数据存自己表里)
     const schemaForPost = registry.getNodeSchema(nodeType);
     if (schemaForPost?.virtual) {
       return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });

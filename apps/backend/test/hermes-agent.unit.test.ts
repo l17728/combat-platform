@@ -1,5 +1,5 @@
 /**
- * §v2.5 桶 B (r-agent) tool-calling 单测
+ * §v2.3.3 桶 B (r-agent) tool-calling 单测
  *
  * 覆盖:
  *   - 单轮 content → answer 正确
@@ -85,7 +85,7 @@ function scriptedRunner(turns: LlmTurnResult[]): {
   return { runner, callLog };
 }
 
-describe("hermes-agent tool-calling (§v2.5 桶 B)", () => {
+describe("hermes-agent tool-calling (§v2.3.3 桶 B)", () => {
   describe("单轮 content", () => {
     it("LLM 直接返回 content → answer = content, trace 为空", async () => {
       const { registry } = makeRepoReg();

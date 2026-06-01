@@ -17,7 +17,7 @@ import { buildAllTabItems } from "./attackDetail/buildTabItems.js";
 
 const { Title, Text } = Typography;
 const STATUS_STEPS = ["待响应", "处理中", "进行中", "已解决", "已关闭"];
-// v2.6: schema-as-UI — 详情页基础信息 Tab 改为 schema 驱动分组渲染。
+// v2.3.4: schema-as-UI — 详情页基础信息 Tab 改为 schema 驱动分组渲染。
 //
 // 之前用 HARDCODED_EDIT_FIELDS / SUMMARY_FIELD_IDS 两个常量手动维护"哪些字段算基础/扩展",
 // 现在改为从 FieldSchema 的 group / specialControl 中派生:
@@ -184,7 +184,7 @@ export default function AttackDetail() {
     value: (p.properties["姓名"] as string) ?? "",
     label: `${p.properties["姓名"] ?? p.id} (${p.properties["部门"] ?? "-"})`,
   }));
-  // v2.6: schema-driven 字段渲染。
+  // v2.3.4: schema-driven 字段渲染。
   // basicFields:基础信息 Tab 用 — 全部非 retired 字段(含系统字段在「系统字段」组里展示);
   // editableFields:编辑抽屉用 — 剔除 specialControl ∈ EXCLUDED_EDIT_SPECIAL 的字段。
   const basicFields = (schema?.fields ?? []).filter((f) => !f.retired);

@@ -158,7 +158,7 @@ export default function SchemaWizard() {
     group: string;
   }>({ name: "", label: "", type: "string", enumValues: "", group: "" });
   const [addingField, setAddingField] = useState(false);
-  // v2.6: 新分组占位输入框
+  // v2.3.4: 新分组占位输入框
   const [newGroupName, setNewGroupName] = useState("");
   const { settings } = useSettings();
   const settingKeys = Object.keys(settings).filter((k) => !k.includes("."));
@@ -323,7 +323,7 @@ export default function SchemaWizard() {
     }
   };
 
-  // v2.6: 字段分组管理 ---------------------------------------------------------
+  // v2.3.4: 字段分组管理 ---------------------------------------------------------
   // PATCH /api/schema/<nt> { op: "updateField", ... } 走后端 updateField 分支,
   // 同时写回 baseline / overlay 并记录审计。
   const handleSetFieldGroup = async (nodeType: string, fieldId: string, group: string | null) => {
@@ -627,7 +627,7 @@ export default function SchemaWizard() {
             </Button>
           }
         >
-          {/* v2.6: 字段分组管理面板 */}
+          {/* v2.3.4: 字段分组管理面板 */}
           <Card
             size="small"
             type="inner"

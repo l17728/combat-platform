@@ -115,7 +115,7 @@ export class OpencodeAgentRunner implements AgentRunner {
 }
 
 // ===================================================================
-// §v2.6 deprecation note
+// §v2.3.4 deprecation note
 // -------------------------------------------------------------------
 // The historical `OpencodeToolCallingRunner` lived here and called the
 // OpenAI-compatible /chat/completions endpoint while still reading

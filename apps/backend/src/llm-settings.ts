@@ -1,4 +1,4 @@
-// §v2.6: LLM 全局配置 — 单行 (id='default') 表 + AES-256-GCM 加密 apiKey。
+// §v2.3.4: LLM 全局配置 — 单行 (id='default') 表 + AES-256-GCM 加密 apiKey。
 // 数据流:
 //   - 写: PUT /api/llm-settings → putLlmSettings(adapter, body) → 行内 api_key_encrypted = enc:v1:...
 //   - 读 (路由 / 前端展示): getLlmSettingsMasked(adapter) → 不含明文,只回 ****XXXX

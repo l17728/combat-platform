@@ -18,7 +18,7 @@ import {
   type HermesMessage,
 } from "./hermes-sessions.js";
 
-// §v2.5 桶 B: HERMES_MODE 控制 ask 路径
+// §v2.3.3 桶 B: HERMES_MODE 控制 ask 路径
 //   - 'tool'  : 强制走 tool-calling agent;失败 fallback intent
 //   - 'intent': 强制走规则引擎(不调 LLM,纯本地)
 //   - 'auto'  : 短问题 + 命中 intent 正则走 intent;否则走 tool (默认)

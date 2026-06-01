@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { API, selectOption } from "./helpers";
 
-test.describe("LLM 设置 - v2.6", () => {
+test.describe("LLM 设置 - v2.3.4", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/llm-settings");
     await page.waitForLoadState("networkidle");
@@ -50,7 +50,7 @@ test.describe("LLM 设置 - v2.6", () => {
     await expect(feedback).toBeVisible({ timeout: 15000 });
   });
 
-  // §v2.7: 「刷新模型列表」按钮 + 动态 Select 注入
+  // §v2.3.5: 「刷新模型列表」按钮 + 动态 Select 注入
   test("刷新模型列表按钮存在 + 点击后触发 API 调用并显示反馈", async ({ page }) => {
     // 拦截 /api/llm-settings/models — mock 返回 3 个模型
     await page.route("**/api/llm-settings/models", async (route) => {

@@ -1,9 +1,9 @@
 /**
- * PGP 签名校验 (v2.4 升级包签名)
+ * PGP 签名校验 (v2.3.1 升级包签名)
  *
  * 升级包约定:
- *   foo-v2.4.0.tar.gz       — 升级包
- *   foo-v2.4.0.tar.gz.asc   — 同名 detached armored 签名(可选)
+ *   foo-v2.3.1.0.tar.gz       — 升级包
+ *   foo-v2.3.1.0.tar.gz.asc   — 同名 detached armored 签名(可选)
  *
  * 公钥来源(优先级):
  *   1. env  UPGRADE_PGP_PUBKEY  (整段 armored ASCII)

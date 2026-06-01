@@ -152,7 +152,7 @@ export function makeBackupRouter(adapter: DbAdapter, dbPath: string): Router {
     })
   );
 
-  // harden v2.4: offsite backup — kick the standalone script which tar's
+  // harden v2.3.1: offsite backup — kick the standalone script which tar's
   // combat.db + config/schemas + data/schemas-overlay and SFTPs them to a
   // remote host. The script's own CLI is the source of truth; this endpoint
   // is the wire for `npm run cli -- backup:offsite` (per CLAUDE.md §6).

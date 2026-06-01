@@ -128,9 +128,9 @@ chmod 0440 /etc/sudoers.d/combat-v2
 - `EnvironmentFile=/etc/combat-v2.env`(JWT_SECRET, COMBAT_ENCRYPT_KEY)
 - `Restart=always`
 
-### v2.4+ 部署故障排查 — JWT_SECRET 必须注入
+### v2.3.1+ 部署故障排查 — JWT_SECRET 必须注入
 
-v2.4 起后端强制要求生产环境 `JWT_SECRET` 必须通过环境变量传入,否则启动失败:
+v2.3.1 起后端强制要求生产环境 `JWT_SECRET` 必须通过环境变量传入,否则启动失败:
 
 ```
 [FATAL] JWT_SECRET 未设置,生产环境必须通过环境变量注入随机 32+ 字节密钥
@@ -171,7 +171,7 @@ node scripts/migrate-schemas-to-overlay.mjs \
 
 之后才能用 UI 升级。
 
-## v2.4 新增能力
+## v2.3.1 新增能力
 
 ### 1. 在线版本拉取 (GitHub Releases)
 
@@ -184,11 +184,11 @@ node scripts/migrate-schemas-to-overlay.mjs \
   ```json
   [
     {
-      "tag": "v2.4.0",
-      "name": "v2.4.0",
+      "tag": "v2.3.1.0",
+      "name": "v2.3.1.0",
       "publishedAt": "2026-06-01T00:00:00Z",
       "body": "release notes…",
-      "assets": [{ "name": "combat-v2.4.0.tar.gz", "url": "https://…", "size": 12345 }]
+      "assets": [{ "name": "combat-v2.3.1.0.tar.gz", "url": "https://…", "size": 12345 }]
     }
   ]
   ```
@@ -326,7 +326,7 @@ npm ci && npm run build --workspace=@combat/frontend-v2
 systemctl restart combat-v2
 ```
 
-## MVP 限制 (留 v2.5)
+## MVP 限制 (留 v2.3.3)
 
 1. **不支持多机集群升级**:单实例方案;集群需扩展(loadbalancer drain + rolling)
 2. **GitHub Release 拉取无离线镜像**:如果生产环境无法访问 github.com,需要预先把 tar.gz scp 上去走本地 upload 路径
@@ -354,11 +354,11 @@ systemctl restart combat-v2
 | `COMBAT_ENV_FILE`             | secrets 阶段写入路径(默认 `/etc/combat-v2.env`)                                       |
 | `COMBAT_HEALTH_URL`           | health 阶段轮询的 URL(默认 `http://127.0.0.1:3001/api/health`)                        |
 
-## systemd drop-in 自动清理 (v2.7+)
+## systemd drop-in 自动清理 (v2.3.5+)
 
 ### 背景
 
-v2.6 现网部署中曾出现:多个 `/etc/systemd/system/combat-v2.service.d/*.conf` 同时设置同一 env key(比如 `HERMES_MODEL` 同时出现在 `hermes.conf` 和 `hermes-llm.conf`)。systemd 按字典序加载,后者覆盖前者,但运维改值后老 drop-in 会"偷偷复活",诊断困难。
+v2.3.4 现网部署中曾出现:多个 `/etc/systemd/system/combat-v2.service.d/*.conf` 同时设置同一 env key(比如 `HERMES_MODEL` 同时出现在 `hermes.conf` 和 `hermes-llm.conf`)。systemd 按字典序加载,后者覆盖前者,但运维改值后老 drop-in 会"偷偷复活",诊断困难。
 
 ### 自动行为(默认开启)
 
@@ -368,7 +368,7 @@ v2.6 现网部署中曾出现:多个 `/etc/systemd/system/combat-v2.service.d/*.
 2. 解析每个文件的 `Environment=KEY=VAL` 行,提取 env key
 3. 检测同一 key 出现在多个文件 → 冲突
 4. 决策:
-   - `hermes-llm.conf` 是 v2.7 起的**权威** drop-in,优先级最高
+   - `hermes-llm.conf` 是 v2.3.5 起的**权威** drop-in,优先级最高
    - 若冲突文件包含权威 → 非权威文件改名 `.bak.<timestamp>` 备份后从加载链移除
    - 若无权威 → 字典序最后一个胜出,其余备份
 5. 输出日志 `drop-in.cleanup removed=<list> kept=<list>`

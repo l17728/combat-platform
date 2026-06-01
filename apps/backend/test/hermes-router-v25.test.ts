@@ -1,5 +1,5 @@
 /**
- * §v2.5 桶 B (r-agent) router 集成测试 — HermesMode 三路 + fallback
+ * §v2.3.3 桶 B (r-agent) router 集成测试 — HermesMode 三路 + fallback
  */
 import { describe, it, expect } from "vitest";
 import express from "express";
@@ -52,7 +52,7 @@ function scriptedTool(turns: LlmTurnResult[]): ToolCallingRunner {
   };
 }
 
-describe("makeHermesRouter §v2.5 — HermesMode dispatch", () => {
+describe("makeHermesRouter §v2.3.3 — HermesMode dispatch", () => {
   it("mode=tool 走 tool-calling agent,engine='tool',trace 透传", async () => {
     const { repo, registry } = makeRepoReg();
     const t = await repo.createNode("attackTicket", { 标题: "测试", 状态: "处理中" }, "test");

@@ -162,7 +162,7 @@ export function createApp(deps: {
     app.use("/api/reminders", adminMiddleware);
     // email:配置 + 测试 + 发送均限 admin
     app.use("/api/email", adminMiddleware);
-    // §v2.6: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
+    // §v2.3.4: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
     app.use("/api/llm-settings", adminMiddleware);
     // ticket-tabs:leader+ 可写(普通用户不应改 markdown/导致 XSS 投毒)。
     app.use("/api/tickets/:id/tabs", leaderMiddleware);
@@ -230,7 +230,7 @@ export function createApp(deps: {
   );
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
-  // §v2.6: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
+  // §v2.3.4: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
   // 配置全部从 DB(llm_settings 表)取,经 getConfig 钩子热加载;
   // 缺 DB 配置时 fallback env → 最后 hardcoded baseURL(智谱)+ 必须 env apiKey,
   // 绝无 hardcoded apiKey。
@@ -302,7 +302,7 @@ export function createApp(deps: {
       adapter: deps.adapter,
     })
   );
-  // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
+  // v2.3.3: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
   app.use("/api", makeHermesToolsRouter(deps.repo, deps.registry, adapter, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
@@ -313,7 +313,7 @@ export function createApp(deps: {
   app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeCustomCommandsRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
-  // §v2.6: LLM 全局配置 (admin only)
+  // §v2.3.4: LLM 全局配置 (admin only)
   if (adapter) {
     app.use("/api", makeLlmSettingsRouter(adapter));
   }

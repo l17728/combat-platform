@@ -183,7 +183,7 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 ### 6.1 背景
 
 audit_log 是单纯 append-only 在 SQLite 文件级保护(只有 root/admin 能直接动 DB)。
-但只要文件被改,审计 = 不可信。v2.4+ 引入 **Merkle 链**:每条 audit row 携带
+但只要文件被改,审计 = 不可信。v2.3.1+ 引入 **Merkle 链**:每条 audit row 携带
 `prev_hash` 和 `hash` 两列;链中任何一条被改/删,verifyAuditChain 立刻能定位断点。
 
 Hash 计算公式:
@@ -218,7 +218,7 @@ ssh root@124.156.193.122 'COMBAT_API=http://localhost:3001 curl -s http://localh
 
 ### 6.4 已知边界
 
-- v2.4 升级前的历史 audit 行 `prev_hash=''`, `hash=''`(默认值)。verify 会从首条新行
-  开始检查;若需补链,需停机重写所有旧行(待 v2.5)
+- v2.3.1 升级前的历史 audit 行 `prev_hash=''`, `hash=''`(默认值)。verify 会从首条新行
+  开始检查;若需补链,需停机重写所有旧行(待 v2.3.3)
 - COMBAT_NO_AUTH=1 模式下任何客户端都能写 audit,但 hash 仍然按 actor=req.user 计算 —
   伪造 actor 不会通过链校验(因为后端拒绝从 body 取 actor,详见 §3 audit actor 强制)

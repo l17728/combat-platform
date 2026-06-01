@@ -26,7 +26,7 @@ export default function ProposalsPage() {
   const [scanning, setScanning] = useState(false);
   const [detail, setDetail] = useState<RelationProposal | null>(null);
   const [nodesCache, setNodesCache] = useState<Record<string, { name: string; type: string }>>({});
-  // v2.7: proposal virtual schema 驱动详情面板字段顺序/分组
+  // v2.3.5: proposal virtual schema 驱动详情面板字段顺序/分组
   const { schema: proposalSchema } = useNodeSchema("proposal");
   const proposalFields = viewFieldsOf(proposalSchema);
 
@@ -234,7 +234,7 @@ export default function ProposalsPage() {
             </Button>
           }
         >
-          {/* v2.7: schema 驱动 — proposal virtual schema 的 group/order 决定字段排布 */}
+          {/* v2.3.5: schema 驱动 — proposal virtual schema 的 group/order 决定字段排布 */}
           <SchemaViewBody
             fields={proposalFields}
             values={detail as unknown as Record<string, unknown>}

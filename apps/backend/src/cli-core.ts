@@ -455,13 +455,13 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "hermes:tools",
-    summary: "列出 Hermes 通用工具集 (v2.5)",
+    summary: "列出 Hermes 通用工具集 (v2.3.3)",
     usage: "hermes:tools",
     build: () => ({ method: "GET", path: "/api/hermes/tools" }),
   },
   {
     name: "hermes:tool",
-    summary: "调用 Hermes 工具 (v2.5);--input 为 JSON 入参",
+    summary: "调用 Hermes 工具 (v2.3.3);--input 为 JSON 入参",
     usage: "hermes:tool <toolName> --input '<json>'",
     build: (pos, opts) => {
       requirePos(pos, 1, "hermes:tool <toolName> --input '<json>'");
@@ -568,7 +568,7 @@ export const COMMANDS: CliCommand[] = [
     }),
   },
 
-  // ---- LLM 配置 (§v2.6) — admin only ----
+  // ---- LLM 配置 (§v2.3.4) — admin only ----
   {
     name: "llm:get",
     summary: "查看 LLM 配置(apiKey 掩码)",

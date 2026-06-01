@@ -22,7 +22,7 @@ export interface SchemaFieldRendererProps {
 }
 
 // -----------------------------------------------------------------------------
-// v2.6: Schema-as-UI 渲染器。
+// v2.3.4: Schema-as-UI 渲染器。
 //
 // view 模式: 把 FieldSchema + value 渲染为只读 React 节点(枚举/ref/array/json 各自的格式)。
 // edit 模式: 把 FieldSchema 渲染为对应 antd 受控组件,onChange 透传给上层 Form。
@@ -101,7 +101,7 @@ export function SchemaFieldInput(props: {
 }): React.ReactElement {
   const { field: f, value, onChange, personOptions, refOptions, id } = props;
   const t = f.type;
-  // v2.7: specialControl='member-multi' 强制走 personOptions 多选,无论底层 type 是 array 还是 string。
+  // v2.3.5: specialControl='member-multi' 强制走 personOptions 多选,无论底层 type 是 array 还是 string。
   if (f.specialControl === "member-multi") {
     return (
       <Select
@@ -367,7 +367,7 @@ export function SchemaFormItem(props: {
 }
 
 /**
- * v2.7: Render a schema-driven Form body — groups via Divider, fields via SchemaFormItem.
+ * v2.3.5: Render a schema-driven Form body — groups via Divider, fields via SchemaFormItem.
  * Caller provides the wrapping <Form> and any post-field actions.
  */
 export function SchemaFormBody(props: {
@@ -400,7 +400,7 @@ export function SchemaFormBody(props: {
 }
 
 /**
- * v2.7: Render a schema-driven view body — groups via Card, fields via Descriptions.
+ * v2.3.5: Render a schema-driven view body — groups via Card, fields via Descriptions.
  * Mirror of SchemaFormBody for read-only detail panels.
  */
 export function SchemaViewBody(props: {

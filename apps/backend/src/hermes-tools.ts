@@ -1,4 +1,4 @@
-// v2.5 Hermes 通用检索工具集 (read-only)
+// v2.3.3 Hermes 通用检索工具集 (read-only)
 //
 // 14 个只读工具,由 LLM tool-calling 协议驱动,也由 HTTP `/api/hermes/tool/:name`
 // 暴露给外部脚手架。每个工具都有:
@@ -1040,7 +1040,7 @@ export async function callTool(name: string, input: unknown, ctx: HermesToolCtx)
 }
 
 // ---------------------------------------------------------------------------
-// v2.5 桶 D 集成层 — 给 hermes-agent (桶 B) 的 OpenAI tool-calling 协议适配
+// v2.3.3 桶 D 集成层 — 给 hermes-agent (桶 B) 的 OpenAI tool-calling 协议适配
 // ---------------------------------------------------------------------------
 
 export type ToolCtx = HermesToolCtx;

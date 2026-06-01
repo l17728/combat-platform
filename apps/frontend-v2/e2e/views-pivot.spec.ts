@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { API } from "./helpers";
 
-// v2.7: 透视视图
+// v2.3.5: 透视视图
 test.describe("贡献录入 — 透视视图 (Pivot)", () => {
   test.beforeEach(async ({ page }) => {
     // 贡献等级字段需要 leader 角色;直接通过 init script 设定

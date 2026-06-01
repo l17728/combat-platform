@@ -1,4 +1,4 @@
-# Schema as UI (v2.6 → v2.7)
+# Schema as UI (v2.3.4 → v2.3.5)
 
 > Single-source-of-truth: a field's render, validate, group and order are all declared on its `FieldSchema`. Add a field in 表结构管理, the detail page (and its edit drawer) reflects it immediately — without a frontend code change.
 
@@ -113,15 +113,15 @@ For each hardcoded field on a detail page:
 3. Remove the hardcoded `<Form.Item>` from the drawer / `<Descriptions.Item>` from the detail tab.
 4. Run e2e — the generic renderer should pick the field up automatically. If a Playwright `getByLabel(...)` fails the SchemaFieldInput is probably missing `id` forwarding for the new type — add it (see §1).
 
-The attackTicket migration (v2.6) is the reference example — all 36 fields are now annotated with `group`/`order`.
+The attackTicket migration (v2.3.4) is the reference example — all 36 fields are now annotated with `group`/`order`.
 
-## 7. v2.7 全栈化迁移记录
+## 7. v2.3.5 全栈化迁移记录
 
-v2.6 只把 `attackTicket` 详情页/编辑抽屉做成 schema 驱动；v2.7 把这套机制推到所有详情/抽屉页面。
+v2.3.4 只把 `attackTicket` 详情页/编辑抽屉做成 schema 驱动；v2.3.5 把这套机制推到所有详情/抽屉页面。
 
 ### 7.1 受影响 nodeType 一览
 
-| nodeType           | 来源                                          | 真实存储               | UI 入口                             | v2.7 改动                                                                              |
+| nodeType           | 来源                                          | 真实存储               | UI 入口                             | v2.3.5 改动                                                                            |
 | ------------------ | --------------------------------------------- | ---------------------- | ----------------------------------- | -------------------------------------------------------------------------------------- |
 | `person`           | `config/schemas/person.json` (real)           | `nodes` 表             | `PeopleList` 创建/编辑/详情抽屉     | 补 `group/order`；3 个抽屉全部用 `SchemaFormBody` / `SchemaViewBody`                   |
 | `contribution`     | `config/schemas/contribution.json` (real)     | `nodes` 表             | `Contributions` 个人贡献 录入/编辑  | 补 `group/order`；2 个抽屉用 `SchemaFormBody`，`关联攻关单` 用 `renderField` 拿 Select |
@@ -149,7 +149,7 @@ if (schema.virtual) {
 
 ### 7.3 `SchemaFormBody` / `SchemaViewBody`
 
-`SchemaField.tsx` 在 v2.7 新增两个高阶组件，让调用方一行替代上百行手写 Form.Item：
+`SchemaField.tsx` 在 v2.3.5 新增两个高阶组件，让调用方一行替代上百行手写 Form.Item：
 
 ```tsx
 // 编辑抽屉
@@ -185,7 +185,7 @@ const viewable = viewFieldsOf(schema); // 只剔除 retired
 
 `EXCLUDED_EDIT_SPECIAL` 默认排除：`system / member-list / private-grants / private-flag / node-ref / screenshot / console-logs`。调用方可传 `excludedSpecial` / `excludedNames` 覆盖。
 
-### 7.5 specialControl 速查表（v2.7 全部已知值）
+### 7.5 specialControl 速查表（v2.3.5 全部已知值）
 
 | `specialControl` | 用途                                                                    | 默认在 editFields 中是否保留 |
 | ---------------- | ----------------------------------------------------------------------- | ---------------------------- |
@@ -205,9 +205,9 @@ const viewable = viewFieldsOf(schema); // 只剔除 retired
 2. 「添加新字段」面板：填名称、类型、分组、顺序（可后续调整）
 3. 立即生效：
    - 真实 nodeType（person/contribution/teamContribution）→ 列表页 + 创建/编辑抽屉 + 详情 全部出现新字段
-   - 虚拟 nodeType（helpRequest/bugReport/proposal/reminder）→ 对应抽屉/详情面板出现新字段；后端的专用表也得相应允许该字段（v2.7 范围内 helpRequest/bugReport 的 properties 用 JSON 列存任意键，proposal/reminder 由系统写入,不接受用户字段）
+   - 虚拟 nodeType（helpRequest/bugReport/proposal/reminder）→ 对应抽屉/详情面板出现新字段；后端的专用表也得相应允许该字段（v2.3.5 范围内 helpRequest/bugReport 的 properties 用 JSON 列存任意键，proposal/reminder 由系统写入,不接受用户字段）
 
-> **限制**：虚拟 schema 加字段后能在 UI 里输入，但若专用表没有对应列存储，提交时后端会忽略 / 报错。这是 v2.7 的已知边界——若需要 helpRequest/bugReport 真正接收自定义字段，需要后续把它们的 storage 也改成 properties JSON 列。
+> **限制**：虚拟 schema 加字段后能在 UI 里输入，但若专用表没有对应列存储，提交时后端会忽略 / 报错。这是 v2.3.5 的已知边界——若需要 helpRequest/bugReport 真正接收自定义字段，需要后续把它们的 storage 也改成 properties JSON 列。
 
 ## 8. SchemaWizard 字段分组管理
 

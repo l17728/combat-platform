@@ -1,5 +1,5 @@
 /**
- * §v2.6 — OpenAICompatibleRunner 单测
+ * §v2.3.4 — OpenAICompatibleRunner 单测
  *
  * Replaces OpencodeToolCallingRunner. Pure-fetch implementation of both
  * AgentRunner.run(prompt) and ToolCallingRunner.chat(messages, tools).

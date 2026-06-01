@@ -12,7 +12,7 @@ export type FieldType =
   | "array";
 
 /**
- * v2.6: Validation rules — declared on FieldSchema, evaluated by frontend SchemaField + backend validateNode.
+ * v2.3.4: Validation rules — declared on FieldSchema, evaluated by frontend SchemaField + backend validateNode.
  * `min/max` apply to number types; `minLength/maxLength` apply to string/textarea/array; `pattern` is a JS RegExp source string.
  */
 export interface FieldValidation {
@@ -39,7 +39,7 @@ export interface FieldSchema {
   // v2.3: schema-overlay marker. "user" = added/edited via UI after install,
   // preserved verbatim across upgrades. Absent (default) = "baseline".
   source?: "baseline" | "user";
-  // v2.6: Schema-as-UI — fields below drive the SchemaField renderer +
+  // v2.3.4: Schema-as-UI — fields below drive the SchemaField renderer +
   // AttackBasicInfoTab grouping in the detail page.
   /** Group name (人员信息 / 详细信息 / ...). Empty/missing → default group「其它」. */
   group?: string;
@@ -58,7 +58,7 @@ export interface FieldSchema {
   /** Lightweight per-field validation rules (frontend Form rules + backend validateNode). */
   validation?: FieldValidation;
   /**
-   * v2.6: Marker for fields that need a special control (e.g. member multi-select with role).
+   * v2.3.4: Marker for fields that need a special control (e.g. member multi-select with role).
    * Plain fields render via SchemaField; specialControl='member-multi' / 'private-grants' keep
    * their dedicated drawer/tab UI.
    */
@@ -71,7 +71,7 @@ export interface NodeSchema {
   identityKeys: string[];
   derivedToKG: boolean;
   /**
-   * v2.7: virtual schemas describe entities stored in dedicated tables (helpRequest,
+   * v2.3.5: virtual schemas describe entities stored in dedicated tables (helpRequest,
    * bugReport, proposal, reminder, ...). They drive the UI (groups/order/specialControl)
    * but the generic /api/nodes CRUD MUST refuse them — their data lives in their own
    * routes & tables. `false`/undefined = real node-backed schema.
@@ -348,7 +348,7 @@ export interface PinnedUi {
   uiSpec: UiSpec;
   pinnedAt: string;
 }
-/** §v2.5 tool-calling trace — one entry per tool invocation (success or error). */
+/** §v2.3.3 tool-calling trace — one entry per tool invocation (success or error). */
 export interface HermesToolTrace {
   tool: string;
   input: Record<string, unknown>;
@@ -364,11 +364,11 @@ export interface HermesAnswer {
   answer: string;
   citations: HermesCitation[];
   uiSpec?: UiSpec;
-  /** §v2.5: 'tool' = tool-calling agent, 'intent' = rule-based router, 'agent' = single-turn LLM. */
+  /** §v2.3.3: 'tool' = tool-calling agent, 'intent' = rule-based router, 'agent' = single-turn LLM. */
   engine?: "tool" | "intent" | "agent";
-  /** §v2.5: tool-calling 历史(给前端 trace UI / 调试)。intent 引擎不填。 */
+  /** §v2.3.3: tool-calling 历史(给前端 trace UI / 调试)。intent 引擎不填。 */
   trace?: HermesToolTrace[];
-  /** §v2.5: 当 tool 模式失败回落到 intent 引擎时,填写回退原因。 */
+  /** §v2.3.3: 当 tool 模式失败回落到 intent 引擎时,填写回退原因。 */
   fallback_reason?: string;
 }
 export interface QueryContext {

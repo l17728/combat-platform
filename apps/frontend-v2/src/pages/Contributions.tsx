@@ -37,7 +37,7 @@ const { Title } = Typography;
 export default function Contributions() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // v2.7: 视图切换器(table / pivot);默认 table
+  // v2.3.5: 视图切换器(table / pivot);默认 table
   const [view, setView] = useState<"table" | "pivot">(() => (searchParams.get("view") === "pivot" ? "pivot" : "table"));
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -71,7 +71,7 @@ export default function Contributions() {
   const [teamEditSubmitting, setTeamEditSubmitting] = useState(false);
   const [people, setPeople] = useState<GraphNode[]>([]);
   const [tickets, setTickets] = useState<GraphNode[]>([]);
-  // v2.7: 创建/编辑抽屉 schema 驱动 — 字段定义来自 contribution / teamContribution schema。
+  // v2.3.5: 创建/编辑抽屉 schema 驱动 — 字段定义来自 contribution / teamContribution schema。
   const { schema: contribSchema } = useNodeSchema("contribution");
   const { schema: teamSchema } = useNodeSchema("teamContribution");
   const contribFields = editableFieldsOf(contribSchema);
@@ -222,7 +222,7 @@ export default function Contributions() {
   // 真正用 refOptions 的是 person ref 字段(直接走 personOptions 参数)。
   const refOptions = { attackTicket: ticketSelectOptions, person: personSelectOptions };
 
-  // v2.7: 关联攻关单是 string 类型而非 ref,需要单独的 Select override 才能拿到 ticketOptions
+  // v2.3.5: 关联攻关单是 string 类型而非 ref,需要单独的 Select override 才能拿到 ticketOptions
   const renderContribField = (f: import("@combat/shared").FieldSchema) => {
     if (f.name === "关联攻关单") {
       return (
@@ -526,7 +526,7 @@ export default function Contributions() {
         }
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
-          {/* v2.7: schema 驱动 — 字段定义来自 contribution schema (SchemaWizard 可改) */}
+          {/* v2.3.5: schema 驱动 — 字段定义来自 contribution schema (SchemaWizard 可改) */}
           <SchemaFormBody
             fields={contribFields}
             personOptions={personSelectOptions}
@@ -579,7 +579,7 @@ export default function Contributions() {
         }
       >
         <Form form={teamForm} layout="vertical" onFinish={handleCreateTeam}>
-          {/* v2.7: schema 驱动 — 组长(ref person)/ 组员(specialControl=member-multi) 由 SchemaField 自动渲染 */}
+          {/* v2.3.5: schema 驱动 — 组长(ref person)/ 组员(specialControl=member-multi) 由 SchemaField 自动渲染 */}
           <SchemaFormBody
             fields={teamFields}
             personOptions={personSelectOptions}

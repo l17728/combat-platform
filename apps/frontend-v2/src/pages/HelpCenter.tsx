@@ -50,7 +50,7 @@ export default function HelpCenter() {
   const [hasNewReply, setHasNewReply] = useState(false);
   const seenRepliedRef = useRef<Set<string> | null>(null);
   const navigate = useNavigate();
-  // v2.7: 创建求助抽屉 schema 驱动 — 字段定义来自 helpRequest virtual schema
+  // v2.3.5: 创建求助抽屉 schema 驱动 — 字段定义来自 helpRequest virtual schema
   const { schema: helpSchema } = useNodeSchema("helpRequest");
   const helpFields = editableFieldsOf(helpSchema);
 
@@ -277,7 +277,7 @@ export default function HelpCenter() {
         }
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          {/* v2.7: schema 驱动 — helpRequest virtual schema 决定字段 + 分组 */}
+          {/* v2.3.5: schema 驱动 — helpRequest virtual schema 决定字段 + 分组 */}
           <SchemaFormBody
             fields={helpFields}
             personOptions={personOptions.map((p) => ({ value: p.value, label: p.label }))}

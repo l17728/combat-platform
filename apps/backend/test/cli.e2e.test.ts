@@ -133,7 +133,7 @@ describe("§43 CLI core", () => {
     });
   });
 
-  it("llm:get/set/test builds correctly (§v2.6)", async () => {
+  it("llm:get/set/test builds correctly (§v2.3.4)", async () => {
     const { http, calls } = recorder();
     await runCli(["llm:get"], http);
     expect(calls[0]).toEqual({ method: "GET", path: "/api/llm-settings" });

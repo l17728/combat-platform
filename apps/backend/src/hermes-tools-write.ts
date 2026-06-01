@@ -1,4 +1,4 @@
-// v2.8 Hermes 写工具 (需 HERMES_ENABLE_WRITE=1 开启)
+// v2.3.6 Hermes 写工具 (需 HERMES_ENABLE_WRITE=1 开启)
 //
 // 3 个写工具: create_node / update_node / add_progress
 // 安全: admin/leader 角色门控 + _confirm:'yes' 二次确认 + audit 全量记录

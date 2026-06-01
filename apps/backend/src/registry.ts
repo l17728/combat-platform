@@ -194,7 +194,7 @@ export class FileSchemaRegistry implements SchemaRegistry {
         order: op.field.order,
       });
     } else if (op.op === "updateField") {
-      // v2.6: 更新字段的 schema-as-UI 元数据(group/order/visible/defaultValue/validation)。
+      // v2.3.4: 更新字段的 schema-as-UI 元数据(group/order/visible/defaultValue/validation)。
       // null = 显式清除该属性;undefined = 保持不变。
       const f = find(op.id);
       if (op.group !== undefined) {

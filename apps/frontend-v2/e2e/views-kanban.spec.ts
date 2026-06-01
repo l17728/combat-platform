@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { API } from "./helpers";
 
-// v2.7: 看板视图(Kanban)
+// v2.3.5: 看板视图(Kanban)
 test.describe("攻关作战台 — 看板视图 (Kanban)", () => {
   test("Segmented 切到看板,渲染列与卡片", async ({ page, request }) => {
     await request.post(`${API}/api/nodes/attackTicket`, {

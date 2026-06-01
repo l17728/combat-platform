@@ -1,11 +1,11 @@
 /**
- * Hermes v2.8 评测 golden set — 20 题
+ * Hermes v2.3.6 评测 golden set — 20 题
  *
  * 直接调 callTool 验证「工具集是否能正确回答用户问题」,**不**依赖 LLM 选工具的能力
  * (LLM 端到端验证在 docs/V2.5_DESIGN.md §5 单独跑)。
  *
  * 通过门槛: 16/20 (80%)。每题给出 question / expected tool calls / 期望结果断言。
- * Q1-Q15: v2.5 基线; Q16-Q20: v2.8 新增(写工具)。
+ * Q1-Q15: v2.3.3 基线; Q16-Q20: v2.8 新增(写工具)。
  */
 
 import { describe, it, expect, beforeAll } from "vitest";
@@ -51,7 +51,7 @@ const cases: GoldenCase[] = [
       }
     },
   },
-  // 3) count (the v2.4 production bug)
+  // 3) count (the v2.3.1 production bug)
   {
     id: "Q3",
     question: "有多少员工?",
@@ -98,7 +98,7 @@ const cases: GoldenCase[] = [
       expect(Array.isArray(r.data)).toBe(true);
     },
   },
-  // 7) get audit by actor — §v2.7 强化:验证 actor 必须 === 'admin'(模拟 LLM 自然语言意图正确映射)
+  // 7) get audit by actor — §v2.3.5 强化:验证 actor 必须 === 'admin'(模拟 LLM 自然语言意图正确映射)
   {
     id: "Q7",
     question: "admin 改过哪些?",
@@ -107,7 +107,7 @@ const cases: GoldenCase[] = [
     assert: (r: any) => {
       expect(r.ok).toBe(true);
       expect(Array.isArray(r.data)).toBe(true);
-      // §v2.7: 若 audit_log 有 admin 的写入(beforeAll 中我们用 'admin' actor 创建了节点),
+      // §v2.3.5: 若 audit_log 有 admin 的写入(beforeAll 中我们用 'admin' actor 创建了节点),
       // 返回数组中每条记录的 actor (字段名 performedBy) 应都是 'admin' — 工具按 actor 过滤的正确性回归。
       if (r.data.length > 0) {
         for (const row of r.data) {
@@ -216,7 +216,7 @@ const cases: GoldenCase[] = [
       expect(r.ok === true || r.ok === false).toBe(true);
     },
   },
-  // 16) create_node — v2.8 写工具
+  // 16) create_node — v2.3.6 写工具
   {
     id: "Q16",
     question: "帮我新建一个人员",
@@ -275,7 +275,7 @@ const cases: GoldenCase[] = [
   },
 ];
 
-describe("Hermes v2.8 golden set (20 题, threshold 16/20)", () => {
+describe("Hermes v2.3.6 golden set (20 题, threshold 16/20)", () => {
   let ctx: HermesToolCtx;
   let normalCtx: HermesToolCtx;
 
@@ -291,7 +291,7 @@ describe("Hermes v2.8 golden set (20 题, threshold 16/20)", () => {
     await repo.createNode("attackTicket", { 标题: "OSS 上传超时", 状态: "已解决", 事件级别: "P0" }, "admin");
     await repo.appendProgress(t1.id, "首次响应", "处理中", "admin");
 
-    // v2.8 write tools: enable for golden set
+    // v2.3.6 write tools: enable for golden set
     process.env.HERMES_ENABLE_WRITE = "1";
 
     const realTicketId = t1.id;

@@ -161,7 +161,7 @@ const SQLITE_SCHEMA_DDL = `
       subject TEXT, body TEXT,
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
-    /* v2.6 §1: 用户收件箱通知。与既有 notifications 表(实为 reminder 决策队列)分离,
+    /* v2.3.4 §1: 用户收件箱通知。与既有 notifications 表(实为 reminder 决策队列)分离,
        避免语义混淆。每条 inbox_notification 对应"某用户应被告知的某事件";
        read_at 为 null 即未读。 */
     CREATE TABLE IF NOT EXISTS inbox_notifications (

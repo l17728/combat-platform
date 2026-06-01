@@ -38,7 +38,7 @@ const PROVIDER_DEFAULTS: Record<string, ProviderDefault> = {
     defaultModel: "glm-4-flash",
     smallModel: "glm-4-flash",
     label: "智谱 AI(zhipuai-coding-plan)",
-    // §v2.7: glm-4-flash 排第一(免费可用,无需余额);其余按 v2.6 教训保留
+    // §v2.3.5: glm-4-flash 排第一(免费可用,无需余额);其余按 v2.3.4 教训保留
     models: ["glm-4-flash", "glm-4.5-air", "glm-4.5-flash", "glm-4.5", "glm-4-plus", "glm-4.6", "glm-4-air"],
   },
   huawei_cloud: {
@@ -72,7 +72,7 @@ export default function LlmSettings() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
-  // §v2.7: 动态 provider 模型列表(刷新按钮加载),null 表示未刷新过,走 PROVIDER_DEFAULTS.models fallback
+  // §v2.3.5: 动态 provider 模型列表(刷新按钮加载),null 表示未刷新过,走 PROVIDER_DEFAULTS.models fallback
   const [dynamicModels, setDynamicModels] = useState<string[] | null>(null);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const [form] = Form.useForm<FormValues>();
@@ -84,7 +84,7 @@ export default function LlmSettings() {
       form.setFieldsValue({
         provider: c.provider || "zhipuai-coding-plan",
         baseUrl: c.baseUrl || PROVIDER_DEFAULTS["zhipuai-coding-plan"].baseUrl,
-        // §v2.7: 默认 glm-4-flash(免费可用)
+        // §v2.3.5: 默认 glm-4-flash(免费可用)
         defaultModel: c.defaultModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].defaultModel,
         smallModel: c.smallModel || PROVIDER_DEFAULTS["zhipuai-coding-plan"].smallModel || "",
         thinking: c.thinking || "disabled",
@@ -243,7 +243,7 @@ export default function LlmSettings() {
             <Form.Item shouldUpdate={(p, c) => p.provider !== c.provider} noStyle>
               {({ getFieldValue }) => {
                 const providerModels = PROVIDER_DEFAULTS[getFieldValue("provider") as string]?.models;
-                // §v2.7: 优先用动态列表(刷新后注入);否则降级到 PROVIDER_DEFAULTS.models;再否则空
+                // §v2.3.5: 优先用动态列表(刷新后注入);否则降级到 PROVIDER_DEFAULTS.models;再否则空
                 const modelList = dynamicModels && dynamicModels.length > 0 ? dynamicModels : providerModels;
                 const options = modelList ? modelList.map((m) => ({ value: m, label: m })) : [];
                 const refreshBtn = (

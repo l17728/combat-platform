@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { API } from "./helpers";
 import dayjs from "dayjs";
 
-// v2.7: 日历视图
+// v2.3.5: 日历视图
 test.describe("攻关作战台 — 日历视图 (Calendar)", () => {
   test("Segmented 切到日历,展示当月色块", async ({ page, request }) => {
     await request.post(`${API}/api/nodes/attackTicket`, {

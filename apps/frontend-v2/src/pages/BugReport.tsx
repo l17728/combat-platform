@@ -58,7 +58,7 @@ export default function BugReport() {
   const [consoleLogs, setConsoleLogs] = useState<string>("");
   const [form] = Form.useForm();
   const [editForm] = Form.useForm();
-  // v2.7: bugReport virtual schema 驱动创建/编辑抽屉 — 截图/Console 日志是 specialControl 单独渲染
+  // v2.3.5: bugReport virtual schema 驱动创建/编辑抽屉 — 截图/Console 日志是 specialControl 单独渲染
   const { schema: bugSchema } = useNodeSchema("bugReport");
   const bugFields = editableFieldsOf(bugSchema);
   // 编辑抽屉只覆盖基础信息(状态/解决方案等系统字段已被 EXCLUDED_EDIT_SPECIAL 过滤掉)
@@ -413,7 +413,7 @@ export default function BugReport() {
             pageUrl: typeof window !== "undefined" ? window.location.href : "",
           }}
         >
-          {/* v2.7: schema 驱动 — bugReport virtual schema 决定基础字段 + 顺序 */}
+          {/* v2.3.5: schema 驱动 — bugReport virtual schema 决定基础字段 + 顺序 */}
           <SchemaFormBody
             fields={bugFields.filter((f) => f.name !== "consoleLogs" && f.name !== "screenshot")}
             renderField={(f) => {
@@ -653,7 +653,7 @@ export default function BugReport() {
         }
       >
         <Form form={editForm} layout="vertical" onFinish={handleEdit}>
-          {/* v2.7: schema 驱动 — 编辑只覆盖基础信息(状态/解决方案走 specialControl=system 已过滤) */}
+          {/* v2.3.5: schema 驱动 — 编辑只覆盖基础信息(状态/解决方案走 specialControl=system 已过滤) */}
           <SchemaFormBody
             fields={editBugFields}
             renderField={(f) => {
