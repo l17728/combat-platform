@@ -88,14 +88,20 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
-      await api.createWiki({ scope, scopeId, title: values.title, content: createContent });
+      const title = values.title?.trim();
+      if (!title) {
+        message.warning("请输入标题");
+        return;
+      }
+      await api.createWiki({ scope, scopeId, title, content: createContent });
       message.success("创建成功");
       setCreateOpen(false);
       createForm.resetFields();
       setCreateContent("");
       fetchData(true);
-    } catch (e) {
-      if (e instanceof Error) handleApiError(e);
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      handleApiError(e);
     }
   };
 
@@ -103,14 +109,20 @@ export default function WikiPanel({ scope, scopeId }: Props) {
     if (!selected) return;
     try {
       const values = await editForm.validateFields();
-      await api.updateWiki(selected.id, { title: values.title, content: editContent });
+      const title = values.title?.trim();
+      if (!title) {
+        message.warning("请输入标题");
+        return;
+      }
+      await api.updateWiki(selected.id, { title, content: editContent });
       message.success("保存成功");
       setEditOpen(false);
       fetchData(true);
       const updated = await api.getWiki(selected.id);
       setSelected(updated);
-    } catch (e) {
-      if (e instanceof Error) handleApiError(e);
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      handleApiError(e);
     }
   };
 
@@ -271,7 +283,6 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       <Modal
         title="新建知识库文章"
         open={createOpen}
-        destroyOnClose
         onCancel={() => {
           setCreateOpen(false);
           createForm.resetFields();
@@ -280,6 +291,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
         onOk={handleCreate}
         okText="创建"
         width={600}
+        forceRender
       >
         <Form form={createForm} layout="vertical">
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
@@ -302,11 +314,11 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       <Modal
         title="编辑文章"
         open={editOpen}
-        destroyOnClose
         onCancel={() => setEditOpen(false)}
         onOk={handleSave}
         okText="保存"
         width={600}
+        forceRender
       >
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
