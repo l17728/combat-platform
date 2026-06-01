@@ -107,6 +107,60 @@ function AppInner() {
     logNavigate(location.pathname);
   }, [location.pathname]);
 
+  // 后台预加载所有路由 chunk — 用户首次点任意页面时已在内存中，无白屏
+  useEffect(() => {
+    const prefetch = () => {
+      const loaders = [
+        () => import("./pages/Dashboard.js"),
+        () => import("./pages/AttackList.js"),
+        () => import("./pages/AttackDetail.js"),
+        () => import("./pages/PeopleList.js"),
+        () => import("./pages/Contributions.js"),
+        () => import("./pages/Honor.js"),
+        () => import("./pages/PersonHonor.js"),
+        () => import("./pages/HelpCenter.js"),
+        () => import("./pages/ImportExport.js"),
+        () => import("./pages/EmailSettings.js"),
+        () => import("./pages/LlmSettings.js"),
+        () => import("./pages/AuditLog.js"),
+        () => import("./pages/DailyReport.js"),
+        () => import("./pages/RelatedPage.js"),
+        () => import("./pages/MergePage.js"),
+        () => import("./pages/SchemaWizard.js"),
+        () => import("./pages/ConfigCenter.js"),
+        () => import("./pages/WebhookSettings.js"),
+        () => import("./pages/DigestSettings.js"),
+        () => import("./pages/InvitationPage.js"),
+        () => import("./pages/DashboardScreen.js"),
+        () => import("./pages/SearchPage.js"),
+        () => import("./pages/KGGraph.js"),
+        () => import("./pages/ProposalsPage.js"),
+        () => import("./pages/RemindersPage.js"),
+        () => import("./pages/BugReport.js"),
+        () => import("./pages/UserManagement.js"),
+        () => import("./pages/DbMigration.js"),
+        () => import("./pages/SystemUpgrade.js"),
+        () => import("./pages/OperationLog.js"),
+        () => import("./pages/NotificationsPage.js"),
+        () => import("./pages/BackupRestore.js"),
+        () => import("./pages/DocumentCenter.js"),
+        () => import("./pages/ManualCenter.js"),
+      ];
+      let i = 0;
+      const next = () => {
+        if (i >= loaders.length) return;
+        const load = loaders[i++];
+        load().then(next, next);
+      };
+      next();
+    };
+    const ric = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
+    const id = ric(prefetch);
+    return () => {
+      (window.cancelIdleCallback || clearTimeout)(id as number);
+    };
+  }, []);
+
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
