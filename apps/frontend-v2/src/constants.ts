@@ -150,6 +150,7 @@ export const LINKABLE_EDGE_TYPES: Record<string, string> = {
 export const TAB_TYPE_LABEL: Record<string, string> = {
   link: "关联数据",
   custom: "自定义笔记",
+  wiki: "知识库",
 };
 
 export const INFO_IMPORTANCE_COLOR: Record<string, string> = {

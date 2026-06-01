@@ -1280,10 +1280,10 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "tabs:create",
-    summary: "创建动态标签（--type link|custom --title 标签名 [--config JSON] [--content 内容])",
-    usage: "tabs:create <ticketId> --type <link|custom> --title <名> [--config <json>] [--content <内容>]",
+    summary: "创建动态标签（--type link|custom|wiki --title 标签名 [--config JSON] [--content 内容])",
+    usage: "tabs:create <ticketId> --type <link|custom|wiki> --title <名> [--config <json>] [--content <内容>]",
     build: (pos, opts) => {
-      requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom> --title <名>");
+      requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom|wiki> --title <名>");
       const tabType = str(opts.type);
       if (!tabType || !["link", "custom", "wiki"].includes(tabType))
         throw new Error("--type 必须为 link、custom 或 wiki");

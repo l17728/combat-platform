@@ -490,6 +490,32 @@ const POSTGRES_SCHEMA_DDL = `
     );
     CREATE INDEX IF NOT EXISTS idx_welink_ext_ticket ON welink_extractions(ticket_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_welink_ext_kind ON welink_extractions(ticket_id, kind);
+    CREATE TABLE IF NOT EXISTS wiki_articles (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL DEFAULT 'global',
+      scope_id TEXT,
+      parent_id TEXT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id);
+    CREATE INDEX IF NOT EXISTS idx_wiki_parent ON wiki_articles(parent_id);
+    CREATE TABLE IF NOT EXISTS invitations (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'normal',
+      email TEXT NOT NULL DEFAULT '',
+      display_name TEXT NOT NULL DEFAULT '',
+      used_by TEXT,
+      used_at TEXT,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      expires_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
   `;
 
 async function ensurePostgresSchema(pool: PgPool): Promise<void> {

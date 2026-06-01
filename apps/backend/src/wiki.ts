@@ -16,6 +16,7 @@ export interface WikiArticle {
 }
 
 export async function ensureWikiTable(adapter: DbAdapter): Promise<void> {
+  const nowDefault = adapter.kind === "postgres" ? "(now()::text)" : "(datetime('now'))";
   await adapter.run(`
     CREATE TABLE IF NOT EXISTS wiki_articles (
       id TEXT PRIMARY KEY,
@@ -26,8 +27,8 @@ export async function ensureWikiTable(adapter: DbAdapter): Promise<void> {
       content TEXT NOT NULL DEFAULT '',
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_by TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT ${nowDefault},
+      updated_at TEXT NOT NULL DEFAULT ${nowDefault})
     )
   `);
   await adapter.run(`CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id)`);
