@@ -35,6 +35,7 @@ import {
   QuestionCircleOutlined,
   MoonOutlined,
   SunOutlined,
+  StarOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
@@ -141,7 +142,7 @@ export function AppLayout() {
       label: "攻关管理",
       onTitleClick: () => navigate("/attack"),
       children: [
-        { key: "/attack", label: "攻关作战台" },
+        { key: "/attack", label: "攻关作战台", icon: <ThunderboltOutlined /> },
         { key: "/daily-report", label: "攻关日报", icon: <FileTextOutlined /> },
       ],
     },
@@ -151,8 +152,8 @@ export function AppLayout() {
       label: "人员与荣誉",
       onTitleClick: () => navigate("/people"),
       children: [
-        { key: "/people", label: "全员名单" },
-        { key: "/contributions", label: "贡献录入" },
+        { key: "/people", label: "全员名单", icon: <TeamOutlined /> },
+        { key: "/contributions", label: "贡献录入", icon: <StarOutlined /> },
         { key: "/honor", label: "荣誉殿堂", icon: <TrophyOutlined /> },
       ],
     },

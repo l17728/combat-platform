@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { WikiRepo, ensureWikiTable } from "./wiki.js";
 import type { DbAdapter } from "./db-adapter.js";
-import { asyncHandler } from "./logger.js";
+import { asyncHandler, log } from "./logger.js";
 import { verifyAuth } from "./auth.js";
 import type { Request, Response } from "express";
 
@@ -9,7 +9,9 @@ export function makeWikiRouter(adapter: DbAdapter): Router {
   const router = Router();
   const repo = new WikiRepo(adapter);
 
-  ensureWikiTable(adapter).catch(() => {});
+  ensureWikiTable(adapter).catch((e) => {
+    log.error("wiki.ensure_table_failed", { error: (e as Error).message });
+  });
 
   function actorOf(req: Request): string {
     const u = verifyAuth(req);

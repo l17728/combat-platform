@@ -58,16 +58,21 @@ export default function AttackBasicInfoTab({
   const existingGroups = [...new Set(basicFields.map((f) => f.group).filter(Boolean))];
 
   const handleAddField = async () => {
+    const values = { ...addForm.getFieldsValue() };
+    const name = values.name?.trim();
+    if (!name) {
+      addForm.validateFields(["name"]).catch(() => {});
+      return;
+    }
+    if (allFieldNames?.includes(name)) {
+      message.warning("该字段已存在，可在字段管理中恢复显示");
+      return;
+    }
     try {
-      const values = await addForm.validateFields();
-      if (allFieldNames?.includes(values.name)) {
-        message.warning("该字段已存在，可在字段管理中恢复显示");
-        return;
-      }
       setAddSubmitting(true);
       const field: Record<string, any> = {
-        name: values.name,
-        label: values.label || values.name,
+        name,
+        label: values.label || name,
         type: values.type || "text",
         group: values.group || "其它字段",
       };
@@ -86,9 +91,8 @@ export default function AttackBasicInfoTab({
       setAddOpen(false);
       addForm.resetFields();
       onSchemaRefresh?.();
-    } catch (e: any) {
-      if (e.errorFields) return;
-      message.error("添加失败: " + (e.message || "未知错误"));
+    } catch (e) {
+      message.error("添加失败: " + ((e as Error).message || "未知错误"));
     } finally {
       setAddSubmitting(false);
     }

@@ -77,8 +77,13 @@ export default function WebhookSettings() {
   };
 
   const handleSubmit = async () => {
+    const values = { ...form.getFieldsValue() };
+    const url = values.url?.trim();
+    if (!url) {
+      form.validateFields(["url"]).catch(() => {});
+      return;
+    }
     try {
-      const values = await form.validateFields();
       if (editingId) {
         await api.updateWebhook(editingId, values);
         message.success("更新成功");
@@ -89,8 +94,8 @@ export default function WebhookSettings() {
       setModalOpen(false);
       form.resetFields();
       fetchSubs(true);
-    } catch (e: any) {
-      if (e.message) message.error(e.message);
+    } catch (e) {
+      message.error((e as Error).message || "操作失败");
     }
   };
 
@@ -222,7 +227,7 @@ export default function WebhookSettings() {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={handleSubmit}
-        destroyOnClose
+        forceRender
       >
         <Form form={form} layout="vertical">
           <Form.Item

@@ -71,9 +71,20 @@ const app = createApp({ repo, registry, adapter, db: rawSqliteDb, dbPath: DB_PAT
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
-  app.use(express.static(frontendDist));
+  app.use(
+    express.static(frontendDist, {
+      setHeaders: (res, path) => {
+        if (path.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      },
+    })
+  );
   app.get("*", (_req, res, next) => {
     if (_req.path.startsWith("/api")) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(join(frontendDist, "index.html"));
   });
   log.info("server.serving_frontend", { dir: frontendDist });

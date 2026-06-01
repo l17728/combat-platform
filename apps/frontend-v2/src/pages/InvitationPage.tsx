@@ -48,17 +48,21 @@ export default function InvitationPage() {
   }, [fetchList]);
 
   const handleCreate = async () => {
+    const values = { ...form.getFieldsValue() };
+    const email = values.email?.trim();
+    if (!email) {
+      form.validateFields(["email"]).catch(() => {});
+      return;
+    }
     try {
       setSubmitting(true);
-      const values = await form.validateFields();
       await api.createInvitation(values);
       message.success(`邀请已发送至 ${values.email}`);
       setModalOpen(false);
       form.resetFields();
       fetchList(true);
-    } catch (e: any) {
-      if (e.errorFields) return;
-      message.error(e.message || "创建失败");
+    } catch (e) {
+      message.error((e as Error).message || "创建失败");
     } finally {
       setSubmitting(false);
     }
@@ -188,7 +192,7 @@ export default function InvitationPage() {
         onCancel={() => setModalOpen(false)}
         onOk={handleCreate}
         confirmLoading={submitting}
-        destroyOnClose
+        forceRender
         width={440}
       >
         <Form form={form} layout="vertical" initialValues={{ role: "normal" }}>

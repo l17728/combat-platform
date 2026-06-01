@@ -175,8 +175,8 @@ export function createApp(deps: {
 
   // Fire-and-forget — runs the seed in background; failures are logged but
   // don't block server startup.
-  seedConfigFromSchemas(deps.registry, deps.repo).catch(() => {
-    /* logged inside */
+  seedConfigFromSchemas(deps.registry, deps.repo).catch((e) => {
+    log.warn("app.seed_config_failed", { error: (e as Error).message });
   });
 
   // P1 SMTP 密码加密:启动期把历史明文密码原地加密 (一次性迁移,幂等)。

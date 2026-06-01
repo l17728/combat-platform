@@ -1454,6 +1454,30 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **教训**：seed/mock 脚本绝对不能生成伪造的用户反馈、审计日志、操作日志等业务数据。问题反馈是用户真实输入，填充假数据会误导开发和运维
 - **预防**：demo-seed 只生成结构性数据（人员、攻关单、贡献），不生成反馈类数据
 
+### L6. ensureTable 静默吞错 + DDL 括号 bug 导致功能完全不可用 (2026-06-01)
+
+- **现象**：知识库 wiki 功能部署后始终不可用，"标题必填"误报、"no such table: wiki_articles"
+- **根因**：4 个问题叠加：
+  1. `wiki.ts` ensureWikiTable DDL 有括号拼写错误 (`updated_at TEXT ... ${nowDefault}))`) 多了一个 `)`，SQL 执行失败
+  2. `wiki-router.ts` 中 `ensureWikiTable(adapter).catch(() => {})` 静默吞掉建表错误，进程启动无任何告警
+  3. `WikiPanel.tsx` 使用 `createForm.validateFields()` 在 Modal+`destroyOnClose` 组合下始终失败（Ant Design 已知问题），`e instanceof Error` 对 AntD 验证错误对象返回 false 导致错误被静默吞掉
+  4. `server.ts` 未对 `index.html` 设置 `Cache-Control: no-cache`，浏览器缓存旧版本 JS 导致修复不生效
+- **修复**：1) 修正 DDL 括号；2) `ensureWikiTable` 改为在 `createApp` 阶段 await 确保完成；3) WikiPanel 改用 `getFieldValue` 替代 `validateFields`；4) server.ts 对 index.html 添加 no-cache header
+- **教训**：
+  - **所有 `ensureTable().catch(() => {})` 必须改为 `.catch(e => log.warn(...))`** — 静默吞错是定时炸弹
+  - **DDL 修改后必须实际执行建表验证** — 不能只看代码觉得对
+  - **Modal+Form 组合永远不要用 `validateFields()`** — 改用 `getFieldValue()` 直接取值
+  - **SPA 必须对 `index.html` 设 `Cache-Control: no-cache`** — 否则用户永远加载旧 JS
+- **回归测试**：`test/wiki.test.ts` 16 个 CRUD 用例覆盖建表+API 全流程
+
+### L7. 新增功能的 Postgres DDL 必须同步补充 (2026-06-01)
+
+- **现象**：v2.5+ 新增的 wiki/webhooks/digest/invitations 表在 Postgres 模式下不存在
+- **根因**：各模块的 `ensureTable()` 只处理 SQLite 路径（`if (adapter.kind === "sqlite") return`），Postgres DDL 依赖 `db.ts` 的 `POSTGRES_SCHEMA_DDL`，但新增模块忘记同步追加
+- **修复**：在 `db.ts` Postgres DDL 中补齐 wiki_articles/invitations，在 webhooks.ts/digest.ts 中补充 Postgres DDL 路径，wiki.ts 的 ensureWikiTable 区分 `datetime('now')`/`now()::text`
+- **教训**：**每新增一个独立表的 ensureTable，必须同时检查 3 处**：① SQLite DDL ② Postgres DDL（db.ts）③ Postgres DDL（模块自身的 PG 路径）。三处缺一不可
+- **预防**：新模块建表的 checklist：SQLite ensureTable + db.ts POSTGRES_SCHEMA_DDL + 模块内 PG DDL（如自建）
+
 ## 安全 P0 修复 (2026-05-31)
 
 依据 `docs/REVIEWS/REVIEW_security.md`(OWASP 红蓝队评分 3/10)实施 P0 修复,
