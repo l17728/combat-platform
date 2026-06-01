@@ -593,17 +593,20 @@ export function makeHermesRouter(
       const requestedMode = parseMode(req.body?.mode ?? opts.defaultMode);
       const ticketIdHint = extractTicketIdHint(context);
       const startedAt = Date.now();
-      const sessionId = String(req.body?.sessionId ?? "").trim() || undefined;
+      const rawSessionId = String(req.body?.sessionId ?? "").trim() || undefined;
+      let effectiveSessionId = rawSessionId;
 
       let priorMessages: import("./hermes-agent.js").LlmMessage[] | undefined;
-      if (sessionId && opts.adapter) {
-        const session = await getSession(opts.adapter, sessionId);
+      if (effectiveSessionId && opts.adapter) {
+        const session = await getSession(opts.adapter, effectiveSessionId);
         if (session) {
-          const history = await loadRecentMessages(opts.adapter, sessionId);
+          const history = await loadRecentMessages(opts.adapter, effectiveSessionId);
           priorMessages = history.map((m) => ({
             role: m.role as "user" | "assistant",
             content: m.content,
           }));
+        } else {
+          effectiveSessionId = undefined;
         }
       }
 
@@ -641,13 +644,13 @@ export function makeHermesRouter(
           });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;
-          if (sessionId && opts.adapter) {
+          if (effectiveSessionId && opts.adapter) {
             const sa = opts.adapter;
-            await appendMessage(sa, sessionId, "user", q);
-            await appendMessage(sa, sessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
+            await appendMessage(sa, effectiveSessionId, "user", q);
+            await appendMessage(sa, effectiveSessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
             if (q.length <= 40) {
               try {
-                await updateSessionTitle(sa, sessionId, q);
+                await updateSessionTitle(sa, effectiveSessionId, q);
               } catch {}
             }
           }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip, theme } from "antd";
 import {
@@ -17,6 +17,18 @@ import { useDraggable } from "../hooks/useDraggable.js";
 import ToolTrace from "./ToolTrace.js";
 
 const { Text } = Typography;
+
+function ScrollAnchor({ onLayout }: { onLayout: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => onLayout());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [onLayout]);
+  return <div ref={ref} style={{ height: 0, overflow: "hidden" }} />;
+}
 
 interface Citation {
   nodeId: string;
@@ -67,15 +79,23 @@ export default function HermesChat({
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
   };
 
-  useEffect(() => {
+  const scrollToBottom = useRef<() => void>(() => {});
+  scrollToBottom.current = () => {
     if (!stickToBottomRef.current) return;
     const el = listRef.current;
     if (!el) return;
-    const raf = requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [msgs]);
+    el.scrollTop = el.scrollHeight;
+  };
+
+  const prevMsgCountRef = useRef(0);
+  useEffect(() => {
+    if (msgs.length > prevMsgCountRef.current) {
+      requestAnimationFrame(() => {
+        scrollToBottom.current();
+      });
+    }
+    prevMsgCountRef.current = msgs.length;
+  }, [msgs.length]);
 
   const ensureSession = async (): Promise<string | undefined> => {
     if (sessionId) return sessionId;
@@ -275,6 +295,7 @@ export default function HermesChat({
                   <Spin size="small" /> AI 正在分析知识库…(深度问答可能需要一会儿)
                 </div>
               )}
+              <ScrollAnchor onLayout={() => scrollToBottom.current()} />
             </div>
             <Input.TextArea
               value={q}
