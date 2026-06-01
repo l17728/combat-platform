@@ -143,6 +143,7 @@ export function createApp(deps: {
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
+    // P1 CSRF:同源 Origin/Referer 校验,挂在 auth 之后(只对已登录的写请求生效)。
     app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
   }

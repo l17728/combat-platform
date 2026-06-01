@@ -25,7 +25,6 @@ import { useSettings } from "../hooks/useSettings.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
 import { useNodeSchema, editableFieldsOf } from "../hooks/useSchema.js";
 import { SchemaFormBody } from "../components/SchemaField.js";
-import { useAuth } from "../hooks/useAuth.js";
 import type { GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -37,7 +36,6 @@ const { Title } = Typography;
 
 export default function Contributions() {
   const navigate = useNavigate();
-  const { isGuest } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   // v2.3.5: 视图切换器(table / pivot);默认 table
   const [view, setView] = useState<"table" | "pivot">(() => (searchParams.get("view") === "pivot" ? "pivot" : "table"));
@@ -295,27 +293,22 @@ export default function Contributions() {
       title: "操作",
       width: 100,
       fixed: "right" as const,
-      render: (_: unknown, r: GraphNode) =>
-        isGuest ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            —
-          </Typography.Text>
-        ) : (
-          <Space>
-            <a
-              onClick={() => {
-                setEditingNode(r);
-                editForm.setFieldsValue(r.properties as any);
-                setEditOpen(true);
-              }}
-            >
-              编辑
-            </a>
-            <Popconfirm title="确认删除此贡献？" onConfirm={() => handleDelete(r.id)}>
-              <a style={{ color: "#ff4d4f" }}>删除</a>
-            </Popconfirm>
-          </Space>
-        ),
+      render: (_: unknown, r: GraphNode) => (
+        <Space>
+          <a
+            onClick={() => {
+              setEditingNode(r);
+              editForm.setFieldsValue(r.properties as any);
+              setEditOpen(true);
+            }}
+          >
+            编辑
+          </a>
+          <Popconfirm title="确认删除此贡献？" onConfirm={() => handleDelete(r.id)}>
+            <a style={{ color: "#ff4d4f" }}>删除</a>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
@@ -389,27 +382,22 @@ export default function Contributions() {
       title: "操作",
       width: 100,
       fixed: "right" as const,
-      render: (_: unknown, r: GraphNode) =>
-        isGuest ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            —
-          </Typography.Text>
-        ) : (
-          <Space>
-            <a
-              onClick={() => {
-                setEditingTeam(r);
-                teamEditForm.setFieldsValue(r.properties as any);
-                setTeamEditOpen(true);
-              }}
-            >
-              编辑
-            </a>
-            <Popconfirm title="确认删除此团队贡献？" onConfirm={() => handleDeleteTeam(r.id)}>
-              <a style={{ color: "#ff4d4f" }}>删除</a>
-            </Popconfirm>
-          </Space>
-        ),
+      render: (_: unknown, r: GraphNode) => (
+        <Space>
+          <a
+            onClick={() => {
+              setEditingTeam(r);
+              teamEditForm.setFieldsValue(r.properties as any);
+              setTeamEditOpen(true);
+            }}
+          >
+            编辑
+          </a>
+          <Popconfirm title="确认删除此团队贡献？" onConfirm={() => handleDeleteTeam(r.id)}>
+            <a style={{ color: "#ff4d4f" }}>删除</a>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 

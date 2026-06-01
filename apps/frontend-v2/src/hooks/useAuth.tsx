@@ -5,11 +5,10 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<{ passwordMustChange: boolean }>;
-  guestLogin: () => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
   isLeader: boolean;
-  isGuest: boolean;
+  /** P1 强制改密:登录或 /auth/me 报告默认密未改时为 true,改密成功后清零 */
   passwordMustChange: boolean;
   clearPasswordMustChange: () => void;
 }
@@ -18,11 +17,9 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
   login: async () => ({ passwordMustChange: false }),
-  guestLogin: async () => {},
   logout: () => {},
   isAdmin: false,
   isLeader: false,
-  isGuest: false,
   passwordMustChange: false,
   clearPasswordMustChange: () => {},
 });
@@ -71,24 +68,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearPasswordMustChange = useCallback(() => setPasswordMustChange(false), []);
 
-  const guestLogin = useCallback(async () => {
-    const result = await api.guestLogin();
-    setAuthToken(result.token);
-    setStoredUser(result.user);
-    setUser(result.user);
-  }, []);
-
   return (
     <AuthContext.Provider
       value={{
         user,
         loading,
         login,
-        guestLogin,
         logout,
         isAdmin: user?.role === "admin",
         isLeader: user?.role === "leader" || user?.role === "admin",
-        isGuest: user?.role === "guest",
         passwordMustChange,
         clearPasswordMustChange,
       }}

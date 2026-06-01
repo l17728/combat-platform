@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Form, Input, Button, Card, Typography, message, Divider } from "antd";
-import { UserOutlined, LockOutlined, EyeOutlined } from "@ant-design/icons";
+import { Form, Input, Button, Card, Typography, message, Space } from "antd";
+import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -8,9 +8,8 @@ import { handleApiError } from "../utils/handleApiError.js";
 const { Title, Text } = Typography;
 
 export default function LoginPage() {
-  const { login, guestLogin } = useAuth();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [guestLoading, setGuestLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (values: { username: string; password: string }) => {
@@ -27,19 +26,6 @@ export default function LoginPage() {
       handleApiError(e, "登录失败");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGuest = async () => {
-    setGuestLoading(true);
-    try {
-      await guestLogin();
-      message.success("欢迎体验");
-      navigate("/", { replace: true });
-    } catch (e) {
-      handleApiError(e, "游客登录失败");
-    } finally {
-      setGuestLoading(false);
     }
   };
 
@@ -75,30 +61,11 @@ export default function LoginPage() {
           </Form.Item>
         </Form>
 
-        <Divider style={{ margin: "16px 0", color: "#999", fontSize: 12 }}>或</Divider>
-
-        <Button
-          icon={<EyeOutlined />}
-          onClick={handleGuest}
-          loading={guestLoading}
-          block
-          size="large"
-          style={{ marginBottom: 12 }}
-        >
-          游客体验
-        </Button>
-        <div style={{ textAlign: "center" }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            游客可浏览全部数据，新建和编辑自己的攻关单
-          </Text>
-        </div>
-
-        <Divider style={{ margin: "16px 0 8px" }} />
-        <div style={{ textAlign: "center" }}>
+        <Space direction="vertical" size={4} style={{ width: "100%", textAlign: "center" }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
             默认管理员: admin / admin123
           </Text>
-        </div>
+        </Space>
       </Card>
     </div>
   );
