@@ -78,7 +78,7 @@ if (existsSync(frontendDist)) {
           res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.setHeader("Pragma", "no-cache");
           res.setHeader("Expires", "0");
-        } else if (/\.[\w]{6,}\.(js|css|woff2?|svg|png|jpg)$/.test(path)) {
+        } else if (/-[A-Za-z0-9_-]{6,}\.(js|css|woff2?|svg|png|jpg)$/.test(path)) {
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
       },
