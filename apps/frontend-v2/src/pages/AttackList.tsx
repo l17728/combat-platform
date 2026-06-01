@@ -148,6 +148,18 @@ export default function AttackList() {
       const [nodeList, schemaData] = await Promise.all([api.listNodes("attackTicket"), api.getSchema("attackTicket")]);
       setNodes(nodeList);
       setSchema(schemaData);
+      // 清理已不存在的关注 id（ticket 被删除后 localStorage 残留）
+      if (favorites.size > 0 && nodeList.length > 0) {
+        const existingIds = new Set(nodeList.map((n: GraphNode) => n.id));
+        const stale = [...favorites].filter((id) => !existingIds.has(id));
+        if (stale.length > 0) {
+          setFavorites((prev) => {
+            const next = new Set(prev);
+            for (const s of stale) next.delete(s);
+            return next;
+          });
+        }
+      }
     } catch (e) {
       handleApiError(e, "加载攻关单列表失败");
     } finally {
@@ -192,6 +204,8 @@ export default function AttackList() {
     }
     return [...seen].sort();
   }, [filterField, nodes]);
+
+  const favoriteCount = useMemo(() => nodes.filter((n) => favorites.has(n.id)).length, [nodes, favorites]);
 
   const filteredNodes = useMemo(() => {
     let result = activeTab === "favorites" ? nodes.filter((n) => favorites.has(n.id)) : nodes;
@@ -545,7 +559,7 @@ export default function AttackList() {
               key: "favorites",
               label: (
                 <span>
-                  <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favorites.size > 0 ? ` (${favorites.size})` : ""}
+                  <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favoriteCount > 0 ? ` (${favoriteCount})` : ""}
                 </span>
               ),
             },

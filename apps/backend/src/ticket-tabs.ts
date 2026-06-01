@@ -6,7 +6,7 @@ import type { DbAdapter } from "./db-adapter.js";
 export interface TicketTab {
   id: string;
   ticketId: string;
-  tabType: "link" | "custom";
+  tabType: "link" | "custom" | "wiki";
   title: string;
   tabOrder: number;
   config: string;
@@ -17,13 +17,13 @@ export interface TicketTab {
 }
 
 export function ensureTicketTabsTable(adapter: DbAdapter): void {
-  // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
   if (adapter.kind !== "sqlite") return;
-  adapter.rawSqlite().exec(`
+  const db = adapter.rawSqlite();
+  db.exec(`
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
-      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
+      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
       title TEXT NOT NULL,
       tab_order INTEGER NOT NULL DEFAULT 0,
       config TEXT NOT NULL DEFAULT '{}',
@@ -34,6 +34,33 @@ export function ensureTicketTabsTable(adapter: DbAdapter): void {
     );
     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
   `);
+  // Migrate: if table was created with old CHECK(link,custom), widen to include 'wiki'.
+  const ck = db.pragma("table_info(ticket_tabs)", { simple: false }) as { name: string }[];
+  if (ck.length === 0) return;
+  const schemaRow = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='ticket_tabs'").get() as
+    | { sql: string }
+    | undefined;
+  if (schemaRow?.sql && !schemaRow.sql.includes("'wiki'")) {
+    db.exec(`
+      CREATE TABLE ticket_tabs_new (
+        id TEXT PRIMARY KEY,
+        ticket_id TEXT NOT NULL,
+        tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
+        title TEXT NOT NULL,
+        tab_order INTEGER NOT NULL DEFAULT 0,
+        config TEXT NOT NULL DEFAULT '{}',
+        content TEXT NOT NULL DEFAULT '',
+        created_by TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO ticket_tabs_new SELECT * FROM ticket_tabs;
+      DROP TABLE ticket_tabs;
+      ALTER TABLE ticket_tabs_new RENAME TO ticket_tabs;
+      CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+    `);
+    log.info("ticket_tabs.migrate", { action: "add_wiki_check_constraint" });
+  }
 }
 
 function rowToTab(r: any): TicketTab {
@@ -76,8 +103,8 @@ export function makeTicketTabsRouter(adapter: DbAdapter): Router {
         config?: any;
         content?: string;
       };
-      if (!tabType || !["link", "custom"].includes(tabType)) {
-        return res.status(400).json({ error: "tabType 必须为 link 或 custom" });
+      if (!tabType || !["link", "custom", "wiki"].includes(tabType)) {
+        return res.status(400).json({ error: "tabType 必须为 link、custom 或 wiki" });
       }
       if (!title?.trim()) {
         return res.status(400).json({ error: "title 不能为空" });

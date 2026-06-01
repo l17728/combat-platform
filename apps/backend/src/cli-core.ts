@@ -1285,7 +1285,8 @@ export const COMMANDS: CliCommand[] = [
     build: (pos, opts) => {
       requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom> --title <名>");
       const tabType = str(opts.type);
-      if (!tabType || !["link", "custom"].includes(tabType)) throw new Error("--type 必须为 link 或 custom");
+      if (!tabType || !["link", "custom", "wiki"].includes(tabType))
+        throw new Error("--type 必须为 link、custom 或 wiki");
       const title = str(opts.title);
       if (!title) throw new Error("缺少 --title");
       const body: Record<string, unknown> = { tabType, title };

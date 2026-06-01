@@ -271,6 +271,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       <Modal
         title="新建知识库文章"
         open={createOpen}
+        destroyOnClose
         onCancel={() => {
           setCreateOpen(false);
           createForm.resetFields();
@@ -301,6 +302,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       <Modal
         title="编辑文章"
         open={editOpen}
+        destroyOnClose
         onCancel={() => setEditOpen(false)}
         onOk={handleSave}
         okText="保存"
