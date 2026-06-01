@@ -69,7 +69,20 @@ export async function ensureWebhooksTable(adapter: DbAdapter): Promise<void> {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
+    return;
   }
+  await adapter.run(`
+    CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT '[]',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (now()::text),
+      updated_at TEXT NOT NULL DEFAULT (now()::text)
+    )
+  `);
 }
 
 export class WebhooksRepo {

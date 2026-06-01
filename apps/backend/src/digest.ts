@@ -49,7 +49,22 @@ export async function ensureDigestTable(adapter: DbAdapter): Promise<void> {
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
+    return;
   }
+  await adapter.run(`
+    CREATE TABLE IF NOT EXISTS digest_config (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      enabled INTEGER NOT NULL DEFAULT 0,
+      frequency TEXT NOT NULL DEFAULT 'daily',
+      recipients TEXT NOT NULL DEFAULT '[]',
+      include_stats INTEGER NOT NULL DEFAULT 1,
+      include_new_tickets INTEGER NOT NULL DEFAULT 1,
+      include_transitions INTEGER NOT NULL DEFAULT 1,
+      include_contributions INTEGER NOT NULL DEFAULT 1,
+      last_sent_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT (now()::text)
+    )
+  `);
 }
 
 export class DigestRepo {
