@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Tour } from "antd";
 import type { TourProps } from "antd";
 
@@ -37,7 +37,26 @@ export default function ProductTour({ tourId, steps }: ProductTourProps) {
   const completed = isTourCompleted(tourId);
   const [open, setOpen] = useState(!completed);
 
-  if (!open) return null;
+  const validSteps = useMemo(() => {
+    if (!steps) return [];
+    return steps.filter((step) => {
+      if (!step.target) return true;
+      try {
+        const target = step.target;
+        const el = typeof target === "function" ? target() : target;
+        return el != null;
+      } catch {
+        return false;
+      }
+    });
+  }, [steps]);
+
+  if (!open || validSteps.length === 0) {
+    if (open && validSteps.length === 0) {
+      markTourCompleted(tourId);
+    }
+    return null;
+  }
 
   return (
     <Tour
@@ -50,7 +69,7 @@ export default function ProductTour({ tourId, steps }: ProductTourProps) {
         markTourCompleted(tourId);
         setOpen(false);
       }}
-      steps={steps}
+      steps={validSteps}
     />
   );
 }

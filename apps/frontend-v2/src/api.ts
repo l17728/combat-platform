@@ -379,6 +379,9 @@ export class Api {
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = { ...((init.headers as Record<string, string>) ?? {}) };
+    if (init.body && !headers["content-type"] && !headers["Content-Type"]) {
+      headers["content-type"] = "application/json";
+    }
     const token = this.getToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
