@@ -86,42 +86,38 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   }, [fetchData]);
 
   const handleCreate = async () => {
+    const title = createForm.getFieldValue("title")?.trim();
+    if (!title) {
+      createForm.validateFields(["title"]).catch(() => {});
+      return;
+    }
     try {
-      const values = await createForm.validateFields();
-      const title = values.title?.trim();
-      if (!title) {
-        message.warning("请输入标题");
-        return;
-      }
       await api.createWiki({ scope, scopeId, title, content: createContent });
       message.success("创建成功");
       setCreateOpen(false);
       createForm.resetFields();
       setCreateContent("");
       fetchData(true);
-    } catch (e: any) {
-      if (e?.errorFields) return;
+    } catch (e) {
       handleApiError(e);
     }
   };
 
   const handleSave = async () => {
     if (!selected) return;
+    const title = editForm.getFieldValue("title")?.trim();
+    if (!title) {
+      editForm.validateFields(["title"]).catch(() => {});
+      return;
+    }
     try {
-      const values = await editForm.validateFields();
-      const title = values.title?.trim();
-      if (!title) {
-        message.warning("请输入标题");
-        return;
-      }
       await api.updateWiki(selected.id, { title, content: editContent });
       message.success("保存成功");
       setEditOpen(false);
       fetchData(true);
       const updated = await api.getWiki(selected.id);
       setSelected(updated);
-    } catch (e: any) {
-      if (e?.errorFields) return;
+    } catch (e) {
       handleApiError(e);
     }
   };

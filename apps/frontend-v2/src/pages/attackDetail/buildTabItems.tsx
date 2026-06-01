@@ -225,7 +225,7 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
   const dynamicTabItems = a.dynamicTabs.map((tab) => ({
     key: tab.id,
     label: (
-      <span style={tab.tabType === "custom" && tab.title === "信息广场" ? { color: "#999" } : undefined}>
+      <span>
         {tab.tabType === "link" ? <LinkOutlined /> : tab.tabType === "wiki" ? <BookOutlined /> : <FileTextOutlined />}{" "}
         {tab.title}
       </span>
