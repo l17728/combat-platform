@@ -19,7 +19,9 @@ async function makeApp() {
 }
 
 function insertProgressAt(db: any, ownerId: string, seqNo: number, content: string, status: string, at: string) {
-  db.prepare(`INSERT INTO progress_log VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`).run({
+  db.prepare(
+    `INSERT INTO progress_log (id, ownerId, seqNo, content, statusSnapshot, updatedBy, updatedAt) VALUES (@id,@ownerId,@seqNo,@content,@s,@by,@at)`
+  ).run({
     id: `pr-${ownerId}-${seqNo}`,
     ownerId,
     seqNo,

@@ -55,6 +55,7 @@ import { makeInvitationRouter } from "./invitation-router.js";
 import { makeWikiRouter } from "./wiki-router.js";
 import { makeOpenApiRouter } from "./openapi-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
+import { SAAS_MODE, tenantMiddleware, ensureDefaultTenant } from "./tenant-middleware.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
 import { ensureLlmSettingsTable, getLlmSettings, resolveLlmSecret } from "./llm-settings.js";
@@ -143,7 +144,12 @@ export function createApp(deps: {
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
-    // P1 CSRF:同源 Origin/Referer 校验,挂在 auth 之后(只对已登录的写请求生效)。
+    if (SAAS_MODE) {
+      app.use("/api", tenantMiddleware);
+      ensureDefaultTenant(adapter).catch((e) =>
+        log.warn("tenant.ensure_default_failed", { error: (e as Error).message })
+      );
+    }
     app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
   }

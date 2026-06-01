@@ -1672,6 +1672,7 @@ export interface AuthUser {
   username: string;
   role: string;
   displayName: string;
+  tenantId: string;
   tourCompleted: string[];
   createdAt: string;
   updatedAt: string;

@@ -50,6 +50,7 @@ export interface AuthUser {
   username: string;
   role: string;
   displayName: string;
+  tenantId: string;
   tourCompleted: string[];
   createdAt: string;
   updatedAt: string;
@@ -59,16 +60,11 @@ export interface JwtPayload {
   userId: string;
   username: string;
   role: string;
+  tenantId: string;
 }
 
-/**
- * Mint a short-lived service token for the local Hermes agent (opencode) so its
- * read-only tools can call the authenticated API on localhost. Read-only is
- * enforced at the tool layer (only GET wrappers) + agent permissions, not by
- * the token role; the token only satisfies authMiddleware.
- */
 export function signServiceToken(): string {
-  const payload: JwtPayload = { userId: "hermes-agent", username: "hermes-agent", role: "admin" };
+  const payload: JwtPayload = { userId: "hermes-agent", username: "hermes-agent", role: "admin", tenantId: "system" };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "365d" });
 }
 
@@ -82,6 +78,7 @@ function toUser(r: any): AuthUser {
     username: r.username,
     role: r.role,
     displayName: r.display_name,
+    tenantId: r.tenant_id || "default",
     tourCompleted,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -124,7 +121,12 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       if (!bcrypt.compareSync(password, row.password_hash)) {
         return res.status(401).json({ error: "用户名或密码错误" });
       }
-      const payload: JwtPayload = { userId: row.id, username: row.username, role: row.role };
+      const payload: JwtPayload = {
+        userId: row.id,
+        username: row.username,
+        role: row.role,
+        tenantId: row.tenant_id || "default",
+      };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
       log.info("auth.login", { username, role: row.role });
       // P1 强制改密:默认管理员 admin/admin123 必须改完密才能继续业务流。
@@ -188,7 +190,7 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       }
 
       log.info("auth.register", { username, role: userRole, invited: !!inviteCode });
-      const payload: JwtPayload = { userId: id, username, role: userRole };
+      const payload: JwtPayload = { userId: id, username, role: userRole, tenantId: "default" };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
       const user = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
       res.status(201).json({ token, user: toUser(user) });
@@ -414,7 +416,7 @@ export function verifyAuth(req: { headers: Record<string, unknown> }): JwtPayloa
 
 function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | null {
   if (process.env.COMBAT_NO_AUTH === "1") {
-    return { userId: "no-auth-admin", username: "admin", role: "admin" };
+    return { userId: "no-auth-admin", username: "admin", role: "admin", tenantId: "default" };
   }
   const payload = verifyAuth(req);
   if (!payload) return null;

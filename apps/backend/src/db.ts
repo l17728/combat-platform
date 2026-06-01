@@ -101,6 +101,36 @@ function migrateSqlite(db: Database.Database): void {
   if (!cols.some((c) => c.name === "tour_completed")) {
     db.exec("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
   }
+  if (!cols.some((c) => c.name === "tenant_id")) {
+    const saasTables = [
+      "users",
+      "nodes",
+      "edges",
+      "progress_log",
+      "audit_log",
+      "wiki_articles",
+      "bug_reports",
+      "help_requests",
+      "ticket_tabs",
+      "support_node",
+      "webhook_subscriptions",
+      "digest_config",
+      "invitations",
+      "op_logs",
+      "app_settings",
+      "ticket_tab_dynamic",
+    ];
+    for (const table of saasTables) {
+      try {
+        const tableCols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+        if (!tableCols.some((c) => c.name === "tenant_id")) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+        }
+      } catch {
+        // table may not exist yet (e.g. wiki_articles in old DBs)
+      }
+    }
+  }
 }
 
 /**
@@ -250,6 +280,17 @@ const SQLITE_SCHEMA_DDL = `
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      max_users INTEGER NOT NULL DEFAULT 50,
+      settings TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
@@ -393,6 +434,17 @@ const POSTGRES_SCHEMA_DDL = `
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      max_users INTEGER NOT NULL DEFAULT 50,
+      settings TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
@@ -537,6 +589,34 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
     );
     if (rows.length === 0) {
       await client.query("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+    }
+    const { rows: tenantCols } = await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tenant_id'"
+    );
+    if (tenantCols.length === 0) {
+      const saasTables = [
+        "users",
+        "nodes",
+        "edges",
+        "progress_log",
+        "audit_log",
+        "wiki_articles",
+        "bug_reports",
+        "help_requests",
+        "ticket_tabs",
+        "support_node",
+        "webhook_subscriptions",
+        "digest_config",
+        "invitations",
+        "op_logs",
+        "app_settings",
+        "ticket_tab_dynamic",
+      ];
+      for (const table of saasTables) {
+        await client
+          .query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`)
+          .catch(() => {});
+      }
     }
   } finally {
     client.release();
