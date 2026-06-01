@@ -1,6 +1,6 @@
 {
   "name": "@combat/backend",
-  "version": "0.0.0",
+  "version": "2.3.10",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",

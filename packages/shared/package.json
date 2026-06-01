@@ -1,6 +1,6 @@
 {
   "name": "@combat/shared",
-  "version": "0.0.0",
+  "version": "2.3.10",
   "type": "module",
   "main": "dist/index.js",
   "types": "src/index.ts",

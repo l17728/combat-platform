@@ -912,9 +912,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-06-01 v2.12.0 — 知识库 + API文档 + Code-split)
+### 当前测试状态(2026-06-01 v2.3.10 — 知识库 + API文档 + Code-split)
 
-**v2.12.0 = v2.11.0 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
+**v2.3.10 = v2.3.9 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
@@ -936,9 +936,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **OpenAPI 静态 spec** — 手工维护的 spec 对象，覆盖 50+ 端点、10 个标签分组；Swagger UI CDN 加载，自动携带 JWT token
 3. **Code-splitting** — React.lazy + Suspense 包裹整个 Routes，LoginPage/ErrorBoundary 保持 eager load；PageLoader 统一 loading 态
 
-### 当前测试状态(2026-06-01 v2.11.0 — 邮件增强 + 邀请管理 + 运营大屏)
+### 当前测试状态(2026-06-01 v2.3.9 — 邮件增强 + 邀请管理 + 运营大屏)
 
-**v2.11.0 = v2.10.0 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
+**v2.3.9 = v2.3.8 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
@@ -964,9 +964,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **HTML 邮件模板** — 内联 CSS 样式（不依赖外部样式表），渐变头部 + 表格 + 统计卡片，兼容主流邮件客户端
 3. **大屏独立页面** — 不依赖 Ant Design 组件，纯 CSS Grid 布局，深色主题，每 30 秒自动刷新，Fullscreen API 投屏
 
-### 当前测试状态(2026-06-01 v2.10.0 — Webhook + 邮件摘要 + 内联字段)
+### 当前测试状态(2026-06-01 v2.3.8 — Webhook + 邮件摘要 + 内联字段)
 
-**v2.10.0 = v2.9.0 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
+**v2.3.8 = v2.3.7 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
 
 - 后端 vitest **768/768 全绿**（100 文件）
 - shared vitest **28/28 全绿**
@@ -983,7 +983,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 新增前端 `DigestSettings.tsx`（配置 + 预览 + 手动发送）
 - `AttackBasicInfoTab.tsx` 增加「添加字段」按钮 + Modal（字段类型/分组/枚举配置中心绑定）
 - `AppLayout.tsx` 侧边栏增加 Webhook 订阅 + 邮件摘要菜单（admin only）
-- `help-content.ts` 追加 v2.11.0 release notes + webhookSettings/digestSettings 帮助页
+- `help-content.ts` 追加 v2.3.9 release notes + webhookSettings/digestSettings 帮助页
 
 **关键设计决定**:
 
@@ -991,9 +991,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **Digest 定时检查** — 每小时检查 lastSentAt，daily 按天去重、weekly 按 7 天间隔
 3. **内联字段与 SchemaWizard 联动** — AttackBasicInfoTab 通过 `api.addSchemaField()` 直接写 schema，`fetchSchema()` 刷新后新字段立即出现
 
-### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+### 当前测试状态(2026-06-01 v2.3.5 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
 
-**v2.7.0 = v2.6.0 + 三桶(r-hermes-polish / r-schema-all / r-views)**
+**v2.3.5 = v2.3.4 + 三桶(r-hermes-polish / r-schema-all / r-views)**
 
 - 后端 vitest **~755/755 全绿**(集成阶段汇总;含 hermes-polish 17 + schema-all 25 + golden set 15/15)
 - shared vitest **28/28 全绿**
@@ -1002,7 +1002,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **现网 LLM 端到端 golden set 真跑预期 15/15**(Q7 prompt 修复 → 审计类问题自动调 get_audit)
 - 现网部署 `124.156.193.122:3001` (待 deploy)
 - systemd drop-in 自愈机制就位: deploy-direct.mjs 自动检测多 .conf 设同 env key,新覆盖旧并备份;`--keep-old-drop-ins` 关闭
-- 文档:help-content 顶部追加 v2.7.0 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
+- 文档:help-content 顶部追加 v2.3.5 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
 
 **关键设计决定**:
 
@@ -1011,9 +1011,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 3. **HTML5 native DnD** — Kanban 用浏览器原生拖拽 + 卡片底部 Select 降级,无新依赖
 4. **glm-4-flash 默认** — 智谱免费层 + thinking disabled,零成本 + 0.5-3s/题
 
-### 当前测试状态(2026-05-31 v2.6.0 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
+### 当前测试状态(2026-05-31 v2.3.4 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
 
-**v2.6.0 = v2.5.0 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**
+**v2.3.4 = v2.3.3 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**
 
 - 后端 vitest **715/715 全绿**(96 文件)
 - shared vitest **28/28 全绿**
@@ -1022,7 +1022,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **现网 LLM 端到端 golden set 真跑**: **14/15 通过**(门槛 12/15) — model=`glm-4-flash`(智谱免费层 OpenAI 兼容),"有多少员工" → tool=count_nodes → answer="共有22名员工",平均 1-4s/题
 - 现网部署 `124.156.193.122:3001` active running、`977c543` 落地
 - systemd drop-in `hermes-llm.conf` 注入: `HERMES_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4`(智谱) + `HERMES_LLM_API_KEY`(zhipu key) + `HERMES_MODEL=glm-4-flash` + `HERMES_THINKING=disabled`;旧 hermes.conf / hermes-mode.conf 已删
-- 文档:help-content 顶部追加 v2.6.0 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
+- 文档:help-content 顶部追加 v2.3.4 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
 - Playwright 现网截图 `test-results/v2.6-trace.png` 留档
 
 **关键教训(v2.6 → v2.7)**:
@@ -1031,9 +1031,9 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 2. **provider key 的资源限额是隐式的** — zhipuai-coding-plan key 在 zhipu OpenAI 兼容 endpoint 上可访问 glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1 但都需余额(1113);唯独 `glm-4-flash` / `glm-4-flash-250414` 免费层可用。线上选 model 一定要先用 `GET /api/paas/v4/models` 列表 + 小请求实测,避免上线后 401/1113 才发现
 3. UI 配置后端的"测试连接"endpoint 必须支持 env-fallback(如果 admin 没存 DB 就直接走 env 实测);当前 router 仅看 body + DB,部分场景误报"缺 baseUrl"
 
-### 当前测试状态(2026-05-31 v2.4.1 hot-fix — React #310 + AI 抖动)
+### 当前测试状态(2026-05-31 v2.3.2 hot-fix — React #310 + AI 抖动)
 
-**v2.4.1 = v2.4.0(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
+**v2.3.2 = v2.3.1(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
 
 - 后端 vitest **575/575 全绿**(86 文件:v2.3 baseline 536 + harden 12 + resilience 17 + upgrade-real 8 + Sentry 2)
 - shared vitest **28/28 全绿**
@@ -1041,10 +1041,10 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 三端 `npx tsc --noEmit` 0 错
 - Playwright 现网 e2e probe `/attack/<id>` 完整渲染、0 console error
 - 现网部署 `124.156.193.122:3001` active running、`f4af74f` 落地
-- 文档:`help-content.ts` 顶部追加 v2.4.1 release notes + 受影响页面(attackDetail / contributions)末尾追加修复说明;`docs/OBSERVABILITY.md` 已交付(Sentry);`docs/UPGRADE.md` 追加 v2.4+ JWT_SECRET drop-in 修复步骤;`docs/V2.5_DESIGN.md` 已起草(14 工具 / 4 桶 / 15 题评测 golden set)
+- 文档:`help-content.ts` 顶部追加 v2.3.2 release notes + 受影响页面(attackDetail / contributions)末尾追加修复说明;`docs/OBSERVABILITY.md` 已交付(Sentry);`docs/UPGRADE.md` 追加 v2.4+ JWT_SECRET drop-in 修复步骤;`docs/V2.5_DESIGN.md` 已起草(14 工具 / 4 桶 / 15 题评测 golden set)
 - 在线 bug 关闭:`de1bf88e` AI 抖动 status=已解决
 
-**v2.4 → v2.4.1 关键教训**:Hooks 规则不可妥协。子 hook(useAttackDetailHandlers)内新增/删除 useState 等价于父组件 hooks 数量变化;**任何 hook 必须固定调用在所有 early return 之前**。重构 hook 抽取时尤其要复核——把 useState 收到子 hook 不意味着可以放到 conditional 分支后。回归防护:Playwright probe `/attack/<id>` 加入 e2e baseline。
+**v2.4 → v2.3.2 关键教训**:Hooks 规则不可妥协。子 hook(useAttackDetailHandlers)内新增/删除 useState 等价于父组件 hooks 数量变化;**任何 hook 必须固定调用在所有 early return 之前**。重构 hook 抽取时尤其要复核——把 useState 收到子 hook 不意味着可以放到 conditional 分支后。回归防护:Playwright probe `/attack/<id>` 加入 e2e baseline。
 
 ### 当前测试状态(2026-05-31 v2.3.0 整合 — v2.2.0 master 合并到 upgrade-ui 分支)
 

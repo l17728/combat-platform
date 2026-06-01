@@ -18,6 +18,8 @@ import {
 } from "antd";
 import { DatabaseOutlined, CheckCircleOutlined, WarningOutlined, ApiOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { useAuth } from "../hooks/useAuth.js";
 
 const { Title, Text, Paragraph } = Typography;
@@ -124,9 +126,12 @@ export default function DbMigration() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>
-        <DatabaseOutlined /> 数据库迁移 (SQLite → Postgres)
-      </Title>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          <DatabaseOutlined /> 数据库迁移 (SQLite → Postgres)
+        </Title>
+        <HelpButton title={HELP.dbMigration.title} content={HELP.dbMigration.content} />
+      </div>
 
       <Alert
         type="info"

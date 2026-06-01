@@ -33,6 +33,8 @@ import {
   CloudDownloadOutlined,
 } from "@ant-design/icons";
 import { api } from "../api.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { useAuth } from "../hooks/useAuth.js";
 
 const { Title, Text, Paragraph } = Typography;
@@ -343,9 +345,12 @@ export default function SystemUpgrade() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          系统升级
-        </Title>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            系统升级
+          </Title>
+          <HelpButton title={HELP.systemUpgrade.title} content={HELP.systemUpgrade.content} />
+        </div>
         <Space>
           <Button
             icon={<ReloadOutlined />}

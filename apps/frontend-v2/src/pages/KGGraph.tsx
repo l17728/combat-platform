@@ -27,6 +27,8 @@ import { api } from "../api.js";
 import type { GraphSnapshot, GraphNode } from "@combat/shared";
 import { NODE_TYPE_LABEL } from "../constants.js";
 import { nodeLabel, detailPath } from "../utils/nodeLabel.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
@@ -361,9 +363,12 @@ export default function KGGraph() {
           gap: 8,
         }}
       >
-        <Title level={4} style={{ margin: 0 }}>
-          知识图谱
-        </Title>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            知识图谱
+          </Title>
+          <HelpButton title={HELP.kgGraph.title} content={HELP.kgGraph.content} />
+        </div>
         <Space wrap>
           <Select
             mode="multiple"

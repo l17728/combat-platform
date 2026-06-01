@@ -21,6 +21,8 @@ import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT_FULL } from "../constants.js"
 import { setEnabled, isEnabled } from "../utils/op-logger.js";
 import { useAuth } from "../hooks/useAuth.js";
 import dayjs from "dayjs";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
@@ -188,9 +190,12 @@ export default function OperationLog() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          操作追踪
-        </Title>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            操作追踪
+          </Title>
+          <HelpButton title={HELP.operationLog.title} content={HELP.operationLog.content} />
+        </div>
         <Space>
           {isAdmin && (
             <Space size={4}>
