@@ -28,7 +28,7 @@ export async function ensureWikiTable(adapter: DbAdapter): Promise<void> {
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_by TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT ${nowDefault},
-      updated_at TEXT NOT NULL DEFAULT ${nowDefault})
+      updated_at TEXT NOT NULL DEFAULT ${nowDefault}
     )
   `);
   await adapter.run(`CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id)`);

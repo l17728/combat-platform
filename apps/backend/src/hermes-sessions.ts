@@ -90,6 +90,7 @@ export async function createSession(adapter: DbAdapter, userId: string, title?: 
     now,
     now,
   ]);
+  log.info("hermes.session_created", { id, userId, title: row.title });
   return row;
 }
 
@@ -110,6 +111,7 @@ export async function deleteSession(adapter: DbAdapter, sessionId: string): Prom
   await ensureTable(adapter);
   await adapter.run(`DELETE FROM hermes_messages WHERE sessionId = ?`, [sessionId]);
   const r = await adapter.run(`DELETE FROM hermes_sessions WHERE id = ?`, [sessionId]);
+  if (r.changes > 0) log.info("hermes.session_deleted", { sessionId });
   return r.changes > 0;
 }
 
