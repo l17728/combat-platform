@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from "react";
 import {
   Typography,
   Button,
@@ -26,6 +27,8 @@ import {
   AppstoreOutlined,
   LockOutlined,
   UnlockOutlined,
+  StarOutlined,
+  StarFilled,
 } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import HelpButton from "../../components/HelpButton.js";
@@ -90,6 +93,29 @@ export default function AttackDetailHeader(props: AttackDetailHeaderProps) {
   const title = String(p["标题"] ?? id.slice(0, 8));
   const currentStep = getStatusStepIndex(status);
 
+  const favKey = `combat-attack-favorites:${authUsername || "guest"}`;
+  const [favorited, setFavorited] = useState(false);
+
+  useEffect(() => {
+    try {
+      const list: string[] = JSON.parse(localStorage.getItem(favKey) || "[]");
+      setFavorited(list.includes(id));
+    } catch {
+      setFavorited(false);
+    }
+  }, [id, favKey]);
+
+  const toggleFavorite = useCallback(() => {
+    setFavorited((prev) => {
+      try {
+        const list: string[] = JSON.parse(localStorage.getItem(favKey) || "[]");
+        const next = prev ? list.filter((x) => x !== id) : [...list, id];
+        localStorage.setItem(favKey, JSON.stringify(next));
+      } catch {}
+      return !prev;
+    });
+  }, [id, favKey]);
+
   const missingFields =
     schema?.fields.filter((f: FieldSchema) => !f.retired && f.required && !p[f.name]?.toString().trim()) ?? [];
 
@@ -134,6 +160,20 @@ export default function AttackDetailHeader(props: AttackDetailHeaderProps) {
       >
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Tooltip title={favorited ? "取消关注" : "关注"}>
+              <Button
+                type="text"
+                size="large"
+                onClick={toggleFavorite}
+                icon={
+                  favorited ? (
+                    <StarFilled style={{ color: "#fadb14", fontSize: 20 }} />
+                  ) : (
+                    <StarOutlined style={{ color: "#bfbfbf", fontSize: 20 }} />
+                  )
+                }
+              />
+            </Tooltip>
             <Title level={4} style={{ margin: 0 }}>
               {isPrivate && (
                 <Tooltip title="私密攻关单 — 仅创建人/成员/授权人可访问">
