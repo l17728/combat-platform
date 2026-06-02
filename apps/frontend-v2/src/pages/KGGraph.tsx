@@ -53,14 +53,22 @@ const TYPE_COLORS: Record<string, string> = {
   weightFile: "#a0d911",
 };
 
+const EDGE_COLORS: Record<string, string> = {
+  分配: "#1677ff",
+  关联: "#722ed1",
+  冲突: "#cf1322",
+  重叠: "#fa8c16",
+  上报: "#eb2f96",
+  处理: "#13c2c2",
+};
+
 const EDGE_LABELS: Record<string, string> = {
-  ASSIGNED_TO: "负责",
-  CONTRIBUTED_TO: "贡献于",
-  REF: "引用",
-  ANCHORED_TO: "锚定",
-  CONFLICTS_WITH: "冲突",
-  OVERLAPS_WITH: "重叠",
-  SAME_AS: "同一",
+  分配: "分配",
+  关联: "关联",
+  冲突: "冲突",
+  重叠: "重叠",
+  上报: "上报",
+  处理: "处理",
 };
 
 function toG6(snapshot: GraphSnapshot) {
@@ -93,7 +101,9 @@ export default function KGGraph() {
   const [presentTypes, setPresentTypes] = useState<string[]>([]); // 当前图中实际存在的节点类型
   const [presentEdgeTypes, setPresentEdgeTypes] = useState<string[]>([]); // 当前图中实际存在的边类型
   const [edgeTypeFilter, setEdgeTypeFilter] = useState<string[]>([]); // 已隐藏的边类型(空=全显)
+  const [nodeTypeFilter, setNodeTypeFilter] = useState<string[]>([]); // 已隐藏的节点类型
   const [layoutType, setLayoutType] = useState<"d3-force" | "dagre" | "radial">("d3-force");
+  const [tooltipInfo, setTooltipInfo] = useState<{ x: number; y: number; text: string } | null>(null);
   const [detailNode, setDetailNode] = useState<GraphNode | null>(null);
   const [detailNodeType, setDetailNodeType] = useState<string>("");
   const [detailLoading, setDetailLoading] = useState(false);
@@ -226,6 +236,21 @@ export default function KGGraph() {
     }
   }, []);
 
+  // 节点类型筛选:隐藏 hidden 集合里的节点(及其相连边)
+  const applyNodeTypeFilter = useCallback((graph: Graph, hidden: string[]) => {
+    if (graph.destroyed) return;
+    try {
+      const hideSet = new Set(hidden);
+      const nodes = graph.getNodeData() as any[];
+      for (const n of nodes) {
+        const t = n?.data?.nodeType;
+        graph.setElementVisibility(n.id, hideSet.has(t) ? "hidden" : "visible");
+      }
+    } catch (err) {
+      /* ignore */
+    }
+  }, []);
+
   // 切换布局
   const switchLayout = useCallback(async (graph: Graph, type: "d3-force" | "dagre" | "radial") => {
     if (graph.destroyed) return;
@@ -296,11 +321,9 @@ export default function KGGraph() {
       },
       edge: {
         style: {
-          stroke: "#bfbfbf",
+          stroke: (d: any) => EDGE_COLORS[d?.data?.edgeType] ?? "#bfbfbf",
           endArrow: true,
-          labelText: (d: any) => EDGE_LABELS[d?.data?.edgeType] ?? String(d?.data?.edgeType ?? ""),
-          labelFontSize: 9,
-          labelFill: "#999",
+          lineWidth: 1.5,
         },
       },
       behaviors: ["zoom-canvas", "drag-canvas", "drag-element", "hover-activate"],
@@ -330,10 +353,17 @@ export default function KGGraph() {
       const nd = graph.getNodeData(id) as any;
       const nodeType = nd?.data?.nodeType;
       const to = nodeType === "attackTicket" ? `/attack/${id}` : nodeType ? `/related/${nodeType}/${id}` : "";
-      // 推迟到 g6 事件分发结束之后再导航,避免组件卸载→graph.destroy() 在 g6 内部
-      // 仍在处理双击(transform)时抽走 graph,导致 getTransformInstance 空引用崩溃。
       if (to) setTimeout(() => navRef.current(to), 0);
     });
+    graph.on("edge:mouseenter", (e: any) => {
+      const edgeId = e?.target?.id;
+      if (!edgeId) return;
+      const edgeData = graph.getEdgeData(edgeId) as any;
+      const et = edgeData?.data?.edgeType ?? "";
+      setTooltipInfo({ x: e.client.x, y: e.client.y, text: EDGE_LABELS[et] ?? et });
+    });
+    graph.on("edge:mouseleave", () => setTooltipInfo(null));
+    graph.on("canvas:click", () => setTooltipInfo(null));
     fetchAndSet(graph);
     return () => {
       if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
@@ -412,15 +442,42 @@ export default function KGGraph() {
       >
         <Space size={4} wrap>
           <Text type="secondary">
-            单击查看节点详情(展开/折叠在右抽屉)·双击跳详情·悬停高亮邻居 · 当前 {count.nodes} 节点 / {count.edges} 关系
+            单击查看详情·双击跳转·悬停边显示类型 · 当前 {count.nodes} 节点 / {count.edges} 关系
           </Text>
-          {presentTypes.map((t) => (
-            <Tag key={t} color={TYPE_COLORS[t] ?? "#8c8c8c"}>
-              {NODE_TYPE_LABEL[t] ?? t}
-            </Tag>
+        </Space>
+        <Space size={12} wrap>
+          {presentEdgeTypes.map((t) => (
+            <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 16,
+                  height: 3,
+                  borderRadius: 2,
+                  background: EDGE_COLORS[t] ?? "#bfbfbf",
+                }}
+              />
+              <Text style={{ fontSize: 12 }}>{EDGE_LABELS[t] ?? t}</Text>
+            </span>
           ))}
         </Space>
         <Space size={4} wrap>
+          {presentTypes.length > 0 && (
+            <Select
+              mode="multiple"
+              allowClear
+              suffixIcon={<FilterOutlined />}
+              style={{ minWidth: 180 }}
+              placeholder="隐藏节点类型"
+              value={nodeTypeFilter}
+              onChange={(v) => {
+                setNodeTypeFilter(v);
+                if (graphRef.current) applyNodeTypeFilter(graphRef.current, v);
+              }}
+              options={presentTypes.map((t) => ({ value: t, label: NODE_TYPE_LABEL[t] ?? t }))}
+              maxTagCount="responsive"
+            />
+          )}
           {presentEdgeTypes.length > 0 && (
             <Select
               mode="multiple"
@@ -469,6 +526,25 @@ export default function KGGraph() {
       <Spin spinning={loading}>
         <div style={{ position: "relative", border: "1px solid #f0f0f0", borderRadius: 8, background: "#fafafa" }}>
           <div ref={containerRef} style={{ width: "100%", height: "calc(100vh - 240px)", minHeight: 420 }} />
+          {tooltipInfo && (
+            <div
+              style={{
+                position: "fixed",
+                left: tooltipInfo.x + 12,
+                top: tooltipInfo.y - 28,
+                background: "rgba(0,0,0,0.75)",
+                color: "#fff",
+                padding: "4px 10px",
+                borderRadius: 4,
+                fontSize: 12,
+                pointerEvents: "none",
+                zIndex: 1000,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {tooltipInfo.text}
+            </div>
+          )}
           {!loading && count.nodes === 0 && (
             <div
               style={{
