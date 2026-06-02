@@ -117,18 +117,23 @@ export function createApp(deps: {
       message: { error: "请求过于频繁,请稍后再试" },
     })
   );
-  // P1 登录爆破限流:5 req/IP/15min,仅限 POST /auth/login,跳过 test/NO_AUTH。
-  app.use(
-    "/api/auth/login",
-    rateLimit({
-      windowMs: 15 * 60_000,
-      max: 5,
-      standardHeaders: true,
-      legacyHeaders: false,
-      skip: () => skipRate,
-      message: { error: "登录尝试过多,请 15 分钟后重试" },
-    })
-  );
+  // P1 登录爆破限流:5 req/IP/15min,仅限 POST /auth/login。
+  // 默认关闭(避免运维误锁);设 COMBAT_LOGIN_RATE_LIMIT=1 启用。
+  // 跳过 test/NO_AUTH。
+  const loginRateEnabled = process.env.COMBAT_LOGIN_RATE_LIMIT === "1";
+  if (loginRateEnabled) {
+    app.use(
+      "/api/auth/login",
+      rateLimit({
+        windowMs: 15 * 60_000,
+        max: 5,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: () => skipRate,
+        message: { error: "登录尝试过多,请 15 分钟后重试" },
+      })
+    );
+  }
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
   // v2.2 P1 §7: metrics 中间件紧随 logger,统计每个请求的 in_flight/count/duration
