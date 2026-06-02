@@ -102,7 +102,7 @@ export function RelatedPage() {
               <List.Item>
                 <Link to={detailLink(c.node)}>{label(c.node)}</Link>
                 <span style={{ marginLeft: 8, color: "#cf1322" }}>
-                  [{c.edgeType === "CONFLICTS_WITH" ? "冲突" : "重叠"} · {c.reason}]
+                  [{c.edgeType === "冲突" ? "冲突" : "重叠"} · {c.reason}]
                 </span>
               </List.Item>
             )} />

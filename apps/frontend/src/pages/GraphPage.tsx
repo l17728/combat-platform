@@ -5,16 +5,20 @@ import { api } from "../api.js";
 import type { GraphSnapshot, GraphSnapshotNode } from "@combat/shared";
 
 const EDGE_COLOR: Record<string, string> = {
-  REF: "#1677ff",
-  ANCHORED_TO: "#722ed1",
-  CONFLICTS_WITH: "#cf1322",
-  OVERLAPS_WITH: "#fa8c16",
+  分配: "#1677ff",
+  关联: "#722ed1",
+  冲突: "#cf1322",
+  重叠: "#fa8c16",
+  上报: "#eb2f96",
+  处理: "#13c2c2",
 };
 const EDGE_LABEL: Record<string, string> = {
-  REF: "REF（引用）",
-  ANCHORED_TO: "ANCHORED_TO（锚点）",
-  CONFLICTS_WITH: "CONFLICTS_WITH（冲突）",
-  OVERLAPS_WITH: "OVERLAPS_WITH（重叠）",
+  分配: "分配",
+  关联: "关联",
+  冲突: "冲突",
+  重叠: "重叠",
+  上报: "上报",
+  处理: "处理",
 };
 
 const W = 800, H = 600;
