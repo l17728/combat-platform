@@ -713,6 +713,7 @@ export function makeHermesRouter(
           const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, effectiveContext, opts.db, {
             priorMessages,
             ...(hasWelinkInjection ? { tools: [] } : {}),
+            user: (req as any).user,
           });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;

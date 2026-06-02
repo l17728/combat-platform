@@ -138,7 +138,46 @@ const addProgressTool: ToolDefinition<Record<string, unknown>> = {
   },
 };
 
-export const ALL_WRITE_TOOLS: ToolDefinition[] = [createNodeTool, updateNodeTool, addProgressTool];
+const deleteNodeTool: ToolDefinition<Record<string, unknown>> = {
+  name: "delete_node",
+  description: "删除节点(攻关单/人员等)。仅 admin。必须带 _confirm:'yes'。删除不可恢复,请谨慎。",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: { type: "string", description: "节点 ID" },
+      _confirm: { type: "string", description: "必须为 'yes' 才执行删除操作" },
+    },
+    required: ["id", "_confirm"],
+    additionalProperties: false,
+  },
+  execute: async (input, ctx) => {
+    if (checkRole(ctx)) throw new Error("permission_denied: 需要 admin 角色");
+
+    const confirmErr = checkConfirm(input);
+    if (confirmErr) throw new Error(`${confirmErr}: 删除操作必须在参数中包含 _confirm:'yes'`);
+
+    const id = String(input.id);
+
+    const existing = await ctx.repo.getNode(id);
+    if (!existing) throw new Error(`node_not_found: 节点 ${id} 不存在`);
+
+    if (existing.nodeType === "attackTicket" && isPrivateTicket(existing)) {
+      throw new Error("private_ticket: 私密攻关单仅创建人/成员可操作");
+    }
+
+    await ctx.repo.deleteNode(id, ctx.user?.username || "hermes");
+    log.info("hermes.tool.write", {
+      tool: "delete_node",
+      id,
+      nodeType: existing.nodeType,
+      label: existing.properties["标题"] ?? existing.properties["姓名"] ?? id,
+      user: ctx.user?.username,
+    });
+    return { id, deleted: true, nodeType: existing.nodeType };
+  },
+};
+
+export const ALL_WRITE_TOOLS: ToolDefinition[] = [createNodeTool, updateNodeTool, addProgressTool, deleteNodeTool];
 
 export function writeToolsEnabled(): boolean {
   return process.env.HERMES_ENABLE_WRITE === "1";

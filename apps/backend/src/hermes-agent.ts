@@ -7,7 +7,13 @@ import type {
   HermesToolTrace,
 } from "@combat/shared";
 import type { DB } from "./db.js";
-import { TOOL_SCHEMAS, callToolUnwrap as defaultCallTool, type ToolCtx, type ToolSchema } from "./hermes-tools.js";
+import {
+  TOOL_SCHEMAS,
+  callToolUnwrap as defaultCallTool,
+  type ToolCtx,
+  type ToolSchema,
+  type HermesToolCtx,
+} from "./hermes-tools.js";
 
 /**
  * Hermes 的"agent"实现层。Hermes 是"用 agent 做只读问答"这一稳定概念,
@@ -316,17 +322,31 @@ export const HERMES_SYSTEM_PROMPT = [
   "**范围拦截**:如果问题与本攻关单的 Welink 群消息完全无关(如「帮我写代码」「今天天气怎么样」「公司政策是什么」「解释一个概念」),",
   "   直接回答:「该问题超出群消息范围,建议退出 Welink 场景,使用全局 AI 助手。」**不要**尝试回答,**不要**调用任何工具。",
   "",
-  "## 写工具(仅在用户明确指示时调用)",
+  "## 写工具 — 文字驱动 UI 操作(需要 admin/leader 角色)",
   "",
-  "8. `hermes_welinkAddMembers(ticketId, names[], role?)`:把姓名批量加入攻关单成员;典型触发用户原话「把 X、Y 加进来」、「除 Z 外都加进来」、「先把活跃发言的人都拉进成员」。",
-  "   - 「除 Z 外都加进来」的处理:先调 `hermes_gapAnalysis` 拿活跃发言人,过滤掉 Z,再 `hermes_welinkAddMembers`。",
-  "   - 默认 role=组员;只有用户明说「做组长」才传 「组长」。",
-  "9. `hermes_welinkSetMemberRole(ticketId, name, role)`:改某成员角色;触发例「把张三设为组长」。",
-  "10. `hermes_createEmailGroup(groupName, emails[], description?)`:建邮件群组;触发例「拉一个 xxx 邮件群」。",
-  "11. `create_node(nodeType, properties, _confirm)`:创建新节点(人员/攻关单/贡献等)。触发例「帮我新建一个攻关单」「添加一个人员」。必须传 `_confirm:'yes'` 才执行。",
-  "12. `update_node(id, properties, _confirm)`:更新节点字段。触发例「把这个攻关单的状态改为已解决」「更新张三的部门」。必须传 `_confirm:'yes'` 才执行。",
-  "13. `add_progress(nodeId, content, _confirm)`:给攻关单追加进展。触发例「追加一条进展」「记录今天做了XXX」。必须传 `_confirm:'yes'` 才执行。",
-  "- **所有写工具需要 admin/leader 角色,且参数必须包含 `_confirm:'yes'`。** 用户只说「帮我做X」不算确认——你需要在回答中先描述操作,再调用工具并附带 `_confirm:'yes'`。",
+  "用户可以通过文字执行创建/修改/删除等 UI 操作。**必须**遵循以下安全流程:",
+  "",
+  "### 安全流程(所有写操作必须遵守)",
+  "",
+  "1. **权限检查**: 查看上方「当前用户」区域的写操作权限。如果是 ❌ 无权限 → 立即回复「你没有权限执行此操作,需要管理员或组长角色。」**不要**展示任何确认对话框,不要调用任何写工具。如果是 ✅ 有权限 → 继续。",
+  "2. **确认机制 — 两步确认**:",
+  "   - **第一步**: 描述即将执行的操作(类型/目标/变更内容),然后询问「确认执行吗?」**不要**在第一次回复中调用写工具。",
+  "   - **第二步**: 用户回复「确认/是/执行/好的」等肯定词后,才调用写工具并附带 `_confirm:'yes'`。",
+  "   - **如果用户拒绝或沉默**: 不执行,回复「好的,已取消。」",
+  "3. **删除操作需额外警告**: 删除前必须提示「⚠️ 删除操作不可恢复,确认删除吗?」",
+  "",
+  "### 可用写工具",
+  "",
+  "1. `create_node(nodeType, properties, _confirm)`: 创建新节点。触发例:「创建一个攻关单,标题是xxx」「添加一个人员」。",
+  "   - 创建成功后,回复中包含节点 id,前端会自动跳转。",
+  "2. `update_node(id, properties, _confirm)`: 更新节点字段。触发例:「把这个工单状态改为进行中」「更新张三的部门」。",
+  "3. `add_progress(nodeId, content, _confirm)`: 给攻关单追加进展。触发例:「追加进展」「记录今天做了XXX」。",
+  "4. `delete_node(id, _confirm)`: 删除节点(仅 admin)。触发例:「删除这个工单」。**必须先警告不可恢复,等用户二次确认。**",
+  "5. `hermes_welinkAddMembers(ticketId, names[], role?)`: 把姓名批量加入攻关单成员。",
+  "6. `hermes_welinkSetMemberRole(ticketId, name, role)`: 改某成员角色。",
+  "7. `hermes_createEmailGroup(groupName, emails[], description?)`: 建邮件群组。",
+  "",
+  "- **所有写工具需要 admin/leader 角色,且参数必须包含 `_confirm:'yes'`。**",
   "",
   "## 通用规则",
   "",
@@ -369,7 +389,7 @@ export const HERMES_SYSTEM_PROMPT = [
   "  4. 用户回复「都加」「加 X、Y」「除 Z 外都加」→ 解析为 `hermes_welinkAddMembers` 调用。",
 ].join("\n");
 
-function buildToolSystemPrompt(registry: SchemaRegistry, context?: string): string {
+function buildToolSystemPrompt(registry: SchemaRegistry, context?: string, user?: HermesToolCtx["user"]): string {
   const dict = registry
     .getConfig()
     .nodeTypes.map((ns) => `- ${ns.nodeType}「${ns.label}」`)
@@ -389,9 +409,21 @@ function buildToolSystemPrompt(registry: SchemaRegistry, context?: string): stri
         "",
       ].join("\n")
     : "";
+  const userBlock = user
+    ? [
+        ``,
+        `## 当前用户`,
+        ``,
+        `- 用户名: ${user.username ?? "anonymous"}`,
+        `- 角色: ${user.role ?? "unknown"}`,
+        `- 写操作权限: ${["admin", "leader"].includes(user.role ?? "") ? "✅ 有权限" : "❌ 无权限(仅 admin/leader 可执行写操作)"}`,
+        ``,
+      ].join("\n")
+    : "";
   return [
     ...(welinkScopePrefix ? [welinkScopePrefix] : []),
     HERMES_SYSTEM_PROMPT,
+    userBlock,
     "",
     "## 可查询的数据类型(精简清单,完整字段用 describe_node_type 取)",
     "",
@@ -482,7 +514,7 @@ export async function runToolCalling(opts: RunToolCallingOptions): Promise<RunTo
   const trace: HermesToolTrace[] = [];
 
   const messages: LlmMessage[] = [
-    { role: "system", content: buildToolSystemPrompt(opts.registry, opts.context) },
+    { role: "system", content: buildToolSystemPrompt(opts.registry, opts.context, opts.ctx?.user) },
     ...(opts.priorMessages ?? []),
     { role: "user", content: opts.question },
   ];
@@ -560,14 +592,20 @@ export async function answerWithToolCalling(
   runner: ToolCallingRunner,
   context?: string,
   db?: DB,
-  opts?: { executor?: ToolExecutor; tools?: ToolSchema[]; maxHops?: number; priorMessages?: LlmMessage[] }
+  opts?: {
+    executor?: ToolExecutor;
+    tools?: ToolSchema[];
+    maxHops?: number;
+    priorMessages?: LlmMessage[];
+    user?: HermesToolCtx["user"];
+  }
 ): Promise<HermesAnswer> {
   const { content, trace } = await runToolCalling({
     runner,
     registry,
     question,
     context,
-    ctx: { repo, registry, db },
+    ctx: { repo, registry, db, user: opts?.user },
     executor: opts?.executor,
     tools: opts?.tools,
     maxHops: opts?.maxHops,
