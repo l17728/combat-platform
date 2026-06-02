@@ -651,7 +651,7 @@ export function makeHermesRouter(
             if (decisions) parts.push(`关键决策: ${decisions}`);
             if (events) parts.push(`事件: ${events}`);
             if (gaps) parts.push(`待办: ${gaps}`);
-            const summary = `\n[AI抽取摘要] ${parts.join("; ")}`;
+            const summary = `\n[AI抽取摘要 - 请直接根据此数据回答用户问题] ${parts.join("; ")}`;
             effectiveContext = (effectiveContext ?? "") + summary;
             hasWelinkInjection = true;
             log.info("hermes.ask.welink_context_inject", {
