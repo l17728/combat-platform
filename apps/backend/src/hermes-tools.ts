@@ -975,7 +975,7 @@ const welinkGapAnalysisTool: ToolDefinition = {
 const welinkStatsTool: ToolDefinition = {
   name: "welink_stats",
   description:
-    "返回某攻关单 Welink 群消息统计:总消息数、发言人数、各人发言量、时间范围。用户问「群里有几个人」「谁发言最多」「一共多少条消息」时用本工具。",
+    "返回某攻关单 Welink 群消息统计:总消息数、发言人数、各人发言量、时间范围。**仅作为兜底**:当 welink_extractions 没有结果且 welink_ensure_analyzed 失败时再用本工具。正常流程应先走 welink_extractions → welink_ensure_analyzed。",
   inputSchema: {
     type: "object",
     properties: { ticketId: { type: "string" } },
