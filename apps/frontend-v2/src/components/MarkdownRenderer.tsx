@@ -7,12 +7,21 @@ import { PlayCircleOutlined } from "@ant-design/icons";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 const YT_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/;
-const BILIBILI_REGEX = /player\.bilibili\.com\/player\.html\?.*bvid=([\w]+)/;
-const ALLOWED_IFRAME_HOSTS = ["player.bilibili.com", "www.bilibili.com"];
+const BILIBILI_VIDEO_REGEX = /bilibili\.com\/video\/(BV[\w]+)/;
+const BILIBILI_PLAYER_REGEX = /player\.bilibili\.com\/player\.html\?.*bvid=(BV[\w]+)/;
+const ALLOWED_IFRAME_HOSTS = ["player.bilibili.com"];
 
 function extractYtId(url: string): string | null {
   const m = url.match(YT_REGEX);
   return m ? m[1] : null;
+}
+
+function normalizeBilibiliUrl(src: string): string | null {
+  const playerM = src.match(BILIBILI_PLAYER_REGEX);
+  if (playerM) return src;
+  const videoM = src.match(BILIBILI_VIDEO_REGEX);
+  if (videoM) return `https://player.bilibili.com/player.html?bvid=${videoM[1]}&high_quality=1`;
+  return null;
 }
 
 const sanitizeSchema = {
@@ -101,17 +110,22 @@ function LinkBlock({ href, children }: ComponentPropsWithoutRef<"a"> & { childre
 
 function IframeBlock({ src, ...rest }: ComponentPropsWithoutRef<"iframe"> & { src?: string }) {
   if (!src) return null;
-  try {
-    const u = new URL(src);
-    if (!ALLOWED_IFRAME_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) {
-      return (
-        <a href={src} target="_blank" rel="noopener noreferrer">
-          {src}
-        </a>
-      );
+  const bilibiliUrl = normalizeBilibiliUrl(src);
+  if (bilibiliUrl) {
+    src = bilibiliUrl;
+  } else {
+    try {
+      const u = new URL(src);
+      if (!ALLOWED_IFRAME_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) {
+        return (
+          <a href={src} target="_blank" rel="noopener noreferrer">
+            {src}
+          </a>
+        );
+      }
+    } catch {
+      return null;
     }
-  } catch {
-    return null;
   }
   return (
     <div style={{ position: "relative", width: "100%", paddingBottom: "56.25%", marginBottom: 12 }}>

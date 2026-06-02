@@ -201,6 +201,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   };
 
   const canDelete = (article: WikiArticle) => isAdmin || article.created_by === username;
+  const canEdit = (article: WikiArticle) => !article.is_locked || isAdmin || article.created_by === username;
 
   const handleDeleteClick = (article: WikiArticle) => {
     if (!canDelete(article)) {
@@ -305,6 +306,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                     onDelete={() => handleDeleteClick(item)}
                     onLike={() => handleLike(item.id)}
                     canDelete={canDelete(item)}
+                    canEdit={canEdit(item)}
                   />
                 )}
               />
@@ -372,15 +374,17 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                         {item.likes > 0 ? item.likes : ""}
                       </Button>
                     </Tooltip>
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEdit(item);
-                      }}
-                    />
+                    {canEdit(item) && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(item);
+                        }}
+                      />
+                    )}
                     <Button
                       type="text"
                       size="small"
@@ -431,9 +435,11 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                     {selected.likes > 0 ? `${selected.likes} 赞` : "点赞"}
                   </Button>
                 </Tooltip>
-                <Button icon={<EditOutlined />} onClick={() => openEdit(selected)}>
-                  编辑
-                </Button>
+                {(!selected.is_locked || canEdit(selected)) && (
+                  <Button icon={<EditOutlined />} onClick={() => openEdit(selected)}>
+                    编辑
+                  </Button>
+                )}
                 {canDelete(selected) ? (
                   <Popconfirm
                     title={selected.is_locked ? "此文章已加锁，删除需要输入密码" : "确认删除此文章？"}
@@ -610,6 +616,7 @@ function SortableWikiItem({
   onDelete,
   onLike,
   canDelete,
+  canEdit,
 }: {
   item: WikiArticle;
   selected: boolean;
@@ -618,6 +625,7 @@ function SortableWikiItem({
   onDelete: () => void;
   onLike: () => void;
   canDelete: boolean;
+  canEdit: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = {
@@ -679,15 +687,17 @@ function SortableWikiItem({
               {item.likes > 0 ? item.likes : ""}
             </Button>
           </Tooltip>
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-          />
+          {canEdit && (
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+            />
+          )}
           <Button
             type="text"
             size="small"
