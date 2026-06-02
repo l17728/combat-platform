@@ -171,10 +171,21 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   };
 
   const handleDelete = async (id: string, password?: string) => {
+    const idx = articles.findIndex((a) => a.id === id);
     try {
       await api.deleteWiki(id, password);
       message.success("已删除");
-      if (selected?.id === id) setSelected(null);
+      const remaining = articles.filter((a) => a.id !== id);
+      setArticles(remaining);
+      if (selected?.id === id) {
+        const next = remaining[Math.min(idx, remaining.length - 1)] || null;
+        setSelected(next);
+        if (next) {
+          localStorage.setItem(storageKey, next.id);
+        } else {
+          localStorage.removeItem(storageKey);
+        }
+      }
       fetchData(true);
     } catch (e) {
       handleApiError(e);
