@@ -41,7 +41,7 @@ describe("§33 conflicts/overlaps e2e", () => {
     expect(scan.body.conflicts).toBeGreaterThanOrEqual(1);
     const rows = await request(app).get("/api/conflicts");
     expect(rows.status).toBe(200);
-    const cWith = (rows.body as any[]).filter((r) => r.edgeType === "CONFLICTS_WITH");
+    const cWith = (rows.body as any[]).filter((r) => r.edgeType === "冲突");
     expect(cWith.length).toBeGreaterThanOrEqual(1);
     expect(cWith.some((r) => String(r.reason).includes("甲哥"))).toBe(true);
   });
@@ -70,7 +70,7 @@ describe("§33 conflicts/overlaps e2e", () => {
     const scan = await request(app).post("/api/conflicts/scan");
     expect(scan.body.overlaps).toBeGreaterThanOrEqual(1);
     const rows = await request(app).get("/api/conflicts");
-    const ov = (rows.body as any[]).filter((r) => r.edgeType === "OVERLAPS_WITH");
+    const ov = (rows.body as any[]).filter((r) => r.edgeType === "重叠");
     expect(ov.length).toBeGreaterThanOrEqual(1);
     expect(ov.some((r) => String(r.reason).includes(PB))).toBe(true);
   });
@@ -97,7 +97,7 @@ describe("§33 conflicts/overlaps e2e", () => {
     await request(app).put(`/api/nodes/${A.id}`).send({ 状态: "已解决" });
     scan = await request(app).post("/api/conflicts/scan");
     const rows = await request(app).get("/api/conflicts");
-    const cWith = (rows.body as any[]).filter((r) => r.edgeType === "CONFLICTS_WITH");
+    const cWith = (rows.body as any[]).filter((r) => r.edgeType === "冲突");
     // A 不应再出现在任意 CONFLICTS_WITH 边的两端
     expect(cWith.some((r) => r.source.id === A.id || r.target.id === A.id)).toBe(false);
     void B;
@@ -132,7 +132,7 @@ describe("§33 conflicts/overlaps e2e", () => {
     expect(Array.isArray(rA.body.conflicts)).toBe(true);
     expect((rA.body.conflicts as any[]).length).toBeGreaterThanOrEqual(1);
     expect((rA.body.conflicts as any[]).some((c) => c.node.id === B.id)).toBe(true);
-    expect((rA.body.conflicts as any[]).some((c) => c.edgeType === "CONFLICTS_WITH")).toBe(true);
+    expect((rA.body.conflicts as any[]).some((c) => c.edgeType === "冲突")).toBe(true);
 
     const rLone = await request(app).get(`/api/related/attackTicket/${lone.id}`);
     expect(rLone.status).toBe(200);

@@ -50,8 +50,8 @@ describe("§38 KG 图形快照 e2e", () => {
     // 至少含 root + person + anchor (问题单号) + 共享 anchor 的另一单
     expect(r.body.nodes.length).toBeGreaterThanOrEqual(4);
     const edgeTypes = new Set(r.body.edges.map((e: any) => e.edgeType));
-    expect(edgeTypes.has("REF")).toBe(true);
-    expect(edgeTypes.has("ANCHORED_TO")).toBe(true);
+    expect(edgeTypes.has("分配")).toBe(true);
+    expect(edgeTypes.has("关联")).toBe(true);
     // node dedup
     const ids = r.body.nodes.map((n: any) => n.id);
     expect(new Set(ids).size).toBe(ids.length);

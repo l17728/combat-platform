@@ -55,7 +55,7 @@ describe("SqliteRepository", () => {
     const b = await repo.createNode("person", { name: "B" }, "t");
     const c = await repo.createNode("person", { name: "C" }, "t");
     await repo.createEdge("BLOCKED_BY", b.id, a.id, {}, "t"); // a is TARGET (inbound)
-    await repo.createEdge("RELATES_TO", b.id, c.id, {}, "t"); // unrelated, must survive
+    await repo.createEdge("处理", b.id, c.id, {}, "t"); // unrelated, must survive
     await repo.deleteNode(a.id, "t");
     expect(await repo.queryEdges({ targetId: a.id })).toHaveLength(0);
     expect(await repo.queryEdges({ sourceId: b.id, targetId: c.id })).toHaveLength(1);
@@ -82,11 +82,11 @@ describe("SqliteRepository", () => {
     const a = await repo.createNode("attackTicket", { 标题: "A" }, "t");
     const p = await repo.createNode("person", { name: "张三" }, "t");
     const q = await repo.createNode("person", { name: "李四" }, "t");
-    await repo.createEdge("REF", a.id, p.id, { field: "当前处理人" }, "t");
-    await repo.createEdge("REF", a.id, q.id, { field: "攻关组长" }, "t");
+    await repo.createEdge("分配", a.id, p.id, { field: "当前处理人" }, "t");
+    await repo.createEdge("分配", a.id, q.id, { field: "攻关组长" }, "t");
     await repo.createEdge("CONTRIBUTED_TO", a.id, p.id, {}, "t");
-    await repo.deleteEdges({ sourceId: a.id, edgeType: "REF" }, "killer");
-    expect(await repo.queryEdges({ sourceId: a.id, edgeType: "REF" })).toHaveLength(0);
+    await repo.deleteEdges({ sourceId: a.id, edgeType: "分配" }, "killer");
+    expect(await repo.queryEdges({ sourceId: a.id, edgeType: "分配" })).toHaveLength(0);
     expect(await repo.queryEdges({ sourceId: a.id, edgeType: "CONTRIBUTED_TO" })).toHaveLength(1);
     const au = db.prepare("SELECT * FROM audit_log WHERE action='DELETE' AND entityType='edge'").all() as any[];
     expect(au).toHaveLength(2);

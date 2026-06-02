@@ -51,7 +51,7 @@ describe("cross-granularity anchor e2e", () => {
     const anchors = await repo.queryNodes("问题单号");
     expect(anchors).toHaveLength(1);
     expect(anchors[0].properties["key"]).toBe("PB-1");
-    const e = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "ANCHORED_TO" }))[0];
+    const e = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "关联" }))[0];
     expect(e.targetId).toBe(anchors[0].id);
     expect(e.properties["anchorKind"]).toBe("问题单号");
   });

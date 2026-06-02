@@ -73,7 +73,7 @@ describe("§46 req.md 作战表 + 经验总结 view（配置驱动）", () => {
         运维责任人: "甲运维",
       })
     ).body;
-    const refs = (await repo.queryEdges({ sourceId: inc.id, edgeType: "REF" })).filter(
+    const refs = (await repo.queryEdges({ sourceId: inc.id, edgeType: "分配" })).filter(
       (e) => String(e.properties["field"]) === "运维责任人"
     );
     expect(refs).toHaveLength(1);

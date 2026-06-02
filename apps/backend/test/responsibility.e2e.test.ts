@@ -68,7 +68,7 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     // Create a person node and a ticket node, then link via ASSIGNED_TO edge
     const person = await repo.createNode("person", { 姓名: "张三", 角色: "攻关" }, "test");
     const ticket = await repo.createNode("attackTicket", { 标题: "攻关单001", 状态: "进行中" }, "test");
-    await repo.createEdge("ASSIGNED_TO", ticket.id, person.id, { role: "owner" }, "test");
+    await repo.createEdge("分配", ticket.id, person.id, { role: "owner" }, "test");
 
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
@@ -86,7 +86,7 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     // Create two attack tickets
     const t1 = await repo.createNode("attackTicket", { 标题: "冲突单A", 状态: "进行中" }, "test");
     const t2 = await repo.createNode("attackTicket", { 标题: "冲突单B", 状态: "待响应" }, "test");
-    await repo.createEdge("CONFLICTS_WITH", t1.id, t2.id, { reason: "人员重叠" }, "test");
+    await repo.createEdge("冲突", t1.id, t2.id, { reason: "人员重叠" }, "test");
 
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
@@ -102,7 +102,7 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     const { app, repo } = make();
     const ticket = await repo.createNode("attackTicket", { 标题: "网络故障", 状态: "处理中" }, "test");
     const person = await repo.createNode("person", { 姓名: "运维李四" }, "test");
-    await repo.createEdge("ESCALATED_TO", ticket.id, person.id, {}, "test");
+    await repo.createEdge("上报", ticket.id, person.id, {}, "test");
     const r = await request(app).get("/api/responsibility/diagram");
     expect(r.status).toBe(200);
     expect(r.body.mermaid).toContain("运维李四");
@@ -113,7 +113,7 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     const longTitle = "这是一个超过二十个字符的非常非常长的攻关单标题用于测试截断逻辑";
     const ticket = await repo.createNode("attackTicket", { 标题: longTitle, 状态: "处理中" }, "test");
     const person = await repo.createNode("person", { 姓名: "负责人甲" }, "test");
-    await repo.createEdge("ASSIGNED_TO", ticket.id, person.id, { role: "owner" }, "test");
+    await repo.createEdge("分配", ticket.id, person.id, { role: "owner" }, "test");
     const r = await request(app).get("/api/responsibility/diagram");
     expect(r.body.mermaid).toContain("…");
     expect(r.body.mermaid).not.toContain(longTitle);

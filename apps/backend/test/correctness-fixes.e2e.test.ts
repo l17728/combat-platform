@@ -73,7 +73,7 @@ describe("增量36 正确性修复", () => {
     await request(app).post("/api/merge/person").send({ fromId: a.id, toId: b.id });
     expect((await request(app).get(`/api/nodes/${a.id}`)).status).toBe(404);
     // b 收到迁移来的 REF 入边，且不重复
-    const inRefs = await repo.queryEdges({ targetId: b.id, edgeType: "REF" });
+    const inRefs = await repo.queryEdges({ targetId: b.id, edgeType: "分配" });
     const keys = inRefs.map((e) => `${e.sourceId}|${e.properties["field"]}`);
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -84,7 +84,7 @@ describe("增量36 正确性修复", () => {
     const e = (await request(app).post("/api/nodes/experience").send({ 经验: "保留经验" })).body;
     await request(app).post("/api/relations/manual").send({ sourceId: t.id, targetId: e.id, reason: "相关" });
     await rebuildKG(repo, registry);
-    expect(await repo.queryEdges({ sourceId: t.id, edgeType: "RELATES_TO" })).toHaveLength(1);
+    expect(await repo.queryEdges({ sourceId: t.id, edgeType: "处理" })).toHaveLength(1);
   });
 
   it("M1: kg:rebuild 回收孤儿锚点节点", async () => {
