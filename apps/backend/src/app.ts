@@ -265,7 +265,7 @@ export function createApp(deps: {
       // 三层 fallback: DB → env → 智谱默认。apiKey 绝无 hardcoded。
       const baseURL = row?.baseUrl || envBase || "https://open.bigmodel.cn/api/paas/v4";
       const apiKey = secret || envKey || "";
-      const model = row?.defaultModel || envModel || "glm-4-plus";
+      const model = row?.defaultModel || envModel || "glm-4-flash";
       const smallModel = row?.smallModel || undefined;
       const thinking = row?.thinking ?? "disabled";
       const timeoutMs = row?.timeoutMs ?? 60000;
