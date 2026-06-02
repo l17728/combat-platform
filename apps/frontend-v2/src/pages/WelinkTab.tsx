@@ -15,6 +15,7 @@ import {
   Alert,
   Tooltip,
   Segmented,
+  Badge,
 } from "antd";
 import {
   InboxOutlined,
@@ -498,14 +499,16 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
             },
           ]}
         />
-        <Button
-          icon={<BulbOutlined />}
-          size="small"
-          onClick={() => setExtractionsOpen(true)}
-          data-testid="welink-open-extractions"
-        >
-          AI 抽取 ({extractionCount})
-        </Button>
+        <Badge count={extractionCount} offset={[-4, 4]} size="small">
+          <Button
+            icon={<BulbOutlined />}
+            type={extractionCount > 0 ? "primary" : "default"}
+            onClick={() => setExtractionsOpen(true)}
+            data-testid="welink-open-extractions"
+          >
+            抽取结果
+          </Button>
+        </Badge>
         {viewMode === "chat" && (
           <Button
             type="primary"
