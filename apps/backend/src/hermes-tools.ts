@@ -1088,7 +1088,7 @@ const welinkEnsureAnalyzedTool: ToolDefinition = {
       };
     }
     const { runWelinkExtraction } = await import("./welink-extraction.js");
-    const result = await runWelinkExtraction(ctx.db, ctx.repo, ticketId, undefined);
+    const result = await runWelinkExtraction(ctx.db, ctx.repo, ticketId, undefined, { useAllMessages: true });
     return {
       ticketId,
       alreadyAnalyzed: false,
@@ -1099,7 +1099,7 @@ const welinkEnsureAnalyzedTool: ToolDefinition = {
       hint:
         result.extracted > 0
           ? `已生成 ${result.extracted} 条摘要(来源:${result.source}),请用 welink_extractions 读取详情。`
-          : "无已选中的消息可供分析,请先在前端勾选消息后纳入分析。",
+          : "该攻关单暂无 Welink 消息,无法生成摘要。",
     };
   },
 };
