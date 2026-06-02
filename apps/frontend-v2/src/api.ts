@@ -820,10 +820,11 @@ export class Api {
     return this.req(`/api/query/search?${p.toString()}`);
   }
 
-  hermesAsk(question: string, context?: string, sessionId?: string): Promise<HermesAskResult> {
+  hermesAsk(question: string, context?: string, sessionId?: string, scope?: string): Promise<HermesAskResult> {
     const body: Record<string, unknown> = { question };
     if (context) body.context = context;
     if (sessionId) body.sessionId = sessionId;
+    if (scope) body.scope = scope;
     return this.req("/api/hermes/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -372,7 +372,7 @@ function buildToolSystemPrompt(registry: SchemaRegistry, context?: string): stri
     .getConfig()
     .nodeTypes.map((ns) => `- ${ns.nodeType}「${ns.label}」`)
     .join("\n");
-  const inWelinkContext = !!context && /ticketId\s*=/.test(context);
+  const inWelinkContext = !!context && /(ticketId\s*=|scope\s*=\s*welink)/i.test(context);
   const welinkScopePrefix = inWelinkContext
     ? [
         "⚠️ **重要：当前为 Welink AI 助手模式**",

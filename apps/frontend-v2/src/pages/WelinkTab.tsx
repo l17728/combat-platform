@@ -509,6 +509,15 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
             抽取结果
           </Button>
         </Badge>
+        <HermesChat
+          title="AI 助手"
+          placeholder="例:群里有几个人 / 张三说了什么 / 帮我补齐成员"
+          context={`当前攻关单 id=${ticketId}`}
+          greeting={`你好,我可以帮你分析群里发言、回答成员/统计/事件等问题。例如:\n- 「群里活跃但没在成员里的有谁?」\n- 「群里有几个人」\n- 「谁先提的问题」\n\n当前攻关单 id:${ticketId.slice(0, 8)}…`}
+          floating={false}
+          scope="welink"
+          testId="welink-hermes-trigger"
+        />
         {viewMode === "chat" && (
           <Button
             type="primary"
@@ -642,15 +651,6 @@ export default function WelinkTab({ ticketId, highlightMessageId }: Props) {
           void fetchExtractionCount();
         }}
         onMembersChanged={handleMembersChanged}
-      />
-
-      <HermesChat
-        title="AI 助手 · 群消息补齐"
-        placeholder="例:把群里活跃的人都加进来 / 张三李四加进来 / 谁先提的问题"
-        context={`当前攻关单 id=${ticketId};用户正在 Welink 群消息场景。若用户问及成员/补齐/活跃,主动调 hermes_gapAnalysis(ticketId)。`}
-        greeting={`你好,我可以帮你分析群里发言、对照攻关单成员、做成员补齐。例如:\n- 「群里活跃但没在成员里的有谁?」\n- 「把 X、Y 加进来」\n- 「除了 Z 其它都加进来」\n\n当前攻关单 id:${ticketId.slice(0, 8)}…`}
-        bottom={88}
-        testId="welink-hermes-trigger"
       />
     </div>
   );
