@@ -3,17 +3,12 @@ import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import MermaidBlock from "./MermaidBlock.js";
+import { PlayCircleOutlined } from "@ant-design/icons";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 const YT_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/;
-const ALLOWED_IFRAME_HOSTS = [
-  "www.youtube.com",
-  "youtube.com",
-  "youtu.be",
-  "player.bilibili.com",
-  "www.bilibili.com",
-  "bilibili.com",
-];
+const BILIBILI_REGEX = /player\.bilibili\.com\/player\.html\?.*bvid=([\w]+)/;
+const ALLOWED_IFRAME_HOSTS = ["player.bilibili.com", "www.bilibili.com"];
 
 function extractYtId(url: string): string | null {
   const m = url.match(YT_REGEX);
@@ -44,21 +39,58 @@ function CodeBlock({ className, children, ...rest }: ComponentPropsWithoutRef<"c
   );
 }
 
+function YouTubeCard({ ytId, linkText }: { ytId: string; linkText: string }) {
+  const thumbUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+  const watchUrl = `https://www.youtube.com/watch?v=${ytId}`;
+  return (
+    <a
+      href={watchUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "block",
+        position: "relative",
+        width: "100%",
+        maxWidth: 560,
+        borderRadius: 8,
+        overflow: "hidden",
+        marginBottom: 12,
+        textDecoration: "none",
+        border: "1px solid #f0f0f0",
+      }}
+    >
+      <div style={{ position: "relative", paddingBottom: "56.25%", background: "#000" }}>
+        <img
+          src={thumbUrl}
+          alt={linkText}
+          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", objectFit: "cover" }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            fontSize: 48,
+            color: "#fff",
+            opacity: 0.9,
+            filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.5))",
+          }}
+        >
+          <PlayCircleOutlined />
+        </div>
+      </div>
+      <div style={{ padding: "8px 12px", background: "#fff", color: "#333", fontSize: 13 }}>{linkText}</div>
+    </a>
+  );
+}
+
 function LinkBlock({ href, children }: ComponentPropsWithoutRef<"a"> & { children?: ReactNode }) {
   if (!href) return <a>{children}</a>;
   const ytId = extractYtId(href);
   if (ytId) {
-    return (
-      <div style={{ position: "relative", width: "100%", paddingBottom: "56.25%", marginBottom: 12 }}>
-        <iframe
-          src={`https://www.youtube.com/embed/${ytId}`}
-          title="YouTube video"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0, borderRadius: 8 }}
-        />
-      </div>
-    );
+    const linkText = typeof children === "string" ? children : "在 YouTube 上观看此视频";
+    return <YouTubeCard ytId={ytId} linkText={linkText} />;
   }
   return (
     <a href={href} target="_blank" rel="noopener noreferrer">
@@ -81,7 +113,24 @@ function IframeBlock({ src, ...rest }: ComponentPropsWithoutRef<"iframe"> & { sr
   } catch {
     return null;
   }
-  return <iframe src={src} {...rest} />;
+  return (
+    <div style={{ position: "relative", width: "100%", paddingBottom: "56.25%", marginBottom: 12 }}>
+      <iframe
+        src={src}
+        {...rest}
+        allowFullScreen
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          border: 0,
+          borderRadius: 8,
+        }}
+      />
+    </div>
+  );
 }
 
 function ParagraphBlock({ children }: ComponentPropsWithoutRef<"p"> & { children?: ReactNode }) {

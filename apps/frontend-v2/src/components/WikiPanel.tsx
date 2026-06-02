@@ -328,6 +328,23 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                   borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
                 }}
                 actions={[
+                  item.is_locked && (
+                    <Tag
+                      key="lock"
+                      color="red"
+                      icon={<LockOutlined />}
+                      style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
+                    >
+                      已锁
+                    </Tag>
+                  ),
+                  <Tag
+                    key="tier"
+                    color={TIER_COLOR[tierOf(item)]}
+                    style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
+                  >
+                    {TIER_LABEL[tierOf(item)]}
+                  </Tag>,
                   <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
                     <Button
                       type="text"
@@ -366,12 +383,9 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                 ]}
               >
                 <div style={{ overflow: "hidden" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    {item.is_locked && <LockOutlined style={{ color: "#cf1322", fontSize: 11 }} />}
-                    <Text ellipsis style={{ fontSize: 13, maxWidth: 120 }}>
-                      {item.title}
-                    </Text>
-                  </div>
+                  <Text ellipsis style={{ fontSize: 13 }}>
+                    {item.title}
+                  </Text>
                   <div>
                     <Text type="secondary" style={{ fontSize: 11 }}>
                       {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
@@ -619,6 +633,23 @@ function SortableWikiItem({
     <div ref={setNodeRef} style={style} {...attributes} onClick={onSelect}>
       <List.Item
         actions={[
+          item.is_locked && (
+            <Tag
+              key="lock"
+              color="red"
+              icon={<LockOutlined />}
+              style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
+            >
+              已锁
+            </Tag>
+          ),
+          <Tag
+            key="tier"
+            color={TIER_COLOR[tier]}
+            style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
+          >
+            {TIER_LABEL[tier]}
+          </Tag>,
           <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
             <Button
               type="text"
@@ -668,19 +699,7 @@ function SortableWikiItem({
             <Text ellipsis style={{ fontSize: 13 }}>
               {item.title}
             </Text>
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-              {item.is_locked && (
-                <Tag
-                  color="red"
-                  icon={<LockOutlined />}
-                  style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
-                >
-                  已锁
-                </Tag>
-              )}
-              <Tag color={TIER_COLOR[tier]} style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}>
-                {TIER_LABEL[tier]}
-              </Tag>
+            <div>
               <Text type="secondary" style={{ fontSize: 11 }}>
                 {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
               </Text>
