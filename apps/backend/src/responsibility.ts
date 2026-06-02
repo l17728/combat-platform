@@ -72,8 +72,8 @@ export async function buildResponsibilityDiagram(repo: Repository): Promise<Resp
   // ── 2. Person assignments: ASSIGNED_TO + ESCALATED_TO edges ─────────────────
   //    Group by person to keep the diagram readable (aggregate, not enumerate all)
   const assignedEdges = [
-    ...(await repo.queryEdges({ edgeType: "ASSIGNED_TO" })),
-    ...(await repo.queryEdges({ edgeType: "ESCALATED_TO" })),
+    ...(await repo.queryEdges({ edgeType: "分配" })),
+    ...(await repo.queryEdges({ edgeType: "上报" })),
   ];
 
   // Preload all persons and attackTickets to avoid N+1 getNode calls
@@ -125,7 +125,7 @@ export async function buildResponsibilityDiagram(repo: Repository): Promise<Resp
   }
 
   // ── 3. CONFLICTS_WITH edges (dashed lines) ───────────────────────────────────
-  const conflictEdges = await repo.queryEdges({ edgeType: "CONFLICTS_WITH" });
+  const conflictEdges = await repo.queryEdges({ edgeType: "冲突" });
   for (const edge of conflictEdges) {
     const srcTicket = nodeMap.get(edge.sourceId);
     const tgtTicket = nodeMap.get(edge.targetId);

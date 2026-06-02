@@ -43,8 +43,8 @@ async function writeBidirectional(
  */
 export async function syncConflicts(repo: Repository): Promise<ScanConflictsResult> {
   const actor = "system";
-  await repo.deleteEdges({ edgeType: "CONFLICTS_WITH" }, actor);
-  await repo.deleteEdges({ edgeType: "OVERLAPS_WITH" }, actor);
+  await repo.deleteEdges({ edgeType: "冲突" }, actor);
+  await repo.deleteEdges({ edgeType: "重叠" }, actor);
 
   let conflicts = 0;
   // Rule 1: same 当前处理人, active tickets only
@@ -54,7 +54,7 @@ export async function syncConflicts(repo: Repository): Promise<ScanConflictsResu
     const reason = `同负责人多并发：${owner}`;
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
-        await writeBidirectional(repo, "CONFLICTS_WITH", items[i].id, items[j].id, reason, actor);
+        await writeBidirectional(repo, "冲突", items[i].id, items[j].id, reason, actor);
         conflicts++;
       }
     }
@@ -68,7 +68,7 @@ export async function syncConflicts(repo: Repository): Promise<ScanConflictsResu
     const reason = `同问题单：${pb}`;
     for (let i = 0; i < items.length; i++) {
       for (let j = i + 1; j < items.length; j++) {
-        await writeBidirectional(repo, "OVERLAPS_WITH", items[i].id, items[j].id, reason, actor);
+        await writeBidirectional(repo, "重叠", items[i].id, items[j].id, reason, actor);
         overlaps++;
       }
     }
@@ -92,7 +92,7 @@ export async function listConflictRows(
   for (const n of tickets) nodeMap.set(n.id, n);
 
   const out: ConflictRow[] = [];
-  for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {
+  for (const edgeType of ["冲突", "重叠"] as ConflictEdgeType[]) {
     for (const e of await repo.queryEdges({ edgeType })) {
       if (e.sourceId >= e.targetId) continue; // undirected dedup
       const source = nodeMap.get(e.sourceId);
@@ -123,10 +123,10 @@ export async function listConflictRows(
 export async function syncConflictsForOne(repo: Repository, ticketId: string): Promise<ScanConflictsResult> {
   const actor = "system";
   // Step 1: 清理本 ticket 的所有 CONFLICTS/OVERLAPS 边(双向)
-  await repo.deleteEdges({ sourceId: ticketId, edgeType: "CONFLICTS_WITH" }, actor);
-  await repo.deleteEdges({ targetId: ticketId, edgeType: "CONFLICTS_WITH" }, actor);
-  await repo.deleteEdges({ sourceId: ticketId, edgeType: "OVERLAPS_WITH" }, actor);
-  await repo.deleteEdges({ targetId: ticketId, edgeType: "OVERLAPS_WITH" }, actor);
+  await repo.deleteEdges({ sourceId: ticketId, edgeType: "冲突" }, actor);
+  await repo.deleteEdges({ targetId: ticketId, edgeType: "冲突" }, actor);
+  await repo.deleteEdges({ sourceId: ticketId, edgeType: "重叠" }, actor);
+  await repo.deleteEdges({ targetId: ticketId, edgeType: "重叠" }, actor);
 
   const self = await repo.getNode(ticketId);
   if (!self || self.nodeType !== "attackTicket") return { conflicts: 0, overlaps: 0 };
@@ -151,7 +151,7 @@ export async function syncConflictsForOne(repo: Repository, ticketId: string): P
       const peerOwner = String(pp["当前处理人"] ?? "").trim();
       const peerActive = ACTIVE_STATUSES.has(String(pp["状态"] ?? ""));
       if (peerOwner === ownerVal && peerActive) {
-        await writeBidirectional(repo, "CONFLICTS_WITH", ticketId, peer.id, `同负责人多并发：${ownerVal}`, actor);
+        await writeBidirectional(repo, "冲突", ticketId, peer.id, `同负责人多并发：${ownerVal}`, actor);
         conflicts++;
       }
     }
@@ -159,7 +159,7 @@ export async function syncConflictsForOne(repo: Repository, ticketId: string): P
     if (pbVal) {
       const peerPb = String(pp["问题单号"] ?? "").trim();
       if (peerPb === pbVal) {
-        await writeBidirectional(repo, "OVERLAPS_WITH", ticketId, peer.id, `同问题单：${pbVal}`, actor);
+        await writeBidirectional(repo, "重叠", ticketId, peer.id, `同问题单：${pbVal}`, actor);
         overlaps++;
       }
     }

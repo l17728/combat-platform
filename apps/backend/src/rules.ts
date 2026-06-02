@@ -14,7 +14,7 @@ export interface ReminderDraft {
 }
 
 async function currentHandler(repo: Repository, ticketId: string): Promise<{ id: string; name: string } | undefined> {
-  const e = (await repo.queryEdges({ sourceId: ticketId, edgeType: "REF" })).find(
+  const e = (await repo.queryEdges({ sourceId: ticketId, edgeType: "分配" })).find(
     (e) => String(e.properties["field"] ?? "") === "当前处理人"
   );
   if (!e) return undefined;

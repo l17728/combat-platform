@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { Repository, ManualLinkView, GraphNode } from "@combat/shared";
 
-const MANUAL_EDGE = "RELATES_TO";
+const MANUAL_EDGE = "处理";
 
 // §52: list manual ad-hoc links touching a node (both directions), each mapped to
 // the peer node + 备注 + optional source field. This is the union piece surfaced
