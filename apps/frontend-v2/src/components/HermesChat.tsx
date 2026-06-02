@@ -9,8 +9,7 @@ import {
   DragOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "./MarkdownRenderer.js";
 import { api } from "../api.js";
 import type { HermesTraceStep } from "../api.js";
 import { useDraggable } from "../hooks/useDraggable.js";
@@ -181,7 +180,7 @@ export default function HermesChat({
             {m.role === "assistant" ? (
               <>
                 <div className="markdown-body" style={{ fontSize: 13 }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                  <MarkdownRenderer>{m.text}</MarkdownRenderer>
                 </div>
                 {((m.trace && m.trace.length > 0) || m.fallbackReason) && (
                   <ToolTrace trace={m.trace || []} engine={m.engine} fallbackReason={m.fallbackReason} />

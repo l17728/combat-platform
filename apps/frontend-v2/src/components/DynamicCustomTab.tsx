@@ -9,13 +9,10 @@ import {
   UpOutlined,
   DragOutlined,
 } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "./MarkdownRenderer.js";
 // P0-5 修复:移除 rehype-raw,杜绝存储型 XSS。原方案允许 markdown 内任意 HTML
 // 渲染,任何登录用户可在 ticket_tabs.content 写 <script>/<img onerror=...>,
 // 受害者打开攻关单详情页即被盗 localStorage('combat-token')。
-// 不引入 rehype-sanitize 是因为 ReactMarkdown 默认就只渲染白名单 markdown 节点,
-// 原始 HTML 标签会被当字面量字符串显示,等价于安全白名单。
 import { api, type TicketTab } from "../api.js";
 import { useDraggable } from "../hooks/useDraggable.js";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -182,7 +179,7 @@ export default function DynamicCustomTab({ ticketId, tab, onDeleted, onUpdate }:
                       style={{ padding: 12, border: "1px solid #f0f0f0", borderRadius: 6, background: "#fafafa" }}
                     >
                       {/* P0-5: 不传 rehypeRaw,原始 HTML 标签作字面量渲染,防 XSS */}
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewMd}</ReactMarkdown>
+                      <MarkdownRenderer>{previewMd}</MarkdownRenderer>
                     </div>
                   </>
                 )}
