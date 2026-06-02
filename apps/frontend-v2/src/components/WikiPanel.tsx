@@ -16,8 +16,7 @@ import {
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "./MarkdownRenderer.js";
 import { api } from "../api.js";
 import { handleApiError } from "../utils/handleApiError.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -447,7 +446,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                 minHeight: 200,
               }}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{selected.content || "*暂无内容*"}</ReactMarkdown>
+              <MarkdownRenderer>{selected.content || "*暂无内容*"}</MarkdownRenderer>
             </div>
           </div>
         ) : (
@@ -665,17 +664,23 @@ function SortableWikiItem({
           >
             <HolderOutlined />
           </span>
-          <div style={{ overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {item.is_locked && <LockOutlined style={{ color: "#cf1322", fontSize: 11 }} />}
-              <Text ellipsis style={{ fontSize: 13, maxWidth: 100 }}>
-                {item.title}
-              </Text>
+          <div style={{ overflow: "hidden", flex: 1 }}>
+            <Text ellipsis style={{ fontSize: 13 }}>
+              {item.title}
+            </Text>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+              {item.is_locked && (
+                <Tag
+                  color="red"
+                  icon={<LockOutlined />}
+                  style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+                >
+                  已锁
+                </Tag>
+              )}
               <Tag color={TIER_COLOR[tier]} style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}>
                 {TIER_LABEL[tier]}
               </Tag>
-            </div>
-            <div>
               <Text type="secondary" style={{ fontSize: 11 }}>
                 {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
               </Text>
