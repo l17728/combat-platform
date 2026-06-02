@@ -597,8 +597,9 @@ export function makeHermesRouter(
       const rawSessionId = String(req.body?.sessionId ?? "").trim() || undefined;
       let effectiveSessionId = rawSessionId;
 
-      // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在。
-      // 不依赖 LLM tool-calling 可靠性（glm-4-flash 等小模型常漏调工具）。
+      // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在，
+      // 并将抽取摘要注入 context，使小模型无需 tool-call 即可回答。
+      let effectiveContext = context;
       if (ticketIdHint && opts.db) {
         try {
           const existing = opts.db
@@ -610,6 +611,45 @@ export function makeHermesRouter(
               ticketId: ticketIdHint,
               extracted: result.extracted,
               source: result.source,
+            });
+          }
+          const rows = opts.db
+            .prepare("SELECT kind, label, payload FROM welink_extractions WHERE ticket_id = ? ORDER BY created_at DESC")
+            .all(ticketIdHint) as { kind: string; label: string; payload: string }[];
+          if (rows.length > 0) {
+            const entities = rows
+              .filter((r) => r.kind === "entity")
+              .map((r) => {
+                try {
+                  const p = JSON.parse(r.payload);
+                  return `${r.label}(${p.appearedCount ?? 1}次)`;
+                } catch {
+                  return r.label;
+                }
+              })
+              .join("、");
+            const decisions = rows
+              .filter((r) => r.kind === "decision")
+              .map((r) => r.label)
+              .join("、");
+            const events = rows
+              .filter((r) => r.kind === "event")
+              .map((r) => r.label)
+              .join("、");
+            const gaps = rows
+              .filter((r) => r.kind === "gap")
+              .map((r) => r.label)
+              .join("、");
+            const parts: string[] = [`共${rows.length}条抽取记录`];
+            if (entities) parts.push(`参与人: ${entities}`);
+            if (decisions) parts.push(`关键决策: ${decisions}`);
+            if (events) parts.push(`事件: ${events}`);
+            if (gaps) parts.push(`待办: ${gaps}`);
+            const summary = `\n[AI抽取摘要] ${parts.join("; ")}`;
+            effectiveContext = (context ?? "") + summary;
+            log.info("hermes.ask.welink_context_inject", {
+              ticketId: ticketIdHint,
+              extractionCount: rows.length,
             });
           }
         } catch (e) {
@@ -660,7 +700,7 @@ export function makeHermesRouter(
       // ===== tool-calling path (新) =====
       if (plannedEngine === "tool" && opts.toolRunner) {
         try {
-          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, context, opts.db, {
+          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, effectiveContext, opts.db, {
             priorMessages,
           });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
@@ -716,7 +756,7 @@ export function makeHermesRouter(
       // ===== legacy single-turn AgentRunner path (向后兼容) =====
       if (plannedEngine === "tool" && opts.runner) {
         try {
-          const answer = await answerWithAgent(repo, registry, q, opts.runner, context, opts.db);
+          const answer = await answerWithAgent(repo, registry, q, opts.runner, effectiveContext, opts.db);
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           log.info("hermes.ask.done", {
             intent: answer.intent,
