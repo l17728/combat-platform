@@ -231,15 +231,13 @@ export default function DashboardScreen() {
                 }}
               >
                 <div style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {String(item.properties?.["标题"] ?? item.id)}
+                  {String(item.标题 ?? item.ticketId)}
                 </div>
                 <div style={{ marginLeft: 12, flexShrink: 0 }}>
-                  <Tag color={STATUS_COLORS[String(item.properties?.["状态"] ?? "")] || "default"}>
-                    {String(item.properties?.["状态"] ?? "-")}
-                  </Tag>
+                  <Tag color={STATUS_COLORS[String(item.状态 ?? "")] || "default"}>{String(item.状态 ?? "-")}</Tag>
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginLeft: 12, flexShrink: 0 }}>
-                  {dayjs(item.updatedAt).fromNow()}
+                  {dayjs(item.lastChangedAt).fromNow()}
                 </div>
               </div>
             ))}
