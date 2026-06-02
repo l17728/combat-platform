@@ -36,6 +36,7 @@ import {
   MoonOutlined,
   SunOutlined,
   StarOutlined,
+  KeyOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
@@ -45,6 +46,7 @@ import CommandPalette from "../components/CommandPalette.js";
 import { useThemeContext } from "../hooks/useTheme.js";
 import { resetAllTours } from "../components/ProductTour.js";
 import { api } from "../api.js";
+import { ChangePasswordModal } from "../components/ChangePasswordModal.js";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -114,6 +116,7 @@ function getOpenKeysForPath(path: string): string[] {
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  const [pwdOpen, setPwdOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
@@ -325,6 +328,7 @@ export function AppLayout() {
                   },
                   { type: "divider" },
                   ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  { key: "change-password", label: "修改密码", icon: <KeyOutlined /> },
                   { type: "divider" },
                   { key: "replay-tour", label: "重播引导", icon: <QuestionCircleOutlined /> },
                   { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
@@ -333,6 +337,8 @@ export function AppLayout() {
                   if (key === "logout") {
                     logout();
                     navigate("/login");
+                  } else if (key === "change-password") {
+                    setPwdOpen(true);
                   } else if (key === "replay-tour") {
                     resetAllTours();
                     api
@@ -359,6 +365,7 @@ export function AppLayout() {
         <FloatingFeedback />
         <HermesChat title="AI 问答" bottom={156} />
         <CommandPalette />
+        <ChangePasswordModal open={pwdOpen} onClose={() => setPwdOpen(false)} />
       </Layout>
     </Layout>
   );
