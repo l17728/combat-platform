@@ -3,6 +3,7 @@ import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNod
 import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
 import { answerWithAgent, answerWithToolCalling, type AgentRunner, type ToolCallingRunner } from "./hermes-agent.js";
+import { runWelinkExtraction } from "./welink-extraction.js";
 import type { DbAdapter } from "./db-adapter.js";
 import type { DB } from "./db.js";
 import {
@@ -595,6 +596,26 @@ export function makeHermesRouter(
       const startedAt = Date.now();
       const rawSessionId = String(req.body?.sessionId ?? "").trim() || undefined;
       let effectiveSessionId = rawSessionId;
+
+      // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在。
+      // 不依赖 LLM tool-calling 可靠性（glm-4-flash 等小模型常漏调工具）。
+      if (ticketIdHint && opts.db) {
+        try {
+          const existing = opts.db
+            .prepare("SELECT COUNT(*) AS c FROM welink_extractions WHERE ticket_id = ?")
+            .get(ticketIdHint) as { c: number };
+          if (existing.c === 0) {
+            const result = await runWelinkExtraction(opts.db, repo, ticketIdHint, undefined, { useAllMessages: true });
+            log.info("hermes.ask.welink_auto_extract", {
+              ticketId: ticketIdHint,
+              extracted: result.extracted,
+              source: result.source,
+            });
+          }
+        } catch (e) {
+          log.warn("hermes.ask.welink_auto_extract_failed", { ticketId: ticketIdHint, error: (e as Error).message });
+        }
+      }
 
       let priorMessages: import("./hermes-agent.js").LlmMessage[] | undefined;
       if (effectiveSessionId && opts.adapter) {
