@@ -22,7 +22,11 @@ import {
   FolderOutlined,
   FileTextOutlined,
   ArrowLeftOutlined,
+  HolderOutlined,
 } from "@ant-design/icons";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api.js";
@@ -156,6 +160,27 @@ export default function WikiPanel({ scope, scopeId }: Props) {
     setEditOpen(true);
   };
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const canReorder = !keyword;
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = articles.findIndex((a) => a.id === active.id);
+    const newIndex = articles.findIndex((a) => a.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = [...articles];
+    const [moved] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, moved);
+    setArticles(reordered);
+    try {
+      await api.reorderWiki(reordered.map((a) => a.id));
+    } catch (e) {
+      handleApiError(e);
+      fetchData(true);
+    }
+  };
+
   return (
     <div style={{ display: "flex", gap: 16, minHeight: 400 }}>
       {/* Left: article list */}
@@ -177,64 +202,87 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           onChange={(e) => setKeyword(e.target.value)}
           style={{ marginBottom: 12 }}
         />
-        <List
-          size="small"
-          loading={loading}
-          dataSource={articles}
-          locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-          renderItem={(item) => (
-            <List.Item
-              key={item.id}
-              onClick={() => setSelected(item)}
-              style={{
-                cursor: "pointer",
-                padding: "8px 12px",
-                borderRadius: 6,
-                background: selected?.id === item.id ? "#e6f4ff" : "transparent",
-                borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
-              }}
-              actions={[
-                <Button
-                  key="edit"
-                  type="text"
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEdit(item);
-                  }}
-                />,
-                <Popconfirm
-                  key="del"
-                  title="确认删除此文章？"
-                  onConfirm={(e) => {
-                    e?.stopPropagation();
-                    handleDelete(item.id);
-                  }}
-                >
+        {canReorder ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={articles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+              <List
+                size="small"
+                loading={loading}
+                dataSource={articles}
+                locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                renderItem={(item) => (
+                  <SortableWikiItem
+                    key={item.id}
+                    item={item}
+                    selected={selected?.id === item.id}
+                    onSelect={() => setSelected(item)}
+                    onEdit={() => openEdit(item)}
+                    onDelete={() => handleDelete(item.id)}
+                  />
+                )}
+              />
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <List
+            size="small"
+            loading={loading}
+            dataSource={articles}
+            locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+            renderItem={(item) => (
+              <List.Item
+                key={item.id}
+                onClick={() => setSelected(item)}
+                style={{
+                  cursor: "pointer",
+                  padding: "8px 12px",
+                  borderRadius: 6,
+                  background: selected?.id === item.id ? "#e6f4ff" : "transparent",
+                  borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
+                }}
+                actions={[
                   <Button
+                    key="edit"
                     type="text"
                     size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </Popconfirm>,
-              ]}
-            >
-              <div style={{ overflow: "hidden" }}>
-                <Text ellipsis style={{ fontSize: 13, maxWidth: 140 }}>
-                  {item.title}
-                </Text>
-                <div>
-                  <Text type="secondary" style={{ fontSize: 11 }}>
-                    {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+                    icon={<EditOutlined />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEdit(item);
+                    }}
+                  />,
+                  <Popconfirm
+                    key="del"
+                    title="确认删除此文章？"
+                    onConfirm={(e) => {
+                      e?.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </Popconfirm>,
+                ]}
+              >
+                <div style={{ overflow: "hidden" }}>
+                  <Text ellipsis style={{ fontSize: 13, maxWidth: 140 }}>
+                    {item.title}
                   </Text>
+                  <div>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+                    </Text>
+                  </div>
                 </div>
-              </div>
-            </List.Item>
-          )}
-        />
+              </List.Item>
+            )}
+          />
+        )}
       </div>
 
       {/* Right: content view */}
@@ -348,6 +396,80 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           style={{ fontFamily: "monospace" }}
         />
       </Modal>
+    </div>
+  );
+}
+
+function SortableWikiItem({
+  item,
+  selected,
+  onSelect,
+  onEdit,
+  onDelete,
+}: {
+  item: WikiArticle;
+  selected: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    cursor: "pointer",
+    padding: "8px 12px",
+    borderRadius: 6,
+    background: selected ? "#e6f4ff" : "transparent",
+    borderLeft: selected ? "3px solid #1677ff" : "3px solid transparent",
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} onClick={onSelect}>
+      <List.Item
+        actions={[
+          <Button
+            key="edit"
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          />,
+          <Popconfirm
+            key="del"
+            title="确认删除此文章？"
+            onConfirm={(e) => {
+              e?.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
+          </Popconfirm>,
+        ]}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden" }}>
+          <span
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+            style={{ cursor: "grab", color: "#999", fontSize: 12, flexShrink: 0 }}
+          >
+            <HolderOutlined />
+          </span>
+          <div style={{ overflow: "hidden" }}>
+            <Text ellipsis style={{ fontSize: 13, maxWidth: 120 }}>
+              {item.title}
+            </Text>
+            <div>
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+              </Text>
+            </div>
+          </div>
+        </div>
+      </List.Item>
     </div>
   );
 }
