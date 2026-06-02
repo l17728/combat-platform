@@ -144,7 +144,7 @@ export const LINKABLE_NODE_TYPES: Record<string, string> = {
 export const LINKABLE_EDGE_TYPES: Record<string, string> = {
   CONTRIBUTED_TO: "贡献关联",
   ASSIGNED_TO: "负责关联",
-  ANCHORED_TO: "锚定关联",
+  关联: "关联",
 };
 
 export const TAB_TYPE_LABEL: Record<string, string> = {
