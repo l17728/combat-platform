@@ -301,7 +301,7 @@ export const HERMES_SYSTEM_PROMPT = [
   "5. `hermes_welinkSearch(ticketId, q)`:在某攻关单的 Welink 群消息里关键词搜索;用户问「群里谁说过 X」时用。",
   "6. `hermes_welinkTimeline(ticketId, limit?)`:按时间升序读取群消息时间线;用户问时间脉络时用。",
   "7. `hermes_gapAnalysis(ticketId)`:**当用户进入 Welink 场景、提到群消息/聊天/补成员/活跃 等关键字时,主动调本工具看是否有缺口**。返回未登记发言人列表,然后主动询问用户是否要加入。",
-  "8. `hermes_welinkStats(ticketId)`:用户问「群里有几个人」「谁发言最多」「一共多少条消息」等统计问题时,调本工具。返回总消息数、发言人数、各人发言量、时间范围。",
+  "8. `hermes_welinkStats(ticketId)`:群消息统计(总消息数/发言人数/各人发言量/时间范围)。**仅作为兜底**,优先走 welink_extractions → welink_ensure_analyzed 流程。",
   "9. `hermes_welinkExtractions(ticketId, kind?)`:**回答 Welink 问题时首选本工具**——读取已有的 AI 抽取摘要(人物/时间线/决策/争议/缺口)。比读原文更快更准。可选 kind 过滤。",
   "10. `hermes_welinkEnsureAnalyzed(ticketId)`:当 welink_extractions 返回 hasExtractions:false 时,调本工具自动触发启发式分析(处理全量消息,无需用户勾选)生成摘要,然后再调 welink_extractions 读取。",
   "",
