@@ -600,6 +600,7 @@ export function makeHermesRouter(
       // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在，
       // 并将抽取摘要注入 context，使小模型无需 tool-call 即可回答。
       let effectiveContext = context;
+      let hasWelinkInjection = false;
       if (ticketIdHint && opts.db) {
         try {
           const existing = opts.db
@@ -647,6 +648,7 @@ export function makeHermesRouter(
             if (gaps) parts.push(`待办: ${gaps}`);
             const summary = `\n[AI抽取摘要] ${parts.join("; ")}`;
             effectiveContext = (context ?? "") + summary;
+            hasWelinkInjection = true;
             log.info("hermes.ask.welink_context_inject", {
               ticketId: ticketIdHint,
               extractionCount: rows.length,
@@ -702,6 +704,7 @@ export function makeHermesRouter(
         try {
           const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, effectiveContext, opts.db, {
             priorMessages,
+            ...(hasWelinkInjection ? { tools: [] } : {}),
           });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;
