@@ -62,7 +62,7 @@ describe("concept e2e", () => {
     const { app, repo } = await makeApp();
     const c = await request(app).post("/api/nodes/attackTicket").send({ 标题: "断连", 当前处理人: "张三" });
     expect(c.status).toBe(201);
-    const edge = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" }))[0];
+    const edge = (await repo.queryEdges({ sourceId: c.body.id, edgeType: "分配" }))[0];
     expect(edge.properties["concept"]).toBe("负责人");
     const pid = (await repo.queryNodes("person"))[0].id;
     const r = await request(app).get(`/api/related/person/${pid}`);

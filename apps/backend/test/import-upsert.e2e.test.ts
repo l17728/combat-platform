@@ -110,11 +110,11 @@ describe("incremental import (upsert) e2e", () => {
       );
     const t = (await repo.queryNodes("attackTicket", { 攻关单号: "RA-1" }))[0];
     expect(
-      (await repo.queryEdges({ sourceId: t.id, edgeType: "REF" })).find(
+      (await repo.queryEdges({ sourceId: t.id, edgeType: "分配" })).find(
         (e) => String(e.properties["field"]) === "当前处理人"
       )
     ).toBeTruthy();
-    expect((await repo.queryEdges({ sourceId: t.id, edgeType: "ANCHORED_TO" }))[0].targetId).toBeTruthy();
+    expect((await repo.queryEdges({ sourceId: t.id, edgeType: "关联" }))[0].targetId).toBeTruthy();
     await request(app)
       .post("/api/import")
       .attach(
@@ -122,13 +122,13 @@ describe("incremental import (upsert) e2e", () => {
         await xlsxBuf([{ 标题: "T", 攻关单号: "RA-1", 状态: "已解决", 当前处理人: "乙", 问题单号: "PB-B" }]),
         "x.xlsx"
       );
-    const refs = (await repo.queryEdges({ sourceId: t.id, edgeType: "REF" })).filter(
+    const refs = (await repo.queryEdges({ sourceId: t.id, edgeType: "分配" })).filter(
       (e) => String(e.properties["field"]) === "当前处理人"
     );
     expect(refs).toHaveLength(1);
     const newPerson = await repo.getNode(refs[0].targetId)!;
     expect(newPerson.properties["姓名"]).toBe("乙");
-    const anchors = await repo.queryEdges({ sourceId: t.id, edgeType: "ANCHORED_TO" });
+    const anchors = await repo.queryEdges({ sourceId: t.id, edgeType: "关联" });
     expect(anchors).toHaveLength(1);
     expect((await repo.getNode(anchors[0].targetId))!.properties["key"]).toBe("PB-B");
   });

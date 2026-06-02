@@ -10,7 +10,7 @@ describe("syncConflictsForOne (v2.2 P1 §3 — 增量算法)", () => {
     await syncConflictsForOne(repo, t1.id);
     const rows = await listConflictRows(repo);
     expect(rows.length).toBe(1);
-    expect(rows[0].edgeType).toBe("CONFLICTS_WITH");
+    expect(rows[0].edgeType).toBe("冲突");
     expect(rows[0].reason).toBe("同负责人多并发：Alice");
     // 双向边都建了 (listConflictRows dedup 后返回 1 条)
     expect([rows[0].source.id, rows[0].target.id].sort()).toEqual([t1.id, t2.id].sort());
@@ -23,7 +23,7 @@ describe("syncConflictsForOne (v2.2 P1 §3 — 增量算法)", () => {
     await syncConflictsForOne(repo, t1.id);
     const rows = await listConflictRows(repo);
     expect(rows.length).toBe(1);
-    expect(rows[0].edgeType).toBe("OVERLAPS_WITH");
+    expect(rows[0].edgeType).toBe("重叠");
   });
 
   it("only touches edges for the given ticket (does not delete others)", async () => {
@@ -70,7 +70,7 @@ describe("syncConflictsForOne (v2.2 P1 §3 — 增量算法)", () => {
     const rows = await listConflictRows(repo);
     // No CONFLICTS_WITH (t1 not active) but OVERLAPS_WITH on PB-1
     expect(rows.length).toBe(1);
-    expect(rows[0].edgeType).toBe("OVERLAPS_WITH");
+    expect(rows[0].edgeType).toBe("重叠");
   });
 
   it("matches full syncConflicts result for a fresh dataset", async () => {
@@ -85,8 +85,8 @@ describe("syncConflictsForOne (v2.2 P1 §3 — 增量算法)", () => {
     const baseSet = new Set(baseRows.map((r) => [r.source.id, r.target.id].sort().join("|") + ":" + r.edgeType));
 
     // Reset and call incremental for each ticket in succession
-    await repo.deleteEdges({ edgeType: "CONFLICTS_WITH" }, "test");
-    await repo.deleteEdges({ edgeType: "OVERLAPS_WITH" }, "test");
+    await repo.deleteEdges({ edgeType: "冲突" }, "test");
+    await repo.deleteEdges({ edgeType: "重叠" }, "test");
     await syncConflictsForOne(repo, a.id);
     await syncConflictsForOne(repo, b.id);
     await syncConflictsForOne(repo, c.id);

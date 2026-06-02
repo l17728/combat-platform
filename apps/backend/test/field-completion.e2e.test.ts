@@ -66,7 +66,7 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     expect(leader).toBeTruthy();
     expect(applicant).toBeTruthy();
     // REF 边存在（field=攻关组长 / 攻关申请人）
-    const refs = await repo.queryEdges({ sourceId: t.id, edgeType: "REF" });
+    const refs = await repo.queryEdges({ sourceId: t.id, edgeType: "分配" });
     const fields = refs.map((e) => String(e.properties["field"]));
     expect(fields).toContain("攻关组长");
     expect(fields).toContain("攻关申请人");
@@ -75,7 +75,7 @@ describe("增量37 字段补全 + 人员 ref 化（§53）", () => {
     expect(JSON.stringify(rel.body)).toContain(leader!.id);
     // rebuild 后 REF 边从存量字符串回灌仍在
     await rebuildKG(repo, registry);
-    const fields2 = (await repo.queryEdges({ sourceId: t.id, edgeType: "REF" })).map((e) =>
+    const fields2 = (await repo.queryEdges({ sourceId: t.id, edgeType: "分配" })).map((e) =>
       String(e.properties["field"])
     );
     expect(fields2).toContain("攻关组长");
