@@ -1609,19 +1609,29 @@ export class Api {
     parentId?: string;
     title: string;
     content?: string;
+    isLocked?: boolean;
+    lockPassword?: string;
   }): Promise<any> {
     return this.req("/api/wiki", { method: "POST", body: JSON.stringify(data) });
   }
 
   updateWiki(
     id: string,
-    data: { title?: string; content?: string; parentId?: string; sortOrder?: number }
+    data: {
+      title?: string;
+      content?: string;
+      parentId?: string;
+      sortOrder?: number;
+      isLocked?: boolean;
+      lockPassword?: string;
+    }
   ): Promise<any> {
     return this.req(`/api/wiki/${id}`, { method: "PUT", body: JSON.stringify(data) });
   }
 
-  deleteWiki(id: string): Promise<any> {
-    return this.req(`/api/wiki/${id}`, { method: "DELETE" });
+  deleteWiki(id: string, password?: string): Promise<any> {
+    const suffix = password ? `?password=${encodeURIComponent(password)}` : "";
+    return this.req(`/api/wiki/${id}${suffix}`, { method: "DELETE" });
   }
 
   searchWiki(scope: string, keyword: string, scopeId?: string): Promise<any[]> {
@@ -1632,6 +1642,10 @@ export class Api {
 
   reorderWiki(ids: string[]): Promise<any> {
     return this.req("/api/wiki/reorder", { method: "POST", body: JSON.stringify({ ids }) });
+  }
+
+  likeWiki(id: string): Promise<{ liked: boolean; likes: number }> {
+    return this.req(`/api/wiki/${id}/like`, { method: "POST" });
   }
 }
 
