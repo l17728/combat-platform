@@ -316,84 +316,86 @@ export default function WikiPanel({ scope, scopeId }: Props) {
             loading={loading}
             dataSource={articles}
             locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-            renderItem={(item) => (
-              <List.Item
-                key={item.id}
-                onClick={() => setSelected(item)}
-                style={{
-                  cursor: "pointer",
-                  padding: "8px 12px",
-                  borderRadius: 6,
-                  background: selected?.id === item.id ? "#e6f4ff" : "transparent",
-                  borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
-                }}
-                actions={[
-                  item.is_locked && (
-                    <Tag
-                      key="lock"
-                      color="red"
-                      icon={<LockOutlined />}
-                      style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
-                    >
-                      已锁
-                    </Tag>
-                  ),
-                  <Tag
-                    key="tier"
-                    color={TIER_COLOR[tierOf(item)]}
-                    style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
-                  >
-                    {TIER_LABEL[tierOf(item)]}
-                  </Tag>,
-                  <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
+            renderItem={(item) => {
+              const tier = tierOf(item);
+              return (
+                <div
+                  key={item.id}
+                  onClick={() => setSelected(item)}
+                  style={{
+                    cursor: "pointer",
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    background: selected?.id === item.id ? "#e6f4ff" : "transparent",
+                    borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                    <Text ellipsis style={{ fontSize: 13 }}>
+                      {item.title}
+                    </Text>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                      {item.is_locked && (
+                        <Tag
+                          color="red"
+                          icon={<LockOutlined />}
+                          style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+                        >
+                          已锁
+                        </Tag>
+                      )}
+                      <Tag
+                        color={TIER_COLOR[tier]}
+                        style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+                      >
+                        {TIER_LABEL[tier]}
+                      </Tag>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+                      </Text>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+                    <Tooltip title={item.liked ? "取消点赞" : "点赞"}>
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleLike(item.id);
+                        }}
+                      >
+                        {item.likes > 0 ? item.likes : ""}
+                      </Button>
+                    </Tooltip>
                     <Button
                       type="text"
                       size="small"
-                      icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+                      icon={<EditOutlined />}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleLike(item.id);
+                        openEdit(item);
                       }}
-                    >
-                      {item.likes > 0 ? item.likes : ""}
-                    </Button>
-                  </Tooltip>,
-                  <Button
-                    key="edit"
-                    type="text"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEdit(item);
-                    }}
-                  />,
-                  <Button
-                    key="del"
-                    type="text"
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    disabled={!canDelete(item)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteClick(item);
-                    }}
-                  />,
-                ]}
-              >
-                <div style={{ overflow: "hidden" }}>
-                  <Text ellipsis style={{ fontSize: 13 }}>
-                    {item.title}
-                  </Text>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
-                    </Text>
+                    />
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={!canDelete(item)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteClick(item);
+                      }}
+                    />
                   </div>
                 </div>
-              </List.Item>
-            )}
+              );
+            }}
           />
         )}
       </div>
@@ -631,26 +633,40 @@ function SortableWikiItem({
   const tier = tierOf(item);
   return (
     <div ref={setNodeRef} style={style} {...attributes} onClick={onSelect}>
-      <List.Item
-        actions={[
-          item.is_locked && (
-            <Tag
-              key="lock"
-              color="red"
-              icon={<LockOutlined />}
-              style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
-            >
-              已锁
+      <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
+        <span
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          style={{ cursor: "grab", color: "#999", fontSize: 12, flexShrink: 0 }}
+        >
+          <HolderOutlined />
+        </span>
+        <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Text ellipsis style={{ fontSize: 13 }}>
+              {item.title}
+            </Text>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+            {item.is_locked && (
+              <Tag
+                color="red"
+                icon={<LockOutlined />}
+                style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+              >
+                已锁
+              </Tag>
+            )}
+            <Tag color={TIER_COLOR[tier]} style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}>
+              {TIER_LABEL[tier]}
             </Tag>
-          ),
-          <Tag
-            key="tier"
-            color={TIER_COLOR[tier]}
-            style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0, cursor: "default" }}
-          >
-            {TIER_LABEL[tier]}
-          </Tag>,
-          <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+            </Text>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+          <Tooltip title={item.liked ? "取消点赞" : "点赞"}>
             <Button
               type="text"
               size="small"
@@ -662,9 +678,8 @@ function SortableWikiItem({
             >
               {item.likes > 0 ? item.likes : ""}
             </Button>
-          </Tooltip>,
+          </Tooltip>
           <Button
-            key="edit"
             type="text"
             size="small"
             icon={<EditOutlined />}
@@ -672,9 +687,8 @@ function SortableWikiItem({
               e.stopPropagation();
               onEdit();
             }}
-          />,
+          />
           <Button
-            key="del"
             type="text"
             size="small"
             danger
@@ -684,29 +698,9 @@ function SortableWikiItem({
               e.stopPropagation();
               onDelete();
             }}
-          />,
-        ]}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden" }}>
-          <span
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            style={{ cursor: "grab", color: "#999", fontSize: 12, flexShrink: 0 }}
-          >
-            <HolderOutlined />
-          </span>
-          <div style={{ overflow: "hidden", flex: 1 }}>
-            <Text ellipsis style={{ fontSize: 13 }}>
-              {item.title}
-            </Text>
-            <div>
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
-              </Text>
-            </div>
-          </div>
+          />
         </div>
-      </List.Item>
+      </div>
     </div>
   );
 }
