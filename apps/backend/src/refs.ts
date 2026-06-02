@@ -9,7 +9,7 @@ export async function syncRefEdges(
 ): Promise<void> {
   const schema = registry.getNodeSchema(node.nodeType);
   if (!schema) return;
-  await repo.deleteEdges({ sourceId: node.id, edgeType: "REF" }, actor);
+  await repo.deleteEdges({ sourceId: node.id, edgeType: "分配" }, actor);
   for (const f of schema.fields) {
     if (f.type !== "ref" || !f.refType) continue;
     const raw = body[f.id];
@@ -23,6 +23,6 @@ export async function syncRefEdges(
       candidates.find((n) => idKeys.some((k) => String(n.properties[k] ?? "") === v)) ??
       candidates.find((n) => String(n.properties[nameKey] ?? n.properties["姓名"] ?? n.properties["name"] ?? "") === v);
     if (!target) target = await repo.createNode(f.refType, { [nameKey]: v }, actor);
-    await repo.createEdge("REF", node.id, target.id, { field: f.id, refType: f.refType, concept: f.concept }, actor);
+    await repo.createEdge("分配", node.id, target.id, { field: f.id, refType: f.refType, concept: f.concept }, actor);
   }
 }
