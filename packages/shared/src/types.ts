@@ -137,7 +137,7 @@ export interface ExpandedItem {
   viaField: string;
   parentId: string;
 }
-export type ConflictEdgeType = "CONFLICTS_WITH" | "OVERLAPS_WITH";
+export type ConflictEdgeType = "冲突" | "重叠";
 export interface ConflictItem {
   edgeType: ConflictEdgeType;
   reason: string;

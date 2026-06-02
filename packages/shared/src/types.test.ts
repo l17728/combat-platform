@@ -286,27 +286,27 @@ describe("depth-N expansion contract (§32)", () => {
     const e: ExpandedItem = {
       node: { id: "n2", nodeType: "person", properties: { name: "甲" }, createdAt: "t", updatedAt: "t" },
       depth: 2,
-      viaEdgeType: "REF",
+      viaEdgeType: "分配",
       viaField: "当前处理人",
       parentId: "root",
     };
     expect(e.depth).toBe(2);
-    expect(e.viaEdgeType).toBe("REF");
+    expect(e.viaEdgeType).toBe("分配");
   });
 });
 
 describe("conflict / overlap contract (§33)", () => {
   it("ConflictItem + ConflictRow + ScanConflictsResult shapes", () => {
     const node = { id: "n1", nodeType: "attackTicket", properties: { 标题: "X" }, createdAt: "t", updatedAt: "t" };
-    const c: ConflictItem = { edgeType: "CONFLICTS_WITH", reason: "同负责人多并发：甲", node };
-    expect(c.edgeType).toBe("CONFLICTS_WITH");
+    const c: ConflictItem = { edgeType: "冲突", reason: "同负责人多并发：甲", node };
+    expect(c.edgeType).toBe("冲突");
     const r: ConflictRow = {
-      edgeType: "OVERLAPS_WITH",
+      edgeType: "重叠",
       reason: "同问题单：PB-1",
       source: node,
       target: { ...node, id: "n2" },
     };
-    expect(r.edgeType).toBe("OVERLAPS_WITH");
+    expect(r.edgeType).toBe("重叠");
     const s: ScanConflictsResult = { conflicts: 2, overlaps: 1 };
     expect(s.conflicts + s.overlaps).toBe(3);
   });
@@ -425,10 +425,10 @@ describe("Graph snapshot contract (§38)", () => {
         { id: "n1", nodeType: "attackTicket", label: "断网" },
         { id: "n2", nodeType: "person", label: "甲" },
       ],
-      edges: [{ source: "n1", target: "n2", edgeType: "REF" }],
+      edges: [{ source: "n1", target: "n2", edgeType: "分配" }],
     };
     expect(g.nodes.length).toBe(2);
-    expect(g.edges[0].edgeType).toBe("REF");
+    expect(g.edges[0].edgeType).toBe("分配");
   });
 });
 
