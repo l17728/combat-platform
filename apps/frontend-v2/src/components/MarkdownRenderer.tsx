@@ -1,14 +1,36 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import MermaidBlock from "./MermaidBlock.js";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 const YT_REGEX = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/;
+const ALLOWED_IFRAME_HOSTS = [
+  "www.youtube.com",
+  "youtube.com",
+  "youtu.be",
+  "player.bilibili.com",
+  "www.bilibili.com",
+  "bilibili.com",
+];
 
 function extractYtId(url: string): string | null {
   const m = url.match(YT_REGEX);
   return m ? m[1] : null;
 }
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "video", "source", "iframe"],
+  attributes: {
+    ...(defaultSchema.attributes ?? {}),
+    video: ["controls", "width", "height", "style", "autoplay", "muted", "loop", "poster", "preload"],
+    source: ["src", "type"],
+    iframe: ["src", "width", "height", "frameborder", "allow", "allowfullscreen", "scrolling", "style", "title"],
+    "*": ["style"],
+  },
+};
 
 function CodeBlock({ className, children, ...rest }: ComponentPropsWithoutRef<"code"> & { className?: string }) {
   const lang = className?.replace("language-", "");
@@ -45,6 +67,23 @@ function LinkBlock({ href, children }: ComponentPropsWithoutRef<"a"> & { childre
   );
 }
 
+function IframeBlock({ src, ...rest }: ComponentPropsWithoutRef<"iframe"> & { src?: string }) {
+  if (!src) return null;
+  try {
+    const u = new URL(src);
+    if (!ALLOWED_IFRAME_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith("." + h))) {
+      return (
+        <a href={src} target="_blank" rel="noopener noreferrer">
+          {src}
+        </a>
+      );
+    }
+  } catch {
+    return null;
+  }
+  return <iframe src={src} {...rest} />;
+}
+
 function ParagraphBlock({ children }: ComponentPropsWithoutRef<"p"> & { children?: ReactNode }) {
   const arr = Array.isArray(children) ? children : [children];
   if (arr.length === 1) {
@@ -54,16 +93,23 @@ function ParagraphBlock({ children }: ComponentPropsWithoutRef<"p"> & { children
       if (linkProps?.href && extractYtId(linkProps.href)) {
         return <>{children}</>;
       }
+      if (linkProps?.src) {
+        return <>{children}</>;
+      }
     }
   }
   return <p>{children}</p>;
 }
 
-const components = { code: CodeBlock, a: LinkBlock, p: ParagraphBlock };
+const components = { code: CodeBlock, a: LinkBlock, iframe: IframeBlock, p: ParagraphBlock };
 
 export default function MarkdownRenderer({ children }: { children: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+      components={components}
+    >
       {children}
     </ReactMarkdown>
   );
