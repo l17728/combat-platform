@@ -385,21 +385,24 @@ export async function answerQuestion(repo: Repository, registry: SchemaRegistry,
     };
   }
 
-  // 5) fallback: full-text search across all nodeTypes
-  const needle = question.toLowerCase();
+  // 5) fallback: keyword-based search across all nodeTypes
+  const keywords = extractKeywords(question);
   const hits: { node: GraphNode; score: number }[] = [];
-  if (needle) {
+  if (keywords.length > 0) {
     for (const nt of registry.getConfig().nodeTypes.map((n) => n.nodeType)) {
       for (const n of await repo.queryNodes(nt)) {
         const hay = Object.values(n.properties)
           .map((v) => String(v))
           .join(" ")
           .toLowerCase();
-        let score = 0,
-          i = hay.indexOf(needle);
-        while (i !== -1) {
-          score++;
-          i = hay.indexOf(needle, i + needle.length);
+        let score = 0;
+        for (const kw of keywords) {
+          const needle = kw.toLowerCase();
+          let i = hay.indexOf(needle);
+          while (i !== -1) {
+            score++;
+            i = hay.indexOf(needle, i + needle.length);
+          }
         }
         if (score > 0) hits.push({ node: n, score });
       }

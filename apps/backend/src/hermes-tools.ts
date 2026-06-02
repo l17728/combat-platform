@@ -1104,6 +1104,71 @@ const welinkEnsureAnalyzedTool: ToolDefinition = {
   },
 };
 
+// 20. list_welink_tickets — 跨工单聚合：哪些攻关单有 Welink 群消息
+const listWelinkTicketsTool: ToolDefinition = {
+  name: "list_welink_tickets",
+  description:
+    "列出所有有 Welink 群消息的攻关单,返回每个攻关单的消息数、发言人数、最近消息时间。" +
+    "用于回答'哪些攻关单有welink消息/welink群/群聊/聊天记录'等跨工单聚合查询。" +
+    "注意:本工具不需要 ticketId 参数,它会自动聚合所有有 welink 消息的攻关单。",
+  inputSchema: {
+    type: "object",
+    properties: { limit: { type: "number" } },
+    required: [],
+    additionalProperties: false,
+  },
+  async execute(input, ctx) {
+    if (!ctx.db) throw new Error("welink 工具需要 sqlite DB 句柄");
+    const limit = clampInt(input.limit, 1, 50, 20);
+    const rows = ctx.db
+      .prepare(
+        `SELECT wm.ticket_id,
+                COUNT(wm.id) AS msg_count,
+                COUNT(DISTINCT wm.author) AS author_count,
+                MAX(wm.sent_at) AS latest_msg
+         FROM welink_messages wm
+         WHERE wm.deleted_at IS NULL AND wm.ticket_id != 'NONE'
+         GROUP BY wm.ticket_id
+         ORDER BY msg_count DESC
+         LIMIT ?`
+      )
+      .all(limit) as Array<{
+      ticket_id: string;
+      msg_count: number;
+      author_count: number;
+      latest_msg: string;
+    }>;
+
+    if (rows.length === 0) {
+      return { hasWelinkTickets: false, tickets: [] };
+    }
+
+    const tickets: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      try {
+        const node = await ctx.repo.getNode(row.ticket_id);
+        if (!node) continue;
+        const gated = await gateNode(ctx, node);
+        if (!gated) continue; // 私单不可见则跳过
+        tickets.push({
+          ticketId: row.ticket_id,
+          title: node.properties["标题"] ?? node.properties["title"] ?? "",
+          status: node.properties["状态"] ?? node.properties["status"] ?? "",
+          level: node.properties["事件级别"] ?? node.properties["level"] ?? "",
+          handler: node.properties["当前处理人"] ?? "",
+          msgCount: row.msg_count,
+          authorCount: row.author_count,
+          latestMessage: row.latest_msg,
+        });
+      } catch {
+        // 节点已删除或无权限，跳过
+      }
+    }
+
+    return { hasWelinkTickets: true, count: tickets.length, tickets };
+  },
+};
+
 // ---------------------------------------------------------------------------
 // 工具注册表 (单一出口)
 // ---------------------------------------------------------------------------
@@ -1128,6 +1193,7 @@ export const ALL_TOOLS: ToolDefinition[] = [
   welinkStatsTool,
   welinkExtractionsTool,
   welinkEnsureAnalyzedTool,
+  listWelinkTicketsTool,
   ...ALL_WRITE_TOOLS,
 ];
 
