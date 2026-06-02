@@ -1647,6 +1647,97 @@ export class Api {
   likeWiki(id: string): Promise<{ liked: boolean; likes: number }> {
     return this.req(`/api/wiki/${id}/like`, { method: "POST" });
   }
+
+  // ---- 分享 ----
+  createShareLink(params: {
+    entityType: string;
+    entityId: string;
+    password?: string;
+    expiresIn?: number;
+    maxViews?: number;
+  }): Promise<{ id: string; url: string; token: string; expiresAt: string | null }> {
+    return this.req("/api/share", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  }
+
+  getSharedContent(
+    token: string,
+    password?: string
+  ): Promise<{
+    entityType: string;
+    title: string;
+    content: string;
+    sharedBy: string;
+    sharedAt: string;
+    expiresAt: string | null;
+    requiresPassword?: boolean;
+  }> {
+    const qs = password ? `?password=${encodeURIComponent(password)}` : "";
+    return this.req(`/api/s/${token}${qs}`);
+  }
+
+  listShareLinks(entityType: string, entityId: string): Promise<any[]> {
+    return this.req(`/api/share?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+  }
+
+  revokeShareLink(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/share/${id}`, { method: "DELETE" });
+  }
+
+  copyWikiToTicket(
+    wikiId: string,
+    targetScopeId: string,
+    title?: string
+  ): Promise<{ ok: boolean; copyId: string; title: string }> {
+    return this.req(`/api/wiki/${wikiId}/copy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetScopeId, title }),
+    });
+  }
+
+  // ---- SaaS Platform ----
+  listTenants(): Promise<Tenant[]> {
+    return this.req("/api/platform/tenants");
+  }
+
+  createTenant(data: { name: string; slug: string; plan?: string; maxUsers?: number }): Promise<Tenant> {
+    return this.req("/api/platform/tenants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  getTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}`);
+  }
+
+  updateTenant(
+    id: string,
+    data: { name?: string; plan?: string; status?: string; maxUsers?: number }
+  ): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  suspendTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}/suspend`, { method: "PUT" });
+  }
+
+  restoreTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}/restore`, { method: "PUT" });
+  }
+
+  getPlatformStats(): Promise<{ tenantCount: number; userCount: number; nodeCount: number }> {
+    return this.req("/api/platform/stats");
+  }
 }
 
 export interface DocItem {
@@ -1733,6 +1824,18 @@ export interface TicketTab {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  max_users: number;
+  settings: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export const api = new Api("");

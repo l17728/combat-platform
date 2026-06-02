@@ -53,9 +53,11 @@ import { makeWebhookRouter } from "./webhook-router.js";
 import { makeDigestRouter } from "./digest-router.js";
 import { makeInvitationRouter } from "./invitation-router.js";
 import { makeWikiRouter } from "./wiki-router.js";
+import { makeShareRouter } from "./share-router.js";
 import { makeOpenApiRouter } from "./openapi-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
 import { SAAS_MODE, tenantMiddleware, ensureDefaultTenant } from "./tenant-middleware.js";
+import { makePlatformRouter } from "./platform-router.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
 import { ensureLlmSettingsTable, getLlmSettings, resolveLlmSecret } from "./llm-settings.js";
@@ -154,6 +156,7 @@ export function createApp(deps: {
       ensureDefaultTenant(adapter).catch((e) =>
         log.warn("tenant.ensure_default_failed", { error: (e as Error).message })
       );
+      app.use("/api", makePlatformRouter(adapter));
     }
     app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
@@ -346,6 +349,7 @@ export function createApp(deps: {
     app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
     app.use("/api", makeInvitationRouter(adapter, deps.repo, mailSender));
     app.use("/api", makeWikiRouter(adapter));
+    app.use("/api", makeShareRouter(adapter));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for

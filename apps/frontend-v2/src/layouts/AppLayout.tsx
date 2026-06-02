@@ -37,6 +37,7 @@ import {
   SunOutlined,
   StarOutlined,
   KeyOutlined,
+  CloudServerOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
@@ -79,6 +80,7 @@ function getSelectedKey(path: string): string {
       "/db-migration",
       "/system-upgrade",
       "/notifications",
+      "/platform",
     ].includes(path)
   )
     return path;
@@ -107,6 +109,7 @@ function getOpenKeysForPath(path: string): string[] {
       "/db-migration",
       "/system-upgrade",
       "/notifications",
+      "/platform",
     ].includes(path)
   )
     return ["system"];
@@ -222,6 +225,7 @@ export function AppLayout() {
         ...(isAdmin ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+        ...(isAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
       ],
     },
   ];

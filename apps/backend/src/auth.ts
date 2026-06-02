@@ -139,11 +139,13 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
   r.post(
     "/auth/register",
     asyncHandler(async (req, res) => {
-      const { username, password, displayName, inviteCode } = req.body as {
+      const { username, password, displayName, inviteCode, tenantName, tenantSlug } = req.body as {
         username?: string;
         password?: string;
         displayName?: string;
         inviteCode?: string;
+        tenantName?: string;
+        tenantSlug?: string;
       };
       if (!username || !password) {
         return res.status(400).json({ error: "请输入用户名和密码" });
@@ -161,6 +163,7 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
 
       let userRole = "normal";
       let invitationId: string | null = null;
+      let tenantId = "default";
       if (inviteCode) {
         const invRow = await adapter.queryOne<any>("SELECT * FROM invitations WHERE code = ?", [inviteCode]);
         if (!invRow) {
@@ -174,23 +177,47 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
         }
         userRole = invRow.role || "normal";
         invitationId = invRow.id;
+        if (invRow.tenant_id) tenantId = invRow.tenant_id;
+      }
+
+      const saasMode = process.env.SAAS_MODE === "1";
+
+      if (saasMode && tenantName && tenantSlug) {
+        if (!/^[a-z0-9][-a-z0-9]+$/.test(tenantSlug)) {
+          return res.status(400).json({ error: "租户标识格式无效（小写字母数字和连字符）" });
+        }
+        const slugExists = await adapter.queryOne<{ id: string }>("SELECT id FROM tenants WHERE slug = ?", [
+          tenantSlug,
+        ]);
+        if (slugExists) {
+          return res.status(409).json({ error: "租户标识已存在" });
+        }
+        const tId = randomUUID();
+        const now = new Date().toISOString();
+        await adapter.run(
+          "INSERT INTO tenants (id, name, slug, plan, status, max_users, settings, created_at, updated_at) VALUES (?, ?, ?, 'free', 'active', 50, '{}', ?, ?)",
+          [tId, tenantName, tenantSlug, now, now]
+        );
+        tenantId = tId;
+        userRole = "admin";
+        log.info("auth.tenant_created", { tenantId: tId, tenantName, tenantSlug, by: username });
       }
 
       const hash = bcrypt.hashSync(password, 10);
-      const now = new Date().toISOString();
+      const now2 = new Date().toISOString();
       const id = randomUUID();
       await adapter.run(
-        "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [id, username, hash, userRole, displayName ?? username, now, now]
+        "INSERT INTO users (id, username, password_hash, role, display_name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [id, username, hash, userRole, displayName ?? username, tenantId, now2, now2]
       );
 
       if (invitationId) {
-        await adapter.run("UPDATE invitations SET used_by = ?, used_at = ? WHERE id = ?", [id, now, invitationId]);
+        await adapter.run("UPDATE invitations SET used_by = ?, used_at = ? WHERE id = ?", [id, now2, invitationId]);
         log.info("invitation.used", { id: invitationId, usedBy: username });
       }
 
-      log.info("auth.register", { username, role: userRole, invited: !!inviteCode });
-      const payload: JwtPayload = { userId: id, username, role: userRole, tenantId: "default" };
+      log.info("auth.register", { username, role: userRole, invited: !!inviteCode, tenantId });
+      const payload: JwtPayload = { userId: id, username, role: userRole, tenantId };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
       const user = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [id]);
       res.status(201).json({ token, user: toUser(user) });
@@ -478,6 +505,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     "/health",
     "/metrics",
     "/invitations/check/",
+    "/s/",
   ];
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();

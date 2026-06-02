@@ -47,6 +47,8 @@ const NotificationsPage = lazy(() => import("./pages/NotificationsPage.js"));
 const BackupRestore = lazy(() => import("./pages/BackupRestore.js"));
 const DocumentCenter = lazy(() => import("./pages/DocumentCenter.js"));
 const ManualCenter = lazy(() => import("./pages/ManualCenter.js"));
+const SharedView = lazy(() => import("./pages/SharedView.js"));
+const PlatformAdmin = lazy(() => import("./pages/PlatformAdmin.js"));
 const NotFound = lazy(() => import("./components/NotFound.js"));
 
 function PageLoader() {
@@ -164,6 +166,14 @@ function AppInner() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
+        <Route
+          path="/s/:token"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <SharedView />
+            </Suspense>
+          }
+        />
         <Route path="/login" element={<LoginRedirect />} />
         <Route path="/help/feedback/:token" element={<HelpFeedback />} />
         <Route path="/invite" element={<InviteRegister />} />
@@ -250,6 +260,14 @@ function AppInner() {
           />
           <Route path="/documents" element={<DocumentCenter />} />
           <Route path="/manual" element={<ManualCenter />} />
+          <Route
+            path="/platform"
+            element={
+              <AdminGuard>
+                <PlatformAdmin />
+              </AdminGuard>
+            }
+          />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

@@ -14,11 +14,13 @@ import {
   LikeFilled,
   LeftOutlined,
   RightOutlined,
+  ShareAltOutlined,
 } from "@ant-design/icons";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import MarkdownRenderer from "./MarkdownRenderer.js";
+import ShareModal from "./ShareModal.js";
 import { api } from "../api.js";
 import { handleApiError } from "../utils/handleApiError.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -75,6 +77,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const [deleteModal, setDeleteModal] = useState<{ id: string; title: string } | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const AVATAR_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1", "#13c2c2", "#cf1322", "#2f54eb"];
 
@@ -530,6 +533,11 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                     {selected.likes > 0 ? `${selected.likes} 赞` : "点赞"}
                   </Button>
                 </Tooltip>
+                {!selected.is_locked && (
+                  <Button icon={<ShareAltOutlined />} onClick={() => setShareOpen(true)}>
+                    分享
+                  </Button>
+                )}
                 {(!selected.is_locked || canEdit(selected)) && (
                   <Button icon={<EditOutlined />} onClick={() => openEdit(selected)}>
                     编辑
@@ -699,6 +707,16 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           onPressEnter={confirmDeleteLocked}
         />
       </Modal>
+
+      {selected && (
+        <ShareModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          entityType="wiki"
+          entityId={selected.id}
+          entityTitle={selected.title}
+        />
+      )}
     </div>
   );
 }
