@@ -12,6 +12,8 @@ import {
   UnlockOutlined,
   LikeOutlined,
   LikeFilled,
+  LeftOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -72,7 +74,19 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const [editLocked, setEditLocked] = useState(false);
   const [deleteModal, setDeleteModal] = useState<{ id: string; title: string } | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
 
+  const AVATAR_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1", "#13c2c2", "#cf1322", "#2f54eb"];
+
+  function avatarColor(title: string): string {
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+  }
+
+  function avatarChar(title: string): string {
+    return title.trim()[0] || "?";
+  }
   const selectArticle = useCallback(
     (article: WikiArticle | null) => {
       setSelected(article);
@@ -279,139 +293,209 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", gap: 16, minHeight: 400 }}>
-      {/* Left: article list */}
-      <div style={{ width: 300, flexShrink: 0, borderRight: "1px solid #f0f0f0", paddingRight: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <Text strong style={{ fontSize: 14 }}>
-            <BookOutlined /> 文章列表
-          </Text>
-          <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
-            新建
-          </Button>
-        </div>
-        <Input
-          size="small"
-          placeholder="搜索知识库..."
-          prefix={<SearchOutlined />}
-          allowClear
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          style={{ marginBottom: 12 }}
-        />
-        {canReorder ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={articles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+    <div style={{ display: "flex", gap: collapsed ? 8 : 16, minHeight: 400 }}>
+      {/* Left: article list / collapsed avatars */}
+      <div
+        style={{
+          width: collapsed ? 48 : 300,
+          flexShrink: 0,
+          borderRight: "1px solid #f0f0f0",
+          paddingRight: collapsed ? 4 : 16,
+          transition: "width 0.2s",
+          overflow: "hidden",
+        }}
+      >
+        {collapsed ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, paddingTop: 8 }}>
+            <Button
+              type="text"
+              size="small"
+              icon={<RightOutlined />}
+              onClick={() => setCollapsed(false)}
+              style={{ marginBottom: 8 }}
+            />
+            <Tooltip title="新建" placement="right">
+              <div
+                onClick={() => setCreateOpen(true)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: "#f0f0f0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "#999",
+                  fontSize: 16,
+                  marginBottom: 4,
+                }}
+              >
+                <PlusOutlined />
+              </div>
+            </Tooltip>
+            {articles.map((a) => (
+              <Tooltip key={a.id} title={a.title} placement="right">
+                <div
+                  onClick={() => setSelected(a)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: selected?.id === a.id ? avatarColor(a.title) : avatarColor(a.title) + "33",
+                    color: selected?.id === a.id ? "#fff" : avatarColor(a.title),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    transition: "all 0.15s",
+                    border: selected?.id === a.id ? `2px solid ${avatarColor(a.title)}` : "2px solid transparent",
+                  }}
+                >
+                  {avatarChar(a.title)}
+                </div>
+              </Tooltip>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <Text strong style={{ fontSize: 14 }}>
+                <BookOutlined /> 文章列表
+              </Text>
+              <Space size={4}>
+                <Button size="small" icon={<LeftOutlined />} onClick={() => setCollapsed(true)} />
+                <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+                  新建
+                </Button>
+              </Space>
+            </div>
+            <Input
+              size="small"
+              placeholder="搜索知识库..."
+              prefix={<SearchOutlined />}
+              allowClear
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              style={{ marginBottom: 12 }}
+            />
+            {canReorder ? (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={articles.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+                  <List
+                    size="small"
+                    loading={loading}
+                    dataSource={articles}
+                    locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                    renderItem={(item) => (
+                      <SortableWikiItem
+                        key={item.id}
+                        item={item}
+                        selected={selected?.id === item.id}
+                        onSelect={() => setSelected(item)}
+                        onEdit={() => openEdit(item)}
+                        onDelete={() => handleDeleteClick(item)}
+                        onLike={() => handleLike(item.id)}
+                        canDelete={canDelete(item)}
+                        canEdit={canEdit(item)}
+                      />
+                    )}
+                  />
+                </SortableContext>
+              </DndContext>
+            ) : (
               <List
                 size="small"
                 loading={loading}
                 dataSource={articles}
                 locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-                renderItem={(item) => (
-                  <SortableWikiItem
-                    key={item.id}
-                    item={item}
-                    selected={selected?.id === item.id}
-                    onSelect={() => setSelected(item)}
-                    onEdit={() => openEdit(item)}
-                    onDelete={() => handleDeleteClick(item)}
-                    onLike={() => handleLike(item.id)}
-                    canDelete={canDelete(item)}
-                    canEdit={canEdit(item)}
-                  />
-                )}
-              />
-            </SortableContext>
-          </DndContext>
-        ) : (
-          <List
-            size="small"
-            loading={loading}
-            dataSource={articles}
-            locale={{ emptyText: <Empty description="暂无文章" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-            renderItem={(item) => {
-              const tier = tierOf(item);
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => setSelected(item)}
-                  style={{
-                    cursor: "pointer",
-                    padding: "8px 12px",
-                    borderRadius: 6,
-                    background: selected?.id === item.id ? "#e6f4ff" : "transparent",
-                    borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                    <Text ellipsis style={{ fontSize: 13 }}>
-                      {item.title}
-                    </Text>
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
-                      {item.is_locked && (
-                        <Tag
-                          color="red"
-                          icon={<LockOutlined />}
-                          style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
-                        >
-                          已锁
-                        </Tag>
-                      )}
-                      <Tag
-                        color={TIER_COLOR[tier]}
-                        style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
-                      >
-                        {TIER_LABEL[tier]}
-                      </Tag>
-                      <Text type="secondary" style={{ fontSize: 11 }}>
-                        {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
-                      </Text>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
-                    <Tooltip title={item.liked ? "取消点赞" : "点赞"}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLike(item.id);
-                        }}
-                      >
-                        {item.likes > 0 ? item.likes : ""}
-                      </Button>
-                    </Tooltip>
-                    {canEdit(item) && (
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEdit(item);
-                        }}
-                      />
-                    )}
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      disabled={!canDelete(item)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(item);
+                renderItem={(item) => {
+                  const tier = tierOf(item);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelected(item)}
+                      style={{
+                        cursor: "pointer",
+                        padding: "8px 12px",
+                        borderRadius: 6,
+                        background: selected?.id === item.id ? "#e6f4ff" : "transparent",
+                        borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
                       }}
-                    />
-                  </div>
-                </div>
-              );
-            }}
-          />
+                    >
+                      <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                        <Text ellipsis style={{ fontSize: 13 }}>
+                          {item.title}
+                        </Text>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                          {item.is_locked && (
+                            <Tag
+                              color="red"
+                              icon={<LockOutlined />}
+                              style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+                            >
+                              已锁
+                            </Tag>
+                          )}
+                          <Tag
+                            color={TIER_COLOR[tier]}
+                            style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}
+                          >
+                            {TIER_LABEL[tier]}
+                          </Tag>
+                          <Text type="secondary" style={{ fontSize: 11 }}>
+                            {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
+                          </Text>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 0, flexShrink: 0 }}>
+                        <Tooltip title={item.liked ? "取消点赞" : "点赞"}>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleLike(item.id);
+                            }}
+                          >
+                            {item.likes > 0 ? item.likes : ""}
+                          </Button>
+                        </Tooltip>
+                        {canEdit(item) && (
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<EditOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(item);
+                            }}
+                          />
+                        )}
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          disabled={!canDelete(item)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(item);
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+            )}
+          </>
         )}
       </div>
 
