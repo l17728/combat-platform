@@ -592,7 +592,9 @@ export function makeHermesRouter(
       if (!q) return res.status(400).json({ error: "question 必填" });
       const context = String(req.body?.context ?? "").trim() || undefined;
       const requestedMode = parseMode(req.body?.mode ?? opts.defaultMode);
+      const scope = String(req.body?.scope ?? "").trim() || undefined;
       const ticketIdHint = extractTicketIdHint(context);
+      const isWelinkScope = scope === "welink" || !!ticketIdHint;
       const startedAt = Date.now();
       const rawSessionId = String(req.body?.sessionId ?? "").trim() || undefined;
       let effectiveSessionId = rawSessionId;
@@ -600,8 +602,11 @@ export function makeHermesRouter(
       // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在，
       // 并将抽取摘要注入 context，使小模型无需 tool-call 即可回答。
       let effectiveContext = context;
+      if (scope === "welink") {
+        effectiveContext = `scope=welink${effectiveContext ? "\n" + effectiveContext : ""}`;
+      }
       let hasWelinkInjection = false;
-      if (ticketIdHint && opts.db) {
+      if (isWelinkScope && ticketIdHint && opts.db) {
         try {
           const existing = opts.db
             .prepare("SELECT COUNT(*) AS c FROM welink_extractions WHERE ticket_id = ?")
