@@ -1,28 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
-import {
-  Input,
-  Button,
-  Space,
-  List,
-  Modal,
-  Form,
-  message,
-  Empty,
-  Popconfirm,
-  Typography,
-  Card,
-  Breadcrumb,
-} from "antd";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Input, Button, Space, List, Modal, Form, message, Empty, Popconfirm, Typography, Tag, Tooltip } from "antd";
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   SearchOutlined,
   BookOutlined,
-  FolderOutlined,
   FileTextOutlined,
-  ArrowLeftOutlined,
   HolderOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  LikeOutlined,
+  LikeFilled,
 } from "@ant-design/icons";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -31,6 +20,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api.js";
 import { handleApiError } from "../utils/handleApiError.js";
+import { useAuth } from "../hooks/useAuth.js";
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -44,9 +34,21 @@ interface WikiArticle {
   content: string;
   sort_order: number;
   created_by: string;
+  is_locked: boolean;
+  likes: number;
+  liked: boolean;
   created_at: string;
   updated_at: string;
 }
+
+function tierOf(a: WikiArticle): "locked" | "liked" | "plain" {
+  if (a.is_locked) return "locked";
+  if (a.likes > 0) return "liked";
+  return "plain";
+}
+
+const TIER_LABEL: Record<string, string> = { locked: "已加锁", liked: "已点赞", plain: "普通" };
+const TIER_COLOR: Record<string, string> = { locked: "#cf1322", liked: "#1677ff", plain: "#8c8c8c" };
 
 interface Props {
   scope: "global" | "ticket";
@@ -54,6 +56,8 @@ interface Props {
 }
 
 export default function WikiPanel({ scope, scopeId }: Props) {
+  const { user, isAdmin } = useAuth();
+  const username = user?.displayName || user?.username || "";
   const storageKey = `wiki-selected-${scope}${scopeId ? `-${scopeId}` : ""}`;
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,13 +69,15 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const [createForm] = Form.useForm();
   const [editContent, setEditContent] = useState("");
   const [createContent, setCreateContent] = useState("");
+  const [createLocked, setCreateLocked] = useState(false);
+  const [editLocked, setEditLocked] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ id: string; title: string } | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
 
   const selectArticle = useCallback(
     (article: WikiArticle | null) => {
       setSelected(article);
-      if (article) {
-        localStorage.setItem(storageKey, article.id);
-      }
+      if (article) localStorage.setItem(storageKey, article.id);
     },
     [storageKey]
   );
@@ -82,7 +88,6 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       try {
         const result = keyword ? await api.searchWiki(scope, keyword, scopeId) : await api.listWiki(scope, scopeId);
         setArticles(result);
-
         const prevId = localStorage.getItem(storageKey);
         const target = prevId ? result.find((a: WikiArticle) => a.id === prevId) : null;
         if (target) {
@@ -107,17 +112,30 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   }, [fetchData]);
 
   const handleCreate = async () => {
-    const title = createForm.getFieldValue("title")?.trim();
+    const values = createForm.getFieldsValue();
+    const title = values.title?.trim();
     if (!title) {
       createForm.validateFields(["title"]).catch(() => {});
       return;
     }
+    if (createLocked && !values.lockPassword?.trim()) {
+      message.error("加锁时必须设置密码");
+      return;
+    }
     try {
-      await api.createWiki({ scope, scopeId, title, content: createContent });
+      await api.createWiki({
+        scope,
+        scopeId,
+        title,
+        content: createContent,
+        isLocked: createLocked,
+        lockPassword: createLocked ? values.lockPassword : undefined,
+      });
       message.success("创建成功");
       setCreateOpen(false);
       createForm.resetFields();
       setCreateContent("");
+      setCreateLocked(false);
       fetchData(true);
     } catch (e) {
       handleApiError(e);
@@ -126,13 +144,23 @@ export default function WikiPanel({ scope, scopeId }: Props) {
 
   const handleSave = async () => {
     if (!selected) return;
-    const title = editForm.getFieldValue("title")?.trim();
+    const values = editForm.getFieldsValue();
+    const title = values.title?.trim();
     if (!title) {
       editForm.validateFields(["title"]).catch(() => {});
       return;
     }
+    if (editLocked && !values.lockPassword?.trim() && !selected.is_locked) {
+      message.error("加锁时必须设置密码");
+      return;
+    }
     try {
-      await api.updateWiki(selected.id, { title, content: editContent });
+      await api.updateWiki(selected.id, {
+        title,
+        content: editContent,
+        isLocked: editLocked,
+        lockPassword: values.lockPassword || undefined,
+      });
       message.success("保存成功");
       setEditOpen(false);
       fetchData(true);
@@ -143,9 +171,9 @@ export default function WikiPanel({ scope, scopeId }: Props) {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string, password?: string) => {
     try {
-      await api.deleteWiki(id);
+      await api.deleteWiki(id, password);
       message.success("已删除");
       if (selected?.id === id) setSelected(null);
       fetchData(true);
@@ -154,27 +182,85 @@ export default function WikiPanel({ scope, scopeId }: Props) {
     }
   };
 
+  const handleLike = async (id: string) => {
+    try {
+      const res = await api.likeWiki(id);
+      setArticles((prev) => prev.map((a) => (a.id === id ? { ...a, likes: res.likes, liked: res.liked } : a)));
+      if (selected?.id === id) {
+        setSelected((prev) => (prev ? { ...prev, likes: res.likes, liked: res.liked } : prev));
+      }
+    } catch (e) {
+      handleApiError(e);
+    }
+  };
+
   const openEdit = (article: WikiArticle) => {
-    editForm.setFieldsValue({ title: article.title });
+    editForm.setFieldsValue({ title: article.title, lockPassword: "" });
     setEditContent(article.content);
+    setEditLocked(article.is_locked);
     setEditOpen(true);
+  };
+
+  const canDelete = (article: WikiArticle) => isAdmin || article.created_by === username;
+
+  const handleDeleteClick = (article: WikiArticle) => {
+    if (!canDelete(article)) {
+      message.error("仅创建者或管理员可删除此文章");
+      return;
+    }
+    if (article.is_locked) {
+      setDeleteModal({ id: article.id, title: article.title });
+      setDeletePassword("");
+    } else {
+      handleDelete(article.id);
+    }
+  };
+
+  const confirmDeleteLocked = () => {
+    if (!deletePassword.trim()) {
+      message.error("请输入密码");
+      return;
+    }
+    handleDelete(deleteModal!.id, deletePassword);
+    setDeleteModal(null);
   };
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const canReorder = !keyword;
 
+  // Group articles by tier for drag-within-tier
+  const tieredIds = useMemo(() => {
+    const locked = articles.filter((a) => tierOf(a) === "locked").map((a) => a.id);
+    const liked = articles.filter((a) => tierOf(a) === "liked").map((a) => a.id);
+    const plain = articles.filter((a) => tierOf(a) === "plain").map((a) => a.id);
+    return { locked, liked, plain };
+  }, [articles]);
+
+  const tierForId = useCallback(
+    (id: string) => {
+      const a = articles.find((x) => x.id === id);
+      return a ? tierOf(a) : null;
+    },
+    [articles]
+  );
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = articles.findIndex((a) => a.id === active.id);
-    const newIndex = articles.findIndex((a) => a.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = [...articles];
-    const [moved] = reordered.splice(oldIndex, 1);
-    reordered.splice(newIndex, 0, moved);
-    setArticles(reordered);
+    const activeTier = tierForId(String(active.id));
+    const overTier = tierForId(String(over.id));
+    if (activeTier !== overTier) return; // cross-tier drag blocked
+    const tier = activeTier as string;
+    const tierIds = tieredIds[tier as keyof typeof tieredIds];
+    const oldIdx = tierIds.indexOf(String(active.id));
+    const newIdx = tierIds.indexOf(String(over.id));
+    if (oldIdx === -1 || newIdx === -1) return;
+    const reordered = [...tierIds];
+    const [moved] = reordered.splice(oldIdx, 1);
+    reordered.splice(newIdx, 0, moved);
     try {
-      await api.reorderWiki(reordered.map((a) => a.id));
+      await api.reorderWiki(reordered);
+      fetchData(true);
     } catch (e) {
       handleApiError(e);
       fetchData(true);
@@ -184,7 +270,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   return (
     <div style={{ display: "flex", gap: 16, minHeight: 400 }}>
       {/* Left: article list */}
-      <div style={{ width: 280, flexShrink: 0, borderRight: "1px solid #f0f0f0", paddingRight: 16 }}>
+      <div style={{ width: 300, flexShrink: 0, borderRight: "1px solid #f0f0f0", paddingRight: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <Text strong style={{ fontSize: 14 }}>
             <BookOutlined /> 文章列表
@@ -217,7 +303,9 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                     selected={selected?.id === item.id}
                     onSelect={() => setSelected(item)}
                     onEdit={() => openEdit(item)}
-                    onDelete={() => handleDelete(item.id)}
+                    onDelete={() => handleDeleteClick(item)}
+                    onLike={() => handleLike(item.id)}
+                    canDelete={canDelete(item)}
                   />
                 )}
               />
@@ -241,6 +329,19 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                   borderLeft: selected?.id === item.id ? "3px solid #1677ff" : "3px solid transparent",
                 }}
                 actions={[
+                  <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLike(item.id);
+                      }}
+                    >
+                      {item.likes > 0 ? item.likes : ""}
+                    </Button>
+                  </Tooltip>,
                   <Button
                     key="edit"
                     type="text"
@@ -251,28 +352,27 @@ export default function WikiPanel({ scope, scopeId }: Props) {
                       openEdit(item);
                     }}
                   />,
-                  <Popconfirm
+                  <Button
                     key="del"
-                    title="确认删除此文章？"
-                    onConfirm={(e) => {
-                      e?.stopPropagation();
-                      handleDelete(item.id);
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={!canDelete(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(item);
                     }}
-                  >
-                    <Button
-                      type="text"
-                      size="small"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </Popconfirm>,
+                  />,
                 ]}
               >
                 <div style={{ overflow: "hidden" }}>
-                  <Text ellipsis style={{ fontSize: 13, maxWidth: 140 }}>
-                    {item.title}
-                  </Text>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    {item.is_locked && <LockOutlined style={{ color: "#cf1322", fontSize: 11 }} />}
+                    <Text ellipsis style={{ fontSize: 13, maxWidth: 120 }}>
+                      {item.title}
+                    </Text>
+                  </div>
                   <div>
                     <Text type="secondary" style={{ fontSize: 11 }}>
                       {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}
@@ -291,23 +391,50 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <div>
-                <Title level={4} style={{ margin: 0 }}>
-                  {selected.title}
-                </Title>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Title level={4} style={{ margin: 0 }}>
+                    {selected.title}
+                  </Title>
+                  {selected.is_locked && (
+                    <Tag color="red" icon={<LockOutlined />}>
+                      已加锁
+                    </Tag>
+                  )}
+                  <Tag color={TIER_COLOR[tierOf(selected)]}>{TIER_LABEL[tierOf(selected)]}</Tag>
+                </div>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {selected.created_by || "系统"} · 创建于 {new Date(selected.created_at).toLocaleString()} · 更新于{" "}
                   {new Date(selected.updated_at).toLocaleString()}
                 </Text>
               </div>
               <Space>
+                <Tooltip title={selected.liked ? "取消点赞" : "点赞"}>
+                  <Button
+                    icon={selected.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+                    onClick={() => handleLike(selected.id)}
+                  >
+                    {selected.likes > 0 ? `${selected.likes} 赞` : "点赞"}
+                  </Button>
+                </Tooltip>
                 <Button icon={<EditOutlined />} onClick={() => openEdit(selected)}>
                   编辑
                 </Button>
-                <Popconfirm title="确认删除此文章？" onConfirm={() => handleDelete(selected.id)}>
-                  <Button danger icon={<DeleteOutlined />}>
-                    删除
-                  </Button>
-                </Popconfirm>
+                {canDelete(selected) ? (
+                  <Popconfirm
+                    title={selected.is_locked ? "此文章已加锁，删除需要输入密码" : "确认删除此文章？"}
+                    onConfirm={() => handleDeleteClick(selected)}
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      删除
+                    </Button>
+                  </Popconfirm>
+                ) : (
+                  <Tooltip title="仅创建者或管理员可删除">
+                    <Button danger icon={<DeleteOutlined />} disabled>
+                      删除
+                    </Button>
+                  </Tooltip>
+                )}
               </Space>
             </div>
             <div
@@ -348,6 +475,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           setCreateOpen(false);
           createForm.resetFields();
           setCreateContent("");
+          setCreateLocked(false);
         }}
         onOk={handleCreate}
         okText="创建"
@@ -358,6 +486,24 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input placeholder="输入文章标题" />
           </Form.Item>
+          <div style={{ marginBottom: 16 }}>
+            <Space>
+              <Button
+                size="small"
+                type={createLocked ? "primary" : "default"}
+                danger={createLocked}
+                icon={createLocked ? <LockOutlined /> : <UnlockOutlined />}
+                onClick={() => setCreateLocked(!createLocked)}
+              >
+                {createLocked ? "已加锁" : "加锁"}
+              </Button>
+              {createLocked && (
+                <Form.Item name="lockPassword" noStyle rules={[{ required: createLocked, message: "请输入密码" }]}>
+                  <Input.Password placeholder="设置加锁密码" size="small" style={{ width: 200 }} />
+                </Form.Item>
+              )}
+            </Space>
+          </div>
         </Form>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary">正文（支持 Markdown）</Text>
@@ -385,6 +531,28 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input placeholder="输入文章标题" />
           </Form.Item>
+          <div style={{ marginBottom: 16 }}>
+            <Space>
+              <Button
+                size="small"
+                type={editLocked ? "primary" : "default"}
+                danger={editLocked}
+                icon={editLocked ? <LockOutlined /> : <UnlockOutlined />}
+                onClick={() => setEditLocked(!editLocked)}
+              >
+                {editLocked ? "已加锁" : "加锁"}
+              </Button>
+              {editLocked && (
+                <Form.Item name="lockPassword" noStyle>
+                  <Input.Password
+                    placeholder={selected?.is_locked ? "留空保持原密码，或输入新密码" : "设置加锁密码"}
+                    size="small"
+                    style={{ width: 260 }}
+                  />
+                </Form.Item>
+              )}
+            </Space>
+          </div>
         </Form>
         <div style={{ marginBottom: 8 }}>
           <Text type="secondary">正文（支持 Markdown）</Text>
@@ -394,6 +562,25 @@ export default function WikiPanel({ scope, scopeId }: Props) {
           onChange={(e) => setEditContent(e.target.value)}
           autoSize={{ minRows: 8, maxRows: 20 }}
           style={{ fontFamily: "monospace" }}
+        />
+      </Modal>
+
+      {/* Delete Locked Article Password Modal */}
+      <Modal
+        title={`删除加锁文章「${deleteModal?.title ?? ""}」`}
+        open={!!deleteModal}
+        onCancel={() => setDeleteModal(null)}
+        onOk={confirmDeleteLocked}
+        okText="确认删除"
+        okButtonProps={{ danger: true }}
+      >
+        <Text>此文章已加锁，请输入密码以确认删除：</Text>
+        <Input.Password
+          value={deletePassword}
+          onChange={(e) => setDeletePassword(e.target.value)}
+          placeholder="输入加锁密码"
+          style={{ marginTop: 12 }}
+          onPressEnter={confirmDeleteLocked}
         />
       </Modal>
     </div>
@@ -406,12 +593,16 @@ function SortableWikiItem({
   onSelect,
   onEdit,
   onDelete,
+  onLike,
+  canDelete,
 }: {
   item: WikiArticle;
   selected: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onLike: () => void;
+  canDelete: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = {
@@ -424,10 +615,24 @@ function SortableWikiItem({
     borderLeft: selected ? "3px solid #1677ff" : "3px solid transparent",
     opacity: isDragging ? 0.5 : 1,
   };
+  const tier = tierOf(item);
   return (
     <div ref={setNodeRef} style={style} {...attributes} onClick={onSelect}>
       <List.Item
         actions={[
+          <Tooltip key="like" title={item.liked ? "取消点赞" : "点赞"}>
+            <Button
+              type="text"
+              size="small"
+              icon={item.liked ? <LikeFilled style={{ color: "#1677ff" }} /> : <LikeOutlined />}
+              onClick={(e) => {
+                e.stopPropagation();
+                onLike();
+              }}
+            >
+              {item.likes > 0 ? item.likes : ""}
+            </Button>
+          </Tooltip>,
           <Button
             key="edit"
             type="text"
@@ -438,16 +643,18 @@ function SortableWikiItem({
               onEdit();
             }}
           />,
-          <Popconfirm
+          <Button
             key="del"
-            title="确认删除此文章？"
-            onConfirm={(e) => {
-              e?.stopPropagation();
+            type="text"
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            disabled={!canDelete}
+            onClick={(e) => {
+              e.stopPropagation();
               onDelete();
             }}
-          >
-            <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
-          </Popconfirm>,
+          />,
         ]}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden" }}>
@@ -459,9 +666,15 @@ function SortableWikiItem({
             <HolderOutlined />
           </span>
           <div style={{ overflow: "hidden" }}>
-            <Text ellipsis style={{ fontSize: 13, maxWidth: 120 }}>
-              {item.title}
-            </Text>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {item.is_locked && <LockOutlined style={{ color: "#cf1322", fontSize: 11 }} />}
+              <Text ellipsis style={{ fontSize: 13, maxWidth: 100 }}>
+                {item.title}
+              </Text>
+              <Tag color={TIER_COLOR[tier]} style={{ fontSize: 10, lineHeight: "16px", padding: "0 4px", margin: 0 }}>
+                {TIER_LABEL[tier]}
+              </Tag>
+            </div>
             <div>
               <Text type="secondary" style={{ fontSize: 11 }}>
                 {item.created_by || "系统"} · {new Date(item.updated_at).toLocaleDateString()}

@@ -11,6 +11,9 @@ export interface WikiArticle {
   content: string;
   sort_order: number;
   created_by: string;
+  is_locked: boolean;
+  lock_password: string | null;
+  likes: number;
   created_at: string;
   updated_at: string;
 }
@@ -27,13 +30,44 @@ export async function ensureWikiTable(adapter: DbAdapter): Promise<void> {
       content TEXT NOT NULL DEFAULT '',
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_by TEXT NOT NULL DEFAULT '',
+      is_locked INTEGER NOT NULL DEFAULT 0,
+      lock_password TEXT DEFAULT NULL,
+      likes INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT ${nowDefault},
       updated_at TEXT NOT NULL DEFAULT ${nowDefault}
     )
   `);
   await adapter.run(`CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id)`);
   await adapter.run(`CREATE INDEX IF NOT EXISTS idx_wiki_parent ON wiki_articles(parent_id)`);
+  if (adapter.kind === "sqlite") {
+    const cols = adapter.rawSqlite().prepare("PRAGMA table_info(wiki_articles)").all() as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has("is_locked"))
+      adapter.rawSqlite().exec("ALTER TABLE wiki_articles ADD COLUMN is_locked INTEGER NOT NULL DEFAULT 0");
+    if (!colNames.has("lock_password"))
+      adapter.rawSqlite().exec("ALTER TABLE wiki_articles ADD COLUMN lock_password TEXT DEFAULT NULL");
+    if (!colNames.has("likes"))
+      adapter.rawSqlite().exec("ALTER TABLE wiki_articles ADD COLUMN likes INTEGER NOT NULL DEFAULT 0");
+  }
+  // v2.9: like tracking table
+  if (adapter.kind === "sqlite") {
+    adapter.rawSqlite().exec(`
+      CREATE TABLE IF NOT EXISTS wiki_likes (
+        article_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        PRIMARY KEY (article_id, username)
+      )
+    `);
+  }
 }
+
+const TIER_ORDER = `
+  CASE WHEN is_locked THEN 0
+       WHEN likes > 0 THEN 1
+       ELSE 2 END,
+  likes DESC,
+  sort_order, title
+`;
 
 export class WikiRepo {
   constructor(private adapter: DbAdapter) {}
@@ -41,11 +75,11 @@ export class WikiRepo {
   async list(scope: "global" | "ticket", scopeId?: string): Promise<WikiArticle[]> {
     if (scope === "global") {
       return this.adapter.query<WikiArticle>(
-        "SELECT * FROM wiki_articles WHERE scope = 'global' ORDER BY sort_order, title"
+        `SELECT * FROM wiki_articles WHERE scope = 'global' ORDER BY ${TIER_ORDER}`
       );
     }
     return this.adapter.query<WikiArticle>(
-      "SELECT * FROM wiki_articles WHERE scope = ? AND scope_id = ? ORDER BY sort_order, title",
+      `SELECT * FROM wiki_articles WHERE scope = ? AND scope_id = ? ORDER BY ${TIER_ORDER}`,
       [scope, scopeId || ""]
     );
   }
@@ -61,6 +95,8 @@ export class WikiRepo {
     title: string;
     content?: string;
     createdBy: string;
+    isLocked?: boolean;
+    lockPassword?: string;
   }): Promise<WikiArticle> {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -70,7 +106,7 @@ export class WikiRepo {
     );
     const sortOrder = (maxRow?.m ?? -1) + 1;
     await this.adapter.run(
-      "INSERT INTO wiki_articles (id, scope, scope_id, parent_id, title, content, sort_order, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO wiki_articles (id, scope, scope_id, parent_id, title, content, sort_order, created_by, is_locked, lock_password, likes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
       [
         id,
         params.scope,
@@ -80,6 +116,8 @@ export class WikiRepo {
         params.content || "",
         sortOrder,
         params.createdBy,
+        params.isLocked ? 1 : 0,
+        params.isLocked && params.lockPassword ? params.lockPassword : null,
         now,
         now,
       ]
@@ -90,7 +128,12 @@ export class WikiRepo {
 
   async update(
     id: string,
-    updates: Partial<Pick<WikiArticle, "title" | "content" | "parent_id" | "sort_order">>
+    updates: Partial<
+      Pick<WikiArticle, "title" | "content" | "parent_id" | "sort_order"> & {
+        is_locked?: boolean;
+        lock_password?: string | null;
+      }
+    >
   ): Promise<WikiArticle> {
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -110,6 +153,14 @@ export class WikiRepo {
       sets.push("sort_order = ?");
       vals.push(updates.sort_order);
     }
+    if (updates.is_locked !== undefined) {
+      sets.push("is_locked = ?");
+      vals.push(updates.is_locked ? 1 : 0);
+    }
+    if ("lock_password" in updates) {
+      sets.push("lock_password = ?");
+      vals.push(updates.lock_password ?? null);
+    }
     sets.push("updated_at = ?");
     vals.push(new Date().toISOString());
     vals.push(id);
@@ -119,6 +170,7 @@ export class WikiRepo {
   }
 
   async delete(id: string): Promise<void> {
+    await this.adapter.run("DELETE FROM wiki_likes WHERE article_id = ?", [id]);
     await this.adapter.run("DELETE FROM wiki_articles WHERE id = ?", [id]);
     log.info("wiki.deleted", { id });
   }
@@ -127,12 +179,12 @@ export class WikiRepo {
     const like = `%${keyword}%`;
     if (scope === "global") {
       return this.adapter.query<WikiArticle>(
-        "SELECT * FROM wiki_articles WHERE scope = 'global' AND (title LIKE ? OR content LIKE ?) ORDER BY sort_order, title",
+        `SELECT * FROM wiki_articles WHERE scope = 'global' AND (title LIKE ? OR content LIKE ?) ORDER BY ${TIER_ORDER}`,
         [like, like]
       );
     }
     return this.adapter.query<WikiArticle>(
-      "SELECT * FROM wiki_articles WHERE scope = ? AND scope_id = ? AND (title LIKE ? OR content LIKE ?) ORDER BY sort_order, title",
+      `SELECT * FROM wiki_articles WHERE scope = ? AND scope_id = ? AND (title LIKE ? OR content LIKE ?) ORDER BY ${TIER_ORDER}`,
       [scope, scopeId || "", like, like]
     );
   }
@@ -142,5 +194,40 @@ export class WikiRepo {
       await this.adapter.run("UPDATE wiki_articles SET sort_order = ? WHERE id = ?", [i, orderedIds[i]]);
     }
     log.info("wiki.reordered", { count: orderedIds.length });
+  }
+
+  async toggleLike(articleId: string, username: string): Promise<{ liked: boolean; likes: number }> {
+    const existing = await this.adapter.queryOne<any>(
+      "SELECT 1 FROM wiki_likes WHERE article_id = ? AND username = ?",
+      [articleId, username]
+    );
+    if (existing) {
+      await this.adapter.run("DELETE FROM wiki_likes WHERE article_id = ? AND username = ?", [articleId, username]);
+      await this.adapter.run("UPDATE wiki_articles SET likes = MAX(0, likes - 1) WHERE id = ?", [articleId]);
+    } else {
+      await this.adapter.run("INSERT OR IGNORE INTO wiki_likes (article_id, username) VALUES (?, ?)", [
+        articleId,
+        username,
+      ]);
+      await this.adapter.run("UPDATE wiki_articles SET likes = likes + 1 WHERE id = ?", [articleId]);
+    }
+    const row = await this.getById(articleId);
+    return { liked: !existing, likes: row?.likes ?? 0 };
+  }
+
+  async isLikedBy(articleId: string, username: string): Promise<boolean> {
+    const row = await this.adapter.queryOne<any>("SELECT 1 FROM wiki_likes WHERE article_id = ? AND username = ?", [
+      articleId,
+      username,
+    ]);
+    return !!row;
+  }
+
+  async likedByUser(scope: "global" | "ticket", scopeId: string | undefined, username: string): Promise<Set<string>> {
+    const rows = await this.adapter.query<{ article_id: string }>(
+      `SELECT wl.article_id FROM wiki_likes wl JOIN wiki_articles wa ON wa.id = wl.article_id WHERE wl.username = ? AND wa.scope = ? AND COALESCE(wa.scope_id, '') = ?`,
+      [username, scope, scopeId || ""]
+    );
+    return new Set(rows.map((r) => r.article_id));
   }
 }
