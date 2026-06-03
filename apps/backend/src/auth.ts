@@ -465,7 +465,15 @@ export function adminMiddleware(req: Request, res: Response, next: NextFunction)
     res.status(401).json({ error: "未登录或 token 已过期" });
     return;
   }
-  if (payload.role !== "admin") {
+  if ((payload as any).isGuest && req.method !== "GET") {
+    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+    return;
+  }
+  if ((payload as any).isGuest) {
+    (req as any).user = payload;
+    return next();
+  }
+  if (payload.role !== "admin" && payload.role !== "superadmin") {
     log.warn("auth.admin_denied", { username: payload.username, role: payload.role, path: req.path });
     res.status(403).json({ error: "仅管理员可访问" });
     return;
@@ -485,7 +493,15 @@ export function leaderMiddleware(req: Request, res: Response, next: NextFunction
     res.status(401).json({ error: "未登录或 token 已过期" });
     return;
   }
-  if (payload.role !== "admin" && payload.role !== "leader") {
+  if ((payload as any).isGuest) {
+    if (req.method !== "GET") {
+      res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+      return;
+    }
+    (req as any).user = payload;
+    return next();
+  }
+  if (payload.role !== "admin" && payload.role !== "leader" && payload.role !== "superadmin") {
     log.warn("auth.leader_denied", { username: payload.username, role: payload.role, path: req.path });
     res.status(403).json({ error: "仅 Leader 或管理员可访问" });
     return;

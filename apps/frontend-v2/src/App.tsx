@@ -79,16 +79,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, isGuest, loading } = useAuth();
   if (loading) return null;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  if (!isAdmin && !isGuest) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
 function SuperAdminGuard({ children }: { children: React.ReactNode }) {
-  const { isSuperAdmin, loading } = useAuth();
+  const { isSuperAdmin, isGuest, loading } = useAuth();
   if (loading) return null;
-  if (!isSuperAdmin) return <Navigate to="/" replace />;
+  if (!isSuperAdmin && !isGuest) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

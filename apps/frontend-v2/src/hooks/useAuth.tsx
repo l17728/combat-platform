@@ -9,6 +9,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isLeader: boolean;
   isSuperAdmin: boolean;
+  isGuest: boolean;
   passwordMustChange: boolean;
   clearPasswordMustChange: () => void;
 }
@@ -21,6 +22,7 @@ const AuthContext = createContext<AuthContextValue>({
   isAdmin: false,
   isLeader: false,
   isSuperAdmin: false,
+  isGuest: false,
   passwordMustChange: false,
   clearPasswordMustChange: () => {},
 });
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: user?.role === "admin" || user?.role === "superadmin",
         isLeader: user?.role === "leader" || user?.role === "admin" || user?.role === "superadmin",
         isSuperAdmin: user?.role === "superadmin",
+        isGuest: user?.username?.startsWith("guest_") ?? false,
         passwordMustChange,
         clearPasswordMustChange,
       }}

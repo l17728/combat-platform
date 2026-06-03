@@ -123,7 +123,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
-  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isGuest } = useAuth();
   const { isDark, toggleMode } = useThemeContext();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
@@ -202,13 +202,13 @@ export function AppLayout() {
         { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
         { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
         { key: "/digest", label: "邮件摘要", icon: <MailOutlined /> },
-        ...(isAdmin ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
         { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
         { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
-        ...(isAdmin ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }] : []),
-        ...(isAdmin
+        ...(isAdmin || isGuest ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }] : []),
+        ...(isAdmin || isGuest
           ? [
               {
                 key: "review",
@@ -221,11 +221,11 @@ export function AppLayout() {
               },
             ]
           : []),
-        ...(isAdmin ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-        ...(isSuperAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
+        ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+        ...(isSuperAdmin || isGuest ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
       ],
     },
   ];
@@ -331,7 +331,7 @@ export function AppLayout() {
                     disabled: true,
                   },
                   { type: "divider" },
-                  ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
                   { key: "change-password", label: "修改密码", icon: <KeyOutlined /> },
                   { type: "divider" },
                   { key: "replay-tour", label: "重播引导", icon: <QuestionCircleOutlined /> },
