@@ -378,6 +378,12 @@ export class Api {
   }
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const method = (init.method || "GET").toUpperCase();
+    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && isGuestFromToken()) {
+      const { message } = await import("antd");
+      message.warning("游客参观期间，请勿触动控制面板，谢谢！");
+      throw new ApiError(403, "游客仅可查看，无法执行操作", path);
+    }
     const headers: Record<string, string> = { ...((init.headers as Record<string, string>) ?? {}) };
     if (init.body && !(init.body instanceof FormData) && !headers["content-type"] && !headers["Content-Type"]) {
       headers["content-type"] = "application/json";
@@ -386,8 +392,6 @@ export class Api {
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
-    // P0-3 修复:不再注入 X-Role 头,后端从 JWT payload 取 role,
-    // 防止客户端伪造 role 越权(localStorage 可任意改写)。
     init = { ...init, headers };
     const start = Date.now();
     const r = await this.f(`${this.base}${path}`, init);
@@ -589,6 +593,10 @@ export class Api {
   }
 
   exportNodes(nodeType: string): Promise<Blob> {
+    if (isGuestFromToken()) {
+      import("antd").then(({ message }) => message.warning("游客参观期间，请勿触动控制面板，谢谢！"));
+      return Promise.reject(new ApiError(403, "游客仅可查看，无法执行操作", `/api/export/${nodeType}`));
+    }
     return this.authFetch(`/api/export/${nodeType}`).then((r) => {
       if (!r.ok) throw new Error(`导出失败: HTTP ${r.status}`);
       return r.blob();
@@ -1156,6 +1164,12 @@ export class Api {
   }
 
   downloadBackup(filename: string): Promise<Blob> {
+    if (isGuestFromToken()) {
+      import("antd").then(({ message }) => message.warning("游客参观期间，请勿触动控制面板，谢谢！"));
+      return Promise.reject(
+        new ApiError(403, "游客仅可查看，无法执行操作", `/api/backup/${encodeURIComponent(filename)}`)
+      );
+    }
     return this.authFetch(`/api/backup/${encodeURIComponent(filename)}`).then((r) => {
       if (!r.ok) throw new Error(`下载失败: HTTP ${r.status}`);
       return r.blob();

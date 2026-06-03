@@ -241,13 +241,29 @@ export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: num
   return { deleted };
 }
 
+// Write-semantic GET paths: these GET requests download/export data that guests must not access.
+// Mounted at /api, so req.path is relative to /api (e.g. /export/attackTicket, /backup/somefile.db).
+const GUEST_WRITE_SEMANTIC_GET_TESTS: ((path: string) => boolean)[] = [
+  (p) => p.startsWith("/export/"), // Data export → xlsx download
+  (p) => p.startsWith("/backup/") && !p.startsWith("/backup/schedule"), // Backup download (not schedule read)
+];
+
 export function guestReadOnlyMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const payload = verifyAuth(req);
   if (!payload) return next();
   if (!(payload as any).isGuest) return next();
-  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
-  res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+  // Block all mutation methods (POST/PUT/PATCH/DELETE)
+  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
+    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+    return;
+  }
+  // Block write-semantic GET paths (export download, backup download, etc.)
+  if (req.method === "GET" && GUEST_WRITE_SEMANTIC_GET_TESTS.some((t) => t(req.path))) {
+    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+    return;
+  }
+  next();
 }
 
 export function makeGuestAccessRouter(adapter: DbAdapter): Router {
