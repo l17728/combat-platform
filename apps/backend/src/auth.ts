@@ -441,13 +441,14 @@ export function verifyAuth(req: { headers: Record<string, unknown> }): JwtPayloa
   }
 }
 
-function requireAdmin(req: { headers: Record<string, unknown> }): JwtPayload | null {
+function requireAdmin(req: { headers: Record<string, unknown>; method?: string }): JwtPayload | null {
   if (process.env.COMBAT_NO_AUTH === "1") {
     return { userId: "no-auth-admin", username: "admin", role: "admin", tenantId: "default" };
   }
   const payload = verifyAuth(req);
   if (!payload) return null;
-  if (payload.role !== "admin") return null;
+  if ((payload as any).isGuest && req.method === "GET") return payload;
+  if (payload.role !== "admin" && payload.role !== "superadmin") return null;
   return payload;
 }
 
