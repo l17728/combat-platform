@@ -406,6 +406,10 @@ export class Api {
       if (r.status === 401 && !path.startsWith("/api/auth/me")) {
         _triggerUnauthorized(err);
       }
+      if (r.status === 403 && isGuestFromToken()) {
+        const { message } = await import("antd");
+        message.warning("游客参观期间，请勿触动控制面板，谢谢！");
+      }
       throw err;
     }
     const ct = r.headers.get("content-type") ?? "";
@@ -1912,6 +1916,17 @@ export function getStoredUser(): AuthUser | null {
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
+  }
+}
+
+function isGuestFromToken(): boolean {
+  try {
+    const token = localStorage.getItem("combat-token");
+    if (!token) return false;
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return !!payload.isGuest;
+  } catch {
+    return false;
   }
 }
 
