@@ -12,6 +12,7 @@ import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
 import { SqliteAdapter, PostgresAdapter, type DbAdapter } from "./db-adapter.js";
+import { SAAS_MODE, cleanGuestData } from "./tenant-middleware.js";
 import { log } from "./logger.js";
 import { initSentry, captureException } from "./sentry.js";
 
@@ -109,6 +110,13 @@ app.listen(PORT, () => {
     runScheduledBackup(adapter, DB_PATH).catch((e) => log.warn("auto_backup.fail", { error: (e as Error).message }));
   }, 3600_000).unref();
   log.info("server.backup_scheduler.started");
+
+  if (SAAS_MODE) {
+    setInterval(() => {
+      cleanGuestData(adapter).catch((e) => log.warn("guest_clean.fail", { error: (e as Error).message }));
+    }, 24 * 3600_000).unref();
+    log.info("server.guest_cleaner.started");
+  }
 });
 
 setInterval(() => {

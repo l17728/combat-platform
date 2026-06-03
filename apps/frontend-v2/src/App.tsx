@@ -49,6 +49,7 @@ const DocumentCenter = lazy(() => import("./pages/DocumentCenter.js"));
 const ManualCenter = lazy(() => import("./pages/ManualCenter.js"));
 const SharedView = lazy(() => import("./pages/SharedView.js"));
 const PlatformAdmin = lazy(() => import("./pages/PlatformAdmin.js"));
+const TenantDetail = lazy(() => import("./pages/TenantDetail.js"));
 const NotFound = lazy(() => import("./components/NotFound.js"));
 
 function PageLoader() {
@@ -265,6 +266,14 @@ function AppInner() {
             element={
               <AdminGuard>
                 <PlatformAdmin />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/platform/tenants/:id"
+            element={
+              <AdminGuard>
+                <TenantDetail />
               </AdminGuard>
             }
           />

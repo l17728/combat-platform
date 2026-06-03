@@ -5,6 +5,7 @@ import type { DbAdapter } from "./db-adapter.js";
 import { asyncHandler, log } from "./logger.js";
 import { verifyAuth } from "./auth.js";
 import { randomUUID } from "node:crypto";
+import { NotificationsRepo } from "./notifications.js";
 
 function actorOf(req: { headers: Record<string, unknown> }): string {
   const u = verifyAuth(req);
@@ -25,7 +26,7 @@ function writeAudit(
     .catch((e) => log.warn("share.audit_write_failed", { error: (e as Error).message }));
 }
 
-export function makeShareRouter(adapter: DbAdapter): Router {
+export function makeShareRouter(adapter: DbAdapter, notificationsRepo?: NotificationsRepo): Router {
   const router = Router();
   const shareRepo = new ShareRepo(adapter);
   const wikiRepo = new WikiRepo(adapter);
@@ -82,9 +83,33 @@ export function makeShareRouter(adapter: DbAdapter): Router {
         action: "share.create",
         entityType,
         entityId,
-        changes: { token: result.token, expiresIn, maxViews, hasPassword: !!password },
+        changes: { token: result.token, expiresIn, maxViews, hasPassword: !!password, targetUsers },
         actor,
       });
+
+      // P2: push notifications to target users for internal sharing
+      if (targetUsers && targetUsers.length > 0 && notificationsRepo) {
+        const entityLabel = entityType === "wiki" ? "知识库文章" : entityType === "ticket" ? "攻关单" : "公告";
+        const title = entityType === "wiki" ? ((await wikiRepo.getById(entityId))?.title ?? entityLabel) : entityLabel;
+        for (const username of targetUsers) {
+          const userRow = await adapter.queryOne<{ id: string }>(
+            "SELECT id FROM users WHERE display_name = ? OR username = ?",
+            [username, username]
+          );
+          if (userRow) {
+            notificationsRepo
+              .create({
+                userId: userRow.id,
+                kind: "mention",
+                title: `${actor} 向你分享了${entityLabel}`,
+                body: `「${title}」`,
+                link: url,
+                sourceEntityId: entityId,
+              })
+              .catch((e) => log.warn("share.notify_failed", { error: (e as Error).message, username }));
+          }
+        }
+      }
 
       res.status(201).json({ id: result.id, url, token: result.token, expiresAt: result.expiresAt });
     })
@@ -231,6 +256,37 @@ export function makeShareRouter(adapter: DbAdapter): Router {
       });
 
       res.status(201).json({ ok: true, copyId: copied.id, title: copied.title });
+    })
+  );
+
+  // P3: share stats — access trend for a given entity
+  router.get(
+    "/share/stats",
+    asyncHandler(async (req, res) => {
+      const entityType = req.query.entityType as string;
+      const entityId = req.query.entityId as string;
+      if (!entityType || !entityId) return res.status(400).json({ error: "entityType 和 entityId 必填" });
+      const links = await shareRepo.listByEntity(entityType, entityId);
+      const linkIds = links.map((l) => l.id);
+      if (linkIds.length === 0) {
+        res.json({ totalLinks: 0, totalViews: 0, dailyViews: [] });
+        return;
+      }
+      const placeholders = linkIds.map(() => "?").join(",");
+      const views = await adapter.query<{ viewed_at: string }>(
+        `SELECT viewed_at FROM shared_link_views WHERE link_id IN (${placeholders}) ORDER BY viewed_at ASC`,
+        linkIds
+      );
+      const totalViews = views.length;
+      const dailyMap = new Map<string, number>();
+      for (const v of views) {
+        const day = v.viewed_at.slice(0, 10);
+        dailyMap.set(day, (dailyMap.get(day) || 0) + 1);
+      }
+      const dailyViews = Array.from(dailyMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      res.json({ totalLinks: links.length, totalViews, dailyViews });
     })
   );
 

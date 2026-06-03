@@ -94,5 +94,77 @@ export function makePlatformRouter(adapter: DbAdapter): Router {
     })
   );
 
+  router.get(
+    "/platform/tenants/:id/users",
+    asyncHandler(async (req, res) => {
+      const tenant = await repo.getById(req.params.id);
+      if (!tenant) return res.status(404).json({ error: "租户不存在" });
+      const users = await adapter.query<any>(
+        "SELECT id, username, role, display_name, created_at, updated_at FROM users WHERE tenant_id = ? ORDER BY created_at",
+        [req.params.id]
+      );
+      res.json(users);
+    })
+  );
+
+  router.get(
+    "/platform/tenants/:id/usage",
+    asyncHandler(async (req, res) => {
+      const tenant = await repo.getById(req.params.id);
+      if (!tenant) return res.status(404).json({ error: "租户不存在" });
+      const tid = req.params.id;
+      const [nodes, edges, wiki, audit] = await Promise.all([
+        adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM nodes WHERE tenant_id = ?", [tid]),
+        adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM edges WHERE tenant_id = ?", [tid]),
+        adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM wiki_articles WHERE tenant_id = ?", [tid]),
+        adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM audit_log WHERE tenant_id = ?", [tid]),
+      ]);
+      const users = await adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM users WHERE tenant_id = ?", [tid]);
+      res.json({
+        users: users?.c ?? 0,
+        nodes: nodes?.c ?? 0,
+        edges: edges?.c ?? 0,
+        wikiArticles: wiki?.c ?? 0,
+        auditLogs: audit?.c ?? 0,
+        maxUsers: tenant.max_users,
+        plan: tenant.plan,
+      });
+    })
+  );
+
+  router.put(
+    "/platform/tenants/:id/settings",
+    asyncHandler(async (req, res) => {
+      const tenant = await repo.getById(req.params.id);
+      if (!tenant) return res.status(404).json({ error: "租户不存在" });
+      const settings = JSON.stringify(req.body);
+      const updated = await repo.update(req.params.id, { settings });
+      res.json(updated);
+    })
+  );
+
+  router.post(
+    "/platform/guest-access",
+    asyncHandler(async (_req, res) => {
+      const { randomUUID } = await import("node:crypto");
+      const { ensureGuestTenant } = await import("./tenant-middleware.js");
+      await ensureGuestTenant(adapter);
+      const guestUser = `guest_${Date.now().toString(36)}`;
+      const bcrypt = (await import("bcryptjs")).default;
+      const hash = bcrypt.hashSync(randomUUID(), 10);
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      await adapter.run(
+        "INSERT INTO users (id, username, password_hash, role, display_name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, 'normal', ?, 'guest', ?, ?)",
+        [id, guestUser, hash, guestUser, now, now]
+      );
+      const jwt = (await import("jsonwebtoken")).default;
+      const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
+      const payload = { userId: id, username: guestUser, role: "normal", tenantId: "guest" };
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+      res.json({ token, username: guestUser });
+    })
+  );
+
   return router;
 }

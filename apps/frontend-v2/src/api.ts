@@ -1042,6 +1042,8 @@ export class Api {
     password: string;
     displayName?: string;
     inviteCode?: string;
+    tenantName?: string;
+    tenantSlug?: string;
   }): Promise<LoginResult> {
     return this.req("/api/auth/register", {
       method: "POST",
@@ -1655,6 +1657,7 @@ export class Api {
     password?: string;
     expiresIn?: number;
     maxViews?: number;
+    targetUsers?: string[];
   }): Promise<{ id: string; url: string; token: string; expiresAt: string | null }> {
     return this.req("/api/share", {
       method: "POST",
@@ -1685,6 +1688,19 @@ export class Api {
 
   revokeShareLink(id: string): Promise<{ ok: boolean }> {
     return this.req(`/api/share/${id}`, { method: "DELETE" });
+  }
+
+  getShareStats(
+    entityType: string,
+    entityId: string
+  ): Promise<{
+    totalLinks: number;
+    totalViews: number;
+    dailyViews: { date: string; count: number }[];
+  }> {
+    return this.req(
+      `/api/share/stats?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`
+    );
   }
 
   copyWikiToTicket(
@@ -1737,6 +1753,34 @@ export class Api {
 
   getPlatformStats(): Promise<{ tenantCount: number; userCount: number; nodeCount: number }> {
     return this.req("/api/platform/stats");
+  }
+
+  getTenantUsers(tenantId: string): Promise<any[]> {
+    return this.req(`/api/platform/tenants/${tenantId}/users`);
+  }
+
+  getTenantUsage(tenantId: string): Promise<{
+    users: number;
+    nodes: number;
+    edges: number;
+    wikiArticles: number;
+    auditLogs: number;
+    maxUsers: number;
+    plan: string;
+  }> {
+    return this.req(`/api/platform/tenants/${tenantId}/usage`);
+  }
+
+  updateTenantSettings(tenantId: string, settings: Record<string, unknown>): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${tenantId}/settings`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  }
+
+  guestAccess(): Promise<{ token: string; username: string }> {
+    return this.req("/api/platform/guest-access", { method: "POST" });
   }
 }
 

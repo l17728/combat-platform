@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Table,
   Button,
@@ -37,6 +38,7 @@ const STATUS_COLOR: Record<string, string> = { active: "green", suspended: "red"
 const STATUS_LABEL: Record<string, string> = { active: "活跃", suspended: "已暂停" };
 
 export default function PlatformAdmin() {
+  const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<{ tenantCount: number; userCount: number; nodeCount: number } | null>(null);
@@ -151,6 +153,9 @@ export default function PlatformAdmin() {
       key: "actions",
       render: (_: unknown, record: Tenant) => (
         <Space>
+          <Button size="small" onClick={() => navigate(`/platform/tenants/${record.id}`)}>
+            详情
+          </Button>
           <Button size="small" onClick={() => openEdit(record)}>
             编辑
           </Button>

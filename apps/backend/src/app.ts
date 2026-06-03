@@ -56,7 +56,14 @@ import { makeWikiRouter } from "./wiki-router.js";
 import { makeShareRouter } from "./share-router.js";
 import { makeOpenApiRouter } from "./openapi-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
-import { SAAS_MODE, tenantMiddleware, ensureDefaultTenant } from "./tenant-middleware.js";
+import {
+  SAAS_MODE,
+  tenantMiddleware,
+  ensureDefaultTenant,
+  quotaMiddleware,
+  ensureGuestTenant,
+  cleanGuestData,
+} from "./tenant-middleware.js";
 import { makePlatformRouter } from "./platform-router.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
@@ -153,9 +160,11 @@ export function createApp(deps: {
     app.use("/api", authMiddleware);
     if (SAAS_MODE) {
       app.use("/api", tenantMiddleware);
+      app.use("/api", quotaMiddleware);
       ensureDefaultTenant(adapter).catch((e) =>
         log.warn("tenant.ensure_default_failed", { error: (e as Error).message })
       );
+      ensureGuestTenant(adapter).catch((e) => log.warn("tenant.ensure_guest_failed", { error: (e as Error).message }));
       app.use("/api", makePlatformRouter(adapter));
     }
     app.use("/api", csrfMiddleware);
@@ -349,7 +358,7 @@ export function createApp(deps: {
     app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
     app.use("/api", makeInvitationRouter(adapter, deps.repo, mailSender));
     app.use("/api", makeWikiRouter(adapter));
-    app.use("/api", makeShareRouter(adapter));
+    app.use("/api", makeShareRouter(adapter, new NotificationsRepo(adapter)));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for
@@ -368,5 +377,8 @@ export function createApp(deps: {
     log.error("http.error", { path: req.path, error: err.message });
     res.status(500).json({ error: err.message });
   });
+  if (adapter) {
+    app.locals.adapter = adapter;
+  }
   return app;
 }

@@ -152,3 +152,77 @@ export class TenantRepo {
     return { tenantCount: t?.c ?? 0, userCount: u?.c ?? 0, nodeCount: n?.c ?? 0 };
   }
 }
+
+const PLAN_QUOTAS: Record<string, { maxUsers: number; maxNodes: number }> = {
+  free: { maxUsers: 50, maxNodes: 5000 },
+  pro: { maxUsers: 200, maxNodes: 50000 },
+  enterprise: { maxUsers: 99999, maxNodes: 999999 },
+};
+
+export function quotaMiddleware(req: TenantReq, res: Response, next: NextFunction): void {
+  if (!SAAS_MODE || !req.tenantId) return next();
+  // Quota checks are async but Express middleware is sync; wrap in IIFE
+  (async () => {
+    try {
+      const adapter = (req.app.locals as any).adapter as DbAdapter | undefined;
+      if (!adapter) return next();
+      const tenant = await new TenantRepo(adapter).getById(req.tenantId!);
+      if (!tenant) return next();
+      if (tenant.status === "suspended") {
+        res.status(403).json({ error: "租户已暂停，请联系管理员" });
+        return;
+      }
+      // Only check quota on user creation (POST /api/users or POST /api/auth/register)
+      if (req.method === "POST" && (req.path === "/users" || req.path === "/auth/register")) {
+        const quota = PLAN_QUOTAS[tenant.plan] || PLAN_QUOTAS.free;
+        const userCount = await adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM users WHERE tenant_id = ?", [
+          req.tenantId,
+        ]);
+        if ((userCount?.c ?? 0) >= quota.maxUsers) {
+          res.status(403).json({ error: `已达到当前计划 (${tenant.plan}) 的用户上限 (${quota.maxUsers})` });
+          return;
+        }
+      }
+      next();
+    } catch {
+      next();
+    }
+  })();
+}
+
+export async function ensureGuestTenant(adapter: DbAdapter): Promise<void> {
+  await ensureTenantsTable(adapter);
+  const row = await adapter.queryOne<{ id: string }>("SELECT id FROM tenants WHERE id = 'guest'");
+  if (!row) {
+    const now = new Date().toISOString();
+    await adapter.run(
+      "INSERT INTO tenants (id, name, slug, plan, status, max_users, settings, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ["guest", "体验租户", "guest", "free", "active", 10, "{}", now, now]
+    );
+    log.info("tenant.guest_created");
+  }
+}
+
+export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: number }> {
+  const tables = [
+    "nodes",
+    "edges",
+    "progress_log",
+    "audit_log",
+    "wiki_articles",
+    "bug_reports",
+    "help_requests",
+    "op_logs",
+  ];
+  let deleted = 0;
+  for (const table of tables) {
+    try {
+      const result = await adapter.run(
+        `DELETE FROM ${table} WHERE tenant_id = 'guest' AND created_at < datetime('now', '-7 days')`
+      );
+      deleted += (result as any)?.changes ?? 0;
+    } catch {}
+  }
+  if (deleted > 0) log.info("tenant.guest_cleaned", { deleted });
+  return { deleted };
+}
