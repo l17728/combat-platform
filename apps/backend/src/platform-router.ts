@@ -11,7 +11,7 @@ export function makePlatformRouter(adapter: DbAdapter): Router {
     log.error("platform.ensure_tenants_failed", { error: (e as Error).message });
   });
 
-  router.use(superAdminMiddleware);
+  router.use("/platform", superAdminMiddleware);
 
   router.get(
     "/platform/tenants",
