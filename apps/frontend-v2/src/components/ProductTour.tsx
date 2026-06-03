@@ -17,8 +17,9 @@ interface ProductTourProps {
 
 export default function ProductTour({ tourId, steps }: ProductTourProps) {
   const { user } = useAuth();
+  const isGuest = user?.username?.startsWith("guest_") ?? false;
   const completed = user?.tourCompleted?.includes(tourId) ?? false;
-  const [open, setOpen] = useState(!completed);
+  const [open, setOpen] = useState(!completed && !isGuest);
 
   const validSteps = useMemo(() => {
     if (!steps) return [];

@@ -8,7 +8,7 @@ interface AuthContextValue {
   logout: () => void;
   isAdmin: boolean;
   isLeader: boolean;
-  /** P1 强制改密:登录或 /auth/me 报告默认密未改时为 true,改密成功后清零 */
+  isSuperAdmin: boolean;
   passwordMustChange: boolean;
   clearPasswordMustChange: () => void;
 }
@@ -20,6 +20,7 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
   isAdmin: false,
   isLeader: false,
+  isSuperAdmin: false,
   passwordMustChange: false,
   clearPasswordMustChange: () => {},
 });
@@ -75,8 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         login,
         logout,
-        isAdmin: user?.role === "admin",
-        isLeader: user?.role === "leader" || user?.role === "admin",
+        isAdmin: user?.role === "admin" || user?.role === "superadmin",
+        isLeader: user?.role === "leader" || user?.role === "admin" || user?.role === "superadmin",
+        isSuperAdmin: user?.role === "superadmin",
         passwordMustChange,
         clearPasswordMustChange,
       }}

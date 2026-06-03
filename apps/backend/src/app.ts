@@ -60,10 +60,12 @@ import {
   SAAS_MODE,
   tenantMiddleware,
   ensureDefaultTenant,
+  ensureSuperAdmin,
   quotaMiddleware,
   ensureGuestTenant,
   cleanGuestData,
   makeGuestAccessRouter,
+  guestReadOnlyMiddleware,
 } from "./tenant-middleware.js";
 import { makePlatformRouter } from "./platform-router.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
@@ -159,6 +161,7 @@ export function createApp(deps: {
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
+    app.use("/api", guestReadOnlyMiddleware);
     app.use("/api", makeGuestAccessRouter(adapter));
     if (SAAS_MODE) {
       app.use("/api", tenantMiddleware);
@@ -167,6 +170,9 @@ export function createApp(deps: {
         log.warn("tenant.ensure_default_failed", { error: (e as Error).message })
       );
       ensureGuestTenant(adapter).catch((e) => log.warn("tenant.ensure_guest_failed", { error: (e as Error).message }));
+      ensureSuperAdmin(adapter).catch((e) =>
+        log.warn("tenant.ensure_superadmin_failed", { error: (e as Error).message })
+      );
       app.use("/api", makePlatformRouter(adapter));
     }
     app.use("/api", csrfMiddleware);

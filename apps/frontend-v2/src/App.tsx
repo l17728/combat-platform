@@ -85,6 +85,13 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function SuperAdminGuard({ children }: { children: React.ReactNode }) {
+  const { isSuperAdmin, loading } = useAuth();
+  if (loading) return null;
+  if (!isSuperAdmin) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 function LoginRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <Spin style={{ display: "block", margin: "40vh auto" }} />;
@@ -264,17 +271,17 @@ function AppInner() {
           <Route
             path="/platform"
             element={
-              <AdminGuard>
+              <SuperAdminGuard>
                 <PlatformAdmin />
-              </AdminGuard>
+              </SuperAdminGuard>
             }
           />
           <Route
             path="/platform/tenants/:id"
             element={
-              <AdminGuard>
+              <SuperAdminGuard>
                 <TenantDetail />
-              </AdminGuard>
+              </SuperAdminGuard>
             }
           />
           <Route path="*" element={<NotFound />} />

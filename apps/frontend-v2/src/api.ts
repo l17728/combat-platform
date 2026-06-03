@@ -1782,6 +1782,20 @@ export class Api {
   guestAccess(): Promise<{ token: string; username: string }> {
     return this.req("/api/platform/guest-access", { method: "POST" });
   }
+
+  listPlatformAdmins(): Promise<
+    { id: string; username: string; role: string; display_name: string; tenant_id: string }[]
+  > {
+    return this.req("/api/platform/admins");
+  }
+
+  setUserRole(userId: string, role: "admin" | "superadmin"): Promise<{ ok: boolean }> {
+    return this.req(`/api/platform/users/${userId}/role`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  }
 }
 
 export interface DocItem {

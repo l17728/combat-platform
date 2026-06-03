@@ -123,7 +123,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin } = useAuth();
   const { isDark, toggleMode } = useThemeContext();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
@@ -225,7 +225,7 @@ export function AppLayout() {
         ...(isAdmin ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
         ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
+        ...(isSuperAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
       ],
     },
   ];

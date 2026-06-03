@@ -143,5 +143,50 @@ export function makePlatformRouter(adapter: DbAdapter): Router {
     })
   );
 
+  router.get(
+    "/platform/admins",
+    asyncHandler(async (_req, res) => {
+      const users = await adapter.query<{
+        id: string;
+        username: string;
+        role: string;
+        display_name: string;
+        tenant_id: string;
+      }>(
+        "SELECT id, username, role, display_name, tenant_id FROM users WHERE role IN ('admin', 'superadmin') ORDER BY created_at"
+      );
+      res.json(users);
+    })
+  );
+
+  router.put(
+    "/platform/users/:id/role",
+    asyncHandler(async (req, res) => {
+      const { role } = req.body as { role?: string };
+      if (!role || !["admin", "superadmin"].includes(role))
+        return res.status(400).json({ error: "role 必须是 admin 或 superadmin" });
+
+      const user = await adapter.queryOne<{ id: string; username: string; role: string }>(
+        "SELECT id, username, role FROM users WHERE id = ?",
+        [req.params.id]
+      );
+      if (!user) return res.status(404).json({ error: "用户不存在" });
+
+      const saCount = await adapter.queryOne<{ c: number }>(
+        "SELECT COUNT(*) as c FROM users WHERE role = 'superadmin'"
+      );
+      if (user.role === "superadmin" && role !== "superadmin" && Number(saCount?.c ?? 0) <= 1)
+        return res.status(400).json({ error: "至少保留一个超级管理员" });
+
+      await adapter.run("UPDATE users SET role = ?, updated_at = ? WHERE id = ?", [
+        role,
+        new Date().toISOString(),
+        req.params.id,
+      ]);
+      log.info("platform.role_changed", { userId: req.params.id, from: user.role, to: role });
+      res.json({ ok: true });
+    })
+  );
+
   return router;
 }

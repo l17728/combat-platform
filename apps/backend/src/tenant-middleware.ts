@@ -204,6 +204,19 @@ export async function ensureGuestTenant(adapter: DbAdapter): Promise<void> {
   }
 }
 
+export async function ensureSuperAdmin(adapter: DbAdapter): Promise<void> {
+  const existing = await adapter.queryOne<{ id: string }>("SELECT id FROM users WHERE role = 'superadmin' LIMIT 1");
+  if (existing) return;
+
+  const admin = await adapter.queryOne<{ id: string }>(
+    "SELECT id FROM users WHERE username = 'admin' AND (tenant_id = 'default' OR tenant_id IS NULL) LIMIT 1"
+  );
+  if (!admin) return;
+
+  await adapter.run("UPDATE users SET role = 'superadmin' WHERE id = ?", [admin.id]);
+  log.info("tenant.superadmin_promoted", { userId: admin.id });
+}
+
 export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: number }> {
   const tables = [
     "nodes",
@@ -228,6 +241,15 @@ export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: num
   return { deleted };
 }
 
+export function guestReadOnlyMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.COMBAT_NO_AUTH === "1") return next();
+  const payload = verifyAuth(req);
+  if (!payload) return next();
+  if (!(payload as any).isGuest) return next();
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+  res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+}
+
 export function makeGuestAccessRouter(adapter: DbAdapter): Router {
   const router = Router();
 
@@ -250,7 +272,7 @@ export function makeGuestAccessRouter(adapter: DbAdapter): Router {
       );
       const jwt = (await import("jsonwebtoken")).default;
       const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
-      const payload = { userId: id, username: guestUser, role: "normal", tenantId };
+      const payload = { userId: id, username: guestUser, role: "normal", tenantId, isGuest: true };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
       res.json({ token, username: guestUser });
     })
