@@ -266,7 +266,7 @@ export function AppLayout() {
             <ThunderboltOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
           ) : (
             <Text strong style={{ fontSize: 16, color: token.colorPrimary, whiteSpace: "nowrap" }}>
-              作战平台
+              会战管理
             </Text>
           )}
         </div>

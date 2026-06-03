@@ -151,7 +151,7 @@ export default function LoginPage() {
       <Card style={{ width: 420, boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}>
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <Title level={3} style={{ margin: 0 }}>
-            作战平台
+            会战管理
           </Title>
           <Text type="secondary">请登录以继续</Text>
         </div>
@@ -163,12 +163,6 @@ export default function LoginPage() {
             免登录体验
           </Button>
         </div>
-
-        <Space direction="vertical" size={4} style={{ width: "100%", textAlign: "center", marginTop: 8 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            默认管理员: admin / admin123
-          </Text>
-        </Space>
       </Card>
     </div>
   );
