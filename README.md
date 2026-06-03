@@ -50,14 +50,14 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 
 ## 技术栈
 
-| 层       | 技术                                                                 |
-| -------- | -------------------------------------------------------------------- |
-| 后端     | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM)           |
-| 前端     | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5 |
-| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽）                  |
-| 认证     | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin）   |
-| 测试     | Vitest (后端 315 个 e2e 测试) + Playwright (前端 e2e)                |
-| 部署     | 直连 SSH → Ubuntu 目标服务器 (systemd 管理)                          |
+| 层       | 技术                                                                          |
+| -------- | ----------------------------------------------------------------------------- |
+| 后端     | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM)                    |
+| 前端     | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5          |
+| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽）                           |
+| 认证     | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin/superadmin） |
+| 测试     | Vitest (后端 315 个 e2e 测试) + Playwright (前端 e2e)                         |
+| 部署     | 直连 SSH → Ubuntu 目标服务器 (systemd 管理)                                   |
 
 ## 核心功能
 
@@ -98,6 +98,24 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 - 问题反馈（用户提交 bug + 截图 + Console 日志）
 - 角色 RBAC（普通/Leader/管理员）
 - 数据库备份与恢复
+
+### 共享功能 (v3.0)
+
+- 知识库文章、攻关单、信息广场卡片的外部链接分享（加密短链 + 密码 + 有效期）
+- 站内用户共享（搜索选择 + 通知推送）
+- 分享管理面板（链接管理 + 访问趋势图）
+- 文章复制到攻关单局部知识库
+- 公共分享页面 `/s/:token`（无需登录，密码保护）
+
+### SaaS 多租户 (v3.0)
+
+- 多租户架构：`SAAS_MODE=1` 启用，不设则单租户模式，向后兼容
+- 平台管理：superAdmin 管理租户 CRUD + 暂停/恢复 + 资源统计
+- 租户详情：用户列表 + 资源用量 + 配额进度条
+- 注册流程：创建团队 / 加入团队（邀请码）
+- Guest 免登录体验：自动创建临时用户，1 天 JWT
+- 计划配额：free/pro/enterprise 三档（用户数 + 节点数）
+- Guest 数据定期清理（24h cron）
 
 ## 快速开始
 
@@ -247,7 +265,10 @@ npm run cli -- help                        # 列出所有命令
 | 用户管理 | `/users`                | 管理员用户 CRUD            |
 | 问题反馈 | `/bug-report`           | Bug 提交 + 截图            |
 | 攻关日报 | `/daily-report`         | 当日进展日报               |
-| 登录页   | `/login`                | JWT 登录                   |
+| 登录页   | `/login`                | 登录/注册 + 免登录体验     |
+| 公共分享 | `/s/:token`             | 分享内容查看（无需登录）   |
+| 平台管理 | `/platform`             | 租户管理（superAdmin）     |
+| 租户详情 | `/platform/tenants/:id` | 租户详情（superAdmin）     |
 
 ## 项目结构
 
@@ -295,7 +316,7 @@ npm run cli -- help                        # 列出所有命令
 └── SYSTEM_REFERENCE.md    # 系统参考文档
 ```
 
-## 测试状态(2026-06-01, v2.3.10)
+## 测试状态(2026-06-03, v3.0.0)
 
 - **790/790** 后端 Vitest 通过(102 test files)
 - **28/28** shared vitest 通过
@@ -305,27 +326,30 @@ npm run cli -- help                        # 列出所有命令
 
 ## 当前版本
 
-- **v2.3.10** — 知识库 Wiki + API 自动文档 + 前端代码拆分
+- **v3.0.0** — 共享功能 + SaaS 多租户架构
 - 完整版本历史见 [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ### 已交付里程碑
 
-| 版本        | 主题                                           |
-| ----------- | ---------------------------------------------- |
-| v2.0        | Welink + Postgres + UI 配置化                  |
-| v2.1        | Roadmap 4 桶整合(安全/性能/UX/质量)            |
-| v2.2        | P1 三桶(sec/perf/quality)                      |
-| v2.3        | 一键升级 UI + Schema overlay                   |
-| v2.3.1      | 现网加固 + 架构韧性 + 升级真实化               |
-| v2.3.2      | Hot-fix React #310 + AI 抖动                   |
-| v2.3.3      | Hermes Tool-using Agent + 14 通用工具          |
-| v2.3.4      | LLM 端到端 + Inbox + 面包屑 + Schema-as-UI     |
-| v2.3.5      | Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图 |
-| v2.3.6      | Hermes 写工具 + 会话记忆                       |
-| v2.3.7      | 暗黑模式 + 产品引导 + Dashboard 看板配置       |
-| v2.3.8      | Webhook 事件订阅 + 邮件摘要 + 内联字段         |
-| v2.3.9      | 邮件增强 + 邀请管理 + 运营大屏                 |
-| **v2.3.10** | **知识库 Wiki + API 自动文档 + 前端代码拆分**  |
+| 版本       | 主题                                           |
+| ---------- | ---------------------------------------------- |
+| v2.0       | Welink + Postgres + UI 配置化                  |
+| v2.1       | Roadmap 4 桶整合(安全/性能/UX/质量)            |
+| v2.2       | P1 三桶(sec/perf/quality)                      |
+| v2.3       | 一键升级 UI + Schema overlay                   |
+| v2.3.1     | 现网加固 + 架构韧性 + 升级真实化               |
+| v2.3.2     | Hot-fix React #310 + AI 抖动                   |
+| v2.3.3     | Hermes Tool-using Agent + 14 通用工具          |
+| v2.3.4     | LLM 端到端 + Inbox + 面包屑 + Schema-as-UI     |
+| v2.3.5     | Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图 |
+| v2.3.6     | Hermes 写工具 + 会话记忆                       |
+| v2.3.7     | 暗黑模式 + 产品引导 + 看板配置                 |
+| v2.3.8     | Webhook 事件订阅 + 邮件摘要 + 内联字段         |
+| v2.3.9     | 邮件增强 + 邀请管理 + 运营大屏                 |
+| v2.3.10    | 知识库 Wiki + API 自动文档 + 前端代码拆分      |
+| v2.8.0     | 知识图谱可视化 + 边类型中文重命名              |
+| v2.9.0     | 知识库大版本 + Markdown 渲染引擎               |
+| **v3.0.0** | **共享功能 + SaaS 多租户架构**                 |
 
 ## License
 
