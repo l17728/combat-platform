@@ -4,7 +4,7 @@ import { UserOutlined, LockOutlined, TeamOutlined, GlobalOutlined } from "@ant-d
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { handleApiError } from "../utils/handleApiError.js";
-import { api } from "../api.js";
+import { api, setAuthToken } from "../api.js";
 
 const { Title, Text } = Typography;
 
@@ -49,11 +49,10 @@ export default function LoginPage() {
         tenantSlug: values.tenantSlug || undefined,
         inviteCode: values.inviteCode || undefined,
       });
-      message.success("注册成功");
-      navigate("/", { replace: true });
+      setAuthToken(result.token);
+      window.location.href = "/";
     } catch (e) {
       handleApiError(e, "注册失败");
-    } finally {
       setLoading(false);
     }
   };
@@ -62,11 +61,10 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const result = await api.guestAccess();
-      message.success(`欢迎体验！用户名: ${result.username}`);
-      navigate("/", { replace: true });
+      setAuthToken(result.token);
+      window.location.href = "/";
     } catch (e) {
       handleApiError(e, "体验入口暂时不可用");
-    } finally {
       setLoading(false);
     }
   };
