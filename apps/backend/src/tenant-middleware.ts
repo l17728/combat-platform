@@ -57,7 +57,6 @@ export function superAdminMiddleware(req: Request, res: Response, next: NextFunc
     return;
   }
   if (payload.role !== "superadmin") {
-    log.warn("superAdminMiddleware.blocked", { path: req.path, role: payload.role, username: payload.username });
     res.status(403).json({ error: "仅 SuperAdmin 可访问" });
     return;
   }
