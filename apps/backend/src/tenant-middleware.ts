@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { verifyAuth } from "./auth.js";
 import type { DbAdapter } from "./db-adapter.js";
-import { log } from "./logger.js";
+import { log, asyncHandler } from "./logger.js";
 
 export const SAAS_MODE = process.env.SAAS_MODE === "1";
 
@@ -225,4 +226,35 @@ export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: num
   }
   if (deleted > 0) log.info("tenant.guest_cleaned", { deleted });
   return { deleted };
+}
+
+export function makeGuestAccessRouter(adapter: DbAdapter): Router {
+  const router = Router();
+
+  router.post(
+    "/platform/guest-access",
+    asyncHandler(async (_req, res) => {
+      const { randomUUID } = await import("node:crypto");
+      const tenantId = SAAS_MODE ? "guest" : "default";
+      if (SAAS_MODE) {
+        await ensureGuestTenant(adapter);
+      }
+      const guestUser = `guest_${Date.now().toString(36)}`;
+      const bcrypt = (await import("bcryptjs")).default;
+      const hash = bcrypt.hashSync(randomUUID(), 10);
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      await adapter.run(
+        "INSERT INTO users (id, username, password_hash, role, display_name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, 'normal', ?, ?, ?, ?)",
+        [id, guestUser, hash, guestUser, tenantId, now, now]
+      );
+      const jwt = (await import("jsonwebtoken")).default;
+      const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
+      const payload = { userId: id, username: guestUser, role: "normal", tenantId };
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+      res.json({ token, username: guestUser });
+    })
+  );
+
+  return router;
 }

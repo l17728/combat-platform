@@ -11,33 +11,6 @@ export function makePlatformRouter(adapter: DbAdapter): Router {
     log.error("platform.ensure_tenants_failed", { error: (e as Error).message });
   });
 
-  // ---- 公共端点（无需 superAdmin） ----
-
-  // Guest access must be public — no auth required
-  router.post(
-    "/platform/guest-access",
-    asyncHandler(async (_req, res) => {
-      const { randomUUID } = await import("node:crypto");
-      const { ensureGuestTenant } = await import("./tenant-middleware.js");
-      await ensureGuestTenant(adapter);
-      const guestUser = `guest_${Date.now().toString(36)}`;
-      const bcrypt = (await import("bcryptjs")).default;
-      const hash = bcrypt.hashSync(randomUUID(), 10);
-      const now = new Date().toISOString();
-      const id = randomUUID();
-      await adapter.run(
-        "INSERT INTO users (id, username, password_hash, role, display_name, tenant_id, created_at, updated_at) VALUES (?, ?, ?, 'normal', ?, 'guest', ?, ?)",
-        [id, guestUser, hash, guestUser, now, now]
-      );
-      const jwt = (await import("jsonwebtoken")).default;
-      const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
-      const payload = { userId: id, username: guestUser, role: "normal", tenantId: "guest" };
-      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
-      res.json({ token, username: guestUser });
-    })
-  );
-
-  // ---- 以下所有路由需要 superAdmin ----
   router.use(superAdminMiddleware);
 
   router.get(

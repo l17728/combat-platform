@@ -63,6 +63,7 @@ import {
   quotaMiddleware,
   ensureGuestTenant,
   cleanGuestData,
+  makeGuestAccessRouter,
 } from "./tenant-middleware.js";
 import { makePlatformRouter } from "./platform-router.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
@@ -158,6 +159,7 @@ export function createApp(deps: {
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
+    app.use("/api", makeGuestAccessRouter(adapter));
     if (SAAS_MODE) {
       app.use("/api", tenantMiddleware);
       app.use("/api", quotaMiddleware);
