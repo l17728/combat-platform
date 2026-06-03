@@ -16,6 +16,7 @@ import {
 } from "antd";
 import { ThunderboltOutlined, SaveOutlined, ApiOutlined, ReloadOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import type { LlmSettingsMaskedDTO, LlmSettingsPutBody, LlmThinkingMode } from "../api.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -76,6 +77,7 @@ export default function LlmSettings() {
   const [dynamicModels, setDynamicModels] = useState<string[] | null>(null);
   const [refreshingModels, setRefreshingModels] = useState(false);
   const [form] = Form.useForm<FormValues>();
+  const { guard } = useGuestGuard();
 
   const fetchConfig = async () => {
     try {
@@ -117,6 +119,7 @@ export default function LlmSettings() {
   };
 
   const onSave = async () => {
+    if (!guard()) return;
     try {
       const v = await form.validateFields();
       setSaving(true);
@@ -143,6 +146,7 @@ export default function LlmSettings() {
   };
 
   const onRefreshModels = async () => {
+    if (!guard()) return;
     setRefreshingModels(true);
     try {
       const r = await api.listLlmModels();
@@ -162,6 +166,7 @@ export default function LlmSettings() {
   };
 
   const onTest = async () => {
+    if (!guard()) return;
     try {
       const v = form.getFieldsValue();
       setTesting(true);

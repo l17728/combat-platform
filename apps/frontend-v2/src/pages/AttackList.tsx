@@ -33,6 +33,7 @@ import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
 import StatusTag from "../components/StatusTag.js";
 import { useSettings } from "../hooks/useSettings.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
 import type { GraphNode, NodeSchema } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
@@ -97,6 +98,7 @@ export default function AttackList() {
     return v === "kanban" || v === "calendar" ? v : "table";
   });
   const { user } = useAuth();
+  const { guard } = useGuestGuard();
   const currentKey = useMemo(() => favKey(user?.username), [user]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   // 用户切换时从对应 key 重新加载关注列表(避免串账号)
@@ -180,11 +182,12 @@ export default function AttackList() {
   // CommandPalette / 深链 ?new=1 一键打开新建抽屉
   useEffect(() => {
     if (searchParams.get("new") === "1") {
-      setDrawerOpen(true);
+      if (guard()) setDrawerOpen(true);
       const next = new URLSearchParams(searchParams);
       next.delete("new");
       setSearchParams(next, { replace: true });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, setSearchParams]);
 
   const fieldOptions = useMemo(() => {
@@ -247,6 +250,7 @@ export default function AttackList() {
   }));
 
   const handleCreate = async (values: Record<string, unknown>) => {
+    if (!guard()) return;
     setSubmitting(true);
     try {
       // 表单里 攻关组长(单选) + 攻关成员(多选姓名数组)各自录入一次,
@@ -279,6 +283,7 @@ export default function AttackList() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteNode(id);
       message.success("删除成功");
@@ -290,6 +295,7 @@ export default function AttackList() {
 
   // 批量删除:仅删除当前用户为「创建人」的行,其它行静默跳过(避免悄悄越权)
   const handleBatchDelete = async () => {
+    if (!guard()) return;
     const ids = new Set(selectedRowKeys.map(String));
     const targets = nodes.filter((n) => ids.has(n.id));
     const me = (user?.username || "").trim();
@@ -336,6 +342,7 @@ export default function AttackList() {
   };
 
   const handleExport = async () => {
+    if (!guard()) return;
     setExporting(true);
     try {
       const blob = await api.exportNodes("attackTicket");
@@ -539,7 +546,7 @@ export default function AttackList() {
           <HelpButton title={HELP.attackList.title} content={HELP.attackList.content} />
         </div>
         <Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)} data-tour="create-btn">
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => guard() && setDrawerOpen(true)} data-tour="create-btn">
             新建攻关
           </Button>
           <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting} data-tour="export-btn">

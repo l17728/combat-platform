@@ -25,6 +25,7 @@ import {
   ClockCircleOutlined,
 } from "@ant-design/icons";
 import { api, type BackupInfo, type BackupSchedule } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import dayjs from "dayjs";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -51,6 +52,7 @@ export default function BackupRestore() {
   const [schedule, setScheduleState] = useState<BackupSchedule | null>(null);
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const { guard } = useGuestGuard();
 
   const fetchBackups = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true);
@@ -70,6 +72,7 @@ export default function BackupRestore() {
   }, [fetchBackups]);
 
   const handleCreate = async () => {
+    if (!guard()) return;
     setCreating(true);
     try {
       await api.createBackup();
@@ -83,6 +86,7 @@ export default function BackupRestore() {
   };
 
   const handleDownload = async (filename: string) => {
+    if (!guard()) return;
     try {
       const blob = await api.downloadBackup(filename);
       const url = URL.createObjectURL(blob);
@@ -97,6 +101,7 @@ export default function BackupRestore() {
   };
 
   const handleDelete = async (filename: string) => {
+    if (!guard()) return;
     try {
       await api.deleteBackup(filename);
       message.success("已删除");
@@ -107,6 +112,7 @@ export default function BackupRestore() {
   };
 
   const handleRestore = async (file: File) => {
+    if (!guard()) return;
     setRestoring(true);
     try {
       await api.restoreBackup(file);
@@ -120,6 +126,7 @@ export default function BackupRestore() {
   };
 
   const handleScheduleChange = async (patch: Partial<BackupSchedule>) => {
+    if (!guard()) return;
     try {
       const updated = await api.setBackupSchedule(patch);
       setScheduleState(updated);
@@ -183,7 +190,7 @@ export default function BackupRestore() {
           <Button icon={<PlusOutlined />} type="primary" loading={creating} onClick={handleCreate}>
             立即备份
           </Button>
-          <Button icon={<UploadOutlined />} danger onClick={() => setRestoreModalOpen(true)}>
+          <Button icon={<UploadOutlined />} danger onClick={() => guard() && setRestoreModalOpen(true)}>
             恢复数据库
           </Button>
         </Space>

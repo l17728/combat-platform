@@ -20,6 +20,7 @@ import {
 import { MailOutlined, SendOutlined, EyeOutlined } from "@ant-design/icons";
 import { InputNumber } from "antd";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 
@@ -60,6 +61,7 @@ export default function DigestSettings() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [form] = Form.useForm();
+  const { guard } = useGuestGuard();
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -86,6 +88,7 @@ export default function DigestSettings() {
   }, [fetchConfig]);
 
   const handleSave = async () => {
+    if (!guard()) return;
     try {
       setSaving(true);
       const values = await form.validateFields();
@@ -100,6 +103,7 @@ export default function DigestSettings() {
   };
 
   const handlePreview = async () => {
+    if (!guard()) return;
     try {
       const data = await api.previewDigest(previewDays);
       setPreview(data);
@@ -109,6 +113,7 @@ export default function DigestSettings() {
   };
 
   const handleSend = async () => {
+    if (!guard()) return;
     try {
       setSending(true);
       const res = await api.sendDigest(previewDays);

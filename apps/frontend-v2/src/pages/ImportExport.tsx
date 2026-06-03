@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Typography, Card, Select, Upload, Button, Table, message, Space, Checkbox, Tag, Alert } from "antd";
 import { UploadOutlined, ExportOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import type { ImportPreview } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -23,8 +24,10 @@ export default function ImportExport() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [createFields, setCreateFields] = useState(false);
   const [importing, setImporting] = useState(false);
+  const { guard } = useGuestGuard();
 
   const handlePreview = async (file: File) => {
+    if (!guard()) return;
     try {
       const result = await api.importPreview(file, nodeType);
       setPreview(result);
@@ -36,6 +39,7 @@ export default function ImportExport() {
   };
 
   const handleImport = async () => {
+    if (!guard()) return;
     if (!pendingFile) {
       message.warning("请先拖入文件预览");
       return;
@@ -57,6 +61,7 @@ export default function ImportExport() {
   };
 
   const handleExport = async () => {
+    if (!guard()) return;
     try {
       const blob = await api.exportNodes(nodeType);
       const url = URL.createObjectURL(blob);

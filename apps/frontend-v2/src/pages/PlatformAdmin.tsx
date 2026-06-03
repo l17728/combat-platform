@@ -26,6 +26,7 @@ import {
   CloudServerOutlined,
 } from "@ant-design/icons";
 import { api, type Tenant } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const PLAN_OPTIONS = [
@@ -47,6 +48,7 @@ export default function PlatformAdmin() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm] = Form.useForm();
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const { guard } = useGuestGuard();
 
   const fetchData = async () => {
     setLoading(true);
@@ -66,6 +68,7 @@ export default function PlatformAdmin() {
   }, []);
 
   const handleCreate = async () => {
+    if (!guard()) return;
     const values = createForm.getFieldsValue();
     if (!values.name || !values.slug) {
       createForm.validateFields(["name", "slug"]).catch(() => {});
@@ -83,6 +86,7 @@ export default function PlatformAdmin() {
   };
 
   const handleEdit = async () => {
+    if (!guard()) return;
     if (!editingTenant) return;
     const values = editForm.getFieldsValue();
     try {
@@ -97,6 +101,7 @@ export default function PlatformAdmin() {
   };
 
   const openEdit = (tenant: Tenant) => {
+    if (!guard()) return;
     setEditingTenant(tenant);
     editForm.setFieldsValue({
       name: tenant.name,
@@ -107,6 +112,7 @@ export default function PlatformAdmin() {
   };
 
   const handleSuspend = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.suspendTenant(id);
       message.success("已暂停");
@@ -117,6 +123,7 @@ export default function PlatformAdmin() {
   };
 
   const handleRestore = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.restoreTenant(id);
       message.success("已恢复");
@@ -200,7 +207,7 @@ export default function PlatformAdmin() {
         </Row>
       )}
       <div style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => guard() && setCreateOpen(true)}>
           创建租户
         </Button>
       </div>

@@ -3,6 +3,7 @@ import { Typography, Table, Button, Space, Modal, Form, Input, Select, message, 
 import { PlusOutlined, UserOutlined } from "@ant-design/icons";
 import { api, type AuthUser } from "../api.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
@@ -34,6 +35,7 @@ export default function UserManagement() {
   const [editForm] = Form.useForm();
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const { guard } = useGuestGuard();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -61,6 +63,7 @@ export default function UserManagement() {
   }
 
   const handleAdd = async (values: { username: string; password: string; displayName?: string; role?: string }) => {
+    if (!guard()) return;
     setAddSubmitting(true);
     try {
       await api.createUser(values);
@@ -76,6 +79,7 @@ export default function UserManagement() {
   };
 
   const handleEdit = async (values: { role?: string; displayName?: string; password?: string }) => {
+    if (!guard()) return;
     if (!editingUser) return;
     setEditSubmitting(true);
     const data: Record<string, string> = {};
@@ -96,6 +100,7 @@ export default function UserManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteUser(id);
       message.success("用户已删除");
@@ -132,6 +137,7 @@ export default function UserManagement() {
         <Space>
           <a
             onClick={() => {
+              if (!guard()) return;
               setEditingUser(r);
               editForm.setFieldsValue({ role: r.role, displayName: r.displayName });
               setEditOpen(true);
@@ -160,7 +166,7 @@ export default function UserManagement() {
           </Title>
           <HelpButton title={HELP.userManagement?.title ?? ""} content={HELP.userManagement?.content ?? ""} />
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => guard() && setAddOpen(true)}>
           新建用户
         </Button>
       </div>

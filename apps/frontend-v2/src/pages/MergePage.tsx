@@ -13,6 +13,7 @@ import {
   Divider,
 } from "antd";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import type { GraphNode, MergePreview } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -31,6 +32,7 @@ export default function MergePage() {
   const [fromId, setFromId] = useState<string | undefined>();
   const [toId, setToId] = useState<string | undefined>();
   const [preview, setPreview] = useState<MergePreview | null>(null);
+  const { guard } = useGuestGuard();
 
   const loadPersons = useCallback(async () => {
     try {
@@ -48,6 +50,7 @@ export default function MergePage() {
   }, [loadPersons]);
 
   const doPreview = async () => {
+    if (!guard()) return;
     if (!fromId || !toId) {
       message.warning("请选择两位人员");
       return;
@@ -60,6 +63,7 @@ export default function MergePage() {
   };
 
   const doMerge = async () => {
+    if (!guard()) return;
     if (!fromId || !toId) return;
     try {
       await api.mergePerson(fromId, toId);

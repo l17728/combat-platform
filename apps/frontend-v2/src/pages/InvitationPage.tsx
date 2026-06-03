@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Table, Button, Modal, Form, Input, Select, Space, Popconfirm, message, Tag, Alert } from "antd";
 import { PlusOutlined, DeleteOutlined, MailOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 
@@ -30,6 +31,7 @@ export default function InvitationPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
+  const { guard } = useGuestGuard();
 
   const fetchList = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true);
@@ -48,6 +50,7 @@ export default function InvitationPage() {
   }, [fetchList]);
 
   const handleCreate = async () => {
+    if (!guard()) return;
     const values = { ...form.getFieldsValue() };
     const email = values.email?.trim();
     if (!email) {
@@ -69,6 +72,7 @@ export default function InvitationPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteInvitation(id);
       message.success("已删除");
@@ -161,6 +165,7 @@ export default function InvitationPage() {
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => {
+              if (!guard()) return;
               form.resetFields();
               setModalOpen(true);
             }}

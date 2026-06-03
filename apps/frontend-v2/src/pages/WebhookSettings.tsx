@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Table, Button, Modal, Form, Input, Select, Switch, Space, Popconfirm, message, Tag, Alert } from "antd";
 import { PlusOutlined, SendOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 
@@ -37,6 +38,7 @@ export default function WebhookSettings() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [events, setEvents] = useState<string[]>([]);
   const [form] = Form.useForm();
+  const { guard } = useGuestGuard();
 
   const fetchSubs = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true);
@@ -65,18 +67,21 @@ export default function WebhookSettings() {
   }, [fetchSubs, fetchEvents]);
 
   const handleCreate = () => {
+    if (!guard()) return;
     setEditingId(null);
     form.resetFields();
     setModalOpen(true);
   };
 
   const handleEdit = (sub: WebhookSub) => {
+    if (!guard()) return;
     setEditingId(sub.id);
     form.setFieldsValue({ url: sub.url, events: sub.events });
     setModalOpen(true);
   };
 
   const handleSubmit = async () => {
+    if (!guard()) return;
     const values = { ...form.getFieldsValue() };
     const url = values.url?.trim();
     if (!url) {
@@ -100,6 +105,7 @@ export default function WebhookSettings() {
   };
 
   const handleToggle = async (sub: WebhookSub, enabled: boolean) => {
+    if (!guard()) return;
     try {
       await api.updateWebhook(sub.id, { enabled });
       fetchSubs(true);
@@ -109,6 +115,7 @@ export default function WebhookSettings() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteWebhook(id);
       message.success("已删除");
@@ -119,6 +126,7 @@ export default function WebhookSettings() {
   };
 
   const handleTest = async (sub: WebhookSub) => {
+    if (!guard()) return;
     try {
       const res = await api.testWebhook(sub.id);
       message.success(res.message || "测试已发送");

@@ -17,6 +17,7 @@ import {
 } from "antd";
 import { ReloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { api, type OpLogEntry } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT_FULL } from "../constants.js";
 import { setEnabled, isEnabled } from "../utils/op-logger.js";
 import { useAuth } from "../hooks/useAuth.js";
@@ -53,6 +54,7 @@ export default function OperationLog() {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [trackingEnabled, setTrackingEnabled] = useState(isEnabled());
   const { isAdmin } = useAuth();
+  const { guard } = useGuestGuard();
   const { token } = theme.useToken();
 
   useEffect(() => {
@@ -66,6 +68,7 @@ export default function OperationLog() {
   }, []);
 
   const handleToggle = async (v: boolean) => {
+    if (!guard()) return;
     try {
       await api.setOpLogSettings(v);
       setTrackingEnabled(v);
@@ -103,6 +106,7 @@ export default function OperationLog() {
   }, [page, categoryFilter, sessionIdFilter, userNameFilter, dateRange]);
 
   const handleCleanup = async () => {
+    if (!guard()) return;
     try {
       const before = dayjs().subtract(30, "day").toISOString();
       const res = await api.deleteOpLogs({ before });

@@ -16,6 +16,7 @@ import {
 } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
 import HelpButton from "../components/HelpButton.js";
@@ -43,6 +44,7 @@ export default function ConfigCenter() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SettingEntry | null>(null);
   const [schemas, setSchemas] = useState<NodeSchema[]>([]);
+  const { guard } = useGuestGuard();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -74,6 +76,7 @@ export default function ConfigCenter() {
     );
 
   const handleAdd = async (values: { key: string; label?: string; valuesText: string }) => {
+    if (!guard()) return;
     const vals = values.valuesText
       .split(/[,，\n]/)
       .map((s) => s.trim())
@@ -97,6 +100,7 @@ export default function ConfigCenter() {
   };
 
   const handleEdit = async (values: { label?: string; valuesText: string }) => {
+    if (!guard()) return;
     const vals = values.valuesText
       .split(/[,，\n]/)
       .map((s) => s.trim())
@@ -119,6 +123,7 @@ export default function ConfigCenter() {
   };
 
   const handleDelete = async (key: string) => {
+    if (!guard()) return;
     try {
       await api.deleteSetting(key);
       message.success("配置已删除");
@@ -144,6 +149,7 @@ export default function ConfigCenter() {
   );
 
   const handleDeleteConfirm = async () => {
+    if (!guard()) return;
     if (!deleteTarget) return;
     try {
       await api.deleteSetting(deleteTarget.key);
@@ -156,6 +162,7 @@ export default function ConfigCenter() {
   };
 
   const openEdit = (entry: SettingEntry) => {
+    if (!guard()) return;
     setEditingKey(entry.key);
     editForm.setFieldsValue({
       label: entry.label ?? "",
@@ -230,7 +237,7 @@ export default function ConfigCenter() {
           <Button icon={<ReloadOutlined />} onClick={fetchData}>
             刷新
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => guard() && setAddOpen(true)}>
             新增配置
           </Button>
         </Space>
@@ -250,7 +257,7 @@ export default function ConfigCenter() {
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : entries.length === 0 ? (
         <Empty description="暂无配置项" image={Empty.PRESENTED_IMAGE_SIMPLE}>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => guard() && setAddOpen(true)}>
             新增配置
           </Button>
         </Empty>

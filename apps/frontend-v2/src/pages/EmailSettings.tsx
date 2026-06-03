@@ -15,6 +15,7 @@ import {
   Popconfirm,
 } from "antd";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import type { SmtpConfigMasked, GraphNode } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -36,6 +37,7 @@ export default function EmailSettings() {
   const [groupSaving, setGroupSaving] = useState(false);
   const [editingGroup, setEditingGroup] = useState<GraphNode | null>(null);
   const [groupForm] = Form.useForm();
+  const { guard } = useGuestGuard();
 
   useEffect(() => {
     api
@@ -73,12 +75,14 @@ export default function EmailSettings() {
   }, []);
 
   const openCreateGroup = () => {
+    if (!guard()) return;
     setEditingGroup(null);
     groupForm.resetFields();
     setGroupModalOpen(true);
   };
 
   const openEditGroup = (node: GraphNode) => {
+    if (!guard()) return;
     setEditingGroup(node);
     groupForm.setFieldsValue(node.properties);
     setGroupModalOpen(true);
@@ -105,6 +109,7 @@ export default function EmailSettings() {
   };
 
   const handleGroupDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteNode(id);
       message.success("群组删除成功");
@@ -115,6 +120,7 @@ export default function EmailSettings() {
   };
 
   const handleSave = async (values: Record<string, unknown>) => {
+    if (!guard()) return;
     setSaving(true);
     try {
       await api.putEmailConfig({
@@ -135,6 +141,7 @@ export default function EmailSettings() {
   };
 
   const handleTest = async () => {
+    if (!guard()) return;
     if (!testEmail) {
       message.warning("请输入测试收件人");
       return;
