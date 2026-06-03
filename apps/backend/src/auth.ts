@@ -506,6 +506,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     "/metrics",
     "/invitations/check/",
     "/s/",
+    "/platform/guest-access",
   ];
   if (publicPaths.some((p) => path.startsWith(p)) && (path === "/bug-reports" ? req.method === "POST" : true)) {
     return next();
