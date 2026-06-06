@@ -38,6 +38,8 @@ import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
+const PROTECTED_NODE_TYPES: ReadonlySet<string> = new Set(["attackTicket", "person", "contribution"]);
+
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: "string", label: "文本 (string)" },
   { value: "number", label: "数字 (number)" },
@@ -564,11 +566,12 @@ export default function SchemaWizard() {
                 {
                   title: "",
                   width: 60,
-                  render: (_: unknown, r: NodeSchema) => (
-                    <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
-                      <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  ),
+                  render: (_: unknown, r: NodeSchema) =>
+                    PROTECTED_NODE_TYPES.has(r.nodeType) ? null : (
+                      <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
+                        <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    ),
                 },
               ]}
               onRow={(record) => ({

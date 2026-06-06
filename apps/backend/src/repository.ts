@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { DbAdapter } from "./db-adapter.js";
 import type {
   Repository,
@@ -13,6 +14,12 @@ import type {
   AuditLogEntry,
 } from "@combat/shared";
 import { computeAuditHash, EMPTY_PREV_HASH } from "./audit-chain.js";
+
+export const tenantContext = new AsyncLocalStorage<string | null>();
+
+export function tid(): string {
+  return tenantContext.getStore() ?? "default";
+}
 
 /**
  * Phase 4 — adapter-aware JSON encode/decode.
@@ -62,7 +69,37 @@ export function decodeJsonFromAdapter(adapter: DbAdapter, value: unknown): any {
  * both SQLite (≥ 3.24, our minimum) and Postgres.
  */
 export class SqliteRepository implements Repository {
-  constructor(private adapter: DbAdapter) {}
+  constructor(
+    private adapter: DbAdapter,
+    private tenantId?: string | null
+  ) {}
+
+  private effectiveTenantId(): string | null | undefined {
+    if (this.tenantId !== undefined && this.tenantId !== null) return this.tenantId;
+    return tenantContext.getStore() ?? undefined;
+  }
+
+  private hasTenant(): boolean {
+    return !!this.effectiveTenantId();
+  }
+
+  private tenantWhere(prefix?: string): string {
+    if (!this.hasTenant()) return "";
+    return (prefix ? prefix + " " : "") + "tenant_id = ?";
+  }
+
+  private tenantParam(): unknown[] {
+    const tid = this.effectiveTenantId();
+    return tid ? [tid] : [];
+  }
+
+  private andTenant(): string {
+    return this.hasTenant() ? " AND tenant_id = ?" : "";
+  }
+
+  private andTenantParams(): unknown[] {
+    return this.tenantParam();
+  }
 
   // resilience(audit-merkle): monotonic per-process clock for audit performedAt.
   // ISO timestamp can collide at sub-ms granularity, which makes (performedAt, id)
@@ -187,10 +224,11 @@ export class SqliteRepository implements Repository {
   async createNode(nodeType: string, properties: Record<string, unknown>, actor: string): Promise<GraphNode> {
     const now = new Date().toISOString();
     const node: GraphNode = { id: randomUUID(), nodeType, properties, createdAt: now, updatedAt: now };
+    const tid = this.effectiveTenantId() ?? "default";
     await this.adapter.transaction(async (tx) => {
       await tx.run(
-        `INSERT INTO nodes (id, "nodeType", properties, search_text, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        [node.id, nodeType, encodeJsonForAdapter(tx, properties), this.flatten(properties), now, now]
+        `INSERT INTO nodes (id, "nodeType", properties, search_text, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [node.id, nodeType, encodeJsonForAdapter(tx, properties), this.flatten(properties), tid, now, now]
       );
       await this.auditTx(tx, "CREATE", "node", node.id, properties, actor);
     });
@@ -198,7 +236,11 @@ export class SqliteRepository implements Repository {
   }
 
   async getNode(id: string): Promise<GraphNode | null> {
-    const r = await this.adapter.queryOne<any>(`SELECT * FROM nodes WHERE id = ?`, [id]);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM nodes WHERE id = ? AND tenant_id = ?`
+      : `SELECT * FROM nodes WHERE id = ?`;
+    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const r = await this.adapter.queryOne<any>(sql, params);
     if (!r) return null;
     return {
       id: r.id,
@@ -214,12 +256,14 @@ export class SqliteRepository implements Repository {
     if (!cur) throw new Error(`node ${id} not found`);
     const properties = { ...cur.properties, ...patch };
     const now = new Date().toISOString();
+    const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
+    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
     await this.adapter.transaction(async (tx) => {
-      await tx.run(`UPDATE nodes SET properties = ?, search_text = ?, updated_at = ? WHERE id = ?`, [
+      await tx.run(`UPDATE nodes SET properties = ?, search_text = ?, updated_at = ? ${whereSql}`, [
         encodeJsonForAdapter(tx, properties),
         this.flatten(properties),
         now,
-        id,
+        ...whereParams,
       ]);
       await this.auditTx(tx, "UPDATE", "node", id, patch, actor);
     });
@@ -227,9 +271,11 @@ export class SqliteRepository implements Repository {
   }
 
   async queryNodes(nodeType: string, filter?: NodeFilter): Promise<GraphNode[]> {
-    const rows = await this.adapter.query<any>(`SELECT * FROM nodes WHERE "nodeType" = ? ORDER BY created_at DESC`, [
-      nodeType,
-    ]);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM nodes WHERE "nodeType" = ? AND tenant_id = ? ORDER BY created_at DESC`
+      : `SELECT * FROM nodes WHERE "nodeType" = ? ORDER BY created_at DESC`;
+    const params = this.hasTenant() ? [nodeType, this.tenantId!] : [nodeType];
+    const rows = await this.adapter.query<any>(sql, params);
     let out = rows.map((r) => ({
       id: r.id,
       nodeType: r.nodeType,
@@ -261,13 +307,15 @@ export class SqliteRepository implements Repository {
     if (!/^[A-Za-z0-9_一-鿿]+$/.test(key)) {
       throw new Error(`queryNodesByProperty: invalid key ${JSON.stringify(key)}`);
     }
+    const tenantClause = this.hasTenant() ? ` AND tenant_id = ?` : "";
+    const tenantParams = this.tenantParam();
     let sql: string;
     if (this.adapter.kind === "postgres") {
-      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND properties->>'${key}' = ? ORDER BY created_at DESC`;
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND properties->>'${key}' = ?${tenantClause} ORDER BY created_at DESC`;
     } else {
-      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND json_extract(properties, '$.${key}') = ? ORDER BY created_at DESC`;
+      sql = `SELECT * FROM nodes WHERE "nodeType" = ? AND json_extract(properties, '$.${key}') = ?${tenantClause} ORDER BY created_at DESC`;
     }
-    const rows = await this.adapter.query<any>(sql, [nodeType, value]);
+    const rows = await this.adapter.query<any>(sql, [nodeType, value, ...tenantParams]);
     return rows.map((r) => ({
       id: r.id,
       nodeType: r.nodeType,
@@ -286,10 +334,11 @@ export class SqliteRepository implements Repository {
   ): Promise<GraphEdge> {
     const now = new Date().toISOString();
     const e: GraphEdge = { id: randomUUID(), edgeType, sourceId, targetId, properties, createdAt: now, updatedAt: now };
+    const tid = this.effectiveTenantId() ?? "default";
     await this.adapter.transaction(async (tx) => {
       await tx.run(
-        `INSERT INTO edges (id, "edgeType", "sourceId", "targetId", properties, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [e.id, edgeType, sourceId, targetId, encodeJsonForAdapter(tx, properties), now, now]
+        `INSERT INTO edges (id, "edgeType", "sourceId", "targetId", properties, tenant_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [e.id, edgeType, sourceId, targetId, encodeJsonForAdapter(tx, properties), tid, now, now]
       );
       await this.auditTx(tx, "CREATE", "edge", e.id, { edgeType, sourceId, targetId }, actor);
     });
@@ -297,7 +346,6 @@ export class SqliteRepository implements Repository {
   }
 
   async queryEdges(opts: { sourceId?: string; targetId?: string; edgeType?: string }): Promise<GraphEdge[]> {
-    // §31: push filters to SQL WHERE so idx_edges_source/idx_edges_target/idx_edges_type apply.
     const wh: string[] = [],
       params: unknown[] = [];
     if (opts.sourceId) {
@@ -311,6 +359,10 @@ export class SqliteRepository implements Repository {
     if (opts.edgeType) {
       wh.push(`"edgeType" = ?`);
       params.push(opts.edgeType);
+    }
+    if (this.hasTenant()) {
+      wh.push(`tenant_id = ?`);
+      params.push(this.tenantId!);
     }
     const sql = `SELECT * FROM edges${wh.length ? " WHERE " + wh.join(" AND ") : ""}`;
     const rows = await this.adapter.query<any>(sql, params);
@@ -343,9 +395,13 @@ export class SqliteRepository implements Repository {
   }
 
   async deleteEdgeById(id: string, actor: string): Promise<boolean> {
+    const selSql = this.hasTenant()
+      ? `SELECT id, "edgeType", "sourceId", "targetId" FROM edges WHERE id = ? AND tenant_id = ?`
+      : `SELECT id, "edgeType", "sourceId", "targetId" FROM edges WHERE id = ?`;
+    const selParams = this.hasTenant() ? [id, this.tenantId!] : [id];
     const row = await this.adapter.queryOne<{ id: string; edgeType: string; sourceId: string; targetId: string }>(
-      `SELECT id, "edgeType", "sourceId", "targetId" FROM edges WHERE id = ?`,
-      [id]
+      selSql,
+      selParams
     );
     if (!row) return false;
     await this.adapter.transaction(async (tx) => {
@@ -363,20 +419,18 @@ export class SqliteRepository implements Repository {
   }
 
   async appendProgress(ownerId: string, content: string, statusSnapshot: string, actor: string): Promise<ProgressLog> {
-    /* v2.2 P1 §6: 原子 seqNo —— 用单条 INSERT...SELECT COALESCE(MAX(seqNo),0)+1 取代
-       `SELECT MAX+1 然后 INSERT`,后者在事务里 SQLite 同步下虽安全,但 PG/异步驱动下是
-       经典 read-modify-write 竞态。SQLite 和 Postgres 都支持 INSERT...SELECT 形式。
-       SELECT 在 INSERT 内可读到同事务上下文 — 用 WHERE "ownerId" = ? 圈定计数范围,
-       MAX 取的是已提交 + 本事务可见行的最大 seqNo。 */
     const id = randomUUID();
     const updatedAt = new Date().toISOString();
+    const tid = this.effectiveTenantId() ?? "default";
     let seqNo = 0;
+    const tenantFilter = this.hasTenant() ? ` AND tenant_id = ?` : "";
+    const tenantParam = this.tenantParam();
     await this.adapter.transaction(async (tx) => {
       await tx.run(
-        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt")
-         SELECT ?, ?, COALESCE(MAX("seqNo"), 0) + 1, ?, ?, ?, ?
-         FROM progress_log WHERE "ownerId" = ?`,
-        [id, ownerId, content, statusSnapshot, actor, updatedAt, ownerId]
+        `INSERT INTO progress_log (id, "ownerId", "seqNo", content, "statusSnapshot", "updatedBy", "updatedAt", tenant_id)
+         SELECT ?, ?, COALESCE(MAX("seqNo"), 0) + 1, ?, ?, ?, ?, ?
+         FROM progress_log WHERE "ownerId" = ?${tenantFilter}`,
+        [id, ownerId, content, statusSnapshot, actor, updatedAt, tid, ownerId, ...tenantParam]
       );
       const row = await tx.queryOne<{ seqNo: number }>(`SELECT "seqNo" FROM progress_log WHERE id = ?`, [id]);
       seqNo = row?.seqNo ?? 1;
@@ -394,9 +448,11 @@ export class SqliteRepository implements Repository {
   }
 
   async listProgress(ownerId: string): Promise<ProgressLog[]> {
-    const rows = await this.adapter.query<any>(`SELECT * FROM progress_log WHERE "ownerId" = ? ORDER BY "seqNo"`, [
-      ownerId,
-    ]);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM progress_log WHERE "ownerId" = ? AND tenant_id = ? ORDER BY "seqNo"`
+      : `SELECT * FROM progress_log WHERE "ownerId" = ? ORDER BY "seqNo"`;
+    const params = this.hasTenant() ? [ownerId, this.tenantId!] : [ownerId];
+    const rows = await this.adapter.query<any>(sql, params);
     return rows.map((r) => ({
       id: r.id,
       ownerId: r.ownerId,
@@ -409,7 +465,11 @@ export class SqliteRepository implements Repository {
   }
 
   async listAllProgress(): Promise<ProgressLog[]> {
-    const rows = await this.adapter.query<any>(`SELECT * FROM progress_log ORDER BY "ownerId", "seqNo"`);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM progress_log WHERE tenant_id = ? ORDER BY "ownerId", "seqNo"`
+      : `SELECT * FROM progress_log ORDER BY "ownerId", "seqNo"`;
+    const params = this.tenantParam();
+    const rows = await this.adapter.query<any>(sql, params);
     return rows.map((r) => ({
       id: r.id,
       ownerId: r.ownerId,
@@ -466,7 +526,15 @@ export class SqliteRepository implements Repository {
   }
 
   async listProposals(opts: { status?: RelationProposalStatus } = {}): Promise<RelationProposal[]> {
-    // §31: push status to SQL WHERE (idx_proposals_status).
+    if (this.hasTenant()) {
+      const rows = opts.status
+        ? await this.adapter.query<any>(`SELECT * FROM proposals WHERE status = ? AND tenant_id = ?`, [
+            opts.status,
+            this.tenantId!,
+          ])
+        : await this.adapter.query<any>(`SELECT * FROM proposals WHERE tenant_id = ?`, [this.tenantId!]);
+      return rows.map((r) => this.mapProposal(r));
+    }
     const rows = opts.status
       ? await this.adapter.query<any>(`SELECT * FROM proposals WHERE status = ?`, [opts.status])
       : await this.adapter.query<any>(`SELECT * FROM proposals`);
@@ -474,7 +542,11 @@ export class SqliteRepository implements Repository {
   }
 
   async getProposal(id: string): Promise<RelationProposal | undefined> {
-    const r = await this.adapter.queryOne<any>(`SELECT * FROM proposals WHERE id = ?`, [id]);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM proposals WHERE id = ? AND tenant_id = ?`
+      : `SELECT * FROM proposals WHERE id = ?`;
+    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const r = await this.adapter.queryOne<any>(sql, params);
     return r ? this.mapProposal(r) : undefined;
   }
 
@@ -487,12 +559,14 @@ export class SqliteRepository implements Repository {
     const cur = await this.getProposal(id);
     if (!cur) throw new Error(`proposal ${id} not found`);
     const at = new Date().toISOString();
+    const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
+    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
     await this.adapter.transaction(async (tx) => {
-      await tx.run(`UPDATE proposals SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?`, [
+      await tx.run(`UPDATE proposals SET status = ?, decided_by = ?, decided_at = ? ${whereSql}`, [
         status,
         decidedBy,
         at,
-        id,
+        ...whereParams,
       ]);
       await this.auditTx(tx, "UPDATE", "proposal", id, { status, decidedBy }, actor);
     });
@@ -501,10 +575,16 @@ export class SqliteRepository implements Repository {
 
   async deleteNode(id: string, actor: string): Promise<void> {
     await this.adapter.transaction(async (tx) => {
-      await tx.run(`DELETE FROM progress_log WHERE "ownerId" = ?`, [id]);
+      const nodeTenant = this.hasTenant()
+        ? await tx.queryOne<{ tenant_id: string | null }>(`SELECT tenant_id FROM nodes WHERE id = ?`, [id])
+        : null;
+      if (this.hasTenant() && !nodeTenant) return;
+      const nodeTenantFilter = this.hasTenant() ? ` AND tenant_id = ?` : "";
+      const nodeTenantParams = this.hasTenant() ? [this.tenantId!] : [];
+      await tx.run(`DELETE FROM progress_log WHERE "ownerId" = ?${nodeTenantFilter}`, [id, ...nodeTenantParams]);
       await tx.run(`DELETE FROM edges WHERE "sourceId" = ? OR "targetId" = ?`, [id, id]);
       await tx.run(`DELETE FROM ticket_tabs WHERE ticket_id = ?`, [id]);
-      const result = await tx.run(`DELETE FROM nodes WHERE id = ?`, [id]);
+      const result = await tx.run(`DELETE FROM nodes WHERE id = ?${nodeTenantFilter}`, [id, ...nodeTenantParams]);
       if (result.changes > 0) await this.auditTx(tx, "DELETE", "node", id, { id }, actor);
     });
   }
@@ -515,9 +595,10 @@ export class SqliteRepository implements Repository {
   ): Promise<Reminder> {
     const now = new Date().toISOString();
     const row: Reminder = { ...p, id: randomUUID(), status: "待发送", createdAt: now };
+    const tid = this.effectiveTenantId() ?? "default";
     await this.adapter.transaction(async (tx) => {
       await tx.run(
-        `INSERT INTO notifications (id, kind, ticket_id, recipient_person_id, recipient_name, subject, body, status, decided_by, decided_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notifications (id, kind, ticket_id, recipient_person_id, recipient_name, subject, body, status, decided_by, decided_at, created_at, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           row.id,
           row.kind,
@@ -530,6 +611,7 @@ export class SqliteRepository implements Repository {
           null,
           null,
           now,
+          tid,
         ]
       );
       await this.auditTx(tx, "CREATE", "reminder", row.id, { kind: row.kind, ticketId: row.ticketId }, actor);
@@ -554,7 +636,17 @@ export class SqliteRepository implements Repository {
   }
 
   async listReminders(opts: { status?: ReminderStatus } = {}): Promise<Reminder[]> {
-    // §31: push status to SQL WHERE (idx_notifications_status); keep ORDER BY.
+    if (this.hasTenant()) {
+      const rows = opts.status
+        ? await this.adapter.query<any>(
+            `SELECT * FROM notifications WHERE status = ? AND tenant_id = ? ORDER BY created_at DESC`,
+            [opts.status, this.tenantId!]
+          )
+        : await this.adapter.query<any>(`SELECT * FROM notifications WHERE tenant_id = ? ORDER BY created_at DESC`, [
+            this.tenantId!,
+          ]);
+      return rows.map((r) => this.mapReminder(r));
+    }
     const rows = opts.status
       ? await this.adapter.query<any>(`SELECT * FROM notifications WHERE status = ? ORDER BY created_at DESC`, [
           opts.status,
@@ -564,7 +656,11 @@ export class SqliteRepository implements Repository {
   }
 
   async getReminder(id: string): Promise<Reminder | undefined> {
-    const r = await this.adapter.queryOne<any>(`SELECT * FROM notifications WHERE id = ?`, [id]);
+    const sql = this.hasTenant()
+      ? `SELECT * FROM notifications WHERE id = ? AND tenant_id = ?`
+      : `SELECT * FROM notifications WHERE id = ?`;
+    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const r = await this.adapter.queryOne<any>(sql, params);
     return r ? this.mapReminder(r) : undefined;
   }
 
@@ -572,12 +668,14 @@ export class SqliteRepository implements Repository {
     const cur = await this.getReminder(id);
     if (!cur) throw new Error(`reminder ${id} not found`);
     const at = new Date().toISOString();
+    const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
+    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
     await this.adapter.transaction(async (tx) => {
-      await tx.run(`UPDATE notifications SET status = ?, decided_by = ?, decided_at = ? WHERE id = ?`, [
+      await tx.run(`UPDATE notifications SET status = ?, decided_by = ?, decided_at = ? ${whereSql}`, [
         status,
         decidedBy,
         at,
-        id,
+        ...whereParams,
       ]);
       await this.auditTx(tx, "UPDATE", "reminder", id, { status, decidedBy }, actor);
     });

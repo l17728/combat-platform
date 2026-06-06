@@ -5,6 +5,7 @@ import type { MailSender } from "./mailer.js";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
 import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
+import { tid } from "./repository.js";
 
 export interface HelpRequest {
   id: string;
@@ -62,6 +63,7 @@ function ensureTable(adapter: DbAdapter) {
       feedback TEXT,
       feedback_by TEXT,
       feedback_at TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -100,8 +102,8 @@ export function makeHelpRequestRouter(
       const ticketTitle = ticket ? String(ticket.properties["标题"] ?? ticketId.slice(0, 8)) : ticketId.slice(0, 8);
 
       await adapter.run(
-        `INSERT INTO help_requests (id, ticket_id, requester_name, target_name, target_email, category, question, extra_note, feedback_token, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO help_requests (id, ticket_id, requester_name, target_name, target_email, category, question, extra_note, feedback_token, status, tenant_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           ticketId,
@@ -113,6 +115,7 @@ export function makeHelpRequestRouter(
           extraNote ?? null,
           feedbackToken,
           "待回复",
+          tid(),
           now,
           now,
         ]
@@ -164,7 +167,7 @@ export function makeHelpRequestRouter(
       }
 
       log.info("help_request.create", { id, ticketId, emailSent });
-      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=? AND tenant_id=?", [id, tid()]);
       res.status(201).json({ ...toHelpRequest(row), emailSent, emailNote, feedbackLink });
     })
   );
@@ -172,12 +175,12 @@ export function makeHelpRequestRouter(
   r.get(
     "/help-requests",
     asyncHandler(async (req, res) => {
-      const { ticketId, status } = req.query ?? {};
-      let sql = "SELECT * FROM help_requests WHERE 1=1";
-      const params: any[] = [];
-      if (ticketId) {
+      const { ticketId: qTicketId, status } = req.query ?? {};
+      let sql = "SELECT * FROM help_requests WHERE tenant_id=?";
+      const params: any[] = [tid()];
+      if (qTicketId) {
         sql += " AND ticket_id=?";
-        params.push(ticketId);
+        params.push(qTicketId);
       }
       if (status) {
         sql += " AND status=?";
@@ -192,7 +195,10 @@ export function makeHelpRequestRouter(
   r.get(
     "/help/feedback/:token",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=?", [req.params.token]);
+      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=? AND tenant_id=?", [
+        req.params.token,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到该求助记录" });
       const ticket = await repo.getNode(row.ticket_id);
       res.json({
@@ -210,7 +216,10 @@ export function makeHelpRequestRouter(
   r.post(
     "/help/feedback/:token",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=?", [req.params.token]);
+      const row = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE feedback_token=? AND tenant_id=?", [
+        req.params.token,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到该求助记录" });
       if (row.status === "已回复") return res.status(400).json({ error: "该求助已回复" });
 
@@ -219,8 +228,8 @@ export function makeHelpRequestRouter(
 
       const now = new Date().toISOString();
       await adapter.run(
-        `UPDATE help_requests SET feedback=?, feedback_by=?, feedback_at=?, status='已回复', updated_at=? WHERE id=?`,
-        [feedback, name ?? null, now, now, row.id]
+        `UPDATE help_requests SET feedback=?, feedback_by=?, feedback_at=?, status='已回复', updated_at=? WHERE id=? AND tenant_id=?`,
+        [feedback, name ?? null, now, now, row.id, tid()]
       );
 
       if (row.ticket_id) {
@@ -253,7 +262,10 @@ export function makeHelpRequestRouter(
       }
 
       log.info("help_request.feedback", { id: row.id });
-      const updated = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=?", [row.id]);
+      const updated = await adapter.queryOne<any>("SELECT * FROM help_requests WHERE id=? AND tenant_id=?", [
+        row.id,
+        tid(),
+      ]);
       res.json(toHelpRequest(updated));
     })
   );

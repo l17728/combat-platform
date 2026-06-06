@@ -244,25 +244,57 @@ export async function cleanGuestData(adapter: DbAdapter): Promise<{ deleted: num
 // Write-semantic GET paths: these GET requests download/export data that guests must not access.
 // Mounted at /api, so req.path is relative to /api (e.g. /export/attackTicket, /backup/somefile.db).
 const GUEST_WRITE_SEMANTIC_GET_TESTS: ((path: string) => boolean)[] = [
-  (p) => p.startsWith("/export/"), // Data export → xlsx download
-  (p) => p.startsWith("/backup/") && !p.startsWith("/backup/schedule"), // Backup download (not schedule read)
+  (p) => p.startsWith("/export/"),
+  (p) => p.startsWith("/backup/") && !p.startsWith("/backup/schedule"),
 ];
+
+// Paths where guests are blocked from ALL methods (system admin area).
+// req.path is relative to /api mount point.
+const GUEST_BLOCKED_PREFIXES = [
+  "/audit",
+  "/upgrade",
+  "/merge",
+  "/op-logs",
+  "/backup",
+  "/proposals",
+  "/reminders",
+  "/email",
+  "/llm-settings",
+  "/platform/",
+  "/users",
+  "/settings",
+  "/db-migration",
+  "/kg-outbox",
+  "/webhook",
+  "/digest",
+  "/invitation",
+  "/schema",
+  "/metrics",
+  "/auth/register",
+  "/auth/user",
+];
+
+function isGuestBlockedPath(path: string): boolean {
+  return GUEST_BLOCKED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
 
 export function guestReadOnlyMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (process.env.COMBAT_NO_AUTH === "1") return next();
   const payload = verifyAuth(req);
   if (!payload) return next();
   if (!(payload as any).isGuest) return next();
-  // Block all mutation methods (POST/PUT/PATCH/DELETE)
-  if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "OPTIONS") {
-    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+
+  if (isGuestBlockedPath(req.path)) {
+    res.status(403).json({ error: "游客参观期间，请勿触动控制面板，谢谢！" });
     return;
   }
-  // Block write-semantic GET paths (export download, backup download, etc.)
+
   if (req.method === "GET" && GUEST_WRITE_SEMANTIC_GET_TESTS.some((t) => t(req.path))) {
-    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+    res.status(403).json({ error: "游客参观期间，请勿触动控制面板，谢谢！" });
     return;
   }
+
+  // Creator-only delete check is enforced separately in routes.ts
   next();
 }
 

@@ -101,7 +101,7 @@ function migrateSqlite(db: Database.Database): void {
   if (!cols.some((c) => c.name === "tour_completed")) {
     db.exec("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
   }
-  if (!cols.some((c) => c.name === "tenant_id")) {
+  {
     const saasTables = [
       "users",
       "nodes",
@@ -113,6 +113,7 @@ function migrateSqlite(db: Database.Database): void {
       "help_requests",
       "ticket_tabs",
       "support_node",
+      "notifications",
       "webhook_subscriptions",
       "digest_config",
       "invitations",
@@ -590,10 +591,7 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
     if (rows.length === 0) {
       await client.query("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
     }
-    const { rows: tenantCols } = await client.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tenant_id'"
-    );
-    if (tenantCols.length === 0) {
+    {
       const saasTables = [
         "users",
         "nodes",
@@ -605,6 +603,7 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
         "help_requests",
         "ticket_tabs",
         "support_node",
+        "notifications",
         "webhook_subscriptions",
         "digest_config",
         "invitations",

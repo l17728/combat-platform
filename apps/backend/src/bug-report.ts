@@ -3,6 +3,7 @@ import type { DbAdapter } from "./db-adapter.js";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
 import { createNotificationSafe, type NotificationsRepo } from "./notifications.js";
+import { tid } from "./repository.js";
 
 export interface BugReport {
   id: string;
@@ -60,6 +61,7 @@ function ensureTable(adapter: DbAdapter) {
       resolution TEXT,
       resolved_by TEXT,
       resolved_at TEXT,
+      tenant_id TEXT NOT NULL DEFAULT 'default',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -82,8 +84,8 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
       const id = randomUUID();
 
       await adapter.run(
-        `INSERT INTO bug_reports (id, title, description, severity, page_url, reporter, screenshot, console_logs, user_agent, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO bug_reports (id, title, description, severity, page_url, reporter, screenshot, console_logs, user_agent, status, tenant_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
           title,
@@ -95,13 +97,14 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
           consoleLogs ?? null,
           userAgent ?? null,
           "待处理",
+          tid(),
           now,
           now,
         ]
       );
 
       log.info("bug_report.create", { id, title });
-      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=? AND tenant_id=?", [id, tid()]);
       res.status(201).json(toBugReport(row));
     })
   );
@@ -110,8 +113,8 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
     "/bug-reports",
     asyncHandler(async (req, res) => {
       const { status, severity } = req.query ?? {};
-      let sql = "SELECT * FROM bug_reports WHERE 1=1";
-      const params: any[] = [];
+      let sql = "SELECT * FROM bug_reports WHERE tenant_id=?";
+      const params: any[] = [tid()];
       if (status) {
         sql += " AND status=?";
         params.push(status);
@@ -129,7 +132,10 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
   r.get(
     "/bug-reports/:id",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到该问题" });
       res.json(toBugReport(row));
     })
@@ -138,7 +144,10 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
   r.patch(
     "/bug-reports/:id",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到该问题" });
 
       const { status, resolution, resolvedBy, title, description, severity, pageUrl, reporter } = req.body ?? {};
@@ -184,10 +193,14 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
       }
 
       params.push(req.params.id);
-      await adapter.run(`UPDATE bug_reports SET ${updates.join(", ")} WHERE id=?`, params);
+      params.push(tid());
+      await adapter.run(`UPDATE bug_reports SET ${updates.join(", ")} WHERE id=? AND tenant_id=?`, params);
 
       log.info("bug_report.update", { id: req.params.id, status });
-      const updated = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      const updated = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
 
       // 状态变更且提报人非空 → 给提报人投递收件箱通知
       if (notifications && status !== undefined && status !== row.status && updated.reporter) {
@@ -210,9 +223,12 @@ export function makeBugReportRouter(adapter: DbAdapter, notifications?: Notifica
   r.delete(
     "/bug-reports/:id",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=?", [req.params.id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM bug_reports WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到该问题" });
-      await adapter.run("DELETE FROM bug_reports WHERE id=?", [req.params.id]);
+      await adapter.run("DELETE FROM bug_reports WHERE id=? AND tenant_id=?", [req.params.id, tid()]);
       log.info("bug_report.delete", { id: req.params.id });
       res.json({ deleted: req.params.id });
     })

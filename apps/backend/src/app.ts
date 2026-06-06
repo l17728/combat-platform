@@ -78,6 +78,7 @@ import { ensureAuditChainColumns, makeAuditChainRouter } from "./audit-chain-rou
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
 import { SqliteAdapter, type DbAdapter } from "./db-adapter.js";
+import { tenantContext } from "./repository.js";
 
 export function createApp(deps: {
   repo: Repository;
@@ -146,6 +147,19 @@ export function createApp(deps: {
       })
     );
   }
+  if (SAAS_MODE) {
+    app.use(
+      "/api/auth/register",
+      rateLimit({
+        windowMs: 60 * 60_000,
+        max: 5,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: () => skipRate,
+        message: { error: "注册请求过多,请 1 小时后重试" },
+      })
+    );
+  }
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
   // v2.2 P1 §7: metrics 中间件紧随 logger,统计每个请求的 in_flight/count/duration
@@ -165,6 +179,10 @@ export function createApp(deps: {
     app.use("/api", makeGuestAccessRouter(adapter));
     if (SAAS_MODE) {
       app.use("/api", tenantMiddleware);
+      app.use("/api", (req: any, _res: any, next: any) => {
+        const tid = req.isSuperAdmin ? null : (req.tenantId ?? null);
+        tenantContext.run(tid, () => next());
+      });
       app.use("/api", quotaMiddleware);
       ensureDefaultTenant(adapter).catch((e) =>
         log.warn("tenant.ensure_default_failed", { error: (e as Error).message })

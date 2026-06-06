@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { DbAdapter } from "./db-adapter.js";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
+import { tid } from "./repository.js";
 
 export interface SupportNode {
   id: string;
@@ -55,7 +56,10 @@ function toTemplate(r: any): SupportTemplate {
 /** Recursively collect nodeIds that are descendants of parentId (including itself). */
 async function collectDescendants(adapter: DbAdapter, nodeId: string): Promise<string[]> {
   const ids: string[] = [nodeId];
-  const children = await adapter.query<{ id: string }>(`SELECT id FROM support_node WHERE parent_id=?`, [nodeId]);
+  const children = await adapter.query<{ id: string }>(
+    `SELECT id FROM support_node WHERE parent_id=? AND tenant_id=?`,
+    [nodeId, tid()]
+  );
   for (const child of children) {
     const descendants = await collectDescendants(adapter, child.id);
     ids.push(...descendants);
@@ -63,8 +67,8 @@ async function collectDescendants(adapter: DbAdapter, nodeId: string): Promise<s
   return ids;
 }
 
-const INSERT_NODE_SQL = `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, created_at, resolved_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const INSERT_NODE_SQL = `INSERT INTO support_node (id, ticket_id, template_id, parent_id, category, domain, person_id, person_name, status, note, tenant_id, created_at, resolved_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 export function makeSupportNodeRouter(adapter: DbAdapter): Router {
   const r = Router();
@@ -73,9 +77,10 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
   r.get(
     "/support-nodes/:ticketId",
     asyncHandler(async (req, res) => {
-      const rows = await adapter.query<any>(`SELECT * FROM support_node WHERE ticket_id=? ORDER BY created_at ASC`, [
-        req.params.ticketId,
-      ]);
+      const rows = await adapter.query<any>(
+        `SELECT * FROM support_node WHERE ticket_id=? AND tenant_id=? ORDER BY created_at ASC`,
+        [req.params.ticketId, tid()]
+      );
       res.json(rows.map(toNode));
     })
   );
@@ -113,6 +118,7 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
         node.personName,
         node.status,
         node.note,
+        tid(),
         node.createdAt,
         node.resolvedAt,
       ]);
@@ -125,7 +131,10 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
   r.put(
     "/support-nodes/node/:nodeId",
     asyncHandler(async (req, res) => {
-      const existing = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [req.params.nodeId]);
+      const existing = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=? AND tenant_id=?`, [
+        req.params.nodeId,
+        tid(),
+      ]);
       if (!existing) return res.status(404).json({ error: "not found" });
 
       const body = req.body ?? {};
@@ -152,8 +161,12 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
         return res.json(toNode(existing));
       }
       params.push(req.params.nodeId);
-      await adapter.run(`UPDATE support_node SET ${setClauses.join(", ")} WHERE id=?`, params);
-      const updated = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [req.params.nodeId]);
+      params.push(tid());
+      await adapter.run(`UPDATE support_node SET ${setClauses.join(", ")} WHERE id=? AND tenant_id=?`, params);
+      const updated = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=? AND tenant_id=?`, [
+        req.params.nodeId,
+        tid(),
+      ]);
       log.info("support_node.update", { id: req.params.nodeId });
       res.json(toNode(updated));
     })
@@ -163,7 +176,10 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
   r.delete(
     "/support-nodes/node/:nodeId",
     asyncHandler(async (req, res) => {
-      const existing = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [req.params.nodeId]);
+      const existing = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=? AND tenant_id=?`, [
+        req.params.nodeId,
+        tid(),
+      ]);
       if (!existing) return res.status(404).json({ error: "not found" });
       const ids = await collectDescendants(adapter, req.params.nodeId);
       const placeholders = ids.map(() => "?").join(",");
@@ -222,10 +238,14 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
           n.personName ?? null,
           n.status ?? "待确认",
           n.note ?? "",
+          tid(),
           now,
           null,
         ]);
-        const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [nodeId]);
+        const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=? AND tenant_id=?`, [
+          nodeId,
+          tid(),
+        ]);
         createdNodes.push(toNode(row));
       }
       log.info("support_template.create", { id: template.id, nodeCount: createdNodes.length });
@@ -241,8 +261,8 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
       if (!tmpl) return res.status(404).json({ error: "template not found" });
 
       const templateNodes = await adapter.query<any>(
-        `SELECT * FROM support_node WHERE template_id=? AND ticket_id IS NULL ORDER BY created_at ASC`,
-        [req.params.templateId]
+        `SELECT * FROM support_node WHERE template_id=? AND ticket_id IS NULL AND tenant_id=? ORDER BY created_at ASC`,
+        [req.params.templateId, tid()]
       );
 
       const oldToNew: Map<string, string> = new Map();
@@ -269,10 +289,14 @@ export function makeSupportNodeRouter(adapter: DbAdapter): Router {
           n.person_name ?? null,
           n.status,
           n.note,
+          tid(),
           now,
           null,
         ]);
-        const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=?`, [newId]);
+        const row = await adapter.queryOne<any>(`SELECT * FROM support_node WHERE id=? AND tenant_id=?`, [
+          newId,
+          tid(),
+        ]);
         cloned.push(toNode(row));
       }
 

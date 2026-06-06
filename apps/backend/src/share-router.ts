@@ -3,6 +3,7 @@ import { ShareRepo, ensureShareTable } from "./share.js";
 import { WikiRepo } from "./wiki.js";
 import type { DbAdapter } from "./db-adapter.js";
 import { asyncHandler, log } from "./logger.js";
+import { tid } from "./repository.js";
 import { verifyAuth } from "./auth.js";
 import { randomUUID } from "node:crypto";
 import { NotificationsRepo } from "./notifications.js";
@@ -148,7 +149,10 @@ export function makeShareRouter(adapter: DbAdapter, notificationsRepo?: Notifica
         content = article.content;
       } else if (link.entity_type === "ticket") {
         // Sanitized ticket: title + status + description only
-        const row = await adapter.queryOne<any>("SELECT * FROM nodes WHERE id = ?", [link.entity_id]);
+        const row = await adapter.queryOne<any>("SELECT * FROM nodes WHERE id = ? AND tenant_id = ?", [
+          link.entity_id,
+          tid(),
+        ]);
         if (!row) return res.status(404).json({ error: "攻关单不存在" });
         const props = typeof row.properties === "string" ? JSON.parse(row.properties) : row.properties || {};
         title = props["标题"] || props["title"] || row.label || "";
@@ -158,7 +162,10 @@ export function makeShareRouter(adapter: DbAdapter, notificationsRepo?: Notifica
         ].join("\n");
         extra = { status: props["状态"] || props["status"] };
       } else if (link.entity_type === "infoCard") {
-        const row = await adapter.queryOne<any>("SELECT * FROM nodes WHERE id = ?", [link.entity_id]);
+        const row = await adapter.queryOne<any>("SELECT * FROM nodes WHERE id = ? AND tenant_id = ?", [
+          link.entity_id,
+          tid(),
+        ]);
         if (!row) return res.status(404).json({ error: "公告不存在" });
         const props = typeof row.properties === "string" ? JSON.parse(row.properties) : row.properties || {};
         title = props["标题"] || props["title"] || row.label || "";

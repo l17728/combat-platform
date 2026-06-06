@@ -17,6 +17,9 @@ export interface SchemaSuggestion {
 
 const NODE_TYPE_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
 
+// Core nodeTypes that the application hardcodes — deleting them breaks the system.
+export const PROTECTED_NODE_TYPES: ReadonlySet<string> = new Set(["attackTicket", "person", "contribution"]);
+
 export async function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository): Promise<void> {
   for (const ns of registry.getConfig().nodeTypes) {
     for (const f of ns.fields) {
@@ -200,7 +203,10 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
         return res.status(400).json({ error: "nodeType 格式非法" });
       }
 
-      // Check schema exists
+      if (PROTECTED_NODE_TYPES.has(nodeType)) {
+        return res.status(403).json({ error: `系统核心类型 "${nodeType}" 不允许删除` });
+      }
+
       const existing = registry.getNodeSchema(nodeType);
       if (!existing) {
         return res.status(404).json({ error: `nodeType "${nodeType}" 不存在` });
