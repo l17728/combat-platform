@@ -2,7 +2,7 @@
 
 > 版本: v3.0 ✅ 已实现 | 日期: 2026-06-01
 > 基线分支: `dev` (v2.3.10) → 新分支: `saas`
-> **Phase 0-4 全部实现并部署**，生产版本 commit `609ea0f`
+> **Phase 0-4 全部实现并部署**，生产版本 commit `ffb010c`
 
 ## 1. 目标与背景
 
@@ -82,12 +82,16 @@ CREATE INDEX idx_audit_tenant ON audit_log(tenant_id);
 -- ... 其余表同理
 ```
 
-### 2.4 Guest 租户
+### 2.4 Guest 租户（只读参观模式）
 
 - `tenant_id = "guest"`，在 `tenants` 表中预创建
 - 所有游客用户自动关联到此租户
-- 无身份区分——任何 guest 都能 CRUD guest 租户内的数据
-- 系统管理页面**只读**（仅 guest 租户自身数据）
+- **三层只读防护**，guest 无法变更任何系统状态：
+  1. **后端 `guestReadOnlyMiddleware`**：拦截所有非 GET 请求 + 写语义 GET 路径（如 `/api/export/:type`、`/api/backup`），返回 403
+  2. **前端 API 拦截器**：`api.ts` 的 `req()` 方法检测 `isGuest`，对非 GET 请求直接拦截并弹出 toast 提示
+  3. **组件级 `useGuestGuard` hook**：在每个页面的事件处理函数（打开抽屉/Modal、提交表单、切换开关等）中注入 guard，点击即弹出 `"游客参观期间，请勿触动控制面板，谢谢！"` 提示
+- 游客可以**浏览所有页面和菜单**（含系统管理），但无法执行任何写操作
+- `GUEST_WRITE_SEMANTIC_GET_TESTS` 数组定义写语义 GET 路径匹配规则，可扩展
 - guest 数据可定期清理（cron job）
 
 ### 2.5 正常租户

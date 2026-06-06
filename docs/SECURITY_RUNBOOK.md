@@ -1,6 +1,6 @@
 # 安全运营手册 (Security Runbook)
 
-> 适用范围: combat-platform v2.2+ (P0 + P1 安全加固落地后)。
+> 适用范围: combat-platform v3.0+ (P0 + P1 安全加固 + SaaS 多租户 + Guest 只读防护落地后)。
 > 现网部署目标: `124.156.193.122` ,详见 [CLAUDE.md → Deployment](../CLAUDE.md#deployment)。
 
 本手册面向运营和事故响应,覆盖三类问题:**日常预防 / 异常监测 / 入侵响应**。
@@ -152,7 +152,60 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 
 ---
 
-## 4. 测试 / 部署期常见疑问
+## 4. Guest 只读防护（v3.0.1+）
+
+### 4.1 三层防护架构
+
+Guest（游客）用户可浏览所有页面（含系统管理），但**不能执行任何写操作**。防护分三层：
+
+| 层       | 位置                   | 机制                                              | 效果                                                  |
+| -------- | ---------------------- | ------------------------------------------------- | ----------------------------------------------------- |
+| 后端     | `tenant-middleware.ts` | `guestReadOnlyMiddleware` 拦截非 GET + 写语义 GET | 返回 403                                              |
+| 前端 API | `api.ts`               | `req()` 方法检测 `isGuest`，非 GET 直接拦截       | 弹 toast 提示                                         |
+| 前端组件 | `useGuestGuard.ts`     | 每个 write handler 包裹 `guard()`                 | 点击按钮弹出 "游客参观期间，请勿触动控制面板，谢谢！" |
+
+### 4.2 写语义 GET 路径
+
+部分 GET 请求实际会产生副作用（导出数据、下载备份），通过 `GUEST_WRITE_SEMANTIC_GET_TESTS` 数组定义：
+
+```typescript
+const GUEST_WRITE_SEMANTIC_GET_TESTS = [
+  (path: string) => path.match(/\/api\/export\//) !== null, // 数据导出
+  (path: string) => path.match(/\/api\/backup$/) !== null, // 备份下载
+  // 可扩展...
+];
+```
+
+### 4.3 验证方法
+
+```bash
+# Guest 创建节点应返回 403
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  -X POST http://localhost:3001/api/nodes/attackTicket \
+  -H "Content-Type: application/json" -d '{"标题":"test"}'
+# 预期: 403
+
+# Guest 导出数据应返回 403
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  http://localhost:3001/api/export/attackTicket
+# 预期: 403
+
+# Guest 读取仪表盘应返回 200
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  http://localhost:3001/api/dashboard
+# 预期: 200
+```
+
+### 4.4 SuperAdmin 角色
+
+- 默认 admin 用户在启动时由 `ensureSuperAdmin()` 自动提升为 `superadmin` 角色
+- SuperAdmin 独占 `/api/platform/*` 平台管理 API
+- 前端通过 `SuperAdminGuard` 组件控制「平台管理」菜单可见性
+- JWT payload 中 `role: "superadmin"`，与普通 `admin` 区分
+
+---
+
+## 5. 测试 / 部署期常见疑问
 
 - **Q: COMBAT_NO_AUTH 何时使用?** A: 只在本机 e2e (`playwright.config.ts` webServer env);生产 systemd Unit 必须不含此变量。
 - **Q: JWT_SECRET 多久轮换一次?** A: 至少一年一次;凡是怀疑泄露立即轮换。轮换会让所有用户 logout 重登。
@@ -162,23 +215,28 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 
 ---
 
-## 5. 相关代码定位
+## 6. 相关代码定位
 
-| 模块                 | 文件                                      | 备注                                 |
-| -------------------- | ----------------------------------------- | ------------------------------------ |
-| JWT 启动校验         | `apps/backend/src/auth.ts:17`             | resolveJwtSecret                     |
-| 默认密强制改密       | `apps/backend/src/auth.ts:123`            | login 返回 passwordMustChange        |
-| 全局/登录 rate-limit | `apps/backend/src/app.ts`                 | helmet + express-rate-limit          |
-| CSRF 同源校验        | `apps/backend/src/csrf.ts`                | Origin/Referer 校验                  |
-| 私密单全集过滤       | `apps/backend/src/private-tickets.ts`     | list/export/audit/dashboard 复用     |
-| SMTP 加密            | `apps/backend/src/crypto.ts`, `email.ts`  | AES-256-GCM + 启动期迁移             |
-| audit actor 强制     | `apps/backend/src/repository.ts:logAudit` | req.user 优先于调用方传字符串        |
-| 路由 actor helper    | `apps/backend/src/routes.ts:actorOf`      | 统一 req.user.username \|\| fallback |
-| Audit Merkle 链      | `apps/backend/src/audit-chain.ts`         | computeAuditHash + verifyAuditChain  |
+| 模块                    | 文件                                                  | 备注                                                     |
+| ----------------------- | ----------------------------------------------------- | -------------------------------------------------------- |
+| JWT 启动校验            | `apps/backend/src/auth.ts:17`                         | resolveJwtSecret                                         |
+| 默认密强制改密          | `apps/backend/src/auth.ts:123`                        | login 返回 passwordMustChange                            |
+| 全局/登录 rate-limit    | `apps/backend/src/app.ts`                             | helmet + express-rate-limit                              |
+| CSRF 同源校验           | `apps/backend/src/csrf.ts`                            | Origin/Referer 校验                                      |
+| 私密单全集过滤          | `apps/backend/src/private-tickets.ts`                 | list/export/audit/dashboard 复用                         |
+| SMTP 加密               | `apps/backend/src/crypto.ts`, `email.ts`              | AES-256-GCM + 启动期迁移                                 |
+| audit actor 强制        | `apps/backend/src/repository.ts:logAudit`             | req.user 优先于调用方传字符串                            |
+| 路由 actor helper       | `apps/backend/src/routes.ts:actorOf`                  | 统一 req.user.username \|\| fallback                     |
+| Audit Merkle 链         | `apps/backend/src/audit-chain.ts`                     | computeAuditHash + verifyAuditChain                      |
+| Guest 只读中间件        | `apps/backend/src/tenant-middleware.ts`               | guestReadOnlyMiddleware + GUEST_WRITE_SEMANTIC_GET_TESTS |
+| SuperAdmin auto-promote | `apps/backend/src/auth.ts`                            | ensureSuperAdmin() 启动时自动提升                        |
+| 前端 Guest 拦截器       | `apps/frontend-v2/src/api.ts`                         | req() 方法 isGuest 预拦截 + toast                        |
+| 前端 useGuestGuard      | `apps/frontend-v2/src/hooks/useGuestGuard.ts`         | 组件级事件拦截 hook                                      |
+| 前端 SuperAdmin 守卫    | `apps/frontend-v2/src/components/SuperAdminGuard.tsx` | isSuperAdmin 检查                                        |
 
 ---
 
-## 6. Audit 完整性校验 (Merkle Chain)
+## 7. Audit 完整性校验 (Merkle Chain)
 
 ### 6.1 背景
 

@@ -2,7 +2,7 @@
 
 攻关联调作战管理工具——统一的攻关任务跟踪、人员管理、荣誉体系、求助系统和审计日志平台。
 
-线上地址：http://124.156.193.122:3001/ （默认登录 `admin` / `admin123`）
+线上地址：http://124.156.193.122:3001/
 
 ## 🚀 新人 5 分钟跑起来
 
@@ -16,7 +16,7 @@ npm install
 npm run dev:backend       # 后端 :3001 (tsx watch)
 npm run dev:frontend-v2   # 前端 :5174 (vite dev,代理 /api 到 3001)
 
-# 3. 浏览器打开 http://localhost:5174,默认账号 admin/admin123
+# 3. 浏览器打开 http://localhost:5174
 ```
 
 第一次跑：后端在 `apps/backend/combat.sqlite` 自动建库 + seed 默认 admin；前端 vite 自动热更新。
@@ -50,14 +50,14 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 
 ## 技术栈
 
-| 层       | 技术                                                                          |
-| -------- | ----------------------------------------------------------------------------- |
-| 后端     | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM)                    |
-| 前端     | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5          |
-| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽）                           |
-| 认证     | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin/superadmin） |
-| 测试     | Vitest (后端 315 个 e2e 测试) + Playwright (前端 e2e)                         |
-| 部署     | 直连 SSH → Ubuntu 目标服务器 (systemd 管理)                                   |
+| 层       | 技术                                                                                    |
+| -------- | --------------------------------------------------------------------------------------- |
+| 后端     | Node.js 22 + Express + better-sqlite3 + TypeScript 5 (ESM)                              |
+| 前端     | React 18 + Vite 6 + Ant Design 5 + react-router-dom 6 + TypeScript 5                    |
+| 前端增强 | react-resizable（列宽拖拽）+ @dnd-kit（列顺序拖拽）                                     |
+| 认证     | JWT (7天过期) + bcrypt 密码哈希 + RBAC 角色（normal/leader/admin/superadmin）+ 游客只读 |
+| 测试     | Vitest (后端 821 个 e2e 测试) + Playwright (前端 e2e)                                   |
+| 部署     | 直连 SSH → Ubuntu 目标服务器 (systemd 管理)                                             |
 
 ## 核心功能
 
@@ -96,7 +96,8 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 - 用户管理（管理员 CRUD 用户账号）
 - 配置中心（运行时下拉选项管理）
 - 问题反馈（用户提交 bug + 截图 + Console 日志）
-- 角色 RBAC（普通/Leader/管理员）
+- 角色 RBAC（普通/Leader/管理员/SuperAdmin）
+- 游客参观模式（只读三层防护：后端中间件 + API 拦截器 + 组件级 useGuestGuard）
 - 数据库备份与恢复
 
 ### 共享功能 (v3.0)
@@ -113,7 +114,8 @@ scripts/deploy-v2/    # 部署脚本（直连 SSH 部署到目标服务器）
 - 平台管理：superAdmin 管理租户 CRUD + 暂停/恢复 + 资源统计
 - 租户详情：用户列表 + 资源用量 + 配额进度条
 - 注册流程：创建团队 / 加入团队（邀请码）
-- Guest 免登录体验：自动创建临时用户，1 天 JWT
+- Guest 免登录体验：自动创建临时用户，1 天 JWT，**只读参观模式**
+- 游客三层防护：后端 `guestReadOnlyMiddleware`（拦截写语义 GET + 全部非 GET）+ 前端 `req()` 拦截器 + 组件级 `useGuestGuard` hook
 - 计划配额：free/pro/enterprise 三档（用户数 + 节点数）
 - Guest 数据定期清理（24h cron）
 
@@ -316,16 +318,18 @@ npm run cli -- help                        # 列出所有命令
 └── SYSTEM_REFERENCE.md    # 系统参考文档
 ```
 
-## 测试状态(2026-06-03, v3.0.0)
+## 测试状态(2026-06-04, v3.0.1)
 
-- **790/790** 后端 Vitest 通过(102 test files)
+- **821/821** 后端 Vitest 通过(102 test files)
 - **28/28** shared vitest 通过
 - Frontend tsc 0 错
 - Frontend e2e:多视图 12 + schema-driven 25 + 抽屉/详情回归 47+ 全绿
 - **Hermes LLM 端到端 golden set 15/15 通过**(模型 glm-4-flash + thinking disabled)
+- Guest UI regression: 18/18 pages PASS, 0 writes succeeded
 
 ## 当前版本
 
+- **v3.0.1** — Guest 只读三层防护 + SuperAdmin auto-promotion + 品牌更名「会战管理」 + 登录页安全加固
 - **v3.0.0** — 共享功能 + SaaS 多租户架构
 - 完整版本历史见 [docs/ROADMAP.md](docs/ROADMAP.md)
 

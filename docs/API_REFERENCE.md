@@ -621,3 +621,75 @@ BFS 图谱快照（沿 REF/ANCHORED_TO/CONFLICTS_WITH/OVERLAPS_WITH 边遍历）
 | POST   | `/api/kg-outbox/replay` | 重放 failed        |
 | POST   | `/api/backup/offsite`   | 异地备份(SFTP)     |
 | GET    | `/api/metrics`          | Prometheus metrics |
+
+## SaaS 平台管理（v3.0+, superadmin only）
+
+> **⚠️ 注意：当前租户数据隔离尚未实现。** 以下 API 本身有 superAdminMiddleware 守卫，但业务路由（/api/nodes 等）的租户隔离仍在实施中。
+
+### `GET /api/platform/tenants`
+
+列出所有租户。需 superadmin。返回 `Tenant[]`。
+
+### `POST /api/platform/tenants`
+
+创建租户。body = `{name, slug, plan?}`。slug 须为 `^[a-z0-9][-a-z0-9]+$`。返回 201 `Tenant`。
+
+### `GET /api/platform/tenants/:id`
+
+租户详情。返回 `Tenant`。404 if not found。
+
+### `PUT /api/platform/tenants/:id`
+
+更新租户。body = `{name?, plan?, maxUsers?}`。返回 200 `Tenant`。
+
+### `PUT /api/platform/tenants/:id/suspend`
+
+暂停租户。返回 200 `Tenant {status: "suspended"}`。
+
+### `PUT /api/platform/tenants/:id/restore`
+
+恢复租户。返回 200 `Tenant {status: "active"}`。
+
+### `GET /api/platform/tenants/:id/users`
+
+租户用户列表。返回 `AuthUser[]`。
+
+### `GET /api/platform/tenants/:id/usage`
+
+租户资源用量。返回 `{users: number, nodes: number, edges: number, wiki: number, audit: number}`。
+
+### `GET /api/platform/stats`
+
+平台级统计。返回 `{totalTenants, userCount, nodeCount}`。
+
+### `GET /api/platform/admins`
+
+列出所有租户管理员。返回 `{id, username, role, displayName, tenant_id}[]`。
+
+### `POST /api/platform/guest-access`
+
+创建 Guest 用户。无需认证。返回 `{token, username}`。token 含 `isGuest: true`，有效期 1 天。
+
+## Guest 只读限制（v3.0.1+）
+
+所有带 `isGuest: true` JWT 的请求受以下限制：
+
+- **非 GET 请求**：`guestReadOnlyMiddleware` 返回 403 `{error: "游客仅可查看，无法执行操作"}`
+- **写语义 GET 路径**：`/api/export/*`、`/api/backup/*`（非 schedule）返回 403
+- **前端组件级**：`useGuestGuard` hook 在每个写操作按钮上弹出 toast 提示
+
+Guest 可访问的只读端点示例：`GET /api/dashboard`、`GET /api/nodes/:nodeType`、`GET /api/honor/leaderboard`
+
+## 邀请管理（v3.0+, admin only）
+
+### `GET /api/invitations`
+
+列出所有邀请码。需 admin。返回 `Invitation[]`。
+
+### `POST /api/invitations`
+
+创建邀请码。body = `{email, role?, displayName?, expiresInDays?}`。需 admin。201 返回 `Invitation`。
+
+### `GET /api/invitations/check/:code`
+
+检查邀请码有效性（公开）。返回 `{valid, invitation?}`。
