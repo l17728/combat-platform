@@ -284,13 +284,15 @@ export function guestReadOnlyMiddleware(req: Request, res: Response, next: NextF
   if (!payload) return next();
   if (!(payload as any).isGuest) return next();
 
-  if (isGuestBlockedPath(req.path)) {
-    res.status(403).json({ error: "游客参观期间，请勿触动控制面板，谢谢！" });
+  // System admin paths: guest can GET (read-only visit), all other methods blocked.
+  if (req.method !== "GET" && isGuestBlockedPath(req.path)) {
+    res.status(403).json({ error: "游客参观期间，只可查看，不可修改系统设置，谢谢！" });
     return;
   }
 
+  // Write-semantic GET paths: these GET requests download/export data that guests must not access.
   if (req.method === "GET" && GUEST_WRITE_SEMANTIC_GET_TESTS.some((t) => t(req.path))) {
-    res.status(403).json({ error: "游客参观期间，请勿触动控制面板，谢谢！" });
+    res.status(403).json({ error: "游客参观期间，不可导出或下载数据，谢谢！" });
     return;
   }
 

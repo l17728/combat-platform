@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Input, Button, Space, List, Modal, Form, message, Empty, Popconfirm, Typography, Tag, Tooltip } from "antd";
 import {
   PlusOutlined,
@@ -78,6 +78,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   const [deletePassword, setDeletePassword] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const editingIdRef = useRef<string | null>(null);
 
   const AVATAR_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#eb2f96", "#722ed1", "#13c2c2", "#cf1322", "#2f54eb"];
 
@@ -159,19 +160,23 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   };
 
   const handleSave = async () => {
-    if (!selected) return;
+    const editId = editingIdRef.current;
+    if (!editId) return;
     const values = editForm.getFieldsValue();
     const title = values.title?.trim();
     if (!title) {
       editForm.validateFields(["title"]).catch(() => {});
       return;
     }
-    if (editLocked && !values.lockPassword?.trim() && !selected.is_locked) {
-      message.error("加锁时必须设置密码");
-      return;
+    if (editLocked && !values.lockPassword?.trim()) {
+      const original = articles.find((a) => a.id === editId);
+      if (!original?.is_locked) {
+        message.error("加锁时必须设置密码");
+        return;
+      }
     }
     try {
-      await api.updateWiki(selected.id, {
+      await api.updateWiki(editId, {
         title,
         content: editContent,
         isLocked: editLocked,
@@ -179,8 +184,9 @@ export default function WikiPanel({ scope, scopeId }: Props) {
       });
       message.success("保存成功");
       setEditOpen(false);
+      editingIdRef.current = null;
       fetchData(true);
-      const updated = await api.getWiki(selected.id);
+      const updated = await api.getWiki(editId);
       setSelected(updated);
     } catch (e) {
       handleApiError(e);
@@ -222,6 +228,7 @@ export default function WikiPanel({ scope, scopeId }: Props) {
   };
 
   const openEdit = (article: WikiArticle) => {
+    editingIdRef.current = article.id;
     editForm.setFieldsValue({ title: article.title, lockPassword: "" });
     setEditContent(article.content);
     setEditLocked(article.is_locked);

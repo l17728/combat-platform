@@ -239,7 +239,7 @@ export class SqliteRepository implements Repository {
     const sql = this.hasTenant()
       ? `SELECT * FROM nodes WHERE id = ? AND tenant_id = ?`
       : `SELECT * FROM nodes WHERE id = ?`;
-    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const params = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     const r = await this.adapter.queryOne<any>(sql, params);
     if (!r) return null;
     return {
@@ -257,7 +257,7 @@ export class SqliteRepository implements Repository {
     const properties = { ...cur.properties, ...patch };
     const now = new Date().toISOString();
     const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
-    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const whereParams = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     await this.adapter.transaction(async (tx) => {
       await tx.run(`UPDATE nodes SET properties = ?, search_text = ?, updated_at = ? ${whereSql}`, [
         encodeJsonForAdapter(tx, properties),
@@ -274,7 +274,7 @@ export class SqliteRepository implements Repository {
     const sql = this.hasTenant()
       ? `SELECT * FROM nodes WHERE "nodeType" = ? AND tenant_id = ? ORDER BY created_at DESC`
       : `SELECT * FROM nodes WHERE "nodeType" = ? ORDER BY created_at DESC`;
-    const params = this.hasTenant() ? [nodeType, this.tenantId!] : [nodeType];
+    const params = this.hasTenant() ? [nodeType, this.effectiveTenantId()!] : [nodeType];
     const rows = await this.adapter.query<any>(sql, params);
     let out = rows.map((r) => ({
       id: r.id,
@@ -362,7 +362,7 @@ export class SqliteRepository implements Repository {
     }
     if (this.hasTenant()) {
       wh.push(`tenant_id = ?`);
-      params.push(this.tenantId!);
+      params.push(this.effectiveTenantId()!);
     }
     const sql = `SELECT * FROM edges${wh.length ? " WHERE " + wh.join(" AND ") : ""}`;
     const rows = await this.adapter.query<any>(sql, params);
@@ -398,7 +398,7 @@ export class SqliteRepository implements Repository {
     const selSql = this.hasTenant()
       ? `SELECT id, "edgeType", "sourceId", "targetId" FROM edges WHERE id = ? AND tenant_id = ?`
       : `SELECT id, "edgeType", "sourceId", "targetId" FROM edges WHERE id = ?`;
-    const selParams = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const selParams = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     const row = await this.adapter.queryOne<{ id: string; edgeType: string; sourceId: string; targetId: string }>(
       selSql,
       selParams
@@ -451,7 +451,7 @@ export class SqliteRepository implements Repository {
     const sql = this.hasTenant()
       ? `SELECT * FROM progress_log WHERE "ownerId" = ? AND tenant_id = ? ORDER BY "seqNo"`
       : `SELECT * FROM progress_log WHERE "ownerId" = ? ORDER BY "seqNo"`;
-    const params = this.hasTenant() ? [ownerId, this.tenantId!] : [ownerId];
+    const params = this.hasTenant() ? [ownerId, this.effectiveTenantId()!] : [ownerId];
     const rows = await this.adapter.query<any>(sql, params);
     return rows.map((r) => ({
       id: r.id,
@@ -530,9 +530,9 @@ export class SqliteRepository implements Repository {
       const rows = opts.status
         ? await this.adapter.query<any>(`SELECT * FROM proposals WHERE status = ? AND tenant_id = ?`, [
             opts.status,
-            this.tenantId!,
+            this.effectiveTenantId()!,
           ])
-        : await this.adapter.query<any>(`SELECT * FROM proposals WHERE tenant_id = ?`, [this.tenantId!]);
+        : await this.adapter.query<any>(`SELECT * FROM proposals WHERE tenant_id = ?`, [this.effectiveTenantId()!]);
       return rows.map((r) => this.mapProposal(r));
     }
     const rows = opts.status
@@ -545,7 +545,7 @@ export class SqliteRepository implements Repository {
     const sql = this.hasTenant()
       ? `SELECT * FROM proposals WHERE id = ? AND tenant_id = ?`
       : `SELECT * FROM proposals WHERE id = ?`;
-    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const params = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     const r = await this.adapter.queryOne<any>(sql, params);
     return r ? this.mapProposal(r) : undefined;
   }
@@ -560,7 +560,7 @@ export class SqliteRepository implements Repository {
     if (!cur) throw new Error(`proposal ${id} not found`);
     const at = new Date().toISOString();
     const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
-    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const whereParams = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     await this.adapter.transaction(async (tx) => {
       await tx.run(`UPDATE proposals SET status = ?, decided_by = ?, decided_at = ? ${whereSql}`, [
         status,
@@ -580,7 +580,7 @@ export class SqliteRepository implements Repository {
         : null;
       if (this.hasTenant() && !nodeTenant) return;
       const nodeTenantFilter = this.hasTenant() ? ` AND tenant_id = ?` : "";
-      const nodeTenantParams = this.hasTenant() ? [this.tenantId!] : [];
+      const nodeTenantParams = this.hasTenant() ? [this.effectiveTenantId()!] : [];
       await tx.run(`DELETE FROM progress_log WHERE "ownerId" = ?${nodeTenantFilter}`, [id, ...nodeTenantParams]);
       await tx.run(`DELETE FROM edges WHERE "sourceId" = ? OR "targetId" = ?`, [id, id]);
       await tx.run(`DELETE FROM ticket_tabs WHERE ticket_id = ?`, [id]);
@@ -640,10 +640,10 @@ export class SqliteRepository implements Repository {
       const rows = opts.status
         ? await this.adapter.query<any>(
             `SELECT * FROM notifications WHERE status = ? AND tenant_id = ? ORDER BY created_at DESC`,
-            [opts.status, this.tenantId!]
+            [opts.status, this.effectiveTenantId()!]
           )
         : await this.adapter.query<any>(`SELECT * FROM notifications WHERE tenant_id = ? ORDER BY created_at DESC`, [
-            this.tenantId!,
+            this.effectiveTenantId()!,
           ]);
       return rows.map((r) => this.mapReminder(r));
     }
@@ -659,7 +659,7 @@ export class SqliteRepository implements Repository {
     const sql = this.hasTenant()
       ? `SELECT * FROM notifications WHERE id = ? AND tenant_id = ?`
       : `SELECT * FROM notifications WHERE id = ?`;
-    const params = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const params = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     const r = await this.adapter.queryOne<any>(sql, params);
     return r ? this.mapReminder(r) : undefined;
   }
@@ -669,7 +669,7 @@ export class SqliteRepository implements Repository {
     if (!cur) throw new Error(`reminder ${id} not found`);
     const at = new Date().toISOString();
     const whereSql = this.hasTenant() ? `WHERE id = ? AND tenant_id = ?` : `WHERE id = ?`;
-    const whereParams = this.hasTenant() ? [id, this.tenantId!] : [id];
+    const whereParams = this.hasTenant() ? [id, this.effectiveTenantId()!] : [id];
     await this.adapter.transaction(async (tx) => {
       await tx.run(`UPDATE notifications SET status = ?, decided_by = ?, decided_at = ? ${whereSql}`, [
         status,

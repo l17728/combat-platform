@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DbAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
+import { tid } from "./repository.js";
 
 export type NotificationKind = "escalation" | "reminder" | "mention" | "help_request" | "bug_update" | "system";
 
@@ -67,9 +68,10 @@ export class NotificationsRepo {
   async create(input: CreateNotificationInput): Promise<InboxNotification> {
     const id = randomUUID();
     const now = new Date().toISOString();
+    const tenantId = tid();
     await this.adapter.run(
-      `INSERT INTO inbox_notifications (id, user_id, kind, title, body, link, source_entity_id, read_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      `INSERT INTO inbox_notifications (id, user_id, kind, title, body, link, source_entity_id, read_at, created_at, tenant_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
       [
         id,
         input.userId,
@@ -79,9 +81,13 @@ export class NotificationsRepo {
         input.link ?? null,
         input.sourceEntityId ?? null,
         now,
+        tenantId,
       ]
     );
-    const row = await this.adapter.queryOne<any>("SELECT * FROM inbox_notifications WHERE id = ?", [id]);
+    const row = await this.adapter.queryOne<any>("SELECT * FROM inbox_notifications WHERE id = ? AND tenant_id = ?", [
+      id,
+      tenantId,
+    ]);
     const n = toNotification(row);
     log.info("notification.create", { id, userId: input.userId, kind: input.kind });
     publish(n);
@@ -90,43 +96,47 @@ export class NotificationsRepo {
 
   async list(userId: string, opts: { unread?: boolean; limit?: number } = {}): Promise<InboxNotification[]> {
     const limit = Math.max(1, Math.min(200, opts.limit ?? 50));
+    const tenantId = tid();
     const sql = opts.unread
-      ? "SELECT * FROM inbox_notifications WHERE user_id = ? AND read_at IS NULL ORDER BY created_at DESC LIMIT ?"
-      : "SELECT * FROM inbox_notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?";
-    const rows = await this.adapter.query<any>(sql, [userId, limit]);
+      ? "SELECT * FROM inbox_notifications WHERE user_id = ? AND tenant_id = ? AND read_at IS NULL ORDER BY created_at DESC LIMIT ?"
+      : "SELECT * FROM inbox_notifications WHERE user_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT ?";
+    const rows = await this.adapter.query<any>(sql, [userId, tenantId, limit]);
     return rows.map(toNotification);
   }
 
   async unreadCount(userId: string): Promise<number> {
     const row = await this.adapter.queryOne<{ c: number }>(
-      "SELECT COUNT(*) as c FROM inbox_notifications WHERE user_id = ? AND read_at IS NULL",
-      [userId]
+      "SELECT COUNT(*) as c FROM inbox_notifications WHERE user_id = ? AND tenant_id = ? AND read_at IS NULL",
+      [userId, tid()]
     );
     return Number(row?.c ?? 0);
   }
 
   async markRead(userId: string, id: string): Promise<InboxNotification | null> {
+    const tenantId = tid();
     const existing = await this.adapter.queryOne<any>(
-      "SELECT * FROM inbox_notifications WHERE id = ? AND user_id = ?",
-      [id, userId]
+      "SELECT * FROM inbox_notifications WHERE id = ? AND user_id = ? AND tenant_id = ?",
+      [id, userId, tenantId]
     );
     if (!existing) return null;
     if (!existing.read_at) {
-      await this.adapter.run("UPDATE inbox_notifications SET read_at = ? WHERE id = ? AND user_id = ?", [
-        new Date().toISOString(),
-        id,
-        userId,
-      ]);
+      await this.adapter.run(
+        "UPDATE inbox_notifications SET read_at = ? WHERE id = ? AND user_id = ? AND tenant_id = ?",
+        [new Date().toISOString(), id, userId, tenantId]
+      );
     }
-    const row = await this.adapter.queryOne<any>("SELECT * FROM inbox_notifications WHERE id = ?", [id]);
+    const row = await this.adapter.queryOne<any>("SELECT * FROM inbox_notifications WHERE id = ? AND tenant_id = ?", [
+      id,
+      tenantId,
+    ]);
     return toNotification(row);
   }
 
   async markAllRead(userId: string): Promise<number> {
     const now = new Date().toISOString();
     const r = await this.adapter.run(
-      "UPDATE inbox_notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL",
-      [now, userId]
+      "UPDATE inbox_notifications SET read_at = ? WHERE user_id = ? AND tenant_id = ? AND read_at IS NULL",
+      [now, userId, tid()]
     );
     return r.changes ?? 0;
   }

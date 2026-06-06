@@ -120,6 +120,8 @@ function migrateSqlite(db: Database.Database): void {
       "op_logs",
       "app_settings",
       "ticket_tab_dynamic",
+      "documents",
+      "inbox_notifications",
     ];
     for (const table of saasTables) {
       try {
@@ -508,7 +510,8 @@ const POSTGRES_SCHEMA_DDL = `
       size INTEGER,
       url TEXT,
       uploaded_by TEXT,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      tenant_id TEXT NOT NULL DEFAULT 'default'
     );
     CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
     CREATE TABLE IF NOT EXISTS op_logs (
@@ -610,6 +613,8 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
         "op_logs",
         "app_settings",
         "ticket_tab_dynamic",
+        "documents",
+        "inbox_notifications",
       ];
       for (const table of saasTables) {
         await client

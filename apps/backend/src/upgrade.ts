@@ -41,7 +41,7 @@ const upload = multer({
 
 function adminOnly(req: Request, res: Response, next: NextFunction): void {
   const role = (req as any).user?.role;
-  if (role !== undefined && role !== "admin") {
+  if (role !== undefined && role !== "admin" && role !== "superadmin") {
     res.status(403).json({ error: "仅管理员可执行系统升级" });
     return;
   }
