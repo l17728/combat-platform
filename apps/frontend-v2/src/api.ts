@@ -23,6 +23,7 @@ import type {
   ExpandedItem,
   ConflictItem,
 } from "@combat/shared";
+import { isApiSystemPath } from "./system-paths.js";
 
 // §v2.3.4 LLM settings DTOs
 export type LlmThinkingMode = "disabled" | "enabled" | "auto";
@@ -1950,31 +1951,8 @@ function isGuestFromToken(): boolean {
   }
 }
 
-const GUEST_SYSTEM_PREFIXES = [
-  "/api/import",
-  "/api/schema",
-  "/api/config",
-  "/api/settings",
-  "/api/email",
-  "/api/digest",
-  "/api/llm-settings",
-  "/api/audit",
-  "/api/backup",
-  "/api/merge",
-  "/api/upgrade",
-  "/api/db-migration",
-  "/api/op-logs",
-  "/api/webhook",
-  "/api/invitation",
-  "/api/users",
-  "/api/platform",
-  "/api/notifications",
-  "/api/kg-outbox",
-  "/api/metrics",
-];
-
 function isGuestSystemPath(path: string): boolean {
-  return GUEST_SYSTEM_PREFIXES.some((prefix) => path.startsWith(prefix));
+  return isApiSystemPath(path);
 }
 
 export function setStoredUser(user: AuthUser | null) {

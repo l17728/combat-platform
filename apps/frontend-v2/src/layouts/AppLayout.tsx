@@ -87,29 +87,7 @@ function getSelectedKey(path: string): string {
   return "/";
 }
 
-const SYSTEM_PATH_PREFIXES = [
-  "/import",
-  "/schema",
-  "/config",
-  "/email",
-  "/digest",
-  "/llm-settings",
-  "/audit",
-  "/backup",
-  "/merge",
-  "/system-upgrade",
-  "/db-migration",
-  "/op-log",
-  "/webhooks",
-  "/invitations",
-  "/users",
-  "/platform",
-  "/notifications",
-];
-
-function isSystemPath(path: string): boolean {
-  return SYSTEM_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
-}
+import { isSystemPath } from "../system-paths.js";
 
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith("/attack") || path.startsWith("/daily-report") || path.startsWith("/related")) return ["attack"];
