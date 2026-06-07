@@ -89,22 +89,22 @@ function getSelectedKey(path: string): string {
 
 const SYSTEM_PATH_PREFIXES = [
   "/import",
-  "/email",
-  "/digest",
-  "/webhooks",
-  "/invitations",
-  "/llm-settings",
-  "/audit",
   "/schema",
   "/config",
-  "/users",
-  "/op-log",
+  "/email",
+  "/digest",
+  "/llm-settings",
+  "/audit",
   "/backup",
   "/merge",
-  "/db-migration",
   "/system-upgrade",
-  "/notifications",
+  "/db-migration",
+  "/op-log",
+  "/webhooks",
+  "/invitations",
+  "/users",
   "/platform",
+  "/notifications",
 ];
 
 function isSystemPath(path: string): boolean {

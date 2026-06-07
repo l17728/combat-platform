@@ -618,6 +618,51 @@ test.describe("§G16b 系统管理页面进入无告警", () => {
 });
 
 // ===========================================================================
+// §G16c 横幅可见性 — 系统管理页面有黄色横幅，业务页面无横幅
+// ===========================================================================
+test.describe("§G16c 横幅可见性", () => {
+  const systemPages = [
+    { path: "/schema", name: "表结构管理" },
+    { path: "/users", name: "用户管理" },
+    { path: "/backup", name: "备份恢复" },
+    { path: "/audit", name: "审计日志" },
+  ];
+
+  const businessPages = [
+    { path: "/attack", name: "攻关作战台" },
+    { path: "/people", name: "全员名单" },
+    { path: "/contributions", name: "贡献录入" },
+    { path: "/proposals", name: "关系审批" },
+    { path: "/reminders", name: "跟催提醒" },
+    { path: "/help", name: "求助中心" },
+  ];
+
+  for (const { path, name } of systemPages) {
+    test(`系统管理页面${name}(${path})有游客参观横幅`, async ({ page }) => {
+      await goTo(page, path);
+      await page.waitForTimeout(3000);
+      const bannerText = await page.evaluate(() => {
+        const el = document.querySelector("[style*='fffbe6']");
+        return el ? el.textContent : "";
+      });
+      expect(bannerText).toContain("游客参观模式");
+    });
+  }
+
+  for (const { path, name } of businessPages) {
+    test(`业务页面${name}(${path})无游客参观横幅`, async ({ page }) => {
+      await goTo(page, path);
+      await page.waitForTimeout(3000);
+      const bannerText = await page.evaluate(() => {
+        const el = document.querySelector("[style*='fffbe6']");
+        return el ? el.textContent : "";
+      });
+      expect(bannerText).toBe("");
+    });
+  }
+});
+
+// ===========================================================================
 // §G17 AI 助手 — Guest 可以使用
 // ===========================================================================
 test.describe("§G17 AI助手", () => {

@@ -213,7 +213,7 @@ export default function ConfigCenter() {
       render: (_: unknown, r: SettingEntry) => (
         <Space>
           <a onClick={() => openEdit(r)}>编辑</a>
-          <a style={{ color: "#ff4d4f" }} onClick={() => setDeleteTarget(r)}>
+          <a style={{ color: "#ff4d4f" }} onClick={() => guard() && setDeleteTarget(r)}>
             删除
           </a>
         </Space>
