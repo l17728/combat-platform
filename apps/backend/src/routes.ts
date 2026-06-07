@@ -4,7 +4,7 @@ import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
-import { verifyAuth } from "./auth.js";
+import { verifyAuth, adminMiddleware } from "./auth.js";
 import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
 import type { DbAdapter } from "./db-adapter.js";
 import { dispatchWebhook } from "./webhooks.js";
@@ -88,7 +88,7 @@ export function makeRouter(
     const s = registry.getNodeSchema(req.params.nodeType);
     return s ? res.json(s) : res.status(404).json({ error: "unknown nodeType" });
   });
-  r.post("/schema/scan", (_req, res) => {
+  r.post("/schema/scan", adminMiddleware, (_req, res) => {
     try {
       registry.reload();
       res.json({ ok: true });
@@ -96,7 +96,7 @@ export function makeRouter(
       res.status(400).json({ error: (e as Error).message });
     }
   });
-  r.patch("/schema/:nodeType", async (req, res) => {
+  r.patch("/schema/:nodeType", adminMiddleware, async (req, res) => {
     const { nodeType } = req.params;
     if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
       return res.status(400).json({ error: "nodeType 格式非法" });

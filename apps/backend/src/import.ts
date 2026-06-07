@@ -5,6 +5,7 @@ import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
 import { readSheetRows } from "./xlsx-util.js";
+import { adminMiddleware } from "./auth.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -145,7 +146,7 @@ export async function analyzeImport(
 
 export function makeImportRouter(repo: Repository, registry: SchemaRegistry): Router {
   const r = Router();
-  r.post("/import", upload.single("file"), async (req, res) => {
+  r.post("/import", adminMiddleware, upload.single("file"), async (req, res) => {
     const first = (v: unknown) => (Array.isArray(v) ? v[0] : v);
     const nodeType = String(first(req.query.type) ?? "attackTicket");
     const dryRun = first(req.query.dryRun) === "1" || first(req.query.dryRun) === "true";

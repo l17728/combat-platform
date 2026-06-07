@@ -9,6 +9,7 @@ import type { Repository, SchemaRegistry } from "@combat/shared";
 import type { DbAdapter } from "./db-adapter.js";
 import type { DB } from "./db.js";
 import { asyncHandler } from "./logger.js";
+import { adminMiddleware } from "./auth.js";
 import { ALL_TOOLS, callTool, type HermesToolCtx } from "./hermes-tools.js";
 
 export function makeHermesToolsRouter(
@@ -34,6 +35,7 @@ export function makeHermesToolsRouter(
 
   r.post(
     "/hermes/tool/:name",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const name = req.params.name;
       const input = req.body?.input ?? req.body ?? {};

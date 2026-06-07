@@ -560,3 +560,28 @@ test.describe("§A19 业务CRUD API验证", () => {
     expect(res.ok()).toBeTruthy();
   });
 });
+
+// §A15 Admin可以访问系统管理API(举一反三)
+test.describe("§A15 Admin系统管理API访问验证", () => {
+  test("GET /api/settings → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/settings`, {
+      headers: { Authorization: `Bearer ${adminAuth.token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test("PUT /api/settings/test-key → 200", async ({ request }) => {
+    const res = await request.put(`${API}/api/settings/test-key`, {
+      data: { values: ["admin-value"] },
+      headers: { Authorization: `Bearer ${adminAuth.token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test("POST /api/schema/scan → 200", async ({ request }) => {
+    const res = await request.post(`${API}/api/schema/scan`, {
+      headers: { Authorization: `Bearer ${adminAuth.token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+  });
+});

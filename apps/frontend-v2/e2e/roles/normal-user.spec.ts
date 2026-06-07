@@ -563,3 +563,58 @@ test.describe("§N17 系统管理页面路由拒绝", () => {
     });
   }
 });
+
+// §N18 后端系统管理 API — 举一反三补齐
+test.describe("§N18 后端系统管理API拒绝(举一反三)", () => {
+  test("GET /api/settings → 403", async ({ request }) => {
+    const res = await request.get(`${API}/settings`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("PUT /api/settings/test-key → 403", async ({ request }) => {
+    const res = await request.put(`${API}/settings/test-key`, {
+      data: { values: ["hack"] },
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("DELETE /api/settings/test-key → 403", async ({ request }) => {
+    const res = await request.delete(`${API}/settings/test-key`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("POST /api/schema/scan → 403", async ({ request }) => {
+    const res = await request.post(`${API}/schema/scan`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("PATCH /api/schema/attackTicket → 403", async ({ request }) => {
+    const res = await request.patch(`${API}/schema/attackTicket`, {
+      data: { op: "addField", field: { name: "pocField", type: "string", label: "PoC" } },
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("POST /api/import → 403", async ({ request }) => {
+    const res = await request.post(`${API}/import?type=attackTicket`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("POST /api/hermes/tool/list_node_types → 403", async ({ request }) => {
+    const res = await request.post(`${API}/hermes/tool/list_node_types`, {
+      data: { input: {} },
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+});

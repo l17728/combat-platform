@@ -3,6 +3,7 @@ import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { SchemaRegistry, Repository, NodeSchema, FieldSchema, FieldType } from "@combat/shared";
 import { log, asyncHandler } from "./logger.js";
+import { adminMiddleware } from "./auth.js";
 
 export interface SchemaSuggestion {
   nodeType: string;
@@ -104,6 +105,7 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
   // POST /api/schema/nodeType — create a new schema
   r.post(
     "/schema/nodeType",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const { nodeType, label, fields, identityKeys } = req.body as {
         nodeType?: string;
@@ -195,6 +197,7 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
   // DELETE /api/schema/nodeType/:nodeType
   r.delete(
     "/schema/nodeType/:nodeType",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const { nodeType } = req.params;
 
