@@ -379,7 +379,13 @@ export class Api {
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
     const method = (init.method || "GET").toUpperCase();
-    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && isGuestFromToken()) {
+    if (
+      method !== "GET" &&
+      method !== "HEAD" &&
+      method !== "OPTIONS" &&
+      isGuestFromToken() &&
+      isGuestSystemPath(path)
+    ) {
       const { message } = await import("antd");
       message.warning("游客参观期间，请勿触动控制面板，谢谢！");
       throw new ApiError(403, "游客仅可查看，无法执行操作", path);
@@ -410,7 +416,7 @@ export class Api {
       if (r.status === 401 && !path.startsWith("/api/auth/me")) {
         _triggerUnauthorized(err);
       }
-      if (r.status === 403 && isGuestFromToken()) {
+      if (r.status === 403 && isGuestFromToken() && isGuestSystemPath(path)) {
         const { message } = await import("antd");
         message.warning("游客参观期间，请勿触动控制面板，谢谢！");
       }
@@ -594,8 +600,8 @@ export class Api {
 
   exportNodes(nodeType: string): Promise<Blob> {
     if (isGuestFromToken()) {
-      import("antd").then(({ message }) => message.warning("游客参观期间，请勿触动控制面板，谢谢！"));
-      return Promise.reject(new ApiError(403, "游客仅可查看，无法执行操作", `/api/export/${nodeType}`));
+      import("antd").then(({ message }) => message.warning("游客仅可参观，无法导出数据"));
+      return Promise.reject(new ApiError(403, "游客仅可参观，无法导出数据", `/api/export/${nodeType}`));
     }
     return this.authFetch(`/api/export/${nodeType}`).then((r) => {
       if (!r.ok) throw new Error(`导出失败: HTTP ${r.status}`);
@@ -1165,7 +1171,7 @@ export class Api {
 
   downloadBackup(filename: string): Promise<Blob> {
     if (isGuestFromToken()) {
-      import("antd").then(({ message }) => message.warning("游客参观期间，请勿触动控制面板，谢谢！"));
+      import("antd").then(({ message }) => message.warning("游客仅可参观，无法下载备份"));
       return Promise.reject(
         new ApiError(403, "游客仅可查看，无法执行操作", `/api/backup/${encodeURIComponent(filename)}`)
       );
@@ -1942,6 +1948,32 @@ function isGuestFromToken(): boolean {
   } catch {
     return false;
   }
+}
+
+const GUEST_SYSTEM_PREFIXES = [
+  "/api/audit",
+  "/api/upgrade",
+  "/api/merge",
+  "/api/op-logs",
+  "/api/backup",
+  "/api/proposals",
+  "/api/reminders",
+  "/api/email",
+  "/api/llm-settings",
+  "/api/platform/",
+  "/api/users",
+  "/api/settings",
+  "/api/db-migration",
+  "/api/kg-outbox",
+  "/api/webhook",
+  "/api/digest",
+  "/api/invitation",
+  "/api/schema",
+  "/api/metrics",
+];
+
+function isGuestSystemPath(path: string): boolean {
+  return GUEST_SYSTEM_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 export function setStoredUser(user: AuthUser | null) {

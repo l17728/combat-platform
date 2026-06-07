@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip } from "antd";
+import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip, Alert } from "antd";
 import BreadcrumbBar from "../components/BreadcrumbBar.js";
 import NotificationBell from "../components/NotificationBell.js";
 import {
@@ -85,6 +85,32 @@ function getSelectedKey(path: string): string {
   )
     return path;
   return "/";
+}
+
+const SYSTEM_PATH_PREFIXES = [
+  "/import",
+  "/email",
+  "/digest",
+  "/webhooks",
+  "/invitations",
+  "/llm-settings",
+  "/audit",
+  "/schema",
+  "/config",
+  "/users",
+  "/op-log",
+  "/backup",
+  "/merge",
+  "/db-migration",
+  "/system-upgrade",
+  "/notifications",
+  "/platform",
+  "/proposals",
+  "/reminders",
+];
+
+function isSystemPath(path: string): boolean {
+  return SYSTEM_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
 function getOpenKeysForPath(path: string): string[] {
@@ -391,6 +417,15 @@ export function AppLayout() {
 
         <Content style={{ padding: 24, maxWidth: 1400, margin: "0 auto", width: "100%" }}>
           <BreadcrumbBar />
+          {isGuest && isSystemPath(location.pathname) && (
+            <Alert
+              type="info"
+              showIcon
+              message="游客参观模式 — 可查看所有功能，但无法修改任何数据"
+              style={{ marginBottom: 16 }}
+              banner
+            />
+          )}
           <Outlet />
         </Content>
         <FloatingFeedback />
