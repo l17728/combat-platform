@@ -263,6 +263,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend import closed loop: import file then list reads it back (§44)", async () => {
+    process.env.COMBAT_NO_AUTH = "1";
     const repo = new SqliteRepository(
       new SqliteAdapter(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite")))
     );
@@ -448,6 +449,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend closed loop: create then read back", async () => {
+    process.env.COMBAT_NO_AUTH = "1";
     const repo = new SqliteRepository(
       new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite")))
     );

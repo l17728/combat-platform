@@ -10,6 +10,7 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
 function fixture(opts: { broken?: boolean; allBroken?: boolean } = {}) {
+  process.env.COMBAT_NO_AUTH = "1";
   const dir = mkdtempSync(join(tmpdir(), "combat-resil-"));
   const cfg = join(dir, "schemas");
   mkdirSync(cfg);

@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 async function makeApp() {
+  process.env.COMBAT_NO_AUTH = "1";
   const repo = new SqliteRepository(
     new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-")), "t.sqlite")))
   );

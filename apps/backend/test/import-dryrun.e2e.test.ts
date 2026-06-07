@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 // Use the real config (has 攻关单号 identity field) so update-detection is exercisable.
 const CFG = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "config", "schemas");
 async function makeTestApp() {
+  process.env.COMBAT_NO_AUTH = "1";
   const repo = new SqliteRepository(
     new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-imp-dry-")), "t.sqlite")))
   );

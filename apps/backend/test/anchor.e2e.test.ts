@@ -10,6 +10,7 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 
 async function makeApp() {
+  process.env.COMBAT_NO_AUTH = "1";
   const dir = mkdtempSync(join(tmpdir(), "combat-anchor-"));
   const cfg = join(dir, "schemas");
   mkdirSync(cfg);
