@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import express from "express";
+import compression from "compression";
 import { openDb, openDbFromUrl, parseDbUrl } from "./db.js";
 import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
@@ -72,6 +73,7 @@ const app = createApp({ repo, registry, adapter, db: rawSqliteDb, dbPath: DB_PAT
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
+  app.use(compression());
   app.use(
     express.static(frontendDist, {
       setHeaders: (res, path) => {

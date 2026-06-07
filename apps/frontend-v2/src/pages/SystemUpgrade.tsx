@@ -210,14 +210,6 @@ export default function SystemUpgrade() {
     };
   }, [isAdmin]);
 
-  if (!isAdmin) {
-    return (
-      <Card>
-        <Alert type="warning" showIcon message="系统升级仅管理员可用" />
-      </Card>
-    );
-  }
-
   const beforeUpload = async (file: File) => {
     if (!guard()) return false;
     if (!/\.(tar\.gz|tgz)$/i.test(file.name)) {

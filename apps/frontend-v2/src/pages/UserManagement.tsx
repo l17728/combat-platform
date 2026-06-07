@@ -50,17 +50,8 @@ export default function UserManagement() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) fetchData();
-  }, [isAdmin, fetchData]);
-
-  if (!isAdmin) {
-    return (
-      <div>
-        <Title level={4}>用户管理</Title>
-        <p>仅管理员可访问此页面</p>
-      </div>
-    );
-  }
+    fetchData();
+  }, [fetchData]);
 
   const handleAdd = async (values: { username: string; password: string; displayName?: string; role?: string }) => {
     if (!guard()) return;

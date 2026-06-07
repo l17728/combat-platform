@@ -21,6 +21,7 @@ import { api } from "../api.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -45,6 +46,7 @@ interface MigrationResult {
 //   POST /api/db-migration/run            一键迁移(可加 dry-run)
 export default function DbMigration() {
   const { isAdmin } = useAuth();
+  const { guard } = useGuestGuard();
   const [status, setStatus] = useState<DbStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -67,18 +69,11 @@ export default function DbMigration() {
   };
 
   useEffect(() => {
-    if (isAdmin) fetchStatus();
-  }, [isAdmin]);
-
-  if (!isAdmin) {
-    return (
-      <Card>
-        <Alert type="warning" showIcon message="数据库迁移仅管理员可用" />
-      </Card>
-    );
-  }
+    fetchStatus();
+  }, []);
 
   const testConnection = async () => {
+    if (!guard()) return;
     const pgUrl = form.getFieldValue("pgUrl");
     if (!pgUrl) {
       message.warning("请输入 Postgres 连接串");
@@ -97,6 +92,7 @@ export default function DbMigration() {
   };
 
   const runMigration = async () => {
+    if (!guard()) return;
     const values = await form.validateFields();
     setMigrating(true);
     setStep(2);
