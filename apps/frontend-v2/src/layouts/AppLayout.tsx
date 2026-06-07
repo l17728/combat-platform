@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip, Alert } from "antd";
+import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip } from "antd";
 import BreadcrumbBar from "../components/BreadcrumbBar.js";
 import NotificationBell from "../components/NotificationBell.js";
 import {
@@ -398,17 +398,23 @@ export function AppLayout() {
           </Space>
         </Header>
 
+        {isGuest && isSystemPath(location.pathname) && (
+          <div
+            style={{
+              padding: "8px 24px",
+              background: "#fffbe6",
+              borderBottom: "1px solid #ffe58f",
+              textAlign: "center",
+              fontSize: 14,
+              color: "#ad6800",
+            }}
+          >
+            🛡️ 游客参观模式 — 可查看所有功能，但无法修改任何数据
+          </div>
+        )}
+
         <Content style={{ padding: 24, maxWidth: 1400, margin: "0 auto", width: "100%" }}>
           <BreadcrumbBar />
-          {isGuest && isSystemPath(location.pathname) && (
-            <Alert
-              type="info"
-              showIcon
-              message="游客参观模式 — 可查看所有功能，但无法修改任何数据"
-              style={{ marginBottom: 16 }}
-              banner
-            />
-          )}
           <Outlet />
         </Content>
         <FloatingFeedback />
