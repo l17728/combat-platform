@@ -375,6 +375,12 @@ test.describe("§G13 侧边栏导航", () => {
     const helpMenu = page.locator(".ant-menu").getByText("求助中心").first();
     await expect(helpMenu).toBeVisible({ timeout: 5000 });
   });
+
+  test("Guest看不到修改密码菜单项", async ({ page }) => {
+    await goTo(page, "/");
+    const userMenu = page.locator(".ant-menu").getByText("修改密码").first();
+    await expect(userMenu).not.toBeVisible({ timeout: 3000 });
+  });
 });
 
 // ===========================================================================
@@ -605,5 +611,45 @@ test.describe("§G18 业务CRUD API验证", () => {
       headers: { Authorization: `Bearer ${guestAuth.token}` },
     });
     expect(res.ok()).toBeTruthy();
+  });
+});
+
+// §G19 Guest系统管理API只读验证(举一反三)
+test.describe("§G19 Guest系统管理API只读验证", () => {
+  test("Guest GET /api/settings → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/settings`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.ok()).toBeTruthy();
+  });
+
+  test("Guest PUT /api/settings/test → 403", async ({ request }) => {
+    const res = await request.put(`${API}/api/settings/test`, {
+      data: { values: ["hack"] },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("Guest POST /api/schema/scan → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/schema/scan`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("Guest POST /api/import → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/import`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("Guest POST /api/hermes/tool/list_node_types → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/hermes/tool/list_node_types`, {
+      data: { input: {} },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
   });
 });
