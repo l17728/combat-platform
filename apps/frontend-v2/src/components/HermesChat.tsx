@@ -82,7 +82,8 @@ export default function HermesChat({
 
   useEffect(() => {
     if (msgs.length > 0) doScrollToBottom();
-  }, [msgs, loading, doScrollToBottom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgs]); // 只在消息列表变化时滚动，不含 loading — 避免 Spin 动画期间触发抖动
 
   useEffect(() => {
     return () => cancelAnimationFrame(scrollRafRef.current);

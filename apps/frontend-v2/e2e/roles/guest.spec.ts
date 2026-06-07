@@ -507,6 +507,38 @@ test.describe("§G15 系统管理API写操作403", () => {
     expect([403, 429]).toContain(res.status());
   });
 
+  test("POST /api/notifications → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/notifications`, {
+      data: {},
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
+  test("PUT /api/settings → 403", async ({ request }) => {
+    const res = await request.put(`${API}/api/settings`, {
+      data: { key: "test", value: "1" },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
+  test("POST /api/email/test → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/email/test`, {
+      data: {},
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
+  test("POST /api/digest/preview → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/digest/preview`, {
+      data: {},
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
   test("GET /api/export/attackTicket → 403 (write-semantic GET)", async ({ request }) => {
     const res = await request.get(`${API}/api/export/attackTicket`, {
       headers: { Authorization: `Bearer ${guestAuth.token}` },
