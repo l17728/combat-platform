@@ -200,7 +200,6 @@ export default function SystemUpgrade() {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
     fetchCurrent();
     fetchHistory();
     pollStatus();
@@ -208,7 +207,7 @@ export default function SystemUpgrade() {
     return () => {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
-  }, [isAdmin]);
+  }, []);
 
   const beforeUpload = async (file: File) => {
     if (!guard()) return false;

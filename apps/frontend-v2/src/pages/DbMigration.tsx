@@ -56,20 +56,20 @@ export default function DbMigration() {
   const [result, setResult] = useState<MigrationResult | null>(null);
   const [form] = Form.useForm<{ pgUrl: string; truncate: boolean; dryRun: boolean }>();
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (silent = false) => {
     setLoading(true);
     try {
       const s = await api.dbMigrationStatus();
       setStatus(s);
     } catch (e) {
-      message.error((e instanceof Error ? e.message : String(e)) || "获取数据库状态失败");
+      if (!silent) message.error((e instanceof Error ? e.message : String(e)) || "获取数据库状态失败");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
+    fetchStatus(true);
   }, []);
 
   const testConnection = async () => {

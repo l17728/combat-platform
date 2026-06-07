@@ -416,7 +416,7 @@ export class Api {
       if (r.status === 401 && !path.startsWith("/api/auth/me")) {
         _triggerUnauthorized(err);
       }
-      if (r.status === 403 && isGuestFromToken() && isGuestSystemPath(path)) {
+      if (r.status === 403 && isGuestFromToken() && isGuestSystemPath(path) && init?.method && init.method !== "GET") {
         const { message } = await import("antd");
         message.warning("游客参观期间，请勿触动控制面板，谢谢！");
       }

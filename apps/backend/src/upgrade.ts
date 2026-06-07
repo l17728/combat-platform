@@ -40,7 +40,17 @@ const upload = multer({
 });
 
 function adminOnly(req: Request, res: Response, next: NextFunction): void {
-  const role = (req as any).user?.role;
+  const user = (req as any).user;
+  // Guest GET: allow read-only viewing for system admin pages
+  if (user?.isGuest && req.method === "GET") {
+    next();
+    return;
+  }
+  if (user?.isGuest) {
+    res.status(403).json({ error: "游客仅可查看，无法执行操作" });
+    return;
+  }
+  const role = user?.role;
   if (role !== undefined && role !== "admin" && role !== "superadmin") {
     res.status(403).json({ error: "仅管理员可执行系统升级" });
     return;

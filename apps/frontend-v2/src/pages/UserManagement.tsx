@@ -37,20 +37,20 @@ export default function UserManagement() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const { guard } = useGuestGuard();
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     setLoading(true);
     try {
       const list = await api.listUsers();
       setUsers(list);
     } catch (e) {
-      handleApiError(e);
+      if (!silent) handleApiError(e);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
   }, [fetchData]);
 
   const handleAdd = async (values: { username: string; password: string; displayName?: string; role?: string }) => {
