@@ -332,7 +332,7 @@ export function AppLayout() {
                   },
                   { type: "divider" },
                   ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-                  { key: "change-password", label: "修改密码", icon: <KeyOutlined /> },
+                  ...(!isGuest ? [{ key: "change-password", label: "修改密码", icon: <KeyOutlined /> }] : []),
                   { type: "divider" },
                   { key: "replay-tour", label: "重播引导", icon: <QuestionCircleOutlined /> },
                   { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
