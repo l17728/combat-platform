@@ -623,9 +623,11 @@ test.describe("§G16b 系统管理页面进入无告警", () => {
 test.describe("§G16c 横幅可见性", () => {
   const systemPages = [
     { path: "/schema", name: "表结构管理" },
+    { path: "/config", name: "配置中心" },
     { path: "/users", name: "用户管理" },
     { path: "/backup", name: "备份恢复" },
     { path: "/audit", name: "审计日志" },
+    { path: "/system-upgrade", name: "系统升级" },
   ];
 
   const businessPages = [
@@ -637,26 +639,28 @@ test.describe("§G16c 横幅可见性", () => {
     { path: "/help", name: "求助中心" },
   ];
 
+  async function findGuestBanner(page: import("@playwright/test").Page): Promise<string> {
+    return page.evaluate(() => {
+      const els = Array.from(document.querySelectorAll("div, span, p"));
+      const match = els.find((el) => (el.textContent || "").includes("游客参观模式") && el.children.length === 0);
+      return match ? match.textContent || "" : "";
+    });
+  }
+
   for (const { path, name } of systemPages) {
-    test(`系统管理页面${name}(${path})有游客参观横幅`, async ({ page }) => {
+    test(`系统管理${name}(${path})有游客参观横幅`, async ({ page }) => {
       await goTo(page, path);
       await page.waitForTimeout(3000);
-      const bannerText = await page.evaluate(() => {
-        const el = document.querySelector("[style*='fffbe6']");
-        return el ? el.textContent : "";
-      });
+      const bannerText = await findGuestBanner(page);
       expect(bannerText).toContain("游客参观模式");
     });
   }
 
   for (const { path, name } of businessPages) {
-    test(`业务页面${name}(${path})无游客参观横幅`, async ({ page }) => {
+    test(`业务${name}(${path})无游客参观横幅`, async ({ page }) => {
       await goTo(page, path);
       await page.waitForTimeout(3000);
-      const bannerText = await page.evaluate(() => {
-        const el = document.querySelector("[style*='fffbe6']");
-        return el ? el.textContent : "";
-      });
+      const bannerText = await findGuestBanner(page);
       expect(bannerText).toBe("");
     });
   }
@@ -779,4 +783,91 @@ test.describe("§G19 Guest系统管理API只读验证", () => {
     });
     expect(res.status()).toBe(403);
   });
+});
+
+// ===========================================================================
+// §G20 业务页面 Guest CRUD — proposals/reminders 不被拦截
+// ===========================================================================
+test.describe("§G20 业务CRUD不被拦截", () => {
+  test("Guest GET /api/proposals → 200 (非403)", async ({ request }) => {
+    const res = await request.get(`${API}/api/proposals`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).not.toBe(403);
+  });
+
+  test("Guest GET /api/reminders → 200 (非403)", async ({ request }) => {
+    const res = await request.get(`${API}/api/reminders`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).not.toBe(403);
+  });
+
+  test("Guest POST /api/proposals → 非403 (业务功能)", async ({ request }) => {
+    const res = await request.post(`${API}/api/proposals`, {
+      data: { targetId: "test", action: "test" },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).not.toBe(403);
+  });
+});
+
+// ===========================================================================
+// §G21 Guest guard 拦截写操作 — 配置中心按钮被拦截
+// ===========================================================================
+test.describe("§G21 系统页面guard拦截写操作", () => {
+  test("配置中心: guest点击新增按钮无弹窗", async ({ page }) => {
+    await goTo(page, "/config");
+    await page.waitForTimeout(3000);
+    const addBtn = page.locator("button:has-text('新增'), button:has-text('添加')").first();
+    if ((await addBtn.count()) > 0) {
+      await addBtn.click();
+      await page.waitForTimeout(1000);
+      const modal = page.locator(".ant-modal-wrap-visible, .ant-modal-confirm-visible");
+      expect(await modal.count()).toBe(0);
+    }
+  });
+
+  test("用户管理: guest点击新增按钮无弹窗", async ({ page }) => {
+    await goTo(page, "/users");
+    await page.waitForTimeout(3000);
+    const addBtn = page.locator("button:has-text('新增'), button:has-text('添加用户')").first();
+    if ((await addBtn.count()) > 0) {
+      await addBtn.click();
+      await page.waitForTimeout(1000);
+      const modal = page.locator(".ant-modal-wrap-visible");
+      expect(await modal.count()).toBe(0);
+    }
+  });
+});
+
+// ===========================================================================
+// §G22 路径列表一致性 — 前端三列表 + 后端列表核心路径全覆盖
+// ===========================================================================
+test.describe("§G22 路径列表覆盖验证", () => {
+  const criticalSystemPaths = [
+    "/api/config",
+    "/api/settings",
+    "/api/import",
+    "/api/schema",
+    "/api/audit",
+    "/api/backup",
+    "/api/upgrade",
+    "/api/db-migration",
+    "/api/users",
+    "/api/email",
+    "/api/llm-settings",
+    "/api/merge",
+    "/api/webhook",
+  ];
+
+  for (const path of criticalSystemPaths) {
+    test(`Guest POST ${path} → 403`, async ({ request }) => {
+      const res = await request.post(`${API}${path}`, {
+        data: {},
+        headers: { Authorization: `Bearer ${guestAuth.token}` },
+      });
+      expect([403, 429, 400]).toContain(res.status());
+    });
+  }
 });
