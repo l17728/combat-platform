@@ -268,6 +268,12 @@ export type Role = "normal" | "leader" | "admin";
 export const PRIVILEGED_ROLES: Role[] = ["leader", "admin"];
 export const ROLE_LABELS: Record<Role, string> = { normal: "普通", leader: "Leader", admin: "管理员" };
 
+export const AUTH_CONSTRAINTS = {
+  PASSWORD_MIN_LENGTH: 6,
+  USERNAME_MIN_LENGTH: 2,
+  USERNAME_MAX_LENGTH: 32,
+} as const;
+
 export interface EscalationRule {
   事件级别: string;
   slaHours: number;

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { verifyAuth } from "./auth.js";
 import type { DbAdapter } from "./db-adapter.js";
 import { log, asyncHandler } from "./logger.js";
+import { BCRYPT_ROUNDS, JWT_EXPIRY_GUEST } from "./constants.js";
 
 export const SAAS_MODE = process.env.SAAS_MODE === "1";
 
@@ -314,7 +315,7 @@ export function makeGuestAccessRouter(adapter: DbAdapter): Router {
       }
       const guestUser = `guest_${Date.now().toString(36)}`;
       const bcrypt = (await import("bcryptjs")).default;
-      const hash = bcrypt.hashSync(randomUUID(), 10);
+      const hash = bcrypt.hashSync(randomUUID(), BCRYPT_ROUNDS);
       const now = new Date().toISOString();
       const id = randomUUID();
       await adapter.run(
@@ -324,7 +325,7 @@ export function makeGuestAccessRouter(adapter: DbAdapter): Router {
       const jwt = (await import("jsonwebtoken")).default;
       const JWT_SECRET = process.env.JWT_SECRET || "combat-platform-secret-2026";
       const payload = { userId: id, username: guestUser, role: "normal", tenantId, isGuest: true };
-      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "1d" });
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY_GUEST });
       res.json({ token, username: guestUser });
     })
   );

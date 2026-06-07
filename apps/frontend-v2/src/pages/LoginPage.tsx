@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, message, Space, Tabs, Select } f
 import { UserOutlined, LockOutlined, TeamOutlined, GlobalOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
+import { AUTH_CONSTRAINTS } from "@combat/shared";
 import { handleApiError } from "../utils/handleApiError.js";
 import { api, setAuthToken } from "../api.js";
 
@@ -101,7 +102,10 @@ export default function LoginPage() {
             name="password"
             rules={[
               { required: true, message: "请输入密码" },
-              { min: 6, message: "至少6个字符" },
+              {
+                min: AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH,
+                message: `至少${AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH}个字符`,
+              },
             ]}
           >
             <Input.Password prefix={<LockOutlined />} placeholder="密码" />

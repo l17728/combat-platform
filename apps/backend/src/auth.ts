@@ -4,6 +4,15 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import { log, asyncHandler } from "./logger.js";
+import {
+  PASSWORD_MIN_LENGTH,
+  USERNAME_MIN_LENGTH,
+  USERNAME_MAX_LENGTH,
+  BCRYPT_ROUNDS,
+  JWT_EXPIRY_NORMAL,
+  JWT_EXPIRY_ADMIN_DEFAULT,
+  DEFAULT_ADMIN_PASSWORD,
+} from "./constants.js";
 
 const DEFAULT_JWT_SECRET = "combat-platform-secret-2026";
 
@@ -43,7 +52,7 @@ function resolveJwtSecret(): string {
 }
 
 const JWT_SECRET = resolveJwtSecret();
-const JWT_EXPIRES_IN = "7d";
+const JWT_EXPIRES_IN = JWT_EXPIRY_NORMAL;
 
 export interface AuthUser {
   id: string;
@@ -65,7 +74,7 @@ export interface JwtPayload {
 
 export function signServiceToken(): string {
   const payload: JwtPayload = { userId: "hermes-agent", username: "hermes-agent", role: "admin", tenantId: "system" };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "365d" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY_ADMIN_DEFAULT });
 }
 
 function toUser(r: any): AuthUser {
@@ -90,7 +99,7 @@ async function ensureDefaultAdmin(adapter: DbAdapter): Promise<void> {
   const row = await adapter.queryOne<{ c: number }>("SELECT COUNT(*) as c FROM users");
   const count = Number(row?.c ?? 0);
   if (count === 0) {
-    const hash = bcrypt.hashSync("admin123", 10);
+    const hash = bcrypt.hashSync(DEFAULT_ADMIN_PASSWORD, BCRYPT_ROUNDS);
     const now = new Date().toISOString();
     await adapter.run(
       "INSERT INTO users (id, username, password_hash, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -131,7 +140,7 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       log.info("auth.login", { username, role: row.role });
       // P1 强制改密:默认管理员 admin/admin123 必须改完密才能继续业务流。
       // 前端收到 passwordMustChange=true 后弹强制 modal,不允许跳过。
-      const passwordMustChange = username === "admin" && password === "admin123";
+      const passwordMustChange = username === "admin" && password === DEFAULT_ADMIN_PASSWORD;
       res.json({ token, user: toUser(row), passwordMustChange });
     })
   );
@@ -150,11 +159,11 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       if (!username || !password) {
         return res.status(400).json({ error: "请输入用户名和密码" });
       }
-      if (username.length < 2 || username.length > 32) {
-        return res.status(400).json({ error: "用户名长度 2-32 个字符" });
+      if (username.length < USERNAME_MIN_LENGTH || username.length > USERNAME_MAX_LENGTH) {
+        return res.status(400).json({ error: `用户名长度 ${USERNAME_MIN_LENGTH}-${USERNAME_MAX_LENGTH} 个字符` });
       }
-      if (password.length < 6) {
-        return res.status(400).json({ error: "密码至少 6 个字符" });
+      if (password.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ error: `密码至少 ${PASSWORD_MIN_LENGTH} 个字符` });
       }
       const existing = await adapter.queryOne<{ id: string }>("SELECT id FROM users WHERE username = ?", [username]);
       if (existing) {
@@ -203,7 +212,7 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
         log.info("auth.tenant_created", { tenantId: tId, tenantName, tenantSlug, by: username });
       }
 
-      const hash = bcrypt.hashSync(password, 10);
+      const hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
       const now2 = new Date().toISOString();
       const id = randomUUID();
       await adapter.run(
@@ -240,7 +249,7 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
         return res.status(401).json({ error: "用户不存在" });
       }
       // P1 强制改密:admin 若仍是默认密 admin123 → 持续返回 mustChange,直到改成功。
-      const mustChange = row.username === "admin" && bcrypt.compareSync("admin123", row.password_hash);
+      const mustChange = row.username === "admin" && bcrypt.compareSync(DEFAULT_ADMIN_PASSWORD, row.password_hash);
       res.json({ user: toUser(row), passwordMustChange: mustChange });
     })
   );
@@ -291,14 +300,14 @@ export function makeAuthRouter(adapter: DbAdapter): Router {
       if (!oldPassword || !newPassword) {
         return res.status(400).json({ error: "请输入旧密码和新密码" });
       }
-      if (newPassword.length < 6) {
-        return res.status(400).json({ error: "新密码至少 6 个字符" });
+      if (newPassword.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ error: `新密码至少 ${PASSWORD_MIN_LENGTH} 个字符` });
       }
       const row = await adapter.queryOne<any>("SELECT * FROM users WHERE id = ?", [payload.userId]);
       if (!row || !bcrypt.compareSync(oldPassword, row.password_hash)) {
         return res.status(401).json({ error: "旧密码错误" });
       }
-      const hash = bcrypt.hashSync(newPassword, 10);
+      const hash = bcrypt.hashSync(newPassword, BCRYPT_ROUNDS);
       await adapter.run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", [
         hash,
         new Date().toISOString(),
@@ -341,14 +350,14 @@ export function makeUserAdminRouter(adapter: DbAdapter): Router {
       if (!username || !password) {
         return res.status(400).json({ error: "用户名和密码不能为空" });
       }
-      if (password.length < 6) {
-        return res.status(400).json({ error: "密码至少 6 个字符" });
+      if (password.length < PASSWORD_MIN_LENGTH) {
+        return res.status(400).json({ error: `密码至少 ${PASSWORD_MIN_LENGTH} 个字符` });
       }
       const existing = await adapter.queryOne<{ id: string }>("SELECT id FROM users WHERE username = ?", [username]);
       if (existing) {
         return res.status(409).json({ error: "用户名已存在" });
       }
-      const hash = bcrypt.hashSync(password, 10);
+      const hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
       const now = new Date().toISOString();
       const id = randomUUID();
       const userRole = ["admin", "leader", "normal"].includes(role ?? "") ? role! : "normal";
@@ -387,11 +396,11 @@ export function makeUserAdminRouter(adapter: DbAdapter): Router {
         params.push(displayName);
       }
       if (password) {
-        if (password.length < 6) {
-          return res.status(400).json({ error: "密码至少 6 个字符" });
+        if (password.length < PASSWORD_MIN_LENGTH) {
+          return res.status(400).json({ error: `密码至少 ${PASSWORD_MIN_LENGTH} 个字符` });
         }
         updates.push("password_hash = ?");
-        params.push(bcrypt.hashSync(password, 10));
+        params.push(bcrypt.hashSync(password, BCRYPT_ROUNDS));
       }
       if (updates.length === 0) {
         return res.status(400).json({ error: "没有要更新的字段" });

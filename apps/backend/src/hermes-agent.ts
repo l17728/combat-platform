@@ -10,6 +10,7 @@ import type { DB } from "./db.js";
 import {
   TOOL_SCHEMAS,
   callToolUnwrap as defaultCallTool,
+  MAX_OUTPUT_BYTES,
   type ToolCtx,
   type ToolSchema,
   type HermesToolCtx,
@@ -233,7 +234,10 @@ export async function answerWithAgent(
 // ===================================================================
 
 export const MAX_TOOL_HOPS = Math.max(1, Number(process.env.HERMES_MAX_TOOL_HOPS) || 6);
-export const TOOL_RESULT_MAX_BYTES = Math.max(1024, Number(process.env.HERMES_TOOL_RESULT_MAX_BYTES) || 32 * 1024);
+export const TOOL_RESULT_MAX_BYTES = Math.max(
+  1024,
+  Number(process.env.HERMES_TOOL_RESULT_MAX_BYTES) || MAX_OUTPUT_BYTES
+);
 export const CONTEXT_MAX_BYTES = Math.max(8 * 1024, Number(process.env.HERMES_CONTEXT_MAX_BYTES) || 80 * 1024);
 
 export interface LlmToolCall {

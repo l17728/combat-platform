@@ -3,6 +3,7 @@ import { Typography, Table, Button, Space, Modal, Form, Input, Select, message, 
 import { PlusOutlined, UserOutlined } from "@ant-design/icons";
 import { api, type AuthUser } from "../api.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { AUTH_CONSTRAINTS } from "@combat/shared";
 import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -194,17 +195,22 @@ export default function UserManagement() {
       >
         <Form form={addForm} layout="vertical" onFinish={handleAdd}>
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}>
-            <Input placeholder="2-32个字符" />
+            <Input
+              placeholder={`${AUTH_CONSTRAINTS.USERNAME_MIN_LENGTH}-${AUTH_CONSTRAINTS.USERNAME_MAX_LENGTH}个字符`}
+            />
           </Form.Item>
           <Form.Item
             name="password"
             label="密码"
             rules={[
               { required: true, message: "请输入密码" },
-              { min: 6, message: "至少6个字符" },
+              {
+                min: AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH,
+                message: `至少${AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH}个字符`,
+              },
             ]}
           >
-            <Input.Password placeholder="至少6个字符" />
+            <Input.Password placeholder={`至少${AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH}个字符`} />
           </Form.Item>
           <Form.Item name="displayName" label="显示名">
             <Input placeholder="可选" />

@@ -3,6 +3,7 @@ import type { DbAdapter } from "./db-adapter.js";
 import type { Repository } from "@combat/shared";
 import type { MailSender } from "./mailer.js";
 import type { SmtpConfig } from "@combat/shared";
+import { INVITE_DEFAULT_EXPIRY_DAYS } from "./constants.js";
 import { InvitationRepo, ensureInvitationsTable } from "./invitation.js";
 import { readConfig } from "./email.js";
 import { log, asyncHandler } from "./logger.js";
@@ -51,7 +52,7 @@ export function makeInvitationRouter(adapter: DbAdapter, repo: Repository, mailS
           .send(smtpConfig, {
             to: [email],
             subject: `【作战管理平台】邀请加入 — ${role === "admin" ? "管理员" : role === "leader" ? "负责人" : "成员"}`,
-            body: `您已被邀请加入作战管理平台。\n\n角色：${role === "admin" ? "管理员" : role === "leader" ? "负责人" : "普通成员"}\n\n请点击以下链接完成注册：\n${inviteUrl}\n\n邀请码：${inv.code}\n\n此链接 ${expiresInDays || 7} 天内有效。`,
+            body: `您已被邀请加入作战管理平台。\n\n角色：${role === "admin" ? "管理员" : role === "leader" ? "负责人" : "普通成员"}\n\n请点击以下链接完成注册：\n${inviteUrl}\n\n邀请码：${inv.code}\n\n此链接 ${expiresInDays || INVITE_DEFAULT_EXPIRY_DAYS} 天内有效。`,
             html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
           <div style="background:linear-gradient(135deg,#1890ff,#722ed1);padding:24px;border-radius:8px 8px 0 0;text-align:center">
             <h1 style="color:#fff;margin:0">作战管理平台邀请</h1>
@@ -63,7 +64,7 @@ export function makeInvitationRouter(adapter: DbAdapter, repo: Repository, mailS
               <a href="${inviteUrl}" style="background:#1890ff;color:#fff;padding:12px 32px;border-radius:6px;text-decoration:none;font-size:16px">立即加入</a>
             </div>
             <p style="color:#999;font-size:13px">或复制链接到浏览器打开：<br>${inviteUrl}</p>
-            <p style="color:#999;font-size:13px">邀请码：${inv.code}（${expiresInDays || 7} 天内有效）</p>
+            <p style="color:#999;font-size:13px">邀请码：${inv.code}（${expiresInDays || INVITE_DEFAULT_EXPIRY_DAYS} 天内有效）</p>
           </div>
         </body></html>`,
           })

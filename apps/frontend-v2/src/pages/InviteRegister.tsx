@@ -3,6 +3,7 @@ import { Card, Form, Input, Button, Alert, Spin, Typography, Tag } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
+import { AUTH_CONSTRAINTS } from "@combat/shared";
 
 const ROLE_LABELS: Record<string, string> = { admin: "管理员", leader: "负责人", normal: "成员" };
 
@@ -125,14 +126,31 @@ export default function InviteRegister() {
           <Form.Item
             name="username"
             label="用户名"
-            rules={[{ required: true, min: 2, max: 32, message: "2-32 个字符" }]}
+            rules={[
+              {
+                required: true,
+                min: AUTH_CONSTRAINTS.USERNAME_MIN_LENGTH,
+                max: AUTH_CONSTRAINTS.USERNAME_MAX_LENGTH,
+                message: `${AUTH_CONSTRAINTS.USERNAME_MIN_LENGTH}-${AUTH_CONSTRAINTS.USERNAME_MAX_LENGTH} 个字符`,
+              },
+            ]}
           >
             <Input prefix={<UserOutlined />} placeholder="设置用户名" />
           </Form.Item>
           <Form.Item name="displayName" label="显示名称">
             <Input placeholder="您的姓名" />
           </Form.Item>
-          <Form.Item name="password" label="密码" rules={[{ required: true, min: 6, message: "至少 6 个字符" }]}>
+          <Form.Item
+            name="password"
+            label="密码"
+            rules={[
+              {
+                required: true,
+                min: AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH,
+                message: `至少 ${AUTH_CONSTRAINTS.PASSWORD_MIN_LENGTH} 个字符`,
+              },
+            ]}
+          >
             <Input.Password prefix={<LockOutlined />} placeholder="设置密码" />
           </Form.Item>
           <Form.Item>

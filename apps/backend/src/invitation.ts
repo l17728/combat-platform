@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DbAdapter } from "./db-adapter.js";
 import { log } from "./logger.js";
+import { INVITE_DEFAULT_EXPIRY_DAYS } from "./constants.js";
 
 export interface Invitation {
   id: string;
@@ -67,7 +68,9 @@ export class InvitationRepo {
     const id = randomUUID();
     const code = randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + (input.expiresInDays || 7) * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(
+      now.getTime() + (input.expiresInDays || INVITE_DEFAULT_EXPIRY_DAYS) * 24 * 60 * 60 * 1000
+    ).toISOString();
     await this.adapter.run(
       `INSERT INTO invitations (id, code, role, email, display_name, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
