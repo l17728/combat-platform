@@ -6,7 +6,7 @@ const HELP: Record<string, { title: string; content: string }> = {
 
 ## v3.1.0 — 2026-06-07 (权限安全全面加固)
 
-本版对所有系统管理功能进行了权限边界审计和加固，修复 7 个权限安全问题，新增 38 个安全边界测试。
+本版对所有系统管理功能进行了权限边界审计和加固，修复 7 个权限安全问题，新增 42 个安全边界测试。
 
 ### 🔒 权限边界修复
 
@@ -18,6 +18,8 @@ const HELP: Record<string, { title: string; content: string }> = {
 ### 🐛 Bug 修复
 
 - **Guest 作战态势页修复** — 修复 guest 访问作战态势页面时持续加载不停止的问题（proposals 表租户隔离缺失导致）
+- **HermesChat 滚动抖动** — AI 助手思考阶段 useEffect 依赖 loading 导致 scrollIntoView 反复触发，移除 loading 依赖仅保留 msgs 变化时滚动
+- **Guest 403 测试补全** — 新增 notifications、settings、email、digest 4 个系统 API 的 guest 写操作拦截测试
 
 ### 🛡️ 安全原则
 
