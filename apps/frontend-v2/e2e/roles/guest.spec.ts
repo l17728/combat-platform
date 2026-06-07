@@ -403,6 +403,10 @@ test.describe("§G14 系统管理只读参观", () => {
     { path: "/reminders", name: "提醒设置" },
     { path: "/proposals", name: "提案" },
     { path: "/digest", name: "邮件摘要" },
+    { path: "/system-upgrade", name: "系统升级" },
+    { path: "/db-migration", name: "数据库迁移" },
+    { path: "/notifications", name: "通知管理" },
+    { path: "/platform", name: "平台管理" },
   ];
 
   for (const { path, name } of systemPages) {
@@ -480,6 +484,29 @@ test.describe("§G15 系统管理API写操作403", () => {
     expect([403, 429]).toContain(res.status());
   });
 
+  test("POST /api/upgrade/upload → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/upgrade/upload`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
+  test("POST /api/db-migration/run → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/db-migration/run`, {
+      data: { pgUrl: "postgres://x:x@localhost/test" },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
+  test("POST /api/db-migration/test-connection → 403", async ({ request }) => {
+    const res = await request.post(`${API}/api/db-migration/test-connection`, {
+      data: { pgUrl: "postgres://x:x@localhost/test" },
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect([403, 429]).toContain(res.status());
+  });
+
   test("GET /api/export/attackTicket → 403 (write-semantic GET)", async ({ request }) => {
     const res = await request.get(`${API}/api/export/attackTicket`, {
       headers: { Authorization: `Bearer ${guestAuth.token}` },
@@ -533,6 +560,61 @@ test.describe("§G16 系统管理API读操作允许", () => {
     });
     expect(res.status()).toBe(200);
   });
+
+  test("GET /api/upgrade/current → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/upgrade/current`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test("GET /api/upgrade/history → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/upgrade/history`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test("GET /api/upgrade/status → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/upgrade/status`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+
+  test("GET /api/db-migration/status → 200", async ({ request }) => {
+    const res = await request.get(`${API}/api/db-migration/status`, {
+      headers: { Authorization: `Bearer ${guestAuth.token}` },
+    });
+    expect(res.status()).toBe(200);
+  });
+});
+
+// ===========================================================================
+// §G16b 系统管理页面 — Guest 进入加载数据、无告警 toast
+// ===========================================================================
+test.describe("§G16b 系统管理页面进入无告警", () => {
+  const cases = [
+    { path: "/system-upgrade", name: "系统升级", dataHint: /版本|commit|uptime|当前版本/i },
+    { path: "/db-migration", name: "数据库迁移", dataHint: /驱动|SQLite|POSTGRES|数据库/i },
+    { path: "/users", name: "用户管理", dataHint: /admin|用户名|角色/i },
+  ];
+
+  for (const { path, name, dataHint } of cases) {
+    test(`Guest进入${name}(${path})加载正常无toast`, async ({ page }) => {
+      await goTo(page, path);
+      await page.waitForTimeout(5000);
+      expect(page.url()).toContain(path);
+      const toasts = await page.$$eval(".ant-message-notice-content", (els) => els.map((e) => e.textContent));
+      expect(toasts).toEqual([]);
+      const body =
+        (await page.evaluate(() => {
+          const el = document.querySelector(".ant-layout-content");
+          return el ? el.innerText.substring(0, 800) : "";
+        })) || "";
+      expect(dataHint.test(body)).toBeTruthy();
+    });
+  }
 });
 
 // ===========================================================================
