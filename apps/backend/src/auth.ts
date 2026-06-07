@@ -78,7 +78,7 @@ export function signServiceToken(): string {
 }
 
 export function signTenantToken(payload: JwtPayload, tenantId: string | null): string {
-  const newPayload: JwtPayload = { ...payload, tenantId: tenantId ?? undefined };
+  const newPayload: JwtPayload = { ...payload, tenantId: tenantId ?? payload.tenantId };
   return jwt.sign(newPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY_ADMIN_DEFAULT });
 }
 

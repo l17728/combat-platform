@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActiveTenant(newTenant);
       setStoredTenant(newTenant);
       if (user) {
-        const updatedUser = { ...user, tenantId: result.tenantId ?? undefined };
+        const updatedUser = { ...user, tenantId: result.tenantId ?? user.tenantId };
         setStoredUser(updatedUser);
         setUser(updatedUser);
       }

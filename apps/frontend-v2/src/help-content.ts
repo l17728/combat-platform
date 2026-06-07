@@ -4,6 +4,37 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v3.2.0 — 2026-06-08 (PostgreSQL 全功能对等 + Superadmin 租户切换)
+
+本版完成 PostgreSQL 模式全功能对等、Superadmin 多租户切换、以及 16 个缺失前端 UI 功能的文档化。
+
+### 🐘 PostgreSQL 全功能对等
+
+- **7 个缺失表补全** — llm_settings、digest_config、webhook_subscriptions、wiki_likes、shared_links、shared_link_views、kg_outbox 全部加入 ensurePostgresSchema()
+- **wiki_articles 4 个缺失列** — is_locked、lock_password、likes、tenant_id 通过 ALTER TABLE IF NOT EXISTS 自动补齐
+- **tenant_id 列覆盖** — saasTables 列表从 21 扩展到 28 个表，确保所有表在 PG 模式下都添加租户隔离列
+- **现在 SQLite 和 PostgreSQL 功能完全一致**，可通过 db-migration 页面一键切换
+
+### 🔄 Superadmin 租户切换
+
+- **租户切换 API** — POST /platform/switch-tenant/:tenantId，superadmin 可切换到任意租户的业务域
+- **全局视图** — POST /platform/switch-tenant/global，superadmin 可回到全局视图查看所有租户混合数据
+- **TenantSelector 组件** — Header 右侧新增租户选择下拉框（仅 superadmin 可见），支持实时切换
+- **菜单隔离** — "平台管理"菜单仅 superadmin 可见，admin 和 guest 不再看到该入口
+- **JWT 重新签发** — 切换租户时重新签发 JWT，tenantId 变更后所有数据查询自动切换到目标租户
+
+### 📋 缺失 UI 功能文档化
+
+- **16 个已实现但无前端 UI 的后端 API** 已归档到 docs/missing-frontend-features.md
+- 涵盖：自定义命令（4）、UI 置顶缓存（4）、手动关系管理（3）、值班管理（1）、责任图谱（1）、异地备份（1）、文档下载（1）、模板删除（1）
+- 每个功能包含 API 说明、设计建议和优先级排序
+
+### 🐛 Bug 修复
+
+- **health.ts 版本号解析修复** — 部署目录层级不同导致 version 显示 0.0.0，改为多路径回退策略
+- **Guest demo 数据填充** — guest 租户现在有完整 demo 数据（599 nodes / 1197 edges / 423 progress / 金刚经 wiki）
+- **seed-guest.mjs 脚本** — 新增可重复执行的 guest 数据填充脚本，支持幂等运行
+
 ## v3.1.0 — 2026-06-07 (权限安全全面加固 + 架构归一化)
 
 本版对所有系统管理功能进行了权限边界审计和加固，修复 7 个权限安全问题，新增 42 个安全边界测试。同时完成版本号归一化和魔鬼数字提取。
