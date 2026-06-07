@@ -563,16 +563,6 @@ export default function SchemaWizard() {
                 { title: "类型标识", dataIndex: "nodeType", render: (v: string) => <Text code>{v}</Text> },
                 { title: "显示名", dataIndex: "label" },
                 { title: "字段数", render: (_: unknown, r: NodeSchema) => r.fields.length },
-                {
-                  title: "",
-                  width: 60,
-                  render: (_: unknown, r: NodeSchema) =>
-                    PROTECTED_NODE_TYPES.has(r.nodeType) ? null : (
-                      <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
-                        <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-                      </Popconfirm>
-                    ),
-                },
               ]}
               onRow={(record) => ({
                 onClick: () => setSelectedSchema(selectedSchema?.nodeType === record.nodeType ? null : record),
