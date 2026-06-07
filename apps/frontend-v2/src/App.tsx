@@ -210,8 +210,22 @@ function AppInner() {
             }
           />
           <Route path="/related/:nodeType/:id" element={<RelatedPage />} />
-          <Route path="/import" element={<ImportExport />} />
-          <Route path="/email" element={<EmailSettings />} />
+          <Route
+            path="/import"
+            element={
+              <AdminGuard>
+                <ImportExport />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/email"
+            element={
+              <AdminGuard>
+                <EmailSettings />
+              </AdminGuard>
+            }
+          />
           <Route
             path="/llm-settings"
             element={
@@ -220,12 +234,54 @@ function AppInner() {
               </AdminGuard>
             }
           />
-          <Route path="/audit" element={<AuditLog />} />
-          <Route path="/schema" element={<SchemaWizard />} />
-          <Route path="/config" element={<ConfigCenter />} />
-          <Route path="/webhooks" element={<WebhookSettings />} />
-          <Route path="/digest" element={<DigestSettings />} />
-          <Route path="/invitations" element={<InvitationPage />} />
+          <Route
+            path="/audit"
+            element={
+              <AdminGuard>
+                <AuditLog />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/schema"
+            element={
+              <AdminGuard>
+                <SchemaWizard />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/config"
+            element={
+              <AdminGuard>
+                <ConfigCenter />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/webhooks"
+            element={
+              <AdminGuard>
+                <WebhookSettings />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/digest"
+            element={
+              <AdminGuard>
+                <DigestSettings />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/invitations"
+            element={
+              <AdminGuard>
+                <InvitationPage />
+              </AdminGuard>
+            }
+          />
           <Route path="/screen" element={<DashboardScreen />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/kg" element={<KGGraph />} />
@@ -247,9 +303,30 @@ function AppInner() {
           />
           <Route path="/bug-report" element={<BugReport />} />
           <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/users" element={<UserManagement />} />
-          <Route path="/op-log" element={<OperationLog />} />
-          <Route path="/backup" element={<BackupRestore />} />
+          <Route
+            path="/users"
+            element={
+              <AdminGuard>
+                <UserManagement />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/op-log"
+            element={
+              <AdminGuard>
+                <OperationLog />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/backup"
+            element={
+              <AdminGuard>
+                <BackupRestore />
+              </AdminGuard>
+            }
+          />
           <Route
             path="/db-migration"
             element={

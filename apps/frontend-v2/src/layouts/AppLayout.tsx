@@ -191,43 +191,55 @@ export function AppLayout() {
         { key: "/manual", label: "帮助中心", icon: <QuestionCircleOutlined /> },
       ],
     },
-    {
-      key: "system",
-      icon: <SettingOutlined />,
-      label: "系统管理",
-      onTitleClick: () => navigate("/import"),
-      children: [
-        { key: "/import", label: "数据导入/导出", icon: <ImportOutlined /> },
-        { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
-        { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
-        { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
-        { key: "/digest", label: "邮件摘要", icon: <MailOutlined /> },
-        ...(isAdmin || isGuest ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
-        { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
-        { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
-        ...(isAdmin || isGuest ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
-        ...(isAdmin || isGuest ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }] : []),
-        ...(isAdmin || isGuest ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }] : []),
-        ...(isAdmin || isGuest
-          ? [
-              {
-                key: "review",
-                icon: <AuditOutlined />,
-                label: "审核管理",
-                children: [
-                  { key: "/proposals", label: "关系审批", icon: <ApartmentOutlined /> },
-                  { key: "/reminders", label: "跟催提醒", icon: <BellOutlined /> },
-                ],
-              },
-            ]
-          : []),
-        ...(isAdmin || isGuest ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
-        ...(isAdmin || isGuest ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
-        ...(isAdmin || isGuest ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
-        ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-        ...(isSuperAdmin || isGuest ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
-      ],
-    },
+    ...(isAdmin || isGuest
+      ? [
+          {
+            key: "system",
+            icon: <SettingOutlined />,
+            label: "系统管理",
+            onTitleClick: () => navigate("/import"),
+            children: [
+              { key: "/import", label: "数据导入/导出", icon: <ImportOutlined /> },
+              { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
+              { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
+              { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
+              { key: "/digest", label: "邮件摘要", icon: <MailOutlined /> },
+              ...(isAdmin || isGuest
+                ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }]
+                : []),
+              { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
+              { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
+              ...(isAdmin || isGuest ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
+              ...(isAdmin || isGuest
+                ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }]
+                : []),
+              ...(isAdmin || isGuest
+                ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }]
+                : []),
+              ...(isAdmin || isGuest
+                ? [
+                    {
+                      key: "review",
+                      icon: <AuditOutlined />,
+                      label: "审核管理",
+                      children: [
+                        { key: "/proposals", label: "关系审批", icon: <ApartmentOutlined /> },
+                        { key: "/reminders", label: "跟催提醒", icon: <BellOutlined /> },
+                      ],
+                    },
+                  ]
+                : []),
+              ...(isAdmin || isGuest ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+              ...(isSuperAdmin || isGuest
+                ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }]
+                : []),
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -493,4 +493,73 @@ test.describe("§N16 系统管理API拒绝", () => {
     });
     expect(res.status()).toBe(403);
   });
+
+  test("GET /api/config → 403", async ({ request }) => {
+    const res = await request.get(`${API}/api/config`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("GET /api/webhook → 403", async ({ request }) => {
+    const res = await request.get(`${API}/api/webhook`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("GET /api/digest → 403", async ({ request }) => {
+    const res = await request.get(`${API}/api/digest`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("GET /api/invitation → 403", async ({ request }) => {
+    const res = await request.get(`${API}/api/invitation`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+
+  test("GET /api/op-logs → 403", async ({ request }) => {
+    const res = await request.get(`${API}/api/op-logs`, {
+      headers: { Authorization: `Bearer ${normalAuth.token}` },
+    });
+    expect(res.status()).toBe(403);
+  });
+});
+
+// ===========================================================================
+// §N17 系统管理页面路由 — Normal User 被重定向到首页
+// ===========================================================================
+test.describe("§N17 系统管理页面路由拒绝", () => {
+  const systemPaths = [
+    "/import",
+    "/schema",
+    "/config",
+    "/email",
+    "/audit",
+    "/backup",
+    "/users",
+    "/op-log",
+    "/webhooks",
+    "/digest",
+    "/invitations",
+    "/merge",
+    "/llm-settings",
+    "/proposals",
+    "/reminders",
+    "/db-migration",
+    "/system-upgrade",
+    "/platform",
+  ];
+
+  for (const path of systemPaths) {
+    test(`访问 ${path} 被重定向到首页`, async ({ page }) => {
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      await page.waitForTimeout(2000);
+      expect(page.url()).not.toContain(path);
+    });
+  }
 });
