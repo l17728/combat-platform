@@ -56,8 +56,8 @@ export default function PlatformAdmin() {
       const [t, s] = await Promise.all([api.listTenants(), api.getPlatformStats()]);
       setTenants(t);
       setStats(s);
-    } catch (e) {
-      handleApiError(e);
+    } catch (e: any) {
+      if (e?.status !== 403) handleApiError(e);
     } finally {
       setLoading(false);
     }
