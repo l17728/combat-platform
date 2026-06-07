@@ -1,13 +1,29 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Typography, List, Select, Space, Empty, Skeleton, Tag, Button } from "antd";
-import { ArrowLeftOutlined } from "@ant-design/icons";
+import {
+  Typography,
+  List,
+  Select,
+  Space,
+  Empty,
+  Skeleton,
+  Tag,
+  Button,
+  Modal,
+  Form,
+  Input,
+  message,
+  Popconfirm,
+} from "antd";
+import { ArrowLeftOutlined, LinkOutlined, DeleteOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
 import type { RelatedResult } from "../api.js";
-import type { GraphNode } from "@combat/shared";
+import type { ManualLinkView, GraphNode } from "@combat/shared";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import { NODE_TYPE_LABEL } from "../constants.js";
+import { handleApiError } from "../utils/handleApiError.js";
 
 function detailLink(n: GraphNode): string {
   return n.nodeType === "attackTicket" ? `/attack/${n.id}` : `/related/${n.nodeType}/${n.id}`;
@@ -38,6 +54,24 @@ export default function RelatedPage() {
   const [node, setNode] = useState<GraphNode | null>(null);
   const [depth, setDepth] = useState(1);
   const [loading, setLoading] = useState(true);
+  const { guard } = useGuestGuard();
+
+  const [manualLinks, setManualLinks] = useState<ManualLinkView[]>([]);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualForm] = Form.useForm();
+  const [searchResults, setSearchResults] = useState<
+    { id: string; nodeType: string; summary: string; score: number }[]
+  >([]);
+  const [searching, setSearching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchManualLinks = useCallback(() => {
+    if (!id) return;
+    api
+      .listManualRelations(id)
+      .then(setManualLinks)
+      .catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     api
@@ -54,6 +88,54 @@ export default function RelatedPage() {
       .catch(() => setData({ outgoing: [], incoming: [] }))
       .finally(() => setLoading(false));
   }, [nodeType, id, depth]);
+
+  useEffect(() => {
+    fetchManualLinks();
+  }, [fetchManualLinks]);
+
+  const handleSearchTarget = async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await api.searchNodes(q);
+      setSearchResults(results.filter((n) => n.id !== id).slice(0, 20));
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleCreateManualRelation = async (values: { targetId: string; reason: string }) => {
+    if (!guard()) return;
+    setSubmitting(true);
+    try {
+      await api.createManualRelation({ sourceId: id, targetId: values.targetId, reason: values.reason });
+      message.success("手动关联已创建");
+      setManualModalOpen(false);
+      manualForm.resetFields();
+      setSearchResults([]);
+      fetchManualLinks();
+    } catch (e) {
+      handleApiError(e);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteManualRelation = async (edgeId: string) => {
+    if (!guard()) return;
+    try {
+      await api.deleteManualRelation(edgeId);
+      message.success("关联已删除");
+      fetchManualLinks();
+    } catch (e) {
+      handleApiError(e);
+    }
+  };
 
   if (loading) return <Skeleton active paragraph={{ rows: 8 }} />;
 
@@ -95,6 +177,9 @@ export default function RelatedPage() {
             { value: 3, label: "3" },
           ]}
         />
+        <Button icon={<LinkOutlined />} onClick={() => guard() && setManualModalOpen(true)}>
+          手动关联
+        </Button>
       </Space>
 
       {Object.keys(groups).length === 0 && <Empty description="暂无关联" />}
@@ -183,6 +268,36 @@ export default function RelatedPage() {
         </div>
       )}
 
+      {manualLinks.length > 0 && (
+        <div style={{ marginTop: 24, borderTop: "1px dashed #722ed1", paddingTop: 12 }}>
+          <Typography.Title level={5} style={{ color: "#722ed1" }}>
+            手动关联（{manualLinks.length}）
+          </Typography.Title>
+          <List
+            size="small"
+            dataSource={manualLinks}
+            rowKey={(m) => m.edgeId}
+            renderItem={(m) => (
+              <List.Item
+                actions={[
+                  <Popconfirm key="del" title="确认删除此关联？" onConfirm={() => handleDeleteManualRelation(m.edgeId)}>
+                    <a style={{ color: "#ff4d4f" }}>
+                      <DeleteOutlined /> 删除
+                    </a>
+                  </Popconfirm>,
+                ]}
+              >
+                <Link to={detailLink(m.node)}>{label(m.node)}</Link>
+                <span style={{ marginLeft: 8, color: "#722ed1" }}>
+                  <Tag color="purple">{m.direction === "out" ? "→ 引用" : "← 被引用"}</Tag>
+                  {m.reason && <span style={{ color: "#888" }}>{m.reason}</span>}
+                </span>
+              </List.Item>
+            )}
+          />
+        </div>
+      )}
+
       {data?.conflicts && data.conflicts.length > 0 && (
         <div style={{ marginTop: 24, borderTop: "2px dashed #cf1322", paddingTop: 12 }}>
           <Typography.Title level={5} style={{ color: "#cf1322" }}>
@@ -203,6 +318,57 @@ export default function RelatedPage() {
           />
         </div>
       )}
+
+      <Modal
+        title="手动关联"
+        open={manualModalOpen}
+        onCancel={() => {
+          setManualModalOpen(false);
+          manualForm.resetFields();
+          setSearchResults([]);
+        }}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={manualForm} layout="vertical" onFinish={handleCreateManualRelation}>
+          <Form.Item label="源节点">
+            <Input disabled value={node ? label(node) : id} />
+          </Form.Item>
+          <Form.Item name="targetId" label="目标节点" rules={[{ required: true, message: "请搜索并选择目标节点" }]}>
+            <Select
+              showSearch
+              filterOption={false}
+              placeholder="输入名称搜索..."
+              onSearch={handleSearchTarget}
+              loading={searching}
+              notFoundContent={searching ? "搜索中..." : "无结果"}
+              options={searchResults.map((n) => ({
+                value: n.id,
+                label: `${n.summary} (${NODE_TYPE_LABEL[n.nodeType] ?? n.nodeType})`,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="reason" label="关联原因">
+            <Input.TextArea rows={2} placeholder="如：技术顾问、共享客户等" />
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0, textAlign: "right" }}>
+            <Space>
+              <Button
+                onClick={() => {
+                  setManualModalOpen(false);
+                  manualForm.resetFields();
+                  setSearchResults([]);
+                }}
+              >
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit" loading={submitting}>
+                创建关联
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

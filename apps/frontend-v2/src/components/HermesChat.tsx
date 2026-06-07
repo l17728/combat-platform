@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip, Drawer, theme } from "antd";
+import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip, Drawer, theme, message } from "antd";
 import {
   RobotOutlined,
   SendOutlined,
@@ -8,10 +8,12 @@ import {
   CloseOutlined,
   DragOutlined,
   PlusOutlined,
+  PushpinOutlined,
 } from "@ant-design/icons";
 import MarkdownRenderer from "./MarkdownRenderer.js";
 import { api } from "../api.js";
 import type { HermesTraceStep } from "../api.js";
+import type { UiSpec } from "@combat/shared";
 import { useDraggable } from "../hooks/useDraggable.js";
 import ToolTrace from "./ToolTrace.js";
 
@@ -33,6 +35,9 @@ interface Msg {
   trace?: HermesTraceStep[];
   engine?: "tool" | "intent";
   fallbackReason?: string;
+  uiSpec?: UiSpec;
+  question?: string;
+  intent?: string;
 }
 
 export default function HermesChat({
@@ -118,6 +123,9 @@ export default function HermesChat({
           trace: res.trace,
           engine: res.engine,
           fallbackReason: res.fallback_reason,
+          uiSpec: res.uiSpec as UiSpec | undefined,
+          question: res.question,
+          intent: res.intent,
         },
       ]);
     } catch (e) {
@@ -216,6 +224,30 @@ export default function HermesChat({
                         );
                       })}
                     </Space>
+                  </div>
+                )}
+                {m.uiSpec && (
+                  <div style={{ marginTop: 6 }}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<PushpinOutlined />}
+                      onClick={async () => {
+                        try {
+                          await api.pinWidget({
+                            label: m.text.slice(0, 40),
+                            question: m.question,
+                            intent: m.intent,
+                            uiSpec: m.uiSpec!,
+                          });
+                          message.success("已置顶到首页");
+                        } catch {
+                          message.error("置顶失败");
+                        }
+                      }}
+                    >
+                      置顶到首页
+                    </Button>
                   </div>
                 )}
               </>

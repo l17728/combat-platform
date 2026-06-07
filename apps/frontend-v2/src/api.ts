@@ -22,6 +22,12 @@ import type {
   CoAnchoredItem,
   ExpandedItem,
   ConflictItem,
+  CustomCommand,
+  CustomCommandRunResult,
+  PinnedUi,
+  ManualLinkView,
+  OncallCurrentRow,
+  UiSpec,
 } from "@combat/shared";
 import { isApiSystemPath, STORAGE_KEYS } from "./system-paths.js";
 
@@ -1823,6 +1829,104 @@ export class Api {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role }),
+    });
+  }
+
+  deleteSupportTemplate(templateId: string): Promise<{ deleted: number }> {
+    return this.req(`/api/support-templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
+  }
+
+  createManualRelation(data: {
+    sourceId: string;
+    targetId: string;
+    reason?: string;
+    sourceField?: string;
+  }): Promise<{ edgeId: string; sourceId: string; targetId: string; sourceField?: string; reason: string }> {
+    return this.req("/api/relations/manual", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  listManualRelations(nodeId: string): Promise<ManualLinkView[]> {
+    return this.req<ManualLinkView[]>(`/api/relations/manual?nodeId=${encodeURIComponent(nodeId)}`);
+  }
+
+  deleteManualRelation(edgeId: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/relations/manual/${encodeURIComponent(edgeId)}`, { method: "DELETE" });
+  }
+
+  listPinnedWidgets(): Promise<PinnedUi[]> {
+    return this.req<PinnedUi[]>("/api/ui-cache/pinned");
+  }
+
+  pinWidget(data: { label?: string; question?: string; intent?: string; uiSpec: UiSpec }): Promise<PinnedUi> {
+    return this.req<PinnedUi>("/api/ui-cache/pin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  renamePinnedWidget(id: string, label: string): Promise<PinnedUi> {
+    return this.req(`/api/ui-cache/pinned/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+  }
+
+  unpinWidget(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/ui-cache/pinned/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  listCommands(): Promise<CustomCommand[]> {
+    return this.req<CustomCommand[]>("/api/commands");
+  }
+
+  createCommand(data: { name: string; template: string; description?: string }): Promise<CustomCommand> {
+    return this.req<CustomCommand>("/api/commands", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteCommand(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/commands/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  runCommand(id: string, args: Record<string, unknown>): Promise<CustomCommandRunResult> {
+    return this.req<CustomCommandRunResult>(`/api/commands/${encodeURIComponent(id)}/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ args }),
+    });
+  }
+
+  getOncallCurrent(domain?: string): Promise<OncallCurrentRow[]> {
+    const qs = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+    return this.req<OncallCurrentRow[]>(`/api/oncall/current${qs}`);
+  }
+
+  getResponsibilityDiagram(): Promise<{ mermaid: string; nodeCount: number; edgeCount: number }> {
+    return this.req("/api/responsibility/diagram");
+  }
+
+  offsiteBackup(config: {
+    host: string;
+    user: string;
+    port?: number;
+    remoteDir: string;
+    keyPath?: string;
+    sshPassword?: string;
+    dryRun?: boolean;
+  }): Promise<{ ok: boolean; summary?: unknown; stdout?: string }> {
+    return this.req("/api/backup/offsite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(config),
     });
   }
 }

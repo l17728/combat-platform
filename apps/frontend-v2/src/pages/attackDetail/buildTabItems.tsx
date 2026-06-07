@@ -69,6 +69,7 @@ export interface BuildTabItemsArgs {
   handleDeleteSupportNode: (nodeId: string) => Promise<void> | void;
   selectSupportPerson: (name: string | null | undefined) => Promise<void> | void;
   handleApplyTemplate: (templateId: string) => Promise<void> | void;
+  refetchSupportNodes: () => Promise<void>;
 
   // dynamic tabs
   dynamicTabs: TicketTab[];
@@ -217,6 +218,7 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           onDeleteNode={a.handleDeleteSupportNode}
           onSelectPerson={a.selectSupportPerson}
           onApplyTemplate={a.handleApplyTemplate}
+          refetchSupportNodes={a.refetchSupportNodes}
         />
       ),
     },

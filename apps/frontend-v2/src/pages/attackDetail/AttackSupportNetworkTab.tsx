@@ -15,11 +15,18 @@ import {
   Descriptions,
   Divider,
   List,
+  Modal,
+  Table,
+  message,
 } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, DeleteOutlined, SettingOutlined } from "@ant-design/icons";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "../../api.js";
+import { useGuestGuard } from "../../hooks/useGuestGuard.js";
 import { SUPPORT_STATUS_COLOR, NODE_TYPE_LABEL } from "../../constants.js";
 import { nodeLabel } from "../../utils/nodeLabel.js";
+import { handleApiError } from "../../utils/handleApiError.js";
 import type { GraphNode } from "@combat/shared";
 import type { SupportNode, SupportTemplate, RelatedResult } from "../../api.js";
 
@@ -62,6 +69,7 @@ export interface AttackSupportNetworkTabProps {
   onDeleteNode: (id: string) => Promise<void> | void;
   onSelectPerson: (name: string | null | undefined) => Promise<void> | void;
   onApplyTemplate: (templateId: string) => Promise<void> | void;
+  refetchSupportNodes: () => Promise<void>;
 }
 
 export default function AttackSupportNetworkTab({
@@ -77,8 +85,41 @@ export default function AttackSupportNetworkTab({
   onDeleteNode,
   onSelectPerson,
   onApplyTemplate,
+  refetchSupportNodes,
 }: AttackSupportNetworkTabProps) {
   const navigate = useNavigate();
+  const { guard } = useGuestGuard();
+  const [tplModalOpen, setTplModalOpen] = useState(false);
+  const [deletingTplId, setDeletingTplId] = useState<string | null>(null);
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (!guard()) return;
+    setDeletingTplId(id);
+    try {
+      await api.deleteSupportTemplate(id);
+      message.success("模板已删除");
+      await refetchSupportNodes();
+    } catch (e) {
+      handleApiError(e);
+    } finally {
+      setDeletingTplId(null);
+    }
+  };
+
+  const tplColumns = [
+    { title: "名称", dataIndex: "name", key: "name" },
+    { title: "使用次数", dataIndex: "usageCount", key: "usageCount", width: 100 },
+    {
+      title: "操作",
+      key: "ops",
+      width: 80,
+      render: (_: unknown, r: SupportTemplate) => (
+        <Popconfirm title={`确认删除模板「${r.name}」？该操作不可恢复。`} onConfirm={() => handleDeleteTemplate(r.id)}>
+          <a style={{ color: "#ff4d4f" }}>{deletingTplId === r.id ? <Spin size="small" /> : "删除"}</a>
+        </Popconfirm>
+      ),
+    },
+  ];
 
   return (
     <div style={{ padding: "16px 0" }}>
@@ -96,6 +137,9 @@ export default function AttackSupportNetworkTab({
               options={templates.map((t) => ({ value: t.id, label: `${t.name} (${t.usageCount})` }))}
             />
           )}
+          <Button icon={<SettingOutlined />} onClick={() => guard() && setTplModalOpen(true)}>
+            管理模板
+          </Button>
         </Space>
       </div>
       {supportLoading ? (
@@ -213,6 +257,21 @@ export default function AttackSupportNetworkTab({
           </Col>
         </Row>
       )}
+
+      <Modal
+        title="管理支撑模板"
+        open={tplModalOpen}
+        onCancel={() => setTplModalOpen(false)}
+        footer={null}
+        width={560}
+        destroyOnClose
+      >
+        {templates.length === 0 ? (
+          <Empty description="暂无模板" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <Table rowKey="id" dataSource={templates} columns={tplColumns} size="small" pagination={false} />
+        )}
+      </Modal>
     </div>
   );
 }

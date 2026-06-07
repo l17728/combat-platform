@@ -51,6 +51,8 @@ const SharedView = lazy(() => import("./pages/SharedView.js"));
 const PlatformAdmin = lazy(() => import("./pages/PlatformAdmin.js"));
 const TenantDetail = lazy(() => import("./pages/TenantDetail.js"));
 const NotFound = lazy(() => import("./components/NotFound.js"));
+const CustomCommands = lazy(() => import("./pages/CustomCommands.js"));
+const ResponsibilityDiagram = lazy(() => import("./pages/ResponsibilityDiagram.js"));
 
 function PageLoader() {
   return (
@@ -359,6 +361,22 @@ function AppInner() {
               <SuperAdminGuard>
                 <TenantDetail />
               </SuperAdminGuard>
+            }
+          />
+          <Route
+            path="/commands"
+            element={
+              <AdminGuard>
+                <CustomCommands />
+              </AdminGuard>
+            }
+          />
+          <Route
+            path="/responsibility"
+            element={
+              <AdminGuard>
+                <ResponsibilityDiagram />
+              </AdminGuard>
             }
           />
           <Route path="*" element={<NotFound />} />

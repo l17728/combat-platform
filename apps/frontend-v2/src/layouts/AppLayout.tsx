@@ -38,6 +38,7 @@ import {
   StarOutlined,
   KeyOutlined,
   CloudServerOutlined,
+  CodeOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
@@ -274,6 +275,8 @@ export function AppLayout() {
                 : []),
               { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
               { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
+              { key: "/commands", label: "自定义命令", icon: <CodeOutlined /> },
+              { key: "/responsibility", label: "责任图谱", icon: <ApartmentOutlined /> },
               ...(isAdmin || isGuest ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
               ...(isAdmin || isGuest
                 ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }]

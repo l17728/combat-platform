@@ -199,7 +199,7 @@ export default function AttackDetail() {
   const keyAudits = filterKeyAudits(auditLogs);
   const SIDEBAR_CARD_OPTIONS = [
     { key: "helpers", label: "找帮手推荐" },
-    ...(isLeader ? [{ key: "audit", label: "合规追溯" }] : []),
+    { key: "audit", label: "合规追溯" },
   ];
 
   const allTabItems = buildAllTabItems({
@@ -237,6 +237,7 @@ export default function AttackDetail() {
     handleDeleteSupportNode: h.handleDeleteSupportNode,
     selectSupportPerson: h.selectSupportPerson,
     handleApplyTemplate: h.handleApplyTemplate,
+    refetchSupportNodes: data.refetchSupportNodes,
     dynamicTabs,
     setDynamicTabs: data.setDynamicTabs,
     onSchemaRefresh: () => {

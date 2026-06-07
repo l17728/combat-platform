@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Row,
   Col,
@@ -16,6 +16,7 @@ import {
   Button,
   Space,
   Checkbox,
+  message,
 } from "antd";
 import {
   ThunderboltOutlined,
@@ -31,12 +32,14 @@ import {
   StarFilled,
   WarningOutlined,
   BookOutlined,
+  PushpinOutlined,
+  CloseOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api.js";
 import { STATUS_COLOR, STATUS_BAR_COLOR } from "../constants.js";
 import StatusTag from "../components/StatusTag.js";
-import type { DashboardSummary, GraphNode } from "@combat/shared";
+import type { DashboardSummary, GraphNode, PinnedUi } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
 import InfoSquare from "./InfoSquare.js";
@@ -46,6 +49,7 @@ import { useDashboardConfig } from "../hooks/useDashboardConfig.js";
 import ProductTour from "../components/ProductTour.js";
 import dashboardTourSteps from "../tours/dashboardTour.js";
 import adminTourSteps from "../tours/adminTour.js";
+import MarkdownRenderer from "../components/MarkdownRenderer.js";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import "dayjs/locale/zh-cn";
@@ -63,6 +67,7 @@ const favKey = (username?: string) => `combat-attack-favorites:${username || "gu
 function DashboardContent() {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [ticketNodes, setTicketNodes] = useState<GraphNode[]>([]);
+  const [pinnedWidgets, setPinnedWidgets] = useState<PinnedUi[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
@@ -72,13 +77,28 @@ function DashboardContent() {
   const { cards, toggleVisible, moveUp, moveDown, resetToDefault, isVisible, visibleOrder } = useDashboardConfig();
 
   useEffect(() => {
-    Promise.all([api.getDashboard(), api.listNodes("attackTicket").catch(() => [] as GraphNode[])])
-      .then(([summary, list]) => {
+    Promise.all([
+      api.getDashboard(),
+      api.listNodes("attackTicket").catch(() => [] as GraphNode[]),
+      api.listPinnedWidgets().catch(() => []),
+    ])
+      .then(([summary, list, pins]) => {
         setData(summary);
         setTicketNodes(list as GraphNode[]);
+        setPinnedWidgets(pins as PinnedUi[]);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
+  }, []);
+
+  const handleUnpin = useCallback(async (id: string) => {
+    try {
+      await api.unpinWidget(id);
+      setPinnedWidgets((prev) => prev.filter((p) => p.id !== id));
+      message.success("已取消置顶");
+    } catch {
+      message.error("取消失败");
+    }
   }, []);
 
   // "我的关注":从 localStorage 取本人 favorites,过滤出仍存在的 ticket
@@ -152,6 +172,37 @@ function DashboardContent() {
           <Button icon={<SettingOutlined />} onClick={() => setConfigOpen(true)} />
         </Tooltip>
       </div>
+      {pinnedWidgets.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <PushpinOutlined />
+              快捷访问
+            </Space>
+          }
+          size="small"
+          style={{ marginBottom: 16 }}
+        >
+          <Row gutter={[12, 12]}>
+            {pinnedWidgets.map((pw) => (
+              <Col xs={24} sm={12} md={8} key={pw.id}>
+                <Card
+                  size="small"
+                  title={pw.label}
+                  extra={
+                    <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => handleUnpin(pw.id)} />
+                  }
+                  style={{ height: "100%" }}
+                >
+                  <Typography.Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0, fontSize: 13, color: "#666" }}>
+                    {pw.question || pw.label}
+                  </Typography.Paragraph>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </Card>
+      )}
       {isVisible("stats") && (
         <Row gutter={[16, 16]}>
           <Col xs={12} sm={12} md={6}>
