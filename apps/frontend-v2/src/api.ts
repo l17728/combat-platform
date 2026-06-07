@@ -1956,8 +1956,6 @@ const GUEST_SYSTEM_PREFIXES = [
   "/api/merge",
   "/api/op-logs",
   "/api/backup",
-  "/api/proposals",
-  "/api/reminders",
   "/api/email",
   "/api/llm-settings",
   "/api/platform/",

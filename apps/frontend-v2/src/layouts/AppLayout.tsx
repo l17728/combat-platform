@@ -105,8 +105,6 @@ const SYSTEM_PATH_PREFIXES = [
   "/system-upgrade",
   "/notifications",
   "/platform",
-  "/proposals",
-  "/reminders",
 ];
 
 function isSystemPath(path: string): boolean {

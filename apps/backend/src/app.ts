@@ -207,8 +207,6 @@ export function createApp(deps: {
     app.use("/api/merge", adminMiddleware);
     app.use("/api/op-logs", adminMiddleware);
     app.use("/api/backup", adminMiddleware);
-    app.use("/api/proposals", adminMiddleware);
-    app.use("/api/reminders", adminMiddleware);
     // email:配置 + 测试 + 发送均限 admin
     app.use("/api/email", adminMiddleware);
     // §v2.3.4: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
