@@ -23,7 +23,7 @@ import type {
   ExpandedItem,
   ConflictItem,
 } from "@combat/shared";
-import { isApiSystemPath } from "./system-paths.js";
+import { isApiSystemPath, STORAGE_KEYS } from "./system-paths.js";
 
 // §v2.3.4 LLM settings DTOs
 export type LlmThinkingMode = "disabled" | "enabled" | "auto";
@@ -372,7 +372,7 @@ export class Api {
 
   private getToken(): string | null {
     try {
-      return localStorage.getItem("combat-token");
+      return localStorage.getItem(STORAGE_KEYS.TOKEN);
     } catch {
       return null;
     }
@@ -1925,15 +1925,15 @@ export const api = new Api("");
 
 export function setAuthToken(token: string | null) {
   if (token) {
-    localStorage.setItem("combat-token", token);
+    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
   } else {
-    localStorage.removeItem("combat-token");
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
   }
 }
 
 export function getStoredUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem("combat-user");
+    const raw = localStorage.getItem(STORAGE_KEYS.USER);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -1942,7 +1942,7 @@ export function getStoredUser(): AuthUser | null {
 
 function isGuestFromToken(): boolean {
   try {
-    const token = localStorage.getItem("combat-token");
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     if (!token) return false;
     const payload = JSON.parse(atob(token.split(".")[1]));
     return !!payload.isGuest;
@@ -1957,10 +1957,10 @@ function isGuestSystemPath(path: string): boolean {
 
 export function setStoredUser(user: AuthUser | null) {
   if (user) {
-    localStorage.setItem("combat-user", JSON.stringify(user));
-    localStorage.setItem("combat-role", user.role);
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.ROLE, user.role);
   } else {
-    localStorage.removeItem("combat-user");
-    localStorage.removeItem("combat-role");
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.ROLE);
   }
 }

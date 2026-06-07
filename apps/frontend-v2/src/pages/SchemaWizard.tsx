@@ -38,7 +38,7 @@ import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
 
-const PROTECTED_NODE_TYPES: ReadonlySet<string> = new Set(["attackTicket", "person", "contribution"]);
+import { PROTECTED_NODE_TYPES } from "../system-paths.js";
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: "string", label: "文本 (string)" },

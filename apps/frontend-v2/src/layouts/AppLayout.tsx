@@ -87,7 +87,7 @@ function getSelectedKey(path: string): string {
   return "/";
 }
 
-import { isSystemPath } from "../system-paths.js";
+import { isSystemPath, STORAGE_KEYS } from "../system-paths.js";
 
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith("/attack") || path.startsWith("/daily-report") || path.startsWith("/related")) return ["attack"];
@@ -143,7 +143,7 @@ export function AppLayout() {
     setOpenKeys(getOpenKeysForPath(location.pathname));
   }, [location.pathname]);
 
-  const currentRole = (typeof localStorage !== "undefined" && localStorage.getItem("combat-role")) || "normal";
+  const currentRole = (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEYS.ROLE)) || "normal";
 
   const selectedKeys = [getSelectedKey(location.pathname)];
 

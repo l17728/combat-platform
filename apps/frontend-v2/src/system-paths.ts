@@ -69,3 +69,25 @@ export const API_SYSTEM_PREFIXES: readonly string[] = [
 export function isApiSystemPath(apiPath: string): boolean {
   return API_SYSTEM_PREFIXES.some((prefix) => apiPath.startsWith(prefix));
 }
+
+/**
+ * 系统核心节点类型 — 不允许删除（前后端共享定义）
+ *
+ * 前端消费者: SchemaWizard.tsx
+ * 后端消费者: schema-api.ts
+ *
+ * 修改此列表时，必须同步修改后端 schema-api.ts 的 PROTECTED_NODE_TYPES。
+ */
+export const PROTECTED_NODE_TYPES: readonly string[] = ["attackTicket", "person", "contribution"];
+
+/**
+ * localStorage 键名 — 单一来源
+ *
+ * 消费者: api.ts, op-logger.ts, AppLayout.tsx
+ */
+export const STORAGE_KEYS = {
+  TOKEN: "combat-token",
+  USER: "combat-user",
+  ROLE: "combat-role",
+  THEME: "combat-theme",
+} as const;
