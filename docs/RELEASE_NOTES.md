@@ -1,5 +1,53 @@
 # 版本发布说明
 
+## v3.1.0 (2026-06-07) — 权限安全全面加固 + 举一反三
+
+### 🔒 权限边界修复（7 项）
+
+从 185 个 e2e 测试的举一反三审计中发现并修复 7 个权限安全问题：
+
+1. **前端路由 Guard 缺失** — 11 个系统管理路由缺少 `AdminGuard`（App.tsx），normal user 可直接访问系统管理页面
+2. **侧边栏菜单未隔离** — 系统管理菜单对 normal user 可见，未按角色条件渲染（AppLayout.tsx）
+3. **settings.ts 无 adminMiddleware** — GET/PUT/DELETE `/api/settings` 全部端点缺少权限检查
+4. **schema 写操作无 adminMiddleware** — POST `/schema/scan`、PATCH `/schema/:type`、POST `/schema/nodeType`、DELETE `/schema/nodeType/:type` 缺少权限检查
+5. **import.ts 无 adminMiddleware** — POST `/api/import` 缺少权限检查
+6. **hermes-tools-router.ts 无 adminMiddleware** — POST `/api/hermes/tool/:name` 缺少权限检查
+7. **Guest 修改密码入口可见** — 密码修改菜单未对 guest 角色隐藏
+
+### 🐛 Bug 修复
+
+- **Guest 作战态势页卡住** — `proposals` 表缺少 `tenant_id` 列导致查询抛出未捕获异常，整个 `/api/dashboard` 请求挂起无响应。根因：`db.ts` 的 `saasTables` 迁移列表遗漏 `proposals` 表。修复：将 `proposals` 加入迁移列表 + `dashboard.ts` 增加 try/catch 防御
+
+### 🛡️ 安全架构改进
+
+- **adminMiddleware 逐路由文件覆盖** — 每个路由文件内部显式引入 `adminMiddleware`，而非依赖 app.ts 统一挂载
+- **三层一致性验证** — 前端路由 Guard + 侧边栏可见性 + 后端 API middleware 三者必须对齐
+- **全量路由审计** — 20+ 后端路由文件逐一审计 adminMiddleware 覆盖情况
+
+### 📊 测试
+
+- 三角色 e2e 测试：185/185 全绿（admin 59 + guest 55 + normal 71）
+- 新增 38 个安全边界专项测试（§N16-§N18、§A15、§G13、§G19）
+- 举一反三审计：全量表 `tenant_id` 列覆盖检查
+
+### 📝 经验教训（写入 AGENTS.md T1-T5）
+
+- **T1**: 安全边界必须独立测试，不因前端 Guard 通过就假设后端也安全
+- **T2**: 每个角色测试套件必须包含负面穷举测试
+- **T3**: 前端路由 Guard + 侧边栏可见性 + 后端 API middleware 三层必须对齐
+- **T4**: 新增路由文件时必须逐端点审计 adminMiddleware
+- **T5**: 举一反三必须递归至零，不允许"应该没问题"就停
+
+### 相关 Commit
+
+| Commit    | 说明                                              |
+| --------- | ------------------------------------------------- |
+| `d8eef76` | 11 系统 AdminGuard + 侧边栏隔离 + 20 安全边界测试 |
+| `6050df7` | 4 路由 adminMiddleware + 10 测试                  |
+| `b5ae93b` | Guest 密码菜单隐藏 + 系统 API 只读验证            |
+
+---
+
 ## v3.0.1 (2026-06-04) — Guest 只读防护 + 安全加固
 
 ### 🔒 Guest 游客三层只读防护

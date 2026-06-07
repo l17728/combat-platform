@@ -67,6 +67,8 @@
 
 ## Schema 元数据（增量1 / 1.5 / 3a-d）
 
+> **权限**：GET 端点所有角色可访问；POST / PATCH / DELETE 端点需 admin 角色（`adminMiddleware`）。
+
 ### `GET /api/schema/:nodeType`
 
 返回该 nodeType 的 NodeSchema（fields/identityKeys/derivedToKG 等）。
@@ -192,6 +194,8 @@ body `{ decision: "通过"|"拒绝"|"修正", decidedBy, patch?:{targetNodeId} }
 
 ## 增量导入（增量8 / §26）
 
+> **权限**：需 admin 角色（`adminMiddleware`）。
+
 ### `POST /api/import?type=<nodeType>`
 
 multipart form-data `file=<xlsx>`。`type` 缺省 attackTicket；未知 → 400。
@@ -261,6 +265,8 @@ body `{ decidedBy }`。非待发送 → 409；不存在 → 404。
 返回 `PersonHonor`：`{贡献人, contributions: [{contribution, attackTicketId?}]}`，attackTicketId 来自 `CONTRIBUTED_TO` 边（contribution 经 `关联攻关单` 写入时自动建立）。
 
 ## 配置中心
+
+> **权限**：所有端点需 admin 角色（`adminMiddleware`）。Guest GET 请求由 `guestReadOnlyMiddleware` 自动放行。
 
 ### `GET /api/settings`
 
@@ -559,10 +565,12 @@ BFS 图谱快照（沿 REF/ANCHORED_TO/CONFLICTS_WITH/OVERLAPS_WITH 边遍历）
 
 ## v2.3.3+ Hermes 工具集 (14 工具)
 
+> **权限**：GET 所有角色可访问；POST 需 admin 角色（`adminMiddleware`）。
+
 | Method | Path                     | 用途                                                                                                                     |
 | ------ | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
 | GET    | `/api/hermes/tools`      | 列出 14 工具(name+schema)                                                                                                |
-| POST   | `/api/hermes/tool/:name` | 调用单个工具 — body `{input:{...}}`                                                                                      |
+| POST   | `/api/hermes/tool/:name` | 调用单个工具 — body `{input:{...}}`，需 admin                                                                            |
 | POST   | `/api/hermes/ask`        | LLM agent 问答 — body `{question, mode?:auto\|tool\|intent}`,返回 `{answer, citations, trace, engine, fallback_reason?}` |
 
 工具: list*node_types / describe_node_type / count_nodes / query_nodes / get_node / search_text / traverse_graph / get_progress / get_audit / aggregate / dashboard_metric / recommend_helpers / ticket_tabs / welink*\*。详见 `docs/HERMES_TOOLS.md`。

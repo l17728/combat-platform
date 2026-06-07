@@ -122,6 +122,7 @@ function migrateSqlite(db: Database.Database): void {
       "ticket_tab_dynamic",
       "documents",
       "inbox_notifications",
+      "proposals",
     ];
     for (const table of saasTables) {
       try {
@@ -615,6 +616,7 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
         "ticket_tab_dynamic",
         "documents",
         "inbox_notifications",
+        "proposals",
       ];
       for (const table of saasTables) {
         await client

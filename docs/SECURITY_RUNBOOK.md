@@ -172,7 +172,6 @@ Guest（游客）用户可浏览所有页面（含系统管理），但**不能�
 const GUEST_WRITE_SEMANTIC_GET_TESTS = [
   (path: string) => path.match(/\/api\/export\//) !== null, // 数据导出
   (path: string) => path.match(/\/api\/backup$/) !== null, // 备份下载
-  // 可扩展...
 ];
 ```
 
@@ -202,6 +201,82 @@ curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
 - SuperAdmin 独占 `/api/platform/*` 平台管理 API
 - 前端通过 `SuperAdminGuard` 组件控制「平台管理」菜单可见性
 - JWT payload 中 `role: "superadmin"`，与普通 `admin` 区分
+
+---
+
+## 5. Normal User 权限边界（v3.1.0+）
+
+### 5.1 三角色权限矩阵
+
+| 资源                                          | Admin              | Normal User           | Guest             |
+| --------------------------------------------- | ------------------ | --------------------- | ----------------- |
+| 业务 CRUD（攻关单/人员/贡献）                 | ✅ 全部            | ✅ 自己创建的可删     | ✅ 自己创建的可删 |
+| 系统管理页面（/settings, /schema 等）         | ✅ 可见可操作      | ❌ 不可见、路由重定向 | 👁 可见但只读     |
+| 系统管理 API（/api/settings, /api/schema 等） | ✅ 200             | ❌ 403                | GET=200, 写=403   |
+| 平台管理（/platform）                         | ✅ superadmin only | ❌                    | ❌                |
+| AI 助手（/api/hermes/ask）                    | ✅                 | ✅                    | ✅                |
+| AI 工具直接调用（/api/hermes/tool/\*）        | ✅                 | ❌ 403                | ❌ 403            |
+
+### 5.2 adminMiddleware 覆盖清单
+
+所有系统管理路由均有 `adminMiddleware` 保护（v3.1.0 全面审计确认）：
+
+| 路由文件                        | 保护方式                                  | 覆盖端点                                                                          |
+| ------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `app.ts` 挂载                   | `app.use("/api/<path>", adminMiddleware)` | audit, upgrade, merge, op-logs, backup, proposals, reminders, email, llm-settings |
+| `settings.ts`                   | 路由级 `adminMiddleware`                  | GET/PUT/DELETE /settings                                                          |
+| `schema-api.ts`                 | 路由级 `adminMiddleware`                  | POST /schema/nodeType, DELETE /schema/nodeType/:type                              |
+| `routes.ts`                     | 路由级 `adminMiddleware`                  | POST /schema/scan, PATCH /schema/:type                                            |
+| `import.ts`                     | 路由级 `adminMiddleware`                  | POST /import                                                                      |
+| `hermes-tools-router.ts`        | 路由级 `adminMiddleware`                  | POST /hermes/tool/:name                                                           |
+| `auth.ts` (makeUserAdminRouter) | 函数内 `requireAdmin()`                   | GET/POST/PATCH/DELETE /users                                                      |
+| `webhook-router.ts`             | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `digest-router.ts`              | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `invitation-router.ts`          | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `upgrade.ts`                    | 内部 `adminOnly()`                        | 全部端点                                                                          |
+| `db-migration.ts`               | 内部 `adminOnly()`                        | 全部端点                                                                          |
+| `platform-router.ts`            | `superAdminMiddleware`                    | 全部端点                                                                          |
+
+### 5.3 前端三层一致性验证
+
+权限一致性要求三层对齐，任何一层缺失都可能导致安全问题：
+
+| 层             | 机制                                          | 验证方式                          |
+| -------------- | --------------------------------------------- | --------------------------------- | ----------------------- | ---------------------------------------- |
+| 前端路由 Guard | `AdminGuard`/`SuperAdminGuard` 包裹 `<Route>` | e2e §N17: 18 个系统路由重定向验证 |
+| 前端侧边栏     | `isAdmin                                      |                                   | isGuest` 条件渲染菜单组 | e2e §N13: normal user 看不到系统管理菜单 |
+| 后端 API       | `adminMiddleware` 拦截非 admin 请求           | e2e §N16+§N18: 15 个 API 403 验证 |
+
+### 5.4 安全边界测试套件
+
+v3.1.0 建立了 185 个三角色 e2e 测试，其中安全边界专项测试：
+
+| 测试套件                  | 测试数 | 验证内容                                                                            |
+| ------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| §N16 系统管理API拒绝      | 8      | normal user 对 audit/backup/users/config/webhook/digest/invitation/op-logs 返回 403 |
+| §N17 系统管理页面路由拒绝 | 14     | normal user 访问 14 个系统管理页面被重定向到首页                                    |
+| §N18 后端系统管理API拒绝  | 7      | normal user 对 settings/schema/import/hermes 写操作返回 403                         |
+| §A15 Admin正向验证        | 3      | admin 对 settings/schema/scan 仍返回 200                                            |
+| §G13 Guest密码菜单        | 1      | guest 看不到修改密码菜单项                                                          |
+| §G19 Guest系统API只读     | 5      | guest 读 settings=200，写 settings/schema/import/hermes=403                         |
+
+### 5.5 新增路由安全检查清单
+
+每次新增 Express 路由文件时，必须完成以下检查：
+
+```bash
+# 1. 检查写端点是否有 adminMiddleware
+grep -c "adminMiddleware\|requireAdmin\|adminOnly" <新路由文件>
+# 结果为 0 且有 POST/PUT/PATCH/DELETE → 必须修复
+
+# 2. 前端 App.tsx 对应路由是否加了 Guard
+grep "path=\"/<新路径>\"" apps/frontend-v2/src/App.tsx
+# 检查是否有 <AdminGuard> 或 <SuperAdminGuard> 包裹
+
+# 3. 侧边栏菜单是否条件渲染
+grep -A5 "新菜单名" apps/frontend-v2/src/layouts/AppLayout.tsx
+# 系统管理菜单组必须在 isAdmin || isGuest 条件内
+```
 
 ---
 
