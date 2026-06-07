@@ -109,20 +109,29 @@ function migrateSqlite(db: Database.Database): void {
       "progress_log",
       "audit_log",
       "wiki_articles",
+      "wiki_likes",
       "bug_reports",
       "help_requests",
-      "ticket_tabs",
+      "daily_report_entry",
       "support_node",
+      "support_template",
       "notifications",
+      "inbox_notifications",
       "webhook_subscriptions",
       "digest_config",
+      "llm_settings",
       "invitations",
       "op_logs",
       "app_settings",
+      "ticket_tabs",
       "ticket_tab_dynamic",
       "documents",
-      "inbox_notifications",
       "proposals",
+      "shared_links",
+      "shared_link_views",
+      "kg_outbox",
+      "welink_messages",
+      "welink_extractions",
     ];
     for (const table of saasTables) {
       try {
@@ -571,6 +580,72 @@ const POSTGRES_SCHEMA_DDL = `
     );
     CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id);
     CREATE INDEX IF NOT EXISTS idx_wiki_parent ON wiki_articles(parent_id);
+    CREATE TABLE IF NOT EXISTS wiki_likes (
+      article_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      PRIMARY KEY (article_id, username)
+    );
+    CREATE TABLE IF NOT EXISTS llm_settings (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL DEFAULT '',
+      base_url TEXT NOT NULL DEFAULT '',
+      api_key_encrypted TEXT NOT NULL DEFAULT '',
+      api_key_masked TEXT NOT NULL DEFAULT '',
+      default_model TEXT NOT NULL DEFAULT '',
+      small_model TEXT NOT NULL DEFAULT '',
+      thinking_mode TEXT NOT NULL DEFAULT 'disabled',
+      extra TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS digest_config (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      enabled INTEGER NOT NULL DEFAULT 0,
+      frequency TEXT NOT NULL DEFAULT 'daily',
+      recipients TEXT NOT NULL DEFAULT '[]',
+      subject_template TEXT NOT NULL DEFAULT '',
+      body_template TEXT NOT NULL DEFAULT '',
+      last_sent_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS shared_links (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_by TEXT NOT NULL DEFAULT '',
+      expires_at TEXT,
+      max_views INTEGER,
+      password TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS shared_link_views (
+      id TEXT PRIMARY KEY,
+      link_id TEXT NOT NULL REFERENCES shared_links(id),
+      ip_address TEXT,
+      user_agent TEXT,
+      viewed_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS kg_outbox (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      processed_at TEXT
+    );
     CREATE TABLE IF NOT EXISTS invitations (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL UNIQUE,
@@ -594,6 +669,17 @@ async function ensurePostgresSchema(pool: PgPool): Promise<void> {
     );
     if (rows.length === 0) {
       await client.query("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+    }
+    {
+      const wikiCols = [
+        ["is_locked", "INTEGER NOT NULL DEFAULT 0"],
+        ["lock_password", "TEXT DEFAULT NULL"],
+        ["likes", "INTEGER NOT NULL DEFAULT 0"],
+        ["tenant_id", "TEXT NOT NULL DEFAULT 'default'"],
+      ] as const;
+      for (const [col, def] of wikiCols) {
+        await client.query(`ALTER TABLE wiki_articles ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {});
+      }
     }
     {
       const saasTables = [

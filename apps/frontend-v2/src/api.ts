@@ -1808,6 +1808,10 @@ export class Api {
     return this.req("/api/platform/guest-access", { method: "POST" });
   }
 
+  switchTenant(tenantId: string): Promise<{ token: string; tenantId: string | null; tenantName: string }> {
+    return this.req(`/api/platform/switch-tenant/${tenantId}`, { method: "POST" });
+  }
+
   listPlatformAdmins(): Promise<
     { id: string; username: string; role: string; display_name: string; tenant_id: string }[]
   > {

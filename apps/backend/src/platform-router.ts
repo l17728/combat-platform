@@ -2,6 +2,7 @@ import { Router } from "express";
 import { TenantRepo, ensureTenantsTable, superAdminMiddleware } from "./tenant-middleware.js";
 import type { DbAdapter } from "./db-adapter.js";
 import { asyncHandler, log } from "./logger.js";
+import { signTenantToken, verifyAuth } from "./auth.js";
 
 export function makePlatformRouter(adapter: DbAdapter): Router {
   const router = Router();
@@ -185,6 +186,31 @@ export function makePlatformRouter(adapter: DbAdapter): Router {
       ]);
       log.info("platform.role_changed", { userId: req.params.id, from: user.role, to: role });
       res.json({ ok: true });
+    })
+  );
+
+  router.post(
+    "/platform/switch-tenant/:tenantId",
+    asyncHandler(async (req, res) => {
+      const payload = verifyAuth(req);
+      if (!payload) return res.status(401).json({ error: "未登录" });
+      if (payload.role !== "superadmin") return res.status(403).json({ error: "仅 SuperAdmin 可切换租户" });
+
+      const { tenantId } = req.params;
+
+      if (tenantId === "global") {
+        const token = signTenantToken(payload, null);
+        log.info("platform.switch_tenant", { from: payload.tenantId, to: "global", by: payload.username });
+        return res.json({ token, tenantId: null, tenantName: "全局视图" });
+      }
+
+      const tenant = await repo.getById(tenantId);
+      if (!tenant) return res.status(404).json({ error: "租户不存在" });
+      if (tenant.status === "suspended") return res.status(400).json({ error: "租户已暂停" });
+
+      const token = signTenantToken(payload, tenantId);
+      log.info("platform.switch_tenant", { from: payload.tenantId, to: tenantId, by: payload.username });
+      res.json({ token, tenantId, tenantName: tenant.name });
     })
   );
 

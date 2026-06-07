@@ -77,6 +77,11 @@ export function signServiceToken(): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY_ADMIN_DEFAULT });
 }
 
+export function signTenantToken(payload: JwtPayload, tenantId: string | null): string {
+  const newPayload: JwtPayload = { ...payload, tenantId: tenantId ?? undefined };
+  return jwt.sign(newPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY_ADMIN_DEFAULT });
+}
+
 function toUser(r: any): AuthUser {
   let tourCompleted: string[] = [];
   try {

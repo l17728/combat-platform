@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip } from "antd";
 import BreadcrumbBar from "../components/BreadcrumbBar.js";
@@ -51,6 +51,69 @@ import { ChangePasswordModal } from "../components/ChangePasswordModal.js";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+
+interface TenantItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+}
+
+function TenantSelector({
+  activeTenantId,
+  activeTenantName,
+  onSwitch,
+  token: themeToken,
+}: {
+  activeTenantId: string | null;
+  activeTenantName: string;
+  onSwitch: (tenantId: string) => Promise<void>;
+  token: { colorPrimary: string; colorBgContainer: string; colorBorderSecondary: string };
+}) {
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    api
+      .listTenants()
+      .then(setTenants)
+      .catch(() => {});
+  }, []);
+
+  const options = useMemo(
+    () => [
+      { value: "global", label: "🌐 全局视图" },
+      ...tenants.map((t) => ({
+        value: t.id,
+        label: t.status === "suspended" ? `${t.name} (已暂停)` : t.name,
+        disabled: t.status === "suspended",
+      })),
+    ],
+    [tenants]
+  );
+
+  const handleChange = async (value: string) => {
+    setSwitching(true);
+    try {
+      await onSwitch(value);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  return (
+    <Select
+      size="small"
+      value={activeTenantId ?? "global"}
+      onChange={handleChange}
+      loading={switching}
+      options={options}
+      style={{ minWidth: 140 }}
+      popupMatchSelectWidth={false}
+      suffixIcon={<CloudServerOutlined />}
+    />
+  );
+}
 
 function getSelectedKey(path: string): string {
   if (path.startsWith("/attack")) return "/attack";
@@ -125,7 +188,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
-  const { user, logout, isAdmin, isSuperAdmin, isGuest } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isGuest, activeTenantId, activeTenantName, switchTenant } = useAuth();
   const { isDark, toggleMode } = useThemeContext();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
@@ -235,9 +298,7 @@ export function AppLayout() {
               ...(isAdmin || isGuest ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
               ...(isAdmin || isGuest ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
               ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-              ...(isSuperAdmin || isGuest
-                ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }]
-                : []),
+              ...(isSuperAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
             ],
           },
         ]
@@ -322,6 +383,14 @@ export function AppLayout() {
             </span>
           </Space>
           <Space size="middle">
+            {isSuperAdmin && (
+              <TenantSelector
+                activeTenantId={activeTenantId}
+                activeTenantName={activeTenantName}
+                onSwitch={switchTenant}
+                token={token}
+              />
+            )}
             <Tooltip title={isDark ? "切换亮色" : "切换暗色"}>
               <span
                 onClick={toggleMode}
