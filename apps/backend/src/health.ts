@@ -6,11 +6,13 @@ import type { DB } from "./db.js";
 import type { DbAdapter } from "./db-adapter.js";
 
 function resolvePkgVersion(): string {
+  // 优先读环境变量（npm run 场景）
   if (process.env.npm_package_version) return process.env.npm_package_version;
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8"));
-    return pkg.version || "0.0.0";
+    // 从根 package.json 读取版本号（唯一来源）
+    const rootPkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf8"));
+    return rootPkg.version || "0.0.0";
   } catch {
     return "0.0.0";
   }

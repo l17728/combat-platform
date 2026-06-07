@@ -49,6 +49,16 @@ if [ $SKIP_BUILD -eq 0 ]; then
   echo "================================================================"
   echo "  2/5 build (shared dist + backend dist + frontend dist)"
   echo "================================================================"
+  ROOT_VER=$(node -p "require('./package.json').version")
+  node -e "
+    const fs = require('fs');
+    const v = '$ROOT_VER';
+    for (const f of ['apps/backend/package.json','apps/frontend-v2/package.json','packages/shared/package.json']) {
+      const p = require.resolve('./' + f);
+      const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (pkg.version !== v) { pkg.version = v; fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n'); console.log(f + ': ' + v); }
+    }
+  "
   npm run build --workspace=@combat/shared 2>&1 | tail -2
   npm run build --workspace=@combat/backend 2>&1 | tail -3 || echo "(backend build 可能无 build script,跳过)"
   npm run build --workspace=@combat/frontend-v2 2>&1 | tail -3
