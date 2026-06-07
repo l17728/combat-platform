@@ -4,9 +4,9 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
-## v3.1.0 — 2026-06-07 (权限安全全面加固)
+## v3.1.0 — 2026-06-07 (权限安全全面加固 + 架构归一化)
 
-本版对所有系统管理功能进行了权限边界审计和加固，修复 7 个权限安全问题，新增 42 个安全边界测试。
+本版对所有系统管理功能进行了权限边界审计和加固，修复 7 个权限安全问题，新增 42 个安全边界测试。同时完成版本号归一化和魔鬼数字提取。
 
 ### 🔒 权限边界修复
 
@@ -14,6 +14,12 @@ const HELP: Record<string, { title: string; content: string }> = {
 - **侧边栏菜单隔离** — 系统管理菜单仅 admin 和 guest 可见，normal user 不再看到入口
 - **后端 adminMiddleware** — settings、schema 写操作、import、hermes-tools 4 个路由文件全部补齐 adminMiddleware
 - **Guest 密码菜单隐藏** — 密码修改入口不再对 guest 角色显示
+
+### 🏗️ 架构归一化
+
+- **版本号单一来源** — 根 package.json 为唯一版本定义，health API 和构建产物自动同步，部署脚本自动对齐子包
+- **system-paths.ts 集中管理** — 系统路径、API 前缀、受保护节点类型、存储键名统一为单一来源
+- **魔法数字提取** — 密码长度、用户名范围、bcrypt rounds、JWT 过期时间、邀请码有效期等全部提取为 shared 常量（AUTH_CONSTRAINTS），前后端引用同一份定义
 
 ### 🐛 Bug 修复
 

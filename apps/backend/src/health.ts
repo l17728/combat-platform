@@ -10,9 +10,16 @@ function resolvePkgVersion(): string {
   if (process.env.npm_package_version) return process.env.npm_package_version;
   try {
     const __dirname = dirname(fileURLToPath(import.meta.url));
-    // 从根 package.json 读取版本号（唯一来源）
-    const rootPkg = JSON.parse(readFileSync(join(__dirname, "..", "..", "package.json"), "utf8"));
-    return rootPkg.version || "0.0.0";
+    // dist/apps/backend/dist → 需要回退到项目根
+    // 开发时: __dirname = apps/backend/dist → ../..  = 项目根
+    // 部署时: __dirname = apps/backend/dist → ../../.. = 项目根
+    for (const rel of ["../../package.json", "../../../package.json"]) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(__dirname, rel), "utf8"));
+        if (pkg.version && pkg.version !== "0.0.0") return pkg.version;
+      } catch {}
+    }
+    return "0.0.0";
   } catch {
     return "0.0.0";
   }
