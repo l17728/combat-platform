@@ -4,9 +4,9 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
-## v3.4.0 — 2026-06-08 (Guest 会话隔离)
+## v3.4.0 — 2026-06-08 (Guest 会话隔离 + 系统路径补全)
 
-修复多人同时使用 Guest 体验时,一人退出导致所有人掉线的严重问题。
+修复多人同时使用 Guest 体验时,一人退出导致所有人掉线的严重问题,并补全自定义命令和责任图谱的系统路径注册。
 
 ### 🛡️ 会话隔离
 
@@ -15,6 +15,12 @@ const HELP: Record<string, { title: string; content: string }> = {
 - **关闭标签页自动退出** — sessionStorage 随标签页关闭而销毁,无需手动退出
 - **刷新保持登录** — sessionStorage 在标签页生命周期内有效,刷新页面不丢登录状态
 - **普通用户不受影响** — Admin / Normal 用户仍使用 localStorage,行为完全不变
+
+### 🔧 系统路径补全
+
+- **自定义命令 + 责任图谱菜单焦点丢失** — 两个路径未注册到 getSelectedKey / getOpenKeysForPath 列表,点击后菜单高亮消失
+- **Guest 横幅缺失** — /commands 和 /responsibility 未加入系统路径列表,Guest 进入时无黄色提示条
+- **Guest 写操作未前端拦截** — API_SYSTEM_PREFIXES 和后端 GUEST_BLOCKED_PREFIXES 同步补齐
 
 ## v3.3.1 — 2026-06-08 (安全加固 + E2E 测试补全)
 
