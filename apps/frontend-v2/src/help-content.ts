@@ -4,6 +4,18 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v3.4.0 — 2026-06-08 (Guest 会话隔离)
+
+修复多人同时使用 Guest 体验时,一人退出导致所有人掉线的严重问题。
+
+### 🛡️ 会话隔离
+
+- **Guest token 迁至 sessionStorage** — 每个浏览器标签页拥有独立的 sessionStorage,Guest 体验的认证令牌不再共享
+- **一人退出不再影响他人** — Guest A 在标签页 1 点退出,仅清空该标签页的 sessionStorage,标签页 2 的 Guest B 完全不受影响
+- **关闭标签页自动退出** — sessionStorage 随标签页关闭而销毁,无需手动退出
+- **刷新保持登录** — sessionStorage 在标签页生命周期内有效,刷新页面不丢登录状态
+- **普通用户不受影响** — Admin / Normal 用户仍使用 localStorage,行为完全不变
+
 ## v3.3.1 — 2026-06-08 (安全加固 + E2E 测试补全)
 
 本版修复 v3.3.0 新增路由缺少权限守卫的安全漏洞，并补全 6 个功能模块的 Playwright E2E 测试（38 条）。

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
 import { api, setAuthToken, getStoredUser, setStoredUser, type AuthUser } from "../api.js";
+import { isGuestSession, SESSION_KEYS } from "../system-paths.js";
 
 const ACTIVE_TENANT_KEY = "activeTenant";
 
@@ -10,6 +11,8 @@ interface ActiveTenant {
 
 function getStoredTenant(): ActiveTenant {
   try {
+    const sessionRaw = sessionStorage.getItem(SESSION_KEYS.TENANT);
+    if (sessionRaw) return JSON.parse(sessionRaw);
     const raw = localStorage.getItem(ACTIVE_TENANT_KEY);
     return raw ? JSON.parse(raw) : { tenantId: null, tenantName: "全局视图" };
   } catch {
@@ -18,9 +21,13 @@ function getStoredTenant(): ActiveTenant {
 }
 
 function setStoredTenant(t: ActiveTenant | null) {
+  const guest = isGuestSession();
+  const store = guest ? sessionStorage : localStorage;
+  const key = guest ? SESSION_KEYS.TENANT : ACTIVE_TENANT_KEY;
   if (t) {
-    localStorage.setItem(ACTIVE_TENANT_KEY, JSON.stringify(t));
+    store.setItem(key, JSON.stringify(t));
   } else {
+    sessionStorage.removeItem(SESSION_KEYS.TENANT);
     localStorage.removeItem(ACTIVE_TENANT_KEY);
   }
 }
@@ -68,11 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [activeTenant, setActiveTenant] = useState<ActiveTenant>(getStoredTenant);
 
   useEffect(() => {
+    const guest = isGuestSession();
     api
       .getMe()
       .then((res) => {
         setUser(res.user);
-        setStoredUser(res.user);
+        setStoredUser(res.user, guest);
         setPasswordMustChange(!!res.passwordMustChange);
       })
       .catch(() => {

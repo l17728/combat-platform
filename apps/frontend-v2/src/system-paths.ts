@@ -91,3 +91,27 @@ export const STORAGE_KEYS = {
   ROLE: "combat-role",
   THEME: "combat-theme",
 } as const;
+
+/**
+ * sessionStorage 键名 — guest 专用（每个标签页独立，互不干扰）
+ *
+ * guest token 存 sessionStorage → 关标签即退出、不影响同浏览器其他标签页
+ * 普通用户继续用 localStorage → 跨标签页共享、刷新保持登录
+ */
+export const SESSION_KEYS = {
+  TOKEN: "combat-session-token",
+  USER: "combat-session-user",
+  ROLE: "combat-session-role",
+  TENANT: "combat-session-tenant",
+} as const;
+
+/**
+ * 判断当前 sessionStorage 中是否有 guest token（快速检测当前 tab 是否为 guest 会话）
+ */
+export function isGuestSession(): boolean {
+  try {
+    return !!sessionStorage.getItem(SESSION_KEYS.TOKEN);
+  } catch {
+    return false;
+  }
+}

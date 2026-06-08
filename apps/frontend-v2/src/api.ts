@@ -29,7 +29,7 @@ import type {
   OncallCurrentRow,
   UiSpec,
 } from "@combat/shared";
-import { isApiSystemPath, STORAGE_KEYS } from "./system-paths.js";
+import { isApiSystemPath, STORAGE_KEYS, SESSION_KEYS, isGuestSession } from "./system-paths.js";
 
 // §v2.3.4 LLM settings DTOs
 export type LlmThinkingMode = "disabled" | "enabled" | "auto";
@@ -378,6 +378,8 @@ export class Api {
 
   private getToken(): string | null {
     try {
+      const sessionToken = sessionStorage.getItem(SESSION_KEYS.TOKEN);
+      if (sessionToken) return sessionToken;
       return localStorage.getItem(STORAGE_KEYS.TOKEN);
     } catch {
       return null;
@@ -2031,16 +2033,21 @@ export interface Tenant {
 
 export const api = new Api("");
 
-export function setAuthToken(token: string | null) {
+export function setAuthToken(token: string | null, guest = false) {
+  const store = guest ? sessionStorage : localStorage;
+  const key = guest ? SESSION_KEYS.TOKEN : STORAGE_KEYS.TOKEN;
   if (token) {
-    localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+    store.setItem(key, token);
   } else {
+    sessionStorage.removeItem(SESSION_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
   }
 }
 
 export function getStoredUser(): AuthUser | null {
   try {
+    const sessionRaw = sessionStorage.getItem(SESSION_KEYS.USER);
+    if (sessionRaw) return JSON.parse(sessionRaw);
     const raw = localStorage.getItem(STORAGE_KEYS.USER);
     return raw ? JSON.parse(raw) : null;
   } catch {
@@ -2050,6 +2057,7 @@ export function getStoredUser(): AuthUser | null {
 
 function isGuestFromToken(): boolean {
   try {
+    if (isGuestSession()) return true;
     const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
     if (!token) return false;
     const payload = JSON.parse(atob(token.split(".")[1]));
@@ -2063,11 +2071,16 @@ function isGuestSystemPath(path: string): boolean {
   return isApiSystemPath(path);
 }
 
-export function setStoredUser(user: AuthUser | null) {
+export function setStoredUser(user: AuthUser | null, guest = false) {
   if (user) {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-    localStorage.setItem(STORAGE_KEYS.ROLE, user.role);
+    const store = guest ? sessionStorage : localStorage;
+    const userKey = guest ? SESSION_KEYS.USER : STORAGE_KEYS.USER;
+    const roleKey = guest ? SESSION_KEYS.ROLE : STORAGE_KEYS.ROLE;
+    store.setItem(userKey, JSON.stringify(user));
+    store.setItem(roleKey, user.role);
   } else {
+    sessionStorage.removeItem(SESSION_KEYS.USER);
+    sessionStorage.removeItem(SESSION_KEYS.ROLE);
     localStorage.removeItem(STORAGE_KEYS.USER);
     localStorage.removeItem(STORAGE_KEYS.ROLE);
   }

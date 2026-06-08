@@ -62,7 +62,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const result = await api.guestAccess();
-      setAuthToken(result.token);
+      setAuthToken(result.token, true);
       window.location.href = "/";
     } catch (e) {
       handleApiError(e, "体验入口暂时不可用");
