@@ -1912,7 +1912,17 @@ export class Api {
     return this.req<OncallCurrentRow[]>(`/api/oncall/current${qs}`);
   }
 
-  getResponsibilityDiagram(): Promise<{ mermaid: string; nodeCount: number; edgeCount: number }> {
+  getResponsibilityDiagram(): Promise<{
+    mermaid: string;
+    nodeCount: number;
+    edgeCount: number;
+    totalTickets: number;
+    totalPersons: number;
+    totalConflicts: number;
+    escalationRules: { level: string; slaHours: number; role: string; ticketCount: number }[];
+    personLoads: { personId: string; name: string; assignedCount: number; escalatedCount: number; conflictCount: number }[];
+    conflictTop: { ticketA: string; ticketAId: string; ticketB: string; ticketBId: string }[];
+  }> {
     return this.req("/api/responsibility/diagram");
   }
 

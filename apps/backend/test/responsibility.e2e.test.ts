@@ -10,7 +10,6 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-/** Make a test app with the responsibility router + escalation router (for config setup) */
 function make() {
   const dir = mkdtempSync(join(tmpdir(), "combat-resp-"));
   const repo = new SqliteRepository(new SqliteAdapter(openDb(join(dir, "t.sqlite"))));
@@ -22,24 +21,29 @@ function make() {
 }
 
 describe("责任矩阵 Mermaid 图 e2e", () => {
-  it("空数据库 — 返回 { mermaid, nodeCount, edgeCount } 结构，默认包含升级配置", async () => {
+  it("空数据库 — 返回完整结构体，默认包含升级配置", async () => {
     const { app } = make();
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
     expect(typeof res.body.mermaid).toBe("string");
     expect(typeof res.body.nodeCount).toBe("number");
     expect(typeof res.body.edgeCount).toBe("number");
-    // mermaid string must start with flowchart
+    expect(typeof res.body.totalTickets).toBe("number");
+    expect(typeof res.body.totalPersons).toBe("number");
+    expect(typeof res.body.totalConflicts).toBe("number");
+    expect(Array.isArray(res.body.escalationRules)).toBe(true);
+    expect(Array.isArray(res.body.personLoads)).toBe(true);
+    expect(Array.isArray(res.body.conflictTop)).toBe(true);
     expect(res.body.mermaid.trim()).toMatch(/^flowchart TD/);
-    // default escalation rules always produce edges (P1, P2, P3, P4A = 4 rules)
     expect(res.body.edgeCount).toBeGreaterThanOrEqual(4);
-    // nodeCount includes both level nodes and role nodes
     expect(res.body.nodeCount).toBeGreaterThanOrEqual(2);
+    expect(res.body.totalTickets).toBe(0);
+    expect(res.body.totalPersons).toBe(0);
+    expect(res.body.escalationRules.length).toBeGreaterThanOrEqual(4);
   });
 
   it("自定义升级配置 — 图中包含对应 SLA 标签和角色节点", async () => {
     const { app } = make();
-    // Set a custom escalation config with unique role name
     await request(app)
       .put("/api/escalation/config")
       .send({
@@ -52,71 +56,67 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
     const mermaid: string = res.body.mermaid;
-    // Should mention the custom role
     expect(mermaid).toContain("超级值班员");
-    // Should show SLA hours
     expect(mermaid).toContain("SLA 1h");
     expect(mermaid).toContain("SLA 6h");
-    // Arrows for each rule (2 rules = 2 edges)
     expect(res.body.edgeCount).toBe(2);
-    // P1 node, P2 node, 超级值班员 node (both rules share same role node)
     expect(res.body.nodeCount).toBe(3);
   });
 
-  it("ASSIGNED_TO 边 — 图中展示人员负责攻关单的关系", async () => {
+  it("ASSIGNED_TO 边 — 人员负载表含分配数，概览图含人员节点", async () => {
     const { app, repo } = make();
-    // Create a person node and a ticket node, then link via ASSIGNED_TO edge
     const person = await repo.createNode("person", { 姓名: "张三", 角色: "攻关" }, "test");
     const ticket = await repo.createNode("attackTicket", { 标题: "攻关单001", 状态: "进行中" }, "test");
     await repo.createEdge("分配", ticket.id, person.id, { role: "owner" }, "test");
 
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
-    const mermaid: string = res.body.mermaid;
-    // Person name should appear
-    expect(mermaid).toContain("张三");
-    // Ticket title should appear
-    expect(mermaid).toContain("攻关单001");
-    // "负责" label should appear
-    expect(mermaid).toContain("负责");
+    expect(res.body.mermaid).toContain("张三");
+    expect(res.body.personLoads.length).toBe(1);
+    expect(res.body.personLoads[0].name).toBe("张三");
+    expect(res.body.personLoads[0].assignedCount).toBe(1);
+    expect(res.body.totalTickets).toBe(1);
+    expect(res.body.totalPersons).toBe(1);
   });
 
-  it("CONFLICTS_WITH 边 — 展示为虚线箭头（-.->）且含 '冲突' 标签", async () => {
+  it("CONFLICTS_WITH 边 — 冲突计数 > 0，conflictTop 含冲突对", async () => {
     const { app, repo } = make();
-    // Create two attack tickets
     const t1 = await repo.createNode("attackTicket", { 标题: "冲突单A", 状态: "进行中" }, "test");
     const t2 = await repo.createNode("attackTicket", { 标题: "冲突单B", 状态: "待响应" }, "test");
     await repo.createEdge("冲突", t1.id, t2.id, { reason: "人员重叠" }, "test");
 
     const res = await request(app).get("/api/responsibility/diagram");
     expect(res.status).toBe(200);
-    const mermaid: string = res.body.mermaid;
-    // Dashed line syntax
-    expect(mermaid).toContain('-.->|"冲突"|');
-    // Both ticket titles should appear
-    expect(mermaid).toContain("冲突单A");
-    expect(mermaid).toContain("冲突单B");
+    expect(res.body.totalConflicts).toBe(1);
+    expect(res.body.conflictTop.length).toBe(1);
+    const pair = res.body.conflictTop[0];
+    const titles = [pair.ticketA, pair.ticketB].sort();
+    expect(titles).toContain("冲突单A");
+    expect(titles).toContain("冲突单B");
   });
 
-  it("ESCALATED_TO 边出现在责任矩阵中", async () => {
+  it("ESCALATED_TO 边 — 人员负载表含上报数", async () => {
     const { app, repo } = make();
     const ticket = await repo.createNode("attackTicket", { 标题: "网络故障", 状态: "处理中" }, "test");
     const person = await repo.createNode("person", { 姓名: "运维李四" }, "test");
     await repo.createEdge("上报", ticket.id, person.id, {}, "test");
     const r = await request(app).get("/api/responsibility/diagram");
     expect(r.status).toBe(200);
-    expect(r.body.mermaid).toContain("运维李四");
+    expect(r.body.personLoads.some((p: { name: string }) => p.name === "运维李四")).toBe(true);
   });
 
-  it("超长标题被截断并含省略号", async () => {
+  it("超长标题在冲突对中被截断并含省略号", async () => {
     const { app, repo } = make();
     const longTitle = "这是一个超过二十个字符的非常非常长的攻关单标题用于测试截断逻辑";
     const ticket = await repo.createNode("attackTicket", { 标题: longTitle, 状态: "处理中" }, "test");
+    const ticket2 = await repo.createNode("attackTicket", { 标题: "短标题", 状态: "处理中" }, "test");
     const person = await repo.createNode("person", { 姓名: "负责人甲" }, "test");
     await repo.createEdge("分配", ticket.id, person.id, { role: "owner" }, "test");
+    await repo.createEdge("冲突", ticket.id, ticket2.id, {}, "test");
     const r = await request(app).get("/api/responsibility/diagram");
-    expect(r.body.mermaid).toContain("…");
-    expect(r.body.mermaid).not.toContain(longTitle);
+    const conflictText = JSON.stringify(r.body.conflictTop);
+    expect(conflictText).toContain("…");
+    expect(conflictText).not.toContain(longTitle);
   });
 
   it("空规则配置时返回正常", async () => {
@@ -126,5 +126,8 @@ describe("责任矩阵 Mermaid 图 e2e", () => {
     expect(r.status).toBe(200);
     expect(r.body).toHaveProperty("mermaid");
     expect(r.body).toHaveProperty("nodeCount");
+    expect(r.body).toHaveProperty("totalTickets");
+    expect(r.body).toHaveProperty("escalationRules");
+    expect(r.body.escalationRules).toEqual([]);
   });
 });
