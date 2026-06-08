@@ -145,6 +145,8 @@ function getSelectedKey(path: string): string {
       "/system-upgrade",
       "/notifications",
       "/platform",
+      "/commands",
+      "/responsibility",
     ].includes(path)
   )
     return path;
@@ -176,6 +178,8 @@ function getOpenKeysForPath(path: string): string[] {
       "/system-upgrade",
       "/notifications",
       "/platform",
+      "/commands",
+      "/responsibility",
     ].includes(path)
   )
     return ["system"];

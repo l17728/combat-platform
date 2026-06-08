@@ -37,6 +37,8 @@ export const SYSTEM_PATH_PREFIXES: readonly string[] = [
   "/users",
   "/platform",
   "/notifications",
+  "/commands",
+  "/responsibility",
 ];
 
 export function isSystemPath(pathname: string): boolean {
@@ -64,6 +66,8 @@ export const API_SYSTEM_PREFIXES: readonly string[] = [
   "/api/notifications",
   "/api/kg-outbox",
   "/api/metrics",
+  "/api/commands",
+  "/api/responsibility",
 ];
 
 export function isApiSystemPath(apiPath: string): boolean {

@@ -272,6 +272,8 @@ const GUEST_BLOCKED_PREFIXES = [
   "/config",
   "/notifications",
   "/metrics",
+  "/commands",
+  "/responsibility",
   "/auth/register",
   "/auth/user",
 ];
