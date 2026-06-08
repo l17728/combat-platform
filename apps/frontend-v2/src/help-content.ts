@@ -6,13 +6,13 @@ const HELP: Record<string, { title: string; content: string }> = {
 
 ## v3.3.1 — 2026-06-08 (安全加固 + E2E 测试补全)
 
-本版修复 v3.3.0 新增路由缺少 `adminMiddleware` 的安全漏洞，并补全 6 个功能模块的 Playwright E2E 测试（38 条）。
+本版修复 v3.3.0 新增路由缺少权限守卫的安全漏洞，并补全 6 个功能模块的 Playwright E2E 测试（38 条）。
 
 ### 🔒 安全修复
 
-- **custom-commands 路由** — POST / DELETE / run 三个写端点补齐 `adminMiddleware`，非管理员无法创建/删除/执行命令
-- **ui-cache 路由** — POST / PATCH / DELETE 三个写端点补齐 `adminMiddleware`，非管理员无法置顶/重命名/取消置顶
-- **relations 路由** — POST / DELETE 两个写端点补齐 `adminMiddleware`，非管理员无法创建/删除手动关联
+- **自定义命令路由** — POST / DELETE / run 三个写端点补齐权限校验，非管理员无法创建/删除/执行命令
+- **UI 缓存路由** — POST / PATCH / DELETE 三个写端点补齐权限校验，非管理员无法置顶/重命名/取消置顶
+- **手动关联路由** — POST / DELETE 两个写端点补齐权限校验，非管理员无法创建/删除手动关联
 
 ### 🧪 E2E 测试补全
 
