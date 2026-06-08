@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import type { Repository, CustomCommand } from "@combat/shared";
 import { COMMANDS, parseArgs } from "./cli-core.js";
+import { adminMiddleware } from "./auth.js";
 import { log } from "./logger.js";
 
 const KEY = "customCommands";
@@ -34,7 +35,7 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
 
   r.get("/commands", async (_req, res) => res.json(await load(repo)));
 
-  r.post("/commands", async (req, res) => {
+  r.post("/commands", adminMiddleware, async (req, res) => {
     const name = String(req.body?.name ?? "").trim();
     const template = String(req.body?.template ?? "").trim();
     const description = req.body?.description != null ? String(req.body.description) : undefined;
@@ -64,7 +65,7 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     res.status(201).json(cmd);
   });
 
-  r.delete("/commands/:id", async (req, res) => {
+  r.delete("/commands/:id", adminMiddleware, async (req, res) => {
     const list = await load(repo);
     const idx = list.findIndex((c) => c.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: "命令不存在" });
@@ -80,7 +81,7 @@ export function makeCustomCommandsRouter(repo: Repository): Router {
     res.json({ ok: true });
   });
 
-  r.post("/commands/:id/run", async (req, res) => {
+  r.post("/commands/:id/run", adminMiddleware, async (req, res) => {
     const cmd = (await load(repo)).find((c) => c.id === req.params.id);
     if (!cmd) return res.status(404).json({ error: "命令不存在" });
     const args = (req.body?.args ?? {}) as Record<string, unknown>;

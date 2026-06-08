@@ -496,6 +496,7 @@ test.describe('Navigation Smoke — 全页面导航', () => {
     '/attack', '/import', '/schema', '/backup', '/config',
     '/email', '/llm-settings', '/digest', '/merge', '/op-log',
     '/webhooks', '/invitations', '/audit', '/platform',
+    '/commands', '/responsibility',
   ];
 
   test('admin: 所有主要页面导航无 500 错误', async ({ page }) => {

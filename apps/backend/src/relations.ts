@@ -1,5 +1,6 @@
 import { Router } from "express";
 import type { Repository, ManualLinkView, GraphNode } from "@combat/shared";
+import { adminMiddleware } from "./auth.js";
 
 const MANUAL_EDGE = "处理";
 
@@ -37,7 +38,7 @@ export function makeRelationsRouter(repo: Repository): Router {
   const r = Router();
 
   // create a manual annotated link between two specific records (任意语义, 不依赖 schema)
-  r.post("/relations/manual", async (req, res) => {
+  r.post("/relations/manual", adminMiddleware, async (req, res) => {
     const sourceId = String(req.body?.sourceId ?? "");
     const targetId = String(req.body?.targetId ?? "");
     const reason = String(req.body?.reason ?? "").trim();
@@ -58,7 +59,7 @@ export function makeRelationsRouter(repo: Repository): Router {
     res.json(await listManualLinks(repo, nodeId));
   });
 
-  r.delete("/relations/manual/:edgeId", async (req, res) => {
+  r.delete("/relations/manual/:edgeId", adminMiddleware, async (req, res) => {
     const ok = await repo.deleteEdgeById(req.params.edgeId, "ui");
     if (!ok) return res.status(404).json({ error: "关联不存在" });
     res.json({ ok: true });
