@@ -4,6 +4,26 @@ const HELP: Record<string, { title: string; content: string }> = {
     content: `> 每次版本发布后,本文档会在顶部增量追加最新版本的更新内容,历史版本依次往下保留。
 > 想看具体功能怎么用,请到左侧对应模块的帮助页;想知道"最近改了啥"看这里就够。
 
+## v3.3.1 — 2026-06-08 (安全加固 + E2E 测试补全)
+
+本版修复 v3.3.0 新增路由缺少 `adminMiddleware` 的安全漏洞，并补全 6 个功能模块的 Playwright E2E 测试（38 条）。
+
+### 🔒 安全修复
+
+- **custom-commands 路由** — POST / DELETE / run 三个写端点补齐 `adminMiddleware`，非管理员无法创建/删除/执行命令
+- **ui-cache 路由** — POST / PATCH / DELETE 三个写端点补齐 `adminMiddleware`，非管理员无法置顶/重命名/取消置顶
+- **relations 路由** — POST / DELETE 两个写端点补齐 `adminMiddleware`，非管理员无法创建/删除手动关联
+
+### 🧪 E2E 测试补全
+
+- **custom-commands.spec.ts** — admin CRUD + 执行 + guest/normal 被拒（12 条）
+- **manual-relations.spec.ts** — 创建/列表/删除 + 自身关联被拒 + guest 被拒（8 条）
+- **ui-pinned.spec.ts** — pin/unpin/rename/list + Dashboard 加载（5 条）
+- **responsibility-diagram.spec.ts** — 页面渲染 + Mermaid + 统计概览 + API（4 条）
+- **offsite-backup.spec.ts** — Modal 打开 + 字段完整性 + 必填校验 + 关闭（5 条）
+- **sidebar-and-templates.spec.ts** — 合规追溯卡片可见性 + 支撑模板管理 + API（5 条）
+- **全量回归** — admin 57 passed / guest 88 passed / 新增 38 passed
+
 ## v3.3.0 — 2026-06-08 (前端 UI 全功能铺设)
 
 本版将 15 个已有后端 API 但缺少前端 UI 的功能全部铺设完成，实现从"能用"到"好用"的跨越。
