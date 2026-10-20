@@ -6,6 +6,7 @@ import {
   SwapOutlined,
   NodeIndexOutlined,
   MessageOutlined,
+  BookOutlined,
 } from "@ant-design/icons";
 import { message } from "antd";
 import type { FormInstance } from "antd";
@@ -20,6 +21,7 @@ import AttackDailyReportTab from "./AttackDailyReportTab.js";
 import AttackSupportNetworkTab from "./AttackSupportNetworkTab.js";
 import DynamicLinkTab from "../../components/DynamicLinkTab.js";
 import DynamicCustomTab from "../../components/DynamicCustomTab.js";
+import WikiPanel from "../../components/WikiPanel.js";
 import WelinkTab from "../WelinkTab.js";
 
 export interface BuildTabItemsArgs {
@@ -67,10 +69,15 @@ export interface BuildTabItemsArgs {
   handleDeleteSupportNode: (nodeId: string) => Promise<void> | void;
   selectSupportPerson: (name: string | null | undefined) => Promise<void> | void;
   handleApplyTemplate: (templateId: string) => Promise<void> | void;
+  refetchSupportNodes: () => Promise<void>;
 
   // dynamic tabs
   dynamicTabs: TicketTab[];
   setDynamicTabs: React.Dispatch<React.SetStateAction<TicketTab[]>>;
+
+  // inline field add
+  onSchemaRefresh?: () => void;
+  allFieldNames?: string[];
 }
 
 export function buildAllTabItems(a: BuildTabItemsArgs) {
@@ -88,6 +95,8 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           basicFields={a.basicFields}
           hiddenBasicFields={a.hiddenBasicFields}
           onHiddenChange={a.setHiddenBasicFields}
+          onSchemaRefresh={a.onSchemaRefresh}
+          allFieldNames={a.allFieldNames}
         />
       ),
     },
@@ -209,6 +218,7 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           onDeleteNode={a.handleDeleteSupportNode}
           onSelectPerson={a.selectSupportPerson}
           onApplyTemplate={a.handleApplyTemplate}
+          refetchSupportNodes={a.refetchSupportNodes}
         />
       ),
     },
@@ -217,8 +227,9 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
   const dynamicTabItems = a.dynamicTabs.map((tab) => ({
     key: tab.id,
     label: (
-      <span style={tab.tabType === "custom" && tab.title === "信息广场" ? { color: "#999" } : undefined}>
-        {tab.tabType === "link" ? <LinkOutlined /> : <FileTextOutlined />} {tab.title}
+      <span>
+        {tab.tabType === "link" ? <LinkOutlined /> : tab.tabType === "wiki" ? <BookOutlined /> : <FileTextOutlined />}{" "}
+        {tab.title}
       </span>
     ),
     closable: true,
@@ -229,6 +240,8 @@ export function buildAllTabItems(a: BuildTabItemsArgs) {
           tab={tab}
           onDeleted={(tid) => a.setDynamicTabs((prev) => prev.filter((t) => t.id !== tid))}
         />
+      ) : tab.tabType === "wiki" ? (
+        <WikiPanel scope="ticket" scopeId={a.id} />
       ) : (
         <DynamicCustomTab
           ticketId={a.id}

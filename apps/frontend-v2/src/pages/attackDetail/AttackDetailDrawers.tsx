@@ -34,7 +34,7 @@ export interface AttackDetailDrawersProps {
   emailGroups: GraphNode[];
   personOptions: { value: string; label: string }[];
   /**
-   * v2.6: 编辑抽屉的字段全部 schema 驱动。
+   * v2.3.4: 编辑抽屉的字段全部 schema 驱动。
    * 这里收到的是「可在通用编辑抽屉里渲染的字段」(已剔除 specialControl/system/retired)。
    * 攻关组长/攻关成员/成员列表/私密 等 specialControl 字段不在此列表里 — 它们由专用 UI 维护。
    */
@@ -125,7 +125,7 @@ export default function AttackDetailDrawers(p: AttackDetailDrawersProps) {
       >
         <Form form={p.editForm} layout="vertical" onFinish={p.onEditSubmit}>
           {/*
-            v2.6: 编辑抽屉 schema 驱动 —
+            v2.3.4: 编辑抽屉 schema 驱动 —
             字段、分组、顺序、必填、校验都来自 FieldSchema(SchemaWizard 维护)。
             specialControl='member-multi/member-leader/private-grants/system' 等字段在父组件
             过滤后不会出现在 editableFields,它们由「成员管理」Tab + 「设置私密」Drawer 维护。

@@ -34,16 +34,16 @@ describe("§34 KG full rebuild e2e", () => {
       当前处理人: "乙",
       问题单号: PB,
     });
-    const refBefore = (await repo.queryEdges({ edgeType: "REF" })).length;
-    const anchorBefore = (await repo.queryEdges({ edgeType: "ANCHORED_TO" })).length;
+    const refBefore = (await repo.queryEdges({ edgeType: "分配" })).length;
+    const anchorBefore = (await repo.queryEdges({ edgeType: "关联" })).length;
     expect(refBefore).toBeGreaterThan(0);
     expect(anchorBefore).toBeGreaterThan(0);
 
     // simulate drift: drop every REF edge from the table
-    for (const e of await repo.queryEdges({ edgeType: "REF" })) {
-      await repo.deleteEdges({ sourceId: e.sourceId, edgeType: "REF" }, "test");
+    for (const e of await repo.queryEdges({ edgeType: "分配" })) {
+      await repo.deleteEdges({ sourceId: e.sourceId, edgeType: "分配" }, "test");
     }
-    expect((await repo.queryEdges({ edgeType: "REF" })).length).toBe(0);
+    expect((await repo.queryEdges({ edgeType: "分配" })).length).toBe(0);
 
     const r = await request(app).post("/api/kg/rebuild").send({});
     expect(r.status).toBe(200);
@@ -87,11 +87,11 @@ describe("§34 KG full rebuild e2e", () => {
       当前处理人: "丙",
     });
     // wipe all conflict edges manually
-    await repo.deleteEdges({ edgeType: "CONFLICTS_WITH" }, "test");
-    expect((await repo.queryEdges({ edgeType: "CONFLICTS_WITH" })).length).toBe(0);
+    await repo.deleteEdges({ edgeType: "冲突" }, "test");
+    expect((await repo.queryEdges({ edgeType: "冲突" })).length).toBe(0);
     const r = await request(app).post("/api/kg/rebuild").send({});
     expect(r.body.conflicts).toBeGreaterThanOrEqual(1);
-    expect((await repo.queryEdges({ edgeType: "CONFLICTS_WITH" })).length).toBeGreaterThan(0);
+    expect((await repo.queryEdges({ edgeType: "冲突" })).length).toBeGreaterThan(0);
   });
 
   it("rebuild result shape matches RebuildKGResult contract", async () => {

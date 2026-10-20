@@ -27,7 +27,7 @@ export type FieldOp =
   | { op: "setConcept"; id: string; concept: string }
   | { op: "setAnchor"; id: string; anchor: string }
   | { op: "setOptionsKey"; id: string; optionsKey: string | null }
-  // v2.6: Schema-as-UI — group/order/visible/defaultValue/validation
+  // v2.3.4: Schema-as-UI — group/order/visible/defaultValue/validation
   | {
       op: "updateField";
       id: string;

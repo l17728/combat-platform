@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, existsSync, createReadStream, unlinkSync } fr
 import { join } from "node:path";
 import type { DbAdapter } from "./db-adapter.js";
 import { log, asyncHandler } from "./logger.js";
+import { tid } from "./repository.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -44,7 +45,8 @@ function ensureTable(adapter: DbAdapter) {
       size INTEGER,
       url TEXT,
       uploaded_by TEXT,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      tenant_id TEXT NOT NULL DEFAULT 'default'
     );
     CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
   `);
@@ -57,7 +59,9 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
   r.get(
     "/documents",
     asyncHandler(async (_req, res) => {
-      const rows = await adapter.query<any>("SELECT * FROM documents ORDER BY created_at DESC");
+      const rows = await adapter.query<any>("SELECT * FROM documents WHERE tenant_id=? ORDER BY created_at DESC", [
+        tid(),
+      ]);
       res.json(rows.map(toDoc));
     })
   );
@@ -78,12 +82,12 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
       const storedName = `${id}__${original}`;
       writeFileSync(join(uploadDir(), storedName), req.file.buffer);
       await adapter.run(
-        `INSERT INTO documents (id, name, type, filename, original_name, mimetype, size, url, uploaded_by, created_at)
-         VALUES (?, ?, 'file', ?, ?, ?, ?, NULL, ?, ?)`,
-        [id, name, storedName, original, req.file.mimetype, req.file.size, req.body?.uploadedBy ?? null, now]
+        `INSERT INTO documents (id, name, type, filename, original_name, mimetype, size, url, uploaded_by, created_at, tenant_id)
+         VALUES (?, ?, 'file', ?, ?, ?, ?, NULL, ?, ?, ?)`,
+        [id, name, storedName, original, req.file.mimetype, req.file.size, req.body?.uploadedBy ?? null, now, tid()]
       );
       log.info("document.upload", { id, name, size: req.file.size });
-      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=? AND tenant_id=?", [id, tid()]);
       res.status(201).json(toDoc(row));
     })
   );
@@ -96,12 +100,12 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
       const id = randomUUID();
       const now = new Date().toISOString();
       await adapter.run(
-        `INSERT INTO documents (id, name, type, url, uploaded_by, created_at)
-       VALUES (?, ?, 'link', ?, ?, ?)`,
-        [id, name, url, uploadedBy ?? null, now]
+        `INSERT INTO documents (id, name, type, url, uploaded_by, created_at, tenant_id)
+       VALUES (?, ?, 'link', ?, ?, ?, ?)`,
+        [id, name, url, uploadedBy ?? null, now, tid()]
       );
       log.info("document.add_link", { id, name });
-      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=? AND tenant_id=?", [id, tid()]);
       res.status(201).json(toDoc(row));
     })
   );
@@ -110,7 +114,10 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
   r.get(
     "/documents/:id/download",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到文档" });
       if (row.type === "link") return res.redirect(row.url);
       const fp = join(uploadDir(), row.filename);
@@ -127,7 +134,10 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
   r.delete(
     "/documents/:id",
     asyncHandler(async (req, res) => {
-      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=?", [req.params.id]);
+      const row = await adapter.queryOne<any>("SELECT * FROM documents WHERE id=? AND tenant_id=?", [
+        req.params.id,
+        tid(),
+      ]);
       if (!row) return res.status(404).json({ error: "未找到文档" });
       if (row.type === "file" && row.filename) {
         try {
@@ -136,7 +146,7 @@ export function makeDocumentRouter(adapter: DbAdapter): Router {
           /* file may be gone */
         }
       }
-      await adapter.run("DELETE FROM documents WHERE id=?", [req.params.id]);
+      await adapter.run("DELETE FROM documents WHERE id=? AND tenant_id=?", [req.params.id, tid()]);
       log.info("document.delete", { id: req.params.id });
       res.json({ ok: true });
     })

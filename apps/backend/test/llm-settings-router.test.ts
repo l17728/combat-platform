@@ -1,5 +1,5 @@
 /**
- * §v2.6 — LlmSettings router e2e
+ * §v2.3.4 — LlmSettings router e2e
  *
  * 覆盖:
  *  GET /api/llm-settings
@@ -229,8 +229,8 @@ describe("llm-settings router", () => {
     });
   });
 
-  // §v2.7: env-fallback for /test when DB has no row but env has creds
-  describe("POST /api/llm-settings/test — env fallback (v2.7)", () => {
+  // §v2.3.5: env-fallback for /test when DB has no row but env has creds
+  describe("POST /api/llm-settings/test — env fallback (v2.3.5)", () => {
     const ENV_KEYS = ["HERMES_LLM_BASE_URL", "HERMES_LLM_API_KEY", "HERMES_MODEL"] as const;
     let savedEnv: Record<string, string | undefined> = {};
     beforeEach(() => {
@@ -306,8 +306,8 @@ describe("llm-settings router", () => {
     });
   });
 
-  // §v2.7: GET /api/llm-settings/models — proxy to provider /models endpoint
-  describe("GET /api/llm-settings/models (v2.7)", () => {
+  // §v2.3.5: GET /api/llm-settings/models — proxy to provider /models endpoint
+  describe("GET /api/llm-settings/models (v2.3.5)", () => {
     const ENV_KEYS = ["HERMES_LLM_BASE_URL", "HERMES_LLM_API_KEY"] as const;
     let savedEnv: Record<string, string | undefined> = {};
     beforeEach(() => {

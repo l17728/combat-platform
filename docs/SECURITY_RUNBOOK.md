@@ -1,6 +1,6 @@
 # 安全运营手册 (Security Runbook)
 
-> 适用范围: combat-platform v2.2+ (P0 + P1 安全加固落地后)。
+> 适用范围: combat-platform v3.0+ (P0 + P1 安全加固 + SaaS 多租户 + Guest 只读防护落地后)。
 > 现网部署目标: `124.156.193.122` ,详见 [CLAUDE.md → Deployment](../CLAUDE.md#deployment)。
 
 本手册面向运营和事故响应,覆盖三类问题:**日常预防 / 异常监测 / 入侵响应**。
@@ -152,7 +152,135 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 
 ---
 
-## 4. 测试 / 部署期常见疑问
+## 4. Guest 只读防护（v3.0.1+）
+
+### 4.1 三层防护架构
+
+Guest（游客）用户可浏览所有页面（含系统管理），但**不能执行任何写操作**。防护分三层：
+
+| 层       | 位置                   | 机制                                              | 效果                                                  |
+| -------- | ---------------------- | ------------------------------------------------- | ----------------------------------------------------- |
+| 后端     | `tenant-middleware.ts` | `guestReadOnlyMiddleware` 拦截非 GET + 写语义 GET | 返回 403                                              |
+| 前端 API | `api.ts`               | `req()` 方法检测 `isGuest`，非 GET 直接拦截       | 弹 toast 提示                                         |
+| 前端组件 | `useGuestGuard.ts`     | 每个 write handler 包裹 `guard()`                 | 点击按钮弹出 "游客参观期间，请勿触动控制面板，谢谢！" |
+
+### 4.2 写语义 GET 路径
+
+部分 GET 请求实际会产生副作用（导出数据、下载备份），通过 `GUEST_WRITE_SEMANTIC_GET_TESTS` 数组定义：
+
+```typescript
+const GUEST_WRITE_SEMANTIC_GET_TESTS = [
+  (path: string) => path.match(/\/api\/export\//) !== null, // 数据导出
+  (path: string) => path.match(/\/api\/backup$/) !== null, // 备份下载
+];
+```
+
+### 4.3 验证方法
+
+```bash
+# Guest 创建节点应返回 403
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  -X POST http://localhost:3001/api/nodes/attackTicket \
+  -H "Content-Type: application/json" -d '{"标题":"test"}'
+# 预期: 403
+
+# Guest 导出数据应返回 403
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  http://localhost:3001/api/export/attackTicket
+# 预期: 403
+
+# Guest 读取仪表盘应返回 200
+curl -s -w '%{http_code}' -H "Authorization: Bearer <guest_token>" \
+  http://localhost:3001/api/dashboard
+# 预期: 200
+```
+
+### 4.4 SuperAdmin 角色
+
+- 默认 admin 用户在启动时由 `ensureSuperAdmin()` 自动提升为 `superadmin` 角色
+- SuperAdmin 独占 `/api/platform/*` 平台管理 API
+- 前端通过 `SuperAdminGuard` 组件控制「平台管理」菜单可见性
+- JWT payload 中 `role: "superadmin"`，与普通 `admin` 区分
+
+---
+
+## 5. Normal User 权限边界（v3.1.0+）
+
+### 5.1 三角色权限矩阵
+
+| 资源                                          | Admin              | Normal User           | Guest             |
+| --------------------------------------------- | ------------------ | --------------------- | ----------------- |
+| 业务 CRUD（攻关单/人员/贡献）                 | ✅ 全部            | ✅ 自己创建的可删     | ✅ 自己创建的可删 |
+| 系统管理页面（/settings, /schema 等）         | ✅ 可见可操作      | ❌ 不可见、路由重定向 | 👁 可见但只读     |
+| 系统管理 API（/api/settings, /api/schema 等） | ✅ 200             | ❌ 403                | GET=200, 写=403   |
+| 平台管理（/platform）                         | ✅ superadmin only | ❌                    | ❌                |
+| AI 助手（/api/hermes/ask）                    | ✅                 | ✅                    | ✅                |
+| AI 工具直接调用（/api/hermes/tool/\*）        | ✅                 | ❌ 403                | ❌ 403            |
+
+### 5.2 adminMiddleware 覆盖清单
+
+所有系统管理路由均有 `adminMiddleware` 保护（v3.1.0 全面审计确认）：
+
+| 路由文件                        | 保护方式                                  | 覆盖端点                                                                          |
+| ------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `app.ts` 挂载                   | `app.use("/api/<path>", adminMiddleware)` | audit, upgrade, merge, op-logs, backup, proposals, reminders, email, llm-settings |
+| `settings.ts`                   | 路由级 `adminMiddleware`                  | GET/PUT/DELETE /settings                                                          |
+| `schema-api.ts`                 | 路由级 `adminMiddleware`                  | POST /schema/nodeType, DELETE /schema/nodeType/:type                              |
+| `routes.ts`                     | 路由级 `adminMiddleware`                  | POST /schema/scan, PATCH /schema/:type                                            |
+| `import.ts`                     | 路由级 `adminMiddleware`                  | POST /import                                                                      |
+| `hermes-tools-router.ts`        | 路由级 `adminMiddleware`                  | POST /hermes/tool/:name                                                           |
+| `auth.ts` (makeUserAdminRouter) | 函数内 `requireAdmin()`                   | GET/POST/PATCH/DELETE /users                                                      |
+| `webhook-router.ts`             | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `digest-router.ts`              | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `invitation-router.ts`          | 路由级 `adminMiddleware`                  | 全部 CRUD                                                                         |
+| `upgrade.ts`                    | 内部 `adminOnly()`                        | 全部端点                                                                          |
+| `db-migration.ts`               | 内部 `adminOnly()`                        | 全部端点                                                                          |
+| `platform-router.ts`            | `superAdminMiddleware`                    | 全部端点                                                                          |
+
+### 5.3 前端三层一致性验证
+
+权限一致性要求三层对齐，任何一层缺失都可能导致安全问题：
+
+| 层             | 机制                                          | 验证方式                          |
+| -------------- | --------------------------------------------- | --------------------------------- | ----------------------- | ---------------------------------------- |
+| 前端路由 Guard | `AdminGuard`/`SuperAdminGuard` 包裹 `<Route>` | e2e §N17: 18 个系统路由重定向验证 |
+| 前端侧边栏     | `isAdmin                                      |                                   | isGuest` 条件渲染菜单组 | e2e §N13: normal user 看不到系统管理菜单 |
+| 后端 API       | `adminMiddleware` 拦截非 admin 请求           | e2e §N16+§N18: 15 个 API 403 验证 |
+
+### 5.4 安全边界测试套件
+
+v3.1.0 建立了 185 个三角色 e2e 测试，其中安全边界专项测试：
+
+| 测试套件                  | 测试数 | 验证内容                                                                            |
+| ------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| §N16 系统管理API拒绝      | 8      | normal user 对 audit/backup/users/config/webhook/digest/invitation/op-logs 返回 403 |
+| §N17 系统管理页面路由拒绝 | 14     | normal user 访问 14 个系统管理页面被重定向到首页                                    |
+| §N18 后端系统管理API拒绝  | 7      | normal user 对 settings/schema/import/hermes 写操作返回 403                         |
+| §A15 Admin正向验证        | 3      | admin 对 settings/schema/scan 仍返回 200                                            |
+| §G13 Guest密码菜单        | 1      | guest 看不到修改密码菜单项                                                          |
+| §G19 Guest系统API只读     | 5      | guest 读 settings=200，写 settings/schema/import/hermes=403                         |
+
+### 5.5 新增路由安全检查清单
+
+每次新增 Express 路由文件时，必须完成以下检查：
+
+```bash
+# 1. 检查写端点是否有 adminMiddleware
+grep -c "adminMiddleware\|requireAdmin\|adminOnly" <新路由文件>
+# 结果为 0 且有 POST/PUT/PATCH/DELETE → 必须修复
+
+# 2. 前端 App.tsx 对应路由是否加了 Guard
+grep "path=\"/<新路径>\"" apps/frontend-v2/src/App.tsx
+# 检查是否有 <AdminGuard> 或 <SuperAdminGuard> 包裹
+
+# 3. 侧边栏菜单是否条件渲染
+grep -A5 "新菜单名" apps/frontend-v2/src/layouts/AppLayout.tsx
+# 系统管理菜单组必须在 isAdmin || isGuest 条件内
+```
+
+---
+
+## 5. 测试 / 部署期常见疑问
 
 - **Q: COMBAT_NO_AUTH 何时使用?** A: 只在本机 e2e (`playwright.config.ts` webServer env);生产 systemd Unit 必须不含此变量。
 - **Q: JWT_SECRET 多久轮换一次?** A: 至少一年一次;凡是怀疑泄露立即轮换。轮换会让所有用户 logout 重登。
@@ -162,28 +290,33 @@ scp root@124.156.193.122:/tmp/forensic-*.tar.gz ./
 
 ---
 
-## 5. 相关代码定位
+## 6. 相关代码定位
 
-| 模块                 | 文件                                      | 备注                                 |
-| -------------------- | ----------------------------------------- | ------------------------------------ |
-| JWT 启动校验         | `apps/backend/src/auth.ts:17`             | resolveJwtSecret                     |
-| 默认密强制改密       | `apps/backend/src/auth.ts:123`            | login 返回 passwordMustChange        |
-| 全局/登录 rate-limit | `apps/backend/src/app.ts`                 | helmet + express-rate-limit          |
-| CSRF 同源校验        | `apps/backend/src/csrf.ts`                | Origin/Referer 校验                  |
-| 私密单全集过滤       | `apps/backend/src/private-tickets.ts`     | list/export/audit/dashboard 复用     |
-| SMTP 加密            | `apps/backend/src/crypto.ts`, `email.ts`  | AES-256-GCM + 启动期迁移             |
-| audit actor 强制     | `apps/backend/src/repository.ts:logAudit` | req.user 优先于调用方传字符串        |
-| 路由 actor helper    | `apps/backend/src/routes.ts:actorOf`      | 统一 req.user.username \|\| fallback |
-| Audit Merkle 链      | `apps/backend/src/audit-chain.ts`         | computeAuditHash + verifyAuditChain  |
+| 模块                    | 文件                                                  | 备注                                                     |
+| ----------------------- | ----------------------------------------------------- | -------------------------------------------------------- |
+| JWT 启动校验            | `apps/backend/src/auth.ts:17`                         | resolveJwtSecret                                         |
+| 默认密强制改密          | `apps/backend/src/auth.ts:123`                        | login 返回 passwordMustChange                            |
+| 全局/登录 rate-limit    | `apps/backend/src/app.ts`                             | helmet + express-rate-limit                              |
+| CSRF 同源校验           | `apps/backend/src/csrf.ts`                            | Origin/Referer 校验                                      |
+| 私密单全集过滤          | `apps/backend/src/private-tickets.ts`                 | list/export/audit/dashboard 复用                         |
+| SMTP 加密               | `apps/backend/src/crypto.ts`, `email.ts`              | AES-256-GCM + 启动期迁移                                 |
+| audit actor 强制        | `apps/backend/src/repository.ts:logAudit`             | req.user 优先于调用方传字符串                            |
+| 路由 actor helper       | `apps/backend/src/routes.ts:actorOf`                  | 统一 req.user.username \|\| fallback                     |
+| Audit Merkle 链         | `apps/backend/src/audit-chain.ts`                     | computeAuditHash + verifyAuditChain                      |
+| Guest 只读中间件        | `apps/backend/src/tenant-middleware.ts`               | guestReadOnlyMiddleware + GUEST_WRITE_SEMANTIC_GET_TESTS |
+| SuperAdmin auto-promote | `apps/backend/src/auth.ts`                            | ensureSuperAdmin() 启动时自动提升                        |
+| 前端 Guest 拦截器       | `apps/frontend-v2/src/api.ts`                         | req() 方法 isGuest 预拦截 + toast                        |
+| 前端 useGuestGuard      | `apps/frontend-v2/src/hooks/useGuestGuard.ts`         | 组件级事件拦截 hook                                      |
+| 前端 SuperAdmin 守卫    | `apps/frontend-v2/src/components/SuperAdminGuard.tsx` | isSuperAdmin 检查                                        |
 
 ---
 
-## 6. Audit 完整性校验 (Merkle Chain)
+## 7. Audit 完整性校验 (Merkle Chain)
 
 ### 6.1 背景
 
 audit_log 是单纯 append-only 在 SQLite 文件级保护(只有 root/admin 能直接动 DB)。
-但只要文件被改,审计 = 不可信。v2.4+ 引入 **Merkle 链**:每条 audit row 携带
+但只要文件被改,审计 = 不可信。v2.3.1+ 引入 **Merkle 链**:每条 audit row 携带
 `prev_hash` 和 `hash` 两列;链中任何一条被改/删,verifyAuditChain 立刻能定位断点。
 
 Hash 计算公式:
@@ -218,7 +351,7 @@ ssh root@124.156.193.122 'COMBAT_API=http://localhost:3001 curl -s http://localh
 
 ### 6.4 已知边界
 
-- v2.4 升级前的历史 audit 行 `prev_hash=''`, `hash=''`(默认值)。verify 会从首条新行
-  开始检查;若需补链,需停机重写所有旧行(待 v2.5)
+- v2.3.1 升级前的历史 audit 行 `prev_hash=''`, `hash=''`(默认值)。verify 会从首条新行
+  开始检查;若需补链,需停机重写所有旧行(待 v2.3.3)
 - COMBAT_NO_AUTH=1 模式下任何客户端都能写 audit,但 hash 仍然按 actor=req.user 计算 —
   伪造 actor 不会通过链校验(因为后端拒绝从 body 取 actor,详见 §3 audit actor 强制)

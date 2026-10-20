@@ -9,7 +9,7 @@ import { FileSchemaRegistry } from "../src/registry.js";
 import { createApp } from "../src/app.js";
 import { SqliteAdapter } from "../src/db-adapter.js";
 
-// v2.7: 虚拟 schema(helpRequest/bugReport/proposal/reminder) — 用于 UI 渲染,
+// v2.3.5: 虚拟 schema(helpRequest/bugReport/proposal/reminder) — 用于 UI 渲染,
 // 但生成 /api/nodes/:nodeType CRUD 时必须被拒绝。它们的数据存在自己的表里。
 
 function makeAppWithVirtual() {
@@ -58,7 +58,7 @@ function makeAppWithVirtual() {
   return { app, registry };
 }
 
-describe("virtual schema gating (v2.7)", () => {
+describe("virtual schema gating (v2.3.5)", () => {
   it("/api/schema/list returns virtual schemas with virtual:true", async () => {
     const { app } = makeAppWithVirtual();
     const r = await request(app).get("/api/schema/list");

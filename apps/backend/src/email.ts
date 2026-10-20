@@ -24,7 +24,7 @@ const EMPTY_MASK: SmtpConfigMasked = {
   passwordSet: false,
 };
 
-async function readConfig(repo: Repository): Promise<SmtpConfig | null> {
+export async function readConfig(repo: Repository): Promise<SmtpConfig | null> {
   const raw = await repo.getSetting("smtp");
   if (!raw) return null;
   try {

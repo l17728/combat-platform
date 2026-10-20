@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { makeTestApp } from "./helpers.js";
 
-describe("PATCH /api/schema updateField (v2.6 schema-as-UI)", () => {
+describe("PATCH /api/schema updateField (v2.3.4 schema-as-UI)", () => {
   it("sets group and order on an existing field", async () => {
     const { app } = await makeTestApp();
     const r = await request(app)

@@ -1,11 +1,19 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip } from "antd";
-import { RobotOutlined, SendOutlined, UserOutlined, CloseOutlined, DragOutlined } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { FloatButton, Input, Button, Spin, Empty, Tag, Typography, Space, Tooltip, Drawer, theme, message } from "antd";
+import {
+  RobotOutlined,
+  SendOutlined,
+  UserOutlined,
+  CloseOutlined,
+  DragOutlined,
+  PlusOutlined,
+  PushpinOutlined,
+} from "@ant-design/icons";
+import MarkdownRenderer from "./MarkdownRenderer.js";
 import { api } from "../api.js";
 import type { HermesTraceStep } from "../api.js";
+import type { UiSpec } from "@combat/shared";
 import { useDraggable } from "../hooks/useDraggable.js";
 import ToolTrace from "./ToolTrace.js";
 
@@ -27,12 +35,11 @@ interface Msg {
   trace?: HermesTraceStep[];
   engine?: "tool" | "intent";
   fallbackReason?: string;
+  uiSpec?: UiSpec;
+  question?: string;
+  intent?: string;
 }
 
-/**
- * 可复用浮动 AI 问答。底层即 /hermes/ask(与攻关详情 AI 助手同一能力):
- * agent 开启时为 opencode 知识图谱问答,否则规则引擎;返回答案 + 可点击溯源引用。
- */
 export default function HermesChat({
   title = "AI 问答",
   placeholder = "基于知识库提问,如:PB-xxx 谁负责 / 最近的攻关单 / 某人贡献了什么",
@@ -40,44 +47,63 @@ export default function HermesChat({
   context,
   greeting,
   testId,
+  floating = true,
+  scope,
 }: {
   title?: string;
   placeholder?: string;
   bottom?: number;
-  /** 透传给 /hermes/ask 的上下文(如"当前攻关单 id=xxx") */
   context?: string;
-  /** 浮窗打开时由 AI 先发一条欢迎/提示语,可作场景 4 的 gap-analysis 入口 */
   greeting?: string;
-  /** Playwright 选择器 */
   testId?: string;
+  floating?: boolean;
+  scope?: string;
 }) {
   const navigate = useNavigate();
+  const { token: themeToken } = theme.useToken();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  // 用户是否处于"贴底"状态。仅当贴底时自动滚动,避免 AI 思考期间用户上滑读历史被强行拽回底部
-  // —— 与浏览器 overflow-anchor 相互争抢正是滚动条上下抖动的根因。
+  const bottomRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const scrollRafRef = useRef(0);
 
-  // 用户手动滚动时实时更新"是否贴底"标记;阈值 24px 容忍亚像素抖动
   const handleScroll = () => {
     const el = listRef.current;
     if (!el) return;
     stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
   };
 
-  // 仅当用户处于贴底状态时才自动滚动;loading 不再触发滚动(Spin 提示自身不需要 reflow 滚动)
-  useEffect(() => {
-    if (!stickToBottomRef.current) return;
-    const el = listRef.current;
-    if (!el) return;
-    const raf = requestAnimationFrame(() => {
-      el.scrollTop = el.scrollHeight;
+  const doScrollToBottom = useCallback(() => {
+    cancelAnimationFrame(scrollRafRef.current);
+    scrollRafRef.current = requestAnimationFrame(() => {
+      if (!stickToBottomRef.current) return;
+      bottomRef.current?.scrollIntoView({ behavior: "instant" });
     });
-    return () => cancelAnimationFrame(raf);
-  }, [msgs]);
+  }, []);
+
+  useEffect(() => {
+    if (msgs.length > 0) doScrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgs]); // 只在消息列表变化时滚动，不含 loading — 避免 Spin 动画期间触发抖动
+
+  useEffect(() => {
+    return () => cancelAnimationFrame(scrollRafRef.current);
+  }, []);
+
+  const ensureSession = async (): Promise<string | undefined> => {
+    if (sessionId) return sessionId;
+    try {
+      const s = await api.hermesCreateSession();
+      setSessionId(s.id);
+      return s.id;
+    } catch {
+      return undefined;
+    }
+  };
 
   const ask = async (raw?: string) => {
     const question = (raw ?? q).trim();
@@ -86,7 +112,8 @@ export default function HermesChat({
     setQ("");
     setLoading(true);
     try {
-      const res = await api.hermesAsk(question, context);
+      const sid = await ensureSession();
+      const res = await api.hermesAsk(question, context, sid ?? undefined, scope);
       setMsgs((m) => [
         ...m,
         {
@@ -96,6 +123,9 @@ export default function HermesChat({
           trace: res.trace,
           engine: res.engine,
           fallbackReason: res.fallback_reason,
+          uiSpec: res.uiSpec as UiSpec | undefined,
+          question: res.question,
+          intent: res.intent,
         },
       ]);
     } catch (e) {
@@ -105,19 +135,200 @@ export default function HermesChat({
     }
   };
 
-  // 打开浮窗后,若提供了 greeting 且尚无消息,主动追加一条 assistant 欢迎语
+  const startNewSession = () => {
+    setSessionId(null);
+    setMsgs([]);
+  };
+
   useEffect(() => {
     if (open && greeting && msgs.length === 0) {
       setMsgs([{ role: "assistant", text: greeting }]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, greeting]);
+  }, [open, greeting, msgs.length]);
 
   const initial = {
     x: typeof window !== "undefined" ? Math.max(0, window.innerWidth - 464) : 100,
     y: typeof window !== "undefined" ? Math.max(80, window.innerHeight - 560) : 100,
   };
   const { pos, onMouseDown } = useDraggable(initial);
+
+  const messageList = (
+    <div
+      ref={listRef}
+      onScroll={handleScroll}
+      data-testid="hermes-chat-list"
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        marginBottom: 12,
+        overflowAnchor: "none",
+        contain: "layout",
+      }}
+    >
+      {msgs.length === 0 && !loading && (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="向 AI 提问,基于知识库作答并给出可点击的来源" />
+      )}
+      {msgs.map((m, i) => (
+        <div
+          key={i}
+          style={{
+            marginBottom: 12,
+            display: "flex",
+            justifyContent: m.role === "user" ? "flex-end" : "flex-start",
+          }}
+        >
+          <div
+            style={{
+              maxWidth: "86%",
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: m.role === "user" ? "#1677ff" : "#f5f5f5",
+              color: m.role === "user" ? "#fff" : "inherit",
+            }}
+          >
+            {m.role === "assistant" ? (
+              <>
+                <div className="markdown-body" style={{ fontSize: 13 }}>
+                  <MarkdownRenderer>{m.text}</MarkdownRenderer>
+                </div>
+                {((m.trace && m.trace.length > 0) || m.fallbackReason) && (
+                  <ToolTrace trace={m.trace || []} engine={m.engine} fallbackReason={m.fallbackReason} />
+                )}
+                {m.citations && m.citations.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      来源:
+                    </Text>{" "}
+                    <Space size={[4, 4]} wrap>
+                      {m.citations.map((c) => {
+                        const isWelink = c.kind === "welink";
+                        return (
+                          <Tooltip
+                            key={c.nodeId}
+                            title={isWelink ? "点击跳转到该群消息(将自动滚动并高亮)" : "点击跳转到该节点详情"}
+                          >
+                            <Tag
+                              color={isWelink ? "geekblue" : "blue"}
+                              style={{ cursor: "pointer", margin: 0 }}
+                              data-testid={isWelink ? "hermes-welink-citation" : "hermes-node-citation"}
+                              data-welink-msg-id={c.messageId}
+                              onClick={() => {
+                                setOpen(false);
+                                navigate(c.link);
+                              }}
+                            >
+                              {isWelink ? "群消息 · " : ""}
+                              {c.summary}
+                            </Tag>
+                          </Tooltip>
+                        );
+                      })}
+                    </Space>
+                  </div>
+                )}
+                {m.uiSpec && (
+                  <div style={{ marginTop: 6 }}>
+                    <Button
+                      size="small"
+                      type="text"
+                      icon={<PushpinOutlined />}
+                      onClick={async () => {
+                        try {
+                          await api.pinWidget({
+                            label: m.text.slice(0, 40),
+                            question: m.question,
+                            intent: m.intent,
+                            uiSpec: m.uiSpec!,
+                          });
+                          message.success("已置顶到首页");
+                        } catch {
+                          message.error("置顶失败");
+                        }
+                      }}
+                    >
+                      置顶到首页
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <span>
+                <UserOutlined style={{ marginRight: 4 }} />
+                {m.text}
+              </span>
+            )}
+          </div>
+        </div>
+      ))}
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#999", fontSize: 13 }}>
+          <Spin size="small" /> AI 正在分析知识库…(深度问答可能需要一会儿)
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </div>
+  );
+
+  const inputArea = (
+    <>
+      <Input.TextArea
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={placeholder}
+        autoSize={{ minRows: 2, maxRows: 4 }}
+        onPressEnter={(e) => {
+          if (!e.shiftKey) {
+            e.preventDefault();
+            void ask();
+          }
+        }}
+        disabled={loading}
+      />
+      <Button
+        type="primary"
+        icon={<SendOutlined />}
+        block
+        style={{ marginTop: 8 }}
+        loading={loading}
+        onClick={() => void ask()}
+      >
+        提问
+      </Button>
+    </>
+  );
+
+  if (!floating) {
+    return (
+      <>
+        <Button icon={<RobotOutlined />} onClick={() => setOpen(true)} data-testid={testId}>
+          {title}
+        </Button>
+        <Drawer
+          title={
+            <Space>
+              <RobotOutlined style={{ color: "#1677ff" }} />
+              <span>{title}</span>
+            </Space>
+          }
+          extra={
+            <Tooltip title="新对话">
+              <Button type="text" size="small" icon={<PlusOutlined />} onClick={startNewSession} />
+            </Tooltip>
+          }
+          placement="right"
+          open={open}
+          onClose={() => setOpen(false)}
+          width={460}
+          styles={{
+            body: { padding: 12, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" },
+          }}
+        >
+          {messageList}
+          {inputArea}
+        </Drawer>
+      </>
+    );
+  }
 
   return (
     <>
@@ -137,7 +348,7 @@ export default function HermesChat({
             top: pos.y,
             width: 440,
             maxHeight: "80vh",
-            background: "#fff",
+            background: themeToken.colorBgContainer,
             borderRadius: 8,
             boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
             zIndex: 1100,
@@ -166,123 +377,16 @@ export default function HermesChat({
               <RobotOutlined style={{ color: "#1677ff" }} />
               <Text strong>{title}</Text>
             </Space>
-            <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+            <Space size={4}>
+              <Tooltip title="新对话">
+                <Button type="text" size="small" icon={<PlusOutlined />} onClick={startNewSession} />
+              </Tooltip>
+              <Button type="text" size="small" icon={<CloseOutlined />} onClick={() => setOpen(false)} />
+            </Space>
           </div>
           <div style={{ padding: 12, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div
-              ref={listRef}
-              onScroll={handleScroll}
-              data-testid="hermes-chat-list"
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                marginBottom: 12,
-                // overflowAnchor:none 关闭浏览器滚动锚定,避免它与我们的自动滚动相互争抢导致上下抖动
-                overflowAnchor: "none",
-                // contain:layout 让回答区高度变化不影响外层布局,降低 reflow 引起的抖动
-                contain: "layout",
-              }}
-            >
-              {msgs.length === 0 && !loading && (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="向 AI 提问,基于知识库作答并给出可点击的来源" />
-              )}
-              {msgs.map((m, i) => (
-                <div
-                  key={i}
-                  style={{
-                    marginBottom: 12,
-                    display: "flex",
-                    justifyContent: m.role === "user" ? "flex-end" : "flex-start",
-                  }}
-                >
-                  <div
-                    style={{
-                      maxWidth: "86%",
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      background: m.role === "user" ? "#1677ff" : "#f5f5f5",
-                      color: m.role === "user" ? "#fff" : "inherit",
-                    }}
-                  >
-                    {m.role === "assistant" ? (
-                      <>
-                        <div className="markdown-body" style={{ fontSize: 13 }}>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
-                        </div>
-                        {((m.trace && m.trace.length > 0) || m.fallbackReason) && (
-                          <ToolTrace trace={m.trace || []} engine={m.engine} fallbackReason={m.fallbackReason} />
-                        )}
-                        {m.citations && m.citations.length > 0 && (
-                          <div style={{ marginTop: 6 }}>
-                            <Text type="secondary" style={{ fontSize: 11 }}>
-                              来源:
-                            </Text>{" "}
-                            <Space size={[4, 4]} wrap>
-                              {m.citations.map((c) => {
-                                const isWelink = c.kind === "welink";
-                                return (
-                                  <Tooltip
-                                    key={c.nodeId}
-                                    title={isWelink ? "点击跳转到该群消息(将自动滚动并高亮)" : "点击跳转到该节点详情"}
-                                  >
-                                    <Tag
-                                      color={isWelink ? "geekblue" : "blue"}
-                                      style={{ cursor: "pointer", margin: 0 }}
-                                      data-testid={isWelink ? "hermes-welink-citation" : "hermes-node-citation"}
-                                      data-welink-msg-id={c.messageId}
-                                      onClick={() => {
-                                        setOpen(false);
-                                        navigate(c.link);
-                                      }}
-                                    >
-                                      {isWelink ? "群消息 · " : ""}
-                                      {c.summary}
-                                    </Tag>
-                                  </Tooltip>
-                                );
-                              })}
-                            </Space>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <span>
-                        <UserOutlined style={{ marginRight: 4 }} />
-                        {m.text}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {loading && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#999", fontSize: 13 }}>
-                  <Spin size="small" /> AI 正在分析知识库…(深度问答可能需要一会儿)
-                </div>
-              )}
-            </div>
-            <Input.TextArea
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={placeholder}
-              autoSize={{ minRows: 2, maxRows: 4 }}
-              onPressEnter={(e) => {
-                if (!e.shiftKey) {
-                  e.preventDefault();
-                  void ask();
-                }
-              }}
-              disabled={loading}
-            />
-            <Button
-              type="primary"
-              icon={<SendOutlined />}
-              block
-              style={{ marginTop: 8 }}
-              loading={loading}
-              onClick={() => void ask()}
-            >
-              提问
-            </Button>
+            {messageList}
+            {inputArea}
           </div>
         </div>
       )}

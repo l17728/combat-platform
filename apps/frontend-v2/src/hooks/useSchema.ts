@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { NodeSchema, FieldSchema } from "@combat/shared";
 import { api } from "../api.js";
 
-// v2.7: Schema 缓存 hook —— 所有 schema-driven 详情/抽屉共用。
+// v2.3.5: Schema 缓存 hook —— 所有 schema-driven 详情/抽屉共用。
 // 与 useSettings 同款单例 + TTL + in-flight 去重模式,避免 N 处页面各自 fetch /api/schema/list。
 
 type SchemaList = NodeSchema[];

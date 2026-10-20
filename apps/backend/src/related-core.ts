@@ -8,7 +8,7 @@ export async function buildRelated(
   incoming: RelatedItem[];
   coAnchored: CoAnchoredItem[];
 }> {
-  const isRel = (t: string) => t === "REF" || t === "ANCHORED_TO";
+  const isRel = (t: string) => t === "分配" || t === "关联";
   const outgoingEdges = (await repo.queryEdges({ sourceId: id })).filter((e) => isRel(e.edgeType));
   const outgoing: RelatedItem[] = [];
   for (const e of outgoingEdges) {
@@ -32,10 +32,10 @@ export async function buildRelated(
       });
   }
   const coAnchored: CoAnchoredItem[] = [];
-  for (const e of await repo.queryEdges({ sourceId: id, edgeType: "ANCHORED_TO" })) {
+  for (const e of await repo.queryEdges({ sourceId: id, edgeType: "关联" })) {
     const anchor = await repo.getNode(e.targetId);
     if (!anchor) continue;
-    for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })) {
+    for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "关联" })) {
       if (back.sourceId === id) continue;
       const peer = await repo.getNode(back.sourceId);
       if (peer)
@@ -66,14 +66,14 @@ export async function buildExpanded(repo: Repository, rootId: string, maxDepth: 
     if (cur.depth >= maxDepth) continue;
     // outgoing REF + ANCHORED_TO → target node
     for (const e of await repo.queryEdges({ sourceId: cur.id })) {
-      if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
+      if (e.edgeType !== "分配" && e.edgeType !== "关联") continue;
       if (visited.has(e.targetId)) continue;
       const target = await repo.getNode(e.targetId);
       if (!target) continue;
       visited.add(target.id);
       const nextDepth = cur.depth + 1;
       // anchors are transparent: traverse through them but do NOT emit
-      if (e.edgeType !== "ANCHORED_TO") {
+      if (e.edgeType !== "关联") {
         out.push({
           node: target,
           depth: nextDepth,
@@ -87,7 +87,7 @@ export async function buildExpanded(repo: Repository, rootId: string, maxDepth: 
     }
     // incoming REF + ANCHORED_TO → source node
     for (const e of await repo.queryEdges({ targetId: cur.id })) {
-      if (e.edgeType !== "REF" && e.edgeType !== "ANCHORED_TO") continue;
+      if (e.edgeType !== "分配" && e.edgeType !== "关联") continue;
       if (visited.has(e.sourceId)) continue;
       const source = await repo.getNode(e.sourceId);
       if (!source) continue;

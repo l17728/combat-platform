@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { Row, Col, Card, Menu, Typography } from "antd";
 import type { MenuProps } from "antd";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-// P0-5: 移除 rehype-raw。手册内容虽为代码内静态资源(非用户输入),但统一禁用
-// 原始 HTML 渲染遵循 review 建议「所有 markdown 渲染禁止页面级直接引用 rehypeRaw」。
+import MarkdownRenderer from "../components/MarkdownRenderer.js";
+// P0-5: 不引入 rehype-raw。MarkdownRenderer 通过 components.code 拦截 mermaid,安全。
 import HELP from "../help-content.js";
 
 const { Title } = Typography;
@@ -15,8 +13,10 @@ const OUTLINE: { group: string; keys: string[] }[] = [
   { group: "攻关管理", keys: ["attackList", "attackDetail", "dailyReport"] },
   { group: "人员与荣誉", keys: ["peopleList", "contributions", "honor", "personHonor"] },
   { group: "协作与文档", keys: ["helpCenter", "documentCenter"] },
+  { group: "共享功能", keys: ["sharing"] },
   { group: "审核与提醒", keys: ["proposals", "reminders"] },
   { group: "检索与关联", keys: ["search", "relatedPage"] },
+  { group: "SaaS 多租户", keys: ["saasPlatform"] },
   {
     group: "系统管理",
     keys: [
@@ -77,7 +77,7 @@ export default function ManualCenter() {
                 }}
               />
               <div className="markdown-body">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{entry.content}</ReactMarkdown>
+                <MarkdownRenderer>{entry.content}</MarkdownRenderer>
               </div>
             </Card>
           )}

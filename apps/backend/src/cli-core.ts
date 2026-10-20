@@ -455,13 +455,13 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "hermes:tools",
-    summary: "列出 Hermes 通用工具集 (v2.5)",
+    summary: "列出 Hermes 通用工具集 (v2.3.3)",
     usage: "hermes:tools",
     build: () => ({ method: "GET", path: "/api/hermes/tools" }),
   },
   {
     name: "hermes:tool",
-    summary: "调用 Hermes 工具 (v2.5);--input 为 JSON 入参",
+    summary: "调用 Hermes 工具 (v2.3.3);--input 为 JSON 入参",
     usage: "hermes:tool <toolName> --input '<json>'",
     build: (pos, opts) => {
       requirePos(pos, 1, "hermes:tool <toolName> --input '<json>'");
@@ -568,7 +568,7 @@ export const COMMANDS: CliCommand[] = [
     }),
   },
 
-  // ---- LLM 配置 (§v2.6) — admin only ----
+  // ---- LLM 配置 (§v2.3.4) — admin only ----
   {
     name: "llm:get",
     summary: "查看 LLM 配置(apiKey 掩码)",
@@ -1280,12 +1280,13 @@ export const COMMANDS: CliCommand[] = [
   },
   {
     name: "tabs:create",
-    summary: "创建动态标签（--type link|custom --title 标签名 [--config JSON] [--content 内容])",
-    usage: "tabs:create <ticketId> --type <link|custom> --title <名> [--config <json>] [--content <内容>]",
+    summary: "创建动态标签（--type link|custom|wiki --title 标签名 [--config JSON] [--content 内容])",
+    usage: "tabs:create <ticketId> --type <link|custom|wiki> --title <名> [--config <json>] [--content <内容>]",
     build: (pos, opts) => {
-      requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom> --title <名>");
+      requirePos(pos, 1, "tabs:create <ticketId> --type <link|custom|wiki> --title <名>");
       const tabType = str(opts.type);
-      if (!tabType || !["link", "custom"].includes(tabType)) throw new Error("--type 必须为 link 或 custom");
+      if (!tabType || !["link", "custom", "wiki"].includes(tabType))
+        throw new Error("--type 必须为 link、custom 或 wiki");
       const title = str(opts.title);
       if (!title) throw new Error("缺少 --title");
       const body: Record<string, unknown> = { tabType, title };

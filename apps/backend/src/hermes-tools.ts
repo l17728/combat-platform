@@ -1,4 +1,4 @@
-// v2.5 Hermes 通用检索工具集 (read-only)
+// v2.3.3 Hermes 通用检索工具集 (read-only)
 //
 // 14 个只读工具,由 LLM tool-calling 协议驱动,也由 HTTP `/api/hermes/tool/:name`
 // 暴露给外部脚手架。每个工具都有:
@@ -21,6 +21,7 @@ import { buildRelated } from "./related-core.js";
 import { recommendHelpers } from "./recommend.js";
 import { log } from "./logger.js";
 import type { DB } from "./db.js";
+import { ALL_WRITE_TOOLS, writeToolsEnabled } from "./hermes-tools-write.js";
 
 // ---------------------------------------------------------------------------
 // 通用类型 / context
@@ -270,6 +271,14 @@ function requireStr(input: any, key: string): string {
     throw new Error(`bad_input: 缺少 ${key}`);
   }
   return v;
+}
+
+function safeJsonParse(s: string): any {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return s;
+  }
 }
 
 function clampInt(v: unknown, min: number, max: number, fallback: number): number {
@@ -963,6 +972,203 @@ const welinkGapAnalysisTool: ToolDefinition = {
   },
 };
 
+const welinkStatsTool: ToolDefinition = {
+  name: "welink_stats",
+  description:
+    "返回某攻关单 Welink 群消息统计:总消息数、发言人数、各人发言量、时间范围。**仅作为兜底**:当 welink_extractions 没有结果且 welink_ensure_analyzed 失败时再用本工具。正常流程应先走 welink_extractions → welink_ensure_analyzed。",
+  inputSchema: {
+    type: "object",
+    properties: { ticketId: { type: "string" } },
+    required: ["ticketId"],
+    additionalProperties: false,
+  },
+  async execute(input, ctx) {
+    if (!ctx.db) throw new Error("welink 工具需要 sqlite DB 句柄");
+    const ticketId = requireStr(input, "ticketId");
+    const totals = ctx.db
+      .prepare(
+        `SELECT COUNT(*) AS msgCount, COUNT(DISTINCT author) AS authorCount,
+         MIN(sent_at) AS earliest, MAX(sent_at) AS latest
+         FROM welink_messages WHERE ticket_id = ? AND deleted_at IS NULL`
+      )
+      .get(ticketId) as { msgCount: number; authorCount: number; earliest: string; latest: string };
+    const perAuthor = ctx.db
+      .prepare(
+        `SELECT author, COUNT(*) AS count
+         FROM welink_messages WHERE ticket_id = ? AND deleted_at IS NULL
+         GROUP BY author ORDER BY count DESC`
+      )
+      .all(ticketId) as Array<{ author: string; count: number }>;
+    return {
+      ticketId,
+      totalMessages: totals.msgCount,
+      totalAuthors: totals.authorCount,
+      earliestMessage: totals.earliest,
+      latestMessage: totals.latest,
+      perAuthor,
+    };
+  },
+};
+
+const welinkExtractionsTool: ToolDefinition = {
+  name: "welink_extractions",
+  description:
+    "读取某攻关单已有的 AI 抽取摘要(welink_extractions 表)。**回答 Welink 相关问题时首选本工具**——比读原文更快更准。可选 kind 过滤:entity(人物)/event(时间线)/decision(决策)/dispute(争议)/gap(缺口)。不传 kind 返回全部。",
+  inputSchema: {
+    type: "object",
+    properties: {
+      ticketId: { type: "string" },
+      kind: {
+        type: "string",
+        enum: ["entity", "event", "decision", "dispute", "gap"],
+      },
+    },
+    required: ["ticketId"],
+    additionalProperties: false,
+  },
+  async execute(input, ctx) {
+    if (!ctx.db) throw new Error("welink 工具需要 sqlite DB 句柄");
+    const ticketId = requireStr(input, "ticketId");
+    const kind = input.kind as string | undefined;
+    let sql = `SELECT id, kind, label, payload, source_msg_ids, reviewed, created_at
+               FROM welink_extractions WHERE ticket_id = ?`;
+    const params: any[] = [ticketId];
+    if (kind && ["entity", "event", "decision", "dispute", "gap"].includes(kind)) {
+      sql += ` AND kind = ?`;
+      params.push(kind);
+    }
+    sql += ` ORDER BY created_at DESC LIMIT 200`;
+    const rows = ctx.db.prepare(sql).all(...params) as any[];
+    if (rows.length === 0)
+      return {
+        ticketId,
+        hasExtractions: false,
+        items: [],
+        hint: "该攻关单尚未跑过 AI 分析,无摘要可用。请用 welink_timeline 或 welink_stats 读原文。",
+      };
+    return {
+      ticketId,
+      hasExtractions: true,
+      count: rows.length,
+      items: rows.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        label: r.label,
+        payload: typeof r.payload === "string" ? safeJsonParse(r.payload) : r.payload,
+        sourceMsgIds: typeof r.source_msg_ids === "string" ? safeJsonParse(r.source_msg_ids) : r.source_msg_ids,
+        reviewed: !!r.reviewed,
+        createdAt: r.created_at,
+      })),
+    };
+  },
+};
+
+const welinkEnsureAnalyzedTool: ToolDefinition = {
+  name: "welink_ensure_analyzed",
+  description:
+    "检查某攻关单是否已有 AI 抽取摘要;若无,立即跑一次启发式分析(从已选中消息提取人物/时间线/缺口/决策)并落库。**当 welink_extractions 返回 hasExtractions:false 时,调本工具生成摘要,然后再调 welink_extractions 取结果**。",
+  inputSchema: {
+    type: "object",
+    properties: { ticketId: { type: "string" } },
+    required: ["ticketId"],
+    additionalProperties: false,
+  },
+  async execute(input, ctx) {
+    if (!ctx.db) throw new Error("welink 工具需要 sqlite DB 句柄");
+    const ticketId = requireStr(input, "ticketId");
+    const existing = ctx.db
+      .prepare("SELECT COUNT(*) AS c FROM welink_extractions WHERE ticket_id = ?")
+      .get(ticketId) as { c: number };
+    if (existing.c > 0) {
+      return {
+        ticketId,
+        alreadyAnalyzed: true,
+        existingCount: existing.c,
+        hint: "已有摘要,请用 welink_extractions 读取。",
+      };
+    }
+    const { runWelinkExtraction } = await import("./welink-extraction.js");
+    const result = await runWelinkExtraction(ctx.db, ctx.repo, ticketId, undefined, { useAllMessages: true });
+    return {
+      ticketId,
+      alreadyAnalyzed: false,
+      analyzed: true,
+      queued: result.queued,
+      extracted: result.extracted,
+      source: result.source,
+      hint:
+        result.extracted > 0
+          ? `已生成 ${result.extracted} 条摘要(来源:${result.source}),请用 welink_extractions 读取详情。`
+          : "该攻关单暂无 Welink 消息,无法生成摘要。",
+    };
+  },
+};
+
+// 20. list_welink_tickets — 跨工单聚合：哪些攻关单有 Welink 群消息
+const listWelinkTicketsTool: ToolDefinition = {
+  name: "list_welink_tickets",
+  description:
+    "列出所有有 Welink 群消息的攻关单,返回每个攻关单的消息数、发言人数、最近消息时间。" +
+    "用于回答'哪些攻关单有welink消息/welink群/群聊/聊天记录'等跨工单聚合查询。" +
+    "注意:本工具不需要 ticketId 参数,它会自动聚合所有有 welink 消息的攻关单。",
+  inputSchema: {
+    type: "object",
+    properties: { limit: { type: "number" } },
+    required: [],
+    additionalProperties: false,
+  },
+  async execute(input, ctx) {
+    if (!ctx.db) throw new Error("welink 工具需要 sqlite DB 句柄");
+    const limit = clampInt(input.limit, 1, 50, 20);
+    const rows = ctx.db
+      .prepare(
+        `SELECT wm.ticket_id,
+                COUNT(wm.id) AS msg_count,
+                COUNT(DISTINCT wm.author) AS author_count,
+                MAX(wm.sent_at) AS latest_msg
+         FROM welink_messages wm
+         WHERE wm.deleted_at IS NULL AND wm.ticket_id != 'NONE'
+         GROUP BY wm.ticket_id
+         ORDER BY msg_count DESC
+         LIMIT ?`
+      )
+      .all(limit) as Array<{
+      ticket_id: string;
+      msg_count: number;
+      author_count: number;
+      latest_msg: string;
+    }>;
+
+    if (rows.length === 0) {
+      return { hasWelinkTickets: false, tickets: [] };
+    }
+
+    const tickets: Record<string, unknown>[] = [];
+    for (const row of rows) {
+      try {
+        const node = await ctx.repo.getNode(row.ticket_id);
+        if (!node) continue;
+        const gated = await gateNode(ctx, node);
+        if (!gated) continue; // 私单不可见则跳过
+        tickets.push({
+          ticketId: row.ticket_id,
+          title: node.properties["标题"] ?? node.properties["title"] ?? "",
+          status: node.properties["状态"] ?? node.properties["status"] ?? "",
+          level: node.properties["事件级别"] ?? node.properties["level"] ?? "",
+          handler: node.properties["当前处理人"] ?? "",
+          msgCount: row.msg_count,
+          authorCount: row.author_count,
+          latestMessage: row.latest_msg,
+        });
+      } catch {
+        // 节点已删除或无权限，跳过
+      }
+    }
+
+    return { hasWelinkTickets: true, count: tickets.length, tickets };
+  },
+};
+
 // ---------------------------------------------------------------------------
 // 工具注册表 (单一出口)
 // ---------------------------------------------------------------------------
@@ -984,9 +1190,16 @@ export const ALL_TOOLS: ToolDefinition[] = [
   welinkSearchTool,
   welinkTimelineTool,
   welinkGapAnalysisTool,
+  welinkStatsTool,
+  welinkExtractionsTool,
+  welinkEnsureAnalyzedTool,
+  listWelinkTicketsTool,
+  ...ALL_WRITE_TOOLS,
 ];
 
 const TOOL_BY_NAME = new Map(ALL_TOOLS.map((t) => [t.name, t]));
+
+const WRITE_TOOL_NAMES = new Set(ALL_WRITE_TOOLS.map((t) => t.name));
 
 export function listTools(): { name: string; description: string }[] {
   return ALL_TOOLS.map((t) => ({ name: t.name, description: t.description }));
@@ -1004,6 +1217,9 @@ export async function callTool(name: string, input: unknown, ctx: HermesToolCtx)
   const tool = getTool(name);
   if (!tool) {
     return { ok: false, error: "unknown_tool", detail: name };
+  }
+  if (WRITE_TOOL_NAMES.has(name) && !writeToolsEnabled()) {
+    return { ok: false, error: "write_tools_disabled", detail: "设置 HERMES_ENABLE_WRITE=1 开启写工具" };
   }
   const t0 = Date.now();
   try {
@@ -1033,7 +1249,7 @@ export async function callTool(name: string, input: unknown, ctx: HermesToolCtx)
 }
 
 // ---------------------------------------------------------------------------
-// v2.5 桶 D 集成层 — 给 hermes-agent (桶 B) 的 OpenAI tool-calling 协议适配
+// v2.3.3 桶 D 集成层 — 给 hermes-agent (桶 B) 的 OpenAI tool-calling 协议适配
 // ---------------------------------------------------------------------------
 
 export type ToolCtx = HermesToolCtx;
@@ -1047,9 +1263,11 @@ export interface ToolSchema {
   };
 }
 
-/** OpenAI ChatCompletions `tools` 数组格式;由 ALL_TOOLS 派生。 */
-export const TOOL_SCHEMAS: ToolSchema[] = ALL_TOOLS.map((t) => ({
-  type: "function",
+/** OpenAI ChatCompletions `tools` 数组格式;写工具仅在 HERMES_ENABLE_WRITE=1 时暴露给 LLM。 */
+export const TOOL_SCHEMAS: ToolSchema[] = ALL_TOOLS.filter(
+  (t) => !WRITE_TOOL_NAMES.has(t.name) || writeToolsEnabled()
+).map((t) => ({
+  type: "function" as const,
   function: {
     name: t.name,
     description: t.description,

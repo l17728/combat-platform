@@ -4,7 +4,7 @@ import type { Repository, GraphNode, HelperRecommendation } from "@combat/shared
 const LEVEL: Record<string, number> = { 核心: 3, 关键: 2, 普通: 1 };
 
 async function refPersons(repo: Repository, srcId: string, field: string): Promise<string[]> {
-  return (await repo.queryEdges({ sourceId: srcId, edgeType: "REF" }))
+  return (await repo.queryEdges({ sourceId: srcId, edgeType: "分配" }))
     .filter((e) => String(e.properties["field"] ?? "") === field)
     .map((e) => e.targetId);
 }
@@ -26,11 +26,11 @@ export async function recommendHelpers(
     acc.set(pid, e);
   };
 
-  for (const ae of await repo.queryEdges({ sourceId: T.id, edgeType: "ANCHORED_TO" })) {
+  for (const ae of await repo.queryEdges({ sourceId: T.id, edgeType: "关联" })) {
     const anchor = await repo.getNode(ae.targetId);
     if (!anchor) continue;
     const key = String(anchor.properties["key"] ?? "");
-    for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })) {
+    for (const back of await repo.queryEdges({ targetId: anchor.id, edgeType: "关联" })) {
       if (back.sourceId === T.id) continue;
       const s = await repo.getNode(back.sourceId);
       if (!s) continue;
@@ -57,7 +57,7 @@ export async function recommendHelpers(
     if (lvl === "核心" || lvl === "关键") eligible.add(c.id);
   }
   if (eligible.size > 0) {
-    const allRefEdges = await repo.queryEdges({ edgeType: "REF" });
+    const allRefEdges = await repo.queryEdges({ edgeType: "分配" });
     for (const e of allRefEdges) {
       if (!eligible.has(e.sourceId)) continue;
       if (String(e.properties["field"] ?? "") !== "贡献人") continue;

@@ -8,6 +8,18 @@ Guidance for agentic coding agents working in this repository.
 
 **Any task that CAN run in parallel MUST run in parallel.** Identify independent tasks (disjoint files, no shared state, no sequential dependency) and dispatch them concurrently. Only serialize across a true data/sequence dependency.
 
+### 1.5 Never Delete Production Data (部署绝不删数据)
+
+**`./dev-deploy.sh` 的 rsync 必须排除整个 `data/` 目录。** 生产数据库 (`combat.sqlite`)、备份 (`backups/`)、wiki 文章、所有用户数据都存放在 `data/` 目录下，rsync `--delete` 会删除源目录中不存在的目标文件。**任何部署操作都不得触碰生产数据目录。** 这是铁律，无例外。
+
+```bash
+# ✓ 正确：排除整个 data/ 目录
+--exclude='data/'
+
+# ✗ 错误：只排除特定文件（会漏掉 combat.sqlite、backups 等）
+--exclude='data/dev-combat.sqlite*'
+```
+
 ### 2. Recursive Convergence (举一反三递归收敛)
 
 **When a problem is found, fix the entire CLASS of problems, then check if the fix introduced new problems, and keep recursing until the error count converges to zero.** This is not "fix one, move on" — it's:
@@ -85,24 +97,25 @@ claude --dangerously-skip-permissions -p "实现 XXX 后端 API + CLI 命令"   
 
 **6 个一键脚本**（放在 `/fighting/` 根目录）：
 
-| 脚本 | 用途 | DB 路径 | 端口 |
-|---|---|---|---|
-| `./dev.sh` | 启 dev backend(空 db) | `/fighting/data/dev-combat.sqlite` | 3500 |
-| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend | 同上(覆盖为生产快照) | 3500 |
-| `./dev-frontend.sh` | 启 vite dev(proxy `/api` → :3500) | — | 5174 |
-| `./dev-test.sh` | 跑 vitest backend(in-memory db) | 临时 | — |
-| `./dev-e2e.sh` | 跑 Playwright(自启 webServer) | 临时 | — |
-| `./dev-deploy.sh` | 同机部署到生产(rsync + systemctl restart) | — | — |
+| 脚本                     | 用途                                      | DB 路径                            | 端口 |
+| ------------------------ | ----------------------------------------- | ---------------------------------- | ---- |
+| `./dev.sh`               | 启 dev backend(空 db)                     | `/fighting/data/dev-combat.sqlite` | 3500 |
+| `./dev-with-snapshot.sh` | 拷生产 db 快照后启 dev backend            | 同上(覆盖为生产快照)               | 3500 |
+| `./dev-frontend.sh`      | 启 vite dev(proxy `/api` → :3500)         | —                                  | 5174 |
+| `./dev-test.sh`          | 跑 vitest backend(in-memory db)           | 临时                               | —    |
+| `./dev-e2e.sh`           | 跑 Playwright(自启 webServer)             | 临时                               | —    |
+| `./dev-deploy.sh`        | 同机部署到生产(rsync + systemctl restart) | —                                  | —    |
 
 **DB 隔离矩阵（铁律）**：
 
-| | 生产 db | dev 副本 | 测试 db |
-|---|---|---|---|
-| 路径 | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite` | tmpdir/in-memory |
-| 谁写 | 生产 systemd combat-v2.service | `./dev.sh` / `./dev-with-snapshot.sh` | vitest |
-| 互相影响 | ❌ 完全独立 | ❌ 完全独立 | ❌ 完全独立 |
+|          | 生产 db                             | dev 副本                              | 测试 db          |
+| -------- | ----------------------------------- | ------------------------------------- | ---------------- |
+| 路径     | `/opt/combat-v2/data/combat.sqlite` | `/fighting/data/dev-combat.sqlite`    | tmpdir/in-memory |
+| 谁写     | 生产 systemd combat-v2.service      | `./dev.sh` / `./dev-with-snapshot.sh` | vitest           |
+| 互相影响 | ❌ 完全独立                         | ❌ 完全独立                           | ❌ 完全独立      |
 
 **端口约定**：
+
 - `:3001` — 生产 backend(`/opt/combat-v2/`,systemd) — **绝不动**
 - `:3500` — `/fighting` dev backend
 - `:5174` — `/fighting` dev frontend(vite)
@@ -316,9 +329,9 @@ scripts/deploy-v2/  # Deployment scripts (new frontend + backend)
 | Dev backend    | `dev.sh`                              | `./dev.sh` — 启 dev backend(空 db) :3500                                                                                                                                                                        |
 | Dev snapshot   | `dev-with-snapshot.sh`                | `./dev-with-snapshot.sh` — 拷生产 db 快照后启 dev backend :3500                                                                                                                                                 |
 | Dev frontend   | `dev-frontend.sh`                     | `./dev-frontend.sh` — 启 vite dev :5174(proxy /api → :3500)                                                                                                                                                     |
-| Dev test       | `dev-test.sh`                         | `./dev-test.sh` — 跑 vitest backend(in-memory db)                                                                                                                                                                |
-| Dev e2e        | `dev-e2e.sh`                          | `./dev-e2e.sh` — 跑 Playwright(自启 webServer)                                                                                                                                                                   |
-| Dev deploy     | `dev-deploy.sh`                       | `./dev-deploy.sh` — 同机部署 /fighting → /opt/combat-v2(rsync + systemctl restart)                                                                                                                               |
+| Dev test       | `dev-test.sh`                         | `./dev-test.sh` — 跑 vitest backend(in-memory db)                                                                                                                                                               |
+| Dev e2e        | `dev-e2e.sh`                          | `./dev-e2e.sh` — 跑 Playwright(自启 webServer)                                                                                                                                                                  |
+| Dev deploy     | `dev-deploy.sh`                       | `./dev-deploy.sh` — 同机部署 /fighting → /opt/combat-v2(rsync + systemctl restart)                                                                                                                              |
 | Deploy v1      | `scripts/deploy/deploy.mjs`           | Old deployment for reference frontend only                                                                                                                                                                      |
 
 ## Build / Dev / Test Commands
@@ -899,9 +912,88 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 
 > **KG 健壮性修复**:g6 `animation:false`(消除 force 布局持续 tick 与增删节点抢占 transform 的 `getTransformInstance` 崩溃);双击导航 `setTimeout(0)` 推迟避免卸载销毁竞态;单击防抖(dblclick 取消);人员节点显示姓名非 id、贡献标签带类型、图例按实际类型生成。
 
-### 当前测试状态(2026-06-01 v2.7.0 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+### 当前测试状态(2026-06-01 v2.3.10 — 知识库 + API文档 + Code-split)
 
-**v2.7.0 = v2.6.0 + 三桶(r-hermes-polish / r-schema-all / r-views)**
+**v2.3.10 = v2.3.9 + 三桶(知识库Wiki / API自动文档 / 前端Code-splitting)**
+
+- 后端 vitest **768/768 全绿**（100 文件）
+- shared vitest **28/28 全绿**
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- 新增 `wiki.ts`（WikiRepo CRUD + 文章搜索 + 排序）
+- 新增 `wiki-router.ts`（REST API: 列表/详情/创建/更新/删除/搜索/重排序）
+- 新增 `openapi-router.ts`（OpenAPI 3.0 spec 生成 + Swagger UI 渲染）
+- 新增前端 `WikiPanel.tsx`（知识库面板：文章列表+Markdown编辑+搜索）
+- 新增前端 `buildTabItems.tsx` wiki 类型支持（攻关单局部知识库）
+- 新增前端 `AddTabModal.tsx` wiki 选项
+- `Dashboard.tsx` 新增「知识库」tab（全局知识库，信息广场后面）
+- `App.tsx` 全面改为 React.lazy 路由级懒加载（30+ 页面，3.5MB→按需加载）
+- `api.ts` 新增 wiki CRUD 方法，TicketTab.tabType 扩展 "wiki"
+- `help-content.ts` 追加 v2.3.0 release notes + wiki/apiDocs 帮助页
+
+**关键设计决定**:
+
+1. **知识库双态** — 全局知识库(scope=global)放在态势首页 tab；局部知识库(scope=ticket,scopeId=ticketId)通过自定义 tab 创建
+2. **OpenAPI 静态 spec** — 手工维护的 spec 对象，覆盖 50+ 端点、10 个标签分组；Swagger UI CDN 加载，自动携带 JWT token
+3. **Code-splitting** — React.lazy + Suspense 包裹整个 Routes，LoginPage/ErrorBoundary 保持 eager load；PageLoader 统一 loading 态
+
+### 当前测试状态(2026-06-01 v2.3.9 — 邮件增强 + 邀请管理 + 运营大屏)
+
+**v2.3.9 = v2.3.8 + 三桶(邮件增强 / 邀请管理 / 运营大屏)**
+
+- 后端 vitest **768/768 全绿**（100 文件）
+- shared vitest **28/28 全绿**
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- `mailer.ts` 扩展支持 `html` + `attachments`（MailMessage 接口）
+- `digest.ts` 新增 `buildDigestHtml` HTML 模板生成（渐变头部 + 表格 + 统计卡片）
+- `digest.ts` `sendDigest` 支持 `customDays` 自定义时间段参数
+- `digest-router.ts` preview 和 send 端点支持 `days` 查询参数
+- 新增 `invitation.ts`（InvitationRepo CRUD + 邀请码生成 + 过期/使用标记）
+- 新增 `invitation-router.ts`（REST API: 创建邀请 + 邮件发送 + 验证邀请码 + 删除）
+- `auth.ts` register 端点支持 `inviteCode` 参数，有邀请码时使用预设角色
+- `auth.ts` publicPaths 添加 `/invitations/check/`
+- 新增前端 `InvitationPage.tsx`（邀请管理 + 发送邀请 + 复制链接）
+- 新增前端 `InviteRegister.tsx`（公开邀请注册页，预设角色自动生效）
+- 新增前端 `DashboardScreen.tsx`（深色全屏运营大屏 + KPI 卡片 + 状态分布 + 自动刷新）
+- `api.ts` 新增 invitation/dashboard 相关方法，register 改为对象参数支持 inviteCode
+- `AppLayout.tsx` 侧边栏增加邀请管理（admin）+ 运营大屏入口
+- `help-content.ts` 追加 v2.2.0 release notes + invitation/dashboardScreen 帮助页
+
+**关键设计决定**:
+
+1. **邀请码机制** — 12 位大写随机码，默认 7 天过期，注册时自动标记已使用；邀请邮件同时发送 HTML 和纯文本版本
+2. **HTML 邮件模板** — 内联 CSS 样式（不依赖外部样式表），渐变头部 + 表格 + 统计卡片，兼容主流邮件客户端
+3. **大屏独立页面** — 不依赖 Ant Design 组件，纯 CSS Grid 布局，深色主题，每 30 秒自动刷新，Fullscreen API 投屏
+
+### 当前测试状态(2026-06-01 v2.3.8 — Webhook + 邮件摘要 + 内联字段)
+
+**v2.3.8 = v2.3.7 + 三桶(Webhook 事件订阅 / 邮件 Digest / 攻关详情内联字段添加)**
+
+- 后端 vitest **768/768 全绿**（100 文件）
+- shared vitest **28/28 全绿**
+- 三端 `npx tsc --noEmit` 全 0 错（backend + shared + frontend-v2）
+- 新增 `webhooks.ts`（WebhookSubscription CRUD + dispatchWebhook 异步推送）
+- 新增 `webhook-router.ts`（REST API: CRUD + 测试推送 + 事件列表）
+- 新增 `digest.ts`（DigestConfig 配置 + buildDigestSummary 汇总 + sendDigest 发送）
+- 新增 `digest-router.ts`（REST API: 配置 CRUD + 预览 + 手动发送）
+- 新增 `server.ts` 每小时 digest 定时检查（daily/weekly 自动发送）
+- `routes.ts` 增加 webhookAdapter 参数，5 处事件点触发 dispatchWebhook
+- `email.ts` readConfig 导出为 public
+- `api.ts` 新增 webhook/digest/addSchemaField 公共方法
+- 新增前端 `WebhookSettings.tsx`（订阅管理 + 启停 + 测试推送）
+- 新增前端 `DigestSettings.tsx`（配置 + 预览 + 手动发送）
+- `AttackBasicInfoTab.tsx` 增加「添加字段」按钮 + Modal（字段类型/分组/枚举配置中心绑定）
+- `AppLayout.tsx` 侧边栏增加 Webhook 订阅 + 邮件摘要菜单（admin only）
+- `help-content.ts` 追加 v2.3.9 release notes + webhookSettings/digestSettings 帮助页
+
+**关键设计决定**:
+
+1. **Webhook 异步不阻塞** — dispatchWebhook 在事件触发后 fire-and-forget，10s 超时，失败只记日志不影响主流程
+2. **Digest 定时检查** — 每小时检查 lastSentAt，daily 按天去重、weekly 按 7 天间隔
+3. **内联字段与 SchemaWizard 联动** — AttackBasicInfoTab 通过 `api.addSchemaField()` 直接写 schema，`fetchSchema()` 刷新后新字段立即出现
+
+### 当前测试状态(2026-06-01 v2.3.5 — Hermes 体验收尾 + Schema-as-UI 全栈化 + 多视图)
+
+**v2.3.5 = v2.3.4 + 三桶(r-hermes-polish / r-schema-all / r-views)**
 
 - 后端 vitest **~755/755 全绿**(集成阶段汇总;含 hermes-polish 17 + schema-all 25 + golden set 15/15)
 - shared vitest **28/28 全绿**
@@ -910,17 +1002,18 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **现网 LLM 端到端 golden set 真跑预期 15/15**(Q7 prompt 修复 → 审计类问题自动调 get_audit)
 - 现网部署 `124.156.193.122:3001` (待 deploy)
 - systemd drop-in 自愈机制就位: deploy-direct.mjs 自动检测多 .conf 设同 env key,新覆盖旧并备份;`--keep-old-drop-ins` 关闭
-- 文档:help-content 顶部追加 v2.7.0 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
+- 文档:help-content 顶部追加 v2.3.5 release notes、attackList/contributions/llmSettings/peopleList/helpCenter/bugReport/proposals/reminders 8 个 page 章节追加 v2.7 说明;`docs/MULTI_VIEW.md` 新建;`docs/SCHEMA_AS_UI.md` 全栈化章节;`docs/HERMES_TOOLS.md` /models endpoint;`docs/LLM_SETTINGS.md` 动态刷新
 
 **关键设计决定**:
+
 1. **virtual schema** — helpRequest/bugReport/proposal/reminder 这些已有专用表存数据的 nodeType,仍写 schema 描述字段(让 UI 通用渲染),后端 `/api/nodes/<virtual>` 拒收避免双写;UI 视它们与普通 nodeType 一致
 2. **多视图 URL 同步** — `?view=table|kanban|calendar|pivot`,可直链分享;切换不重置 filter/搜索/分页
 3. **HTML5 native DnD** — Kanban 用浏览器原生拖拽 + 卡片底部 Select 降级,无新依赖
 4. **glm-4-flash 默认** — 智谱免费层 + thinking disabled,零成本 + 0.5-3s/题
 
-### 当前测试状态(2026-05-31 v2.6.0 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
+### 当前测试状态(2026-05-31 v2.3.4 — LLM 端到端 + Inbox + 面包屑 + Schema-as-UI)
 
-**v2.6.0 = v2.5.0 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**
+**v2.3.4 = v2.3.3 + 四桶(r-llm OpenAI-compat + r-inbox-breadcrumb + r-schema-ui)**
 
 - 后端 vitest **715/715 全绿**(96 文件)
 - shared vitest **28/28 全绿**
@@ -929,17 +1022,18 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - **现网 LLM 端到端 golden set 真跑**: **14/15 通过**(门槛 12/15) — model=`glm-4-flash`(智谱免费层 OpenAI 兼容),"有多少员工" → tool=count_nodes → answer="共有22名员工",平均 1-4s/题
 - 现网部署 `124.156.193.122:3001` active running、`977c543` 落地
 - systemd drop-in `hermes-llm.conf` 注入: `HERMES_LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4`(智谱) + `HERMES_LLM_API_KEY`(zhipu key) + `HERMES_MODEL=glm-4-flash` + `HERMES_THINKING=disabled`;旧 hermes.conf / hermes-mode.conf 已删
-- 文档:help-content 顶部追加 v2.6.0 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
+- 文档:help-content 顶部追加 v2.3.4 release notes、attackDetail/contributions v2.6 章节追加、`llmSettings` / `notifications` 章节新增;`docs/LLM_SETTINGS.md` / `NOTIFICATIONS.md` / `SCHEMA_AS_UI.md` 新建;`HERMES_TOOLS.md` 架构去 opencode
 - Playwright 现网截图 `test-results/v2.6-trace.png` 留档
 
-**关键教训(v2.6 → v2.7)**:
-1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.4 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.6 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
+**关键教训(v2.3.4 → v2.3.5)**:
+
+1. systemd Environment drop-in 是**累加**不是覆盖,新版本若 env key 名复用必须同时清掉旧 conf 文件,否则两个 conf 都设同 key 时按"最后一个写入"取值(我们 v2.3.1 的 hermes.conf 里 `HERMES_MODEL=huawei_cloud/glm-5` 长期覆盖了 v2.3.4 hermes-llm.conf 的 `HERMES_MODEL=glm-4.5-air`,导致表面看像"模型不存在"实际是发了错 model)
 2. **provider key 的资源限额是隐式的** — zhipuai-coding-plan key 在 zhipu OpenAI 兼容 endpoint 上可访问 glm-4.5/4.5-air/4.6/4.7/5/5-turbo/5.1 但都需余额(1113);唯独 `glm-4-flash` / `glm-4-flash-250414` 免费层可用。线上选 model 一定要先用 `GET /api/paas/v4/models` 列表 + 小请求实测,避免上线后 401/1113 才发现
 3. UI 配置后端的"测试连接"endpoint 必须支持 env-fallback(如果 admin 没存 DB 就直接走 env 实测);当前 router 仅看 body + DB,部分场景误报"缺 baseUrl"
 
-### 当前测试状态(2026-05-31 v2.4.1 hot-fix — React #310 + AI 抖动)
+### 当前测试状态(2026-05-31 v2.3.2 hot-fix — React #310 + AI 抖动)
 
-**v2.4.1 = v2.4.0(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
+**v2.3.2 = v2.3.1(三桶 harden + resilience + upgrade-real)+ hot-fix(AttackDetail Hooks 顺序 + HermesChat 抖动)**
 
 - 后端 vitest **575/575 全绿**(86 文件:v2.3 baseline 536 + harden 12 + resilience 17 + upgrade-real 8 + Sentry 2)
 - shared vitest **28/28 全绿**
@@ -947,10 +1041,10 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 三端 `npx tsc --noEmit` 0 错
 - Playwright 现网 e2e probe `/attack/<id>` 完整渲染、0 console error
 - 现网部署 `124.156.193.122:3001` active running、`f4af74f` 落地
-- 文档:`help-content.ts` 顶部追加 v2.4.1 release notes + 受影响页面(attackDetail / contributions)末尾追加修复说明;`docs/OBSERVABILITY.md` 已交付(Sentry);`docs/UPGRADE.md` 追加 v2.4+ JWT_SECRET drop-in 修复步骤;`docs/V2.5_DESIGN.md` 已起草(14 工具 / 4 桶 / 15 题评测 golden set)
+- 文档:`help-content.ts` 顶部追加 v2.3.2 release notes + 受影响页面(attackDetail / contributions)末尾追加修复说明;`docs/OBSERVABILITY.md` 已交付(Sentry);`docs/UPGRADE.md` 追加 v2.4+ JWT_SECRET drop-in 修复步骤;`docs/V2.5_DESIGN.md` 已起草(14 工具 / 4 桶 / 15 题评测 golden set)
 - 在线 bug 关闭:`de1bf88e` AI 抖动 status=已解决
 
-**v2.4 → v2.4.1 关键教训**:Hooks 规则不可妥协。子 hook(useAttackDetailHandlers)内新增/删除 useState 等价于父组件 hooks 数量变化;**任何 hook 必须固定调用在所有 early return 之前**。重构 hook 抽取时尤其要复核——把 useState 收到子 hook 不意味着可以放到 conditional 分支后。回归防护:Playwright probe `/attack/<id>` 加入 e2e baseline。
+**v2.4 → v2.3.2 关键教训**:Hooks 规则不可妥协。子 hook(useAttackDetailHandlers)内新增/删除 useState 等价于父组件 hooks 数量变化;**任何 hook 必须固定调用在所有 early return 之前**。重构 hook 抽取时尤其要复核——把 useState 收到子 hook 不意味着可以放到 conditional 分支后。回归防护:Playwright probe `/attack/<id>` 加入 e2e baseline。
 
 ### 当前测试状态(2026-05-31 v2.3.0 整合 — v2.2.0 master 合并到 upgrade-ui 分支)
 
@@ -1014,7 +1108,7 @@ const tableComponents = useMemo(() => ({ header: { cell: FlexHeaderCell } }), []
 - 前端 SystemUpgrade 页面(三段式 + 双重确认 + 实时 log tail)
 - 详细文档 `docs/UPGRADE.md`
 
-**MVP 限制**(留 v2.4):仅本地上传(不支持 GitHub Release)、无 PGP 签名校验、自我升级需在 staging 测一次再上线。
+**MVP 限制**(留 v2.3.1):仅本地上传(不支持 GitHub Release)、无 PGP 签名校验、自我升级需在 staging 测一次再上线。
 
 ---
 
@@ -1371,6 +1465,38 @@ curl -s "http://124.156.193.122:3001/api/bug-reports?status=%E5%BE%85%E5%A4%84%E
 - **修复**：1) 清理现网假 issue（按 reporter 筛选删除）；2) demo-seed 改为只创建 2 条已关闭的"演示数据"并明确标注
 - **教训**：seed/mock 脚本绝对不能生成伪造的用户反馈、审计日志、操作日志等业务数据。问题反馈是用户真实输入，填充假数据会误导开发和运维
 - **预防**：demo-seed 只生成结构性数据（人员、攻关单、贡献），不生成反馈类数据
+
+### L6. ensureTable 静默吞错 + DDL 括号 bug 导致功能完全不可用 (2026-06-01)
+
+- **现象**：知识库 wiki 功能部署后始终不可用，"标题必填"误报、"no such table: wiki_articles"
+- **根因**：4 个问题叠加：
+  1. `wiki.ts` ensureWikiTable DDL 有括号拼写错误 (`updated_at TEXT ... ${nowDefault}))`) 多了一个 `)`，SQL 执行失败
+  2. `wiki-router.ts` 中 `ensureWikiTable(adapter).catch(() => {})` 静默吞掉建表错误，进程启动无任何告警
+  3. `WikiPanel.tsx` 使用 `createForm.validateFields()` 在 Modal+`destroyOnClose` 组合下始终失败（Ant Design 已知问题），`e instanceof Error` 对 AntD 验证错误对象返回 false 导致错误被静默吞掉
+  4. `server.ts` 未对 `index.html` 设置 `Cache-Control: no-cache`，浏览器缓存旧版本 JS 导致修复不生效
+- **修复**：1) 修正 DDL 括号；2) `ensureWikiTable` 改为在 `createApp` 阶段 await 确保完成；3) WikiPanel 改用 `getFieldValue` 替代 `validateFields`；4) server.ts 对 index.html 添加 no-cache header
+- **教训**：
+  - **所有 `ensureTable().catch(() => {})` 必须改为 `.catch(e => log.warn(...))`** — 静默吞错是定时炸弹
+  - **DDL 修改后必须实际执行建表验证** — 不能只看代码觉得对
+  - **Modal+Form 组合永远不要用 `validateFields()`** — 改用 `getFieldValue()` 直接取值
+  - **SPA 必须对 `index.html` 设 `Cache-Control: no-cache`** — 否则用户永远加载旧 JS
+- **回归测试**：`test/wiki.test.ts` 16 个 CRUD 用例覆盖建表+API 全流程
+
+### L7. 新增功能的 Postgres DDL 必须同步补充 (2026-06-01)
+
+- **现象**：v2.3.3+ 新增的 wiki/webhooks/digest/invitations 表在 Postgres 模式下不存在
+- **根因**：各模块的 `ensureTable()` 只处理 SQLite 路径（`if (adapter.kind === "sqlite") return`），Postgres DDL 依赖 `db.ts` 的 `POSTGRES_SCHEMA_DDL`，但新增模块忘记同步追加
+- **修复**：在 `db.ts` Postgres DDL 中补齐 wiki_articles/invitations，在 webhooks.ts/digest.ts 中补充 Postgres DDL 路径，wiki.ts 的 ensureWikiTable 区分 `datetime('now')`/`now()::text`
+- **教训**：**每新增一个独立表的 ensureTable，必须同时检查 3 处**：① SQLite DDL ② Postgres DDL（db.ts）③ Postgres DDL（模块自身的 PG 路径）。三处缺一不可
+- **预防**：新模块建表的 checklist：SQLite ensureTable + db.ts POSTGRES_SCHEMA_DDL + 模块内 PG DDL（如自建）
+
+### L8. rsync --delete 覆盖生产数据库 (2026-06-01) — 最严重
+
+- **现象**：每次 `./dev-deploy.sh` 部署后生产数据被清空（combat.sqlite 从 416KB 变为 4KB 空库）
+- **根因**：`dev-deploy.sh` 的 rsync exclude 只排除了 `data/dev-combat.sqlite*`，没有排除整个 `data/` 目录。rsync `--delete` 会删除目标中源目录没有的文件，导致生产的 `combat.sqlite`、`backups/`、wiki 文章全部被删除
+- **修复**：`--exclude='data/dev-combat.sqlite*'` → `--exclude='data/'`，排除整个 data 目录
+- **教训**：**部署脚本的 rsync exclude 必须排除整个 `data/` 目录，绝不能只排除特定文件**。`data/` 下有 combat.sqlite（生产数据库）、backups/（自动备份）、wiki 文章等所有用户数据，任何部署操作都不应触碰
+- **预防**：AGENTS.md 1.5 节已作为核心铁律写入；每次改部署脚本必须 dry-run 验证 exclude 生效
 
 ## 安全 P0 修复 (2026-05-31)
 

@@ -126,6 +126,14 @@ export function useAttackDetailData(id: string | undefined) {
     refetch: fetchData,
     refetchDailyReports: fetchDailyReports,
     refetchSupportNodes: fetchSupportNodes,
+    fetchSchema: async () => {
+      try {
+        const s = await api.getSchema("attackTicket");
+        setSchema(s);
+      } catch {
+        /* ignore */
+      }
+    },
   };
 }
 

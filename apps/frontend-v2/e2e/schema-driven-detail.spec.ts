@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { API, waitForDrawer } from "./helpers";
 
-// v2.6: 攻关详情页字段全部由 schema 派生。
+// v2.3.4: 攻关详情页字段全部由 schema 派生。
 // 这组测试:
 //   1) 通过 API 在 schema 上动态加一个字段(addField + updateField group/order);
 //   2) 在 attack/<id> 页面验证该字段渲染在「基础信息」Tab 的对应分组;
 //   3) 通过编辑抽屉填入值,保存后页面重新加载,值持久化;
 //   4) 清理 schema 字段。
-test.describe("schema-driven AttackDetail (v2.6)", () => {
+test.describe("schema-driven AttackDetail (v2.3.4)", () => {
   const fieldName = "e2e分组字段_" + Date.now().toString(36);
   const groupName = "E2E自定义分组";
   let ticketId = "";

@@ -7,7 +7,14 @@ import type {
   HermesToolTrace,
 } from "@combat/shared";
 import type { DB } from "./db.js";
-import { TOOL_SCHEMAS, callToolUnwrap as defaultCallTool, type ToolCtx, type ToolSchema } from "./hermes-tools.js";
+import {
+  TOOL_SCHEMAS,
+  callToolUnwrap as defaultCallTool,
+  MAX_OUTPUT_BYTES,
+  type ToolCtx,
+  type ToolSchema,
+  type HermesToolCtx,
+} from "./hermes-tools.js";
 
 /**
  * Hermes 的"agent"实现层。Hermes 是"用 agent 做只读问答"这一稳定概念,
@@ -54,11 +61,14 @@ export function buildHermesPrompt(registry: SchemaRegistry, question: string, co
     "1. 只能通过提供的只读工具查询真实数据,严禁编造记录、字段或 ID。",
     "2. 查不到就如实回答「未找到相关记录」,不要杜撰。",
     "3. 用简体中文回答,简洁直接。",
-    "4. 「攻关成员/攻关组长」等优先读结构化字段(getContext);若问及组员名单等非结构化信息,",
+    "4. filter 的 key 必须用数据字典中的中文属性名(如「状态」「姓名」「事件级别」),",
+    "   value 必须用中文枚举值(如「已关闭」「处理中」「P1」),绝不能用英文翻译。",
+    '   例: 查已关闭攻关单 → filter: {"状态": "已关闭"} 而非 {"status": "closed"}。',
+    "5. 「攻关成员/攻关组长」等优先读结构化字段(getContext);若问及组员名单等非结构化信息,",
     "   可用 hermes_ticketTabs(ticketId) 读该攻关单的自定义笔记标签 MD 文档。",
-    "5. 回答正文之后另起一行输出你据以作答的真实节点 ID,格式:",
+    "6. 回答正文之后另起一行输出你据以作答的真实节点 ID,格式:",
     "   CITATIONS: <id1>, <id2>   (没有可引用记录时输出 CITATIONS: 空)",
-    "6. 若答案是从 hermes_welinkSearch / hermes_welinkTimeline 的群消息里得到的(场景 3),",
+    "7. 若答案是从 hermes_welinkSearch / hermes_welinkTimeline 的群消息里得到的(场景 3),",
     "   除 CITATIONS 行之外再追加一行 JSON 数组,标记每条群消息引用,格式:",
     '   WELINK_CITATIONS: [{"messageId":"<welink 原 id>","brief":"前 30 字摘要"}]',
     "   答案正文里也要用 [YYYY-MM-DD HH:MM] 格式标注每条引用消息发生时间。",
@@ -207,7 +217,7 @@ export async function answerWithAgent(
 }
 
 // ===================================================================
-// §v2.5: Tool-calling agent (OpenAI-compatible protocol)
+// §v2.3.3: Tool-calling agent (OpenAI-compatible protocol)
 // -------------------------------------------------------------------
 // 设计要点:
 // 1. 多轮: LLM 返回 tool_calls → 本地执行 callTool() → 把结果 role:'tool' 推回
@@ -224,7 +234,10 @@ export async function answerWithAgent(
 // ===================================================================
 
 export const MAX_TOOL_HOPS = Math.max(1, Number(process.env.HERMES_MAX_TOOL_HOPS) || 6);
-export const TOOL_RESULT_MAX_BYTES = Math.max(1024, Number(process.env.HERMES_TOOL_RESULT_MAX_BYTES) || 32 * 1024);
+export const TOOL_RESULT_MAX_BYTES = Math.max(
+  1024,
+  Number(process.env.HERMES_TOOL_RESULT_MAX_BYTES) || MAX_OUTPUT_BYTES
+);
 export const CONTEXT_MAX_BYTES = Math.max(8 * 1024, Number(process.env.HERMES_CONTEXT_MAX_BYTES) || 80 * 1024);
 
 export interface LlmToolCall {
@@ -265,12 +278,10 @@ export interface RunToolCallingOptions {
   question: string;
   context?: string;
   ctx?: ToolCtx;
-  /** 覆盖工具列表(默认 TOOL_SCHEMAS) */
   tools?: ToolSchema[];
-  /** 覆盖执行器(默认 mock callTool;集成期切换 hermes-tools.callTool) */
   executor?: ToolExecutor;
-  /** 调试覆盖跳数上限(默认读 MAX_TOOL_HOPS) */
   maxHops?: number;
+  priorMessages?: LlmMessage[];
 }
 
 export interface RunToolCallingResult {
@@ -279,7 +290,7 @@ export interface RunToolCallingResult {
 }
 
 /**
- * §v2.6: 完整的 Hermes 系统提示。原内容来自
+ * §v2.3.4: 完整的 Hermes 系统提示。原内容来自
  *   apps/backend/hermes-workspace/.opencode/agents/hermes.md
  * 现内联进 backend 源码,去掉对 opencode workspace 的依赖。
  *
@@ -300,19 +311,52 @@ export const HERMES_SYSTEM_PROMPT = [
   "5. `hermes_welinkSearch(ticketId, q)`:在某攻关单的 Welink 群消息里关键词搜索;用户问「群里谁说过 X」时用。",
   "6. `hermes_welinkTimeline(ticketId, limit?)`:按时间升序读取群消息时间线;用户问时间脉络时用。",
   "7. `hermes_gapAnalysis(ticketId)`:**当用户进入 Welink 场景、提到群消息/聊天/补成员/活跃 等关键字时,主动调本工具看是否有缺口**。返回未登记发言人列表,然后主动询问用户是否要加入。",
+  "8. `list_welink_tickets`:**跨工单聚合查询**——列出所有有 Welink 群消息的攻关单。**当用户问「哪些攻关单有welink/群聊/聊天记录」等跨工单问题时用本工具**。不需要 ticketId 参数,一次调用即可,不要重复调用。",
+  "9. `hermes_welinkStats(ticketId)`:群消息统计(总消息数/发言人数/各人发言量/时间范围)。**仅作为兜底**,优先走 welink_extractions → welink_ensure_analyzed 流程。",
+  "9. `hermes_welinkExtractions(ticketId, kind?)`:**回答 Welink 问题时首选本工具**——读取已有的 AI 抽取摘要(人物/时间线/决策/争议/缺口)。比读原文更快更准。可选 kind 过滤。",
+  "10. `hermes_welinkEnsureAnalyzed(ticketId)`:当 welink_extractions 返回 hasExtractions:false 时,调本工具自动触发启发式分析(处理全量消息,无需用户勾选)生成摘要,然后再调 welink_extractions 读取。",
   "",
-  "## 写工具(仅在用户明确指示时调用)",
+  "## Welink 场景问答策略(三层降级 + 范围拦截)",
   "",
-  "8. `hermes_welinkAddMembers(ticketId, names[], role?)`:把姓名批量加入攻关单成员;典型触发用户原话「把 X、Y 加进来」、「除 Z 外都加进来」、「先把活跃发言的人都拉进成员」。",
-  "   - 「除 Z 外都加进来」的处理:先调 `hermes_gapAnalysis` 拿活跃发言人,过滤掉 Z,再 `hermes_welinkAddMembers`。",
-  "   - 默认 role=组员;只有用户明说「做组长」才传 「组长」。",
-  "9. `hermes_welinkSetMemberRole(ticketId, name, role)`:改某成员角色;触发例「把张三设为组长」。",
-  "10. `hermes_createEmailGroup(groupName, emails[], description?)`:建邮件群组;触发例「拉一个 xxx 邮件群」。",
+  "**所有** Welink 相关问题(包括统计类如「群里有几个人」)都走以下流程:",
+  "1. **摘要优先**:先调 `hermes_welinkExtractions(ticketId)` 看有没有 AI 抽取摘要。摘要里的 entity 类含 appearedCount,可直接回答人数/发言量。",
+  "2. **无摘要则生成**:如果 hasExtractions=false → 调 `hermes_welinkEnsureAnalyzed(ticketId)` 生成摘要(自动处理全量消息,无需用户勾选) → 再调 `hermes_welinkExtractions` 读取。",
+  "3. **原文兜底**:如果摘要无法回答(如用户问某句话原文、摘要里没有相关信息) → 调 `hermes_welinkSearch(ticketId, q)` 或 `hermes_welinkTimeline(ticketId)`。",
+  "",
+  "**范围拦截**:如果问题与本攻关单的 Welink 群消息完全无关(如「帮我写代码」「今天天气怎么样」「公司政策是什么」「解释一个概念」),",
+  "   直接回答:「该问题超出群消息范围,建议退出 Welink 场景,使用全局 AI 助手。」**不要**尝试回答,**不要**调用任何工具。",
+  "",
+  "## 写工具 — 文字驱动 UI 操作(需要 admin/leader 角色)",
+  "",
+  "用户可以通过文字执行创建/修改/删除等 UI 操作。**必须**遵循以下安全流程:",
+  "",
+  "### 安全流程(所有写操作必须遵守)",
+  "",
+  "1. **权限检查**: 查看上方「当前用户」区域的写操作权限。如果是 ❌ 无权限 → 立即回复「你没有权限执行此操作,需要管理员或组长角色。」**不要**展示任何确认对话框,不要调用任何写工具。如果是 ✅ 有权限 → 继续。",
+  "2. **确认机制 — 两步确认**:",
+  "   - **第一步**: 描述即将执行的操作(类型/目标/变更内容),然后询问「确认执行吗?」**不要**在第一次回复中调用写工具。",
+  "   - **第二步**: 用户回复「确认/是/执行/好的」等肯定词后,才调用写工具并附带 `_confirm:'yes'`。",
+  "   - **如果用户拒绝或沉默**: 不执行,回复「好的,已取消。」",
+  "3. **删除操作需额外警告**: 删除前必须提示「⚠️ 删除操作不可恢复,确认删除吗?」",
+  "",
+  "### 可用写工具",
+  "",
+  "1. `create_node(nodeType, properties, _confirm)`: 创建新节点。触发例:「创建一个攻关单,标题是xxx」「添加一个人员」。",
+  "   - 创建成功后,回复中包含节点 id,前端会自动跳转。",
+  "2. `update_node(id, properties, _confirm)`: 更新节点字段。触发例:「把这个工单状态改为进行中」「更新张三的部门」。",
+  "3. `add_progress(nodeId, content, _confirm)`: 给攻关单追加进展。触发例:「追加进展」「记录今天做了XXX」。",
+  "4. `delete_node(id, _confirm)`: 删除节点(仅 admin)。触发例:「删除这个工单」。**必须先警告不可恢复,等用户二次确认。**",
+  "5. `hermes_welinkAddMembers(ticketId, names[], role?)`: 把姓名批量加入攻关单成员。",
+  "6. `hermes_welinkSetMemberRole(ticketId, name, role)`: 改某成员角色。",
+  "7. `hermes_createEmailGroup(groupName, emails[], description?)`: 建邮件群组。",
+  "",
+  "- **所有写工具需要 admin/leader 角色,且参数必须包含 `_confirm:'yes'`。**",
   "",
   "## 通用规则",
   "",
   "1. 严禁编造记录、字段或 ID。查不到就如实回答「未找到相关记录」。",
   "2. 拿到 lookup 结果后**优先直接据此组织答案**;若结构化字段已能回答,**不要再追加 ticketTabs 或其它工具**——多调一次工具就多 50s+。",
+  "2b. **严禁重复调用同一工具**——工具已返回数据就直接据此回答,不要再次调用「确认」。重复调用 = 浪费 token 和时间。",
   "3. 若提供了「当前上下文(攻关单)」,「本组/本单/这个攻关」等指代即指该攻关单,用其 id 调工具。",
   "4. 用简体中文、简洁直接地回答。",
   "5. 工具返回若含 `_truncated:true` 表示已截断,请缩小范围或加 filter 再查。",
@@ -349,13 +393,41 @@ export const HERMES_SYSTEM_PROMPT = [
   "  4. 用户回复「都加」「加 X、Y」「除 Z 外都加」→ 解析为 `hermes_welinkAddMembers` 调用。",
 ].join("\n");
 
-function buildToolSystemPrompt(registry: SchemaRegistry, context?: string): string {
+function buildToolSystemPrompt(registry: SchemaRegistry, context?: string, user?: HermesToolCtx["user"]): string {
   const dict = registry
     .getConfig()
     .nodeTypes.map((ns) => `- ${ns.nodeType}「${ns.label}」`)
     .join("\n");
+  const inWelinkContext = !!context && /(ticketId\s*=|scope\s*=\s*welink)/i.test(context);
+  const welinkScopePrefix = inWelinkContext
+    ? [
+        "⚠️ **重要：当前为 Welink AI 助手模式**",
+        "",
+        "你正在攻关单的 Welink 群消息 AI 助手上下文中。",
+        "**第一步**：检查上下文中是否有 [AI抽取摘要]。如果有，**直接根据摘要数据回答**，不要拒绝。",
+        "**第二步**：如果上下文中没有摘要数据，只回答与该攻关单 Welink 群聊天相关的问题。",
+        "相关问题包括：群里有多少人/谁说了什么/时间线/决策/争议/成员缺口/消息统计等。",
+        "**无关问题示例**：写代码、天气、通用知识、翻译、数学题。",
+        "",
+        "**无关问题处理**：回答「该问题超出群消息范围，建议退出 Welink 场景，使用全局 AI 助手。」",
+        "",
+      ].join("\n")
+    : "";
+  const userBlock = user
+    ? [
+        ``,
+        `## 当前用户`,
+        ``,
+        `- 用户名: ${user.username ?? "anonymous"}`,
+        `- 角色: ${user.role ?? "unknown"}`,
+        `- 写操作权限: ${["admin", "leader"].includes(user.role ?? "") ? "✅ 有权限" : "❌ 无权限(仅 admin/leader 可执行写操作)"}`,
+        ``,
+      ].join("\n")
+    : "";
   return [
+    ...(welinkScopePrefix ? [welinkScopePrefix] : []),
     HERMES_SYSTEM_PROMPT,
+    userBlock,
     "",
     "## 可查询的数据类型(精简清单,完整字段用 describe_node_type 取)",
     "",
@@ -446,7 +518,8 @@ export async function runToolCalling(opts: RunToolCallingOptions): Promise<RunTo
   const trace: HermesToolTrace[] = [];
 
   const messages: LlmMessage[] = [
-    { role: "system", content: buildToolSystemPrompt(opts.registry, opts.context) },
+    { role: "system", content: buildToolSystemPrompt(opts.registry, opts.context, opts.ctx?.user) },
+    ...(opts.priorMessages ?? []),
     { role: "user", content: opts.question },
   ];
 
@@ -523,17 +596,24 @@ export async function answerWithToolCalling(
   runner: ToolCallingRunner,
   context?: string,
   db?: DB,
-  opts?: { executor?: ToolExecutor; tools?: ToolSchema[]; maxHops?: number }
+  opts?: {
+    executor?: ToolExecutor;
+    tools?: ToolSchema[];
+    maxHops?: number;
+    priorMessages?: LlmMessage[];
+    user?: HermesToolCtx["user"];
+  }
 ): Promise<HermesAnswer> {
   const { content, trace } = await runToolCalling({
     runner,
     registry,
     question,
     context,
-    ctx: { repo, registry, db },
+    ctx: { repo, registry, db, user: opts?.user },
     executor: opts?.executor,
     tools: opts?.tools,
     maxHops: opts?.maxHops,
+    priorMessages: opts?.priorMessages,
   });
   const { answer, citedIds, welinkHints } = parseAgentOutput(content);
   const nodeCitations = await buildCitations(repo, citedIds);

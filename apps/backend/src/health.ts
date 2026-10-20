@@ -1,18 +1,49 @@
 import { Router } from "express";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
+import type { DbAdapter } from "./db-adapter.js";
 
-// systemd 进程级 watchdog 只看 PID 在不在,它无法识别"进程在但卡死"。/health 给反代/负载均衡/
-// 监控脚本一个轻量探活点:DB 能 SELECT 1 + 返回当前 uptime 即视为健康。
-// 系统级端点 — 在 authMiddleware 之前 mount,无需鉴权。
-export function makeHealthRouter(db?: DB): Router {
+function resolvePkgVersion(): string {
+  // 优先读环境变量（npm run 场景）
+  if (process.env.npm_package_version) return process.env.npm_package_version;
+  try {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    // dist/apps/backend/dist → 需要回退到项目根
+    // 开发时: __dirname = apps/backend/dist → ../..  = 项目根
+    // 部署时: __dirname = apps/backend/dist → ../../.. = 项目根
+    for (const rel of ["../../package.json", "../../../package.json"]) {
+      try {
+        const pkg = JSON.parse(readFileSync(join(__dirname, rel), "utf8"));
+        if (pkg.version && pkg.version !== "0.0.0") return pkg.version;
+      } catch {}
+    }
+    return "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+export function makeHealthRouter(db?: DB, adapter?: DbAdapter): Router {
   const r = Router();
   const bootAt = Date.now();
-  const pkgVersion = process.env.npm_package_version || "0.0.0";
+  const pkgVersion = resolvePkgVersion();
 
-  r.get("/health", (_req, res) => {
+  r.get("/health", async (_req, res) => {
     let dbConnected = false;
     let dbKind: string | null = null;
-    if (db) {
+
+    if (adapter) {
+      try {
+        const row = await adapter.queryOne<{ ok: number }>("SELECT 1 as ok");
+        dbConnected = row?.ok === 1;
+        dbKind = adapter.kind;
+      } catch {
+        dbConnected = false;
+        dbKind = adapter.kind;
+      }
+    } else if (db) {
       try {
         const row = db.prepare("SELECT 1 as ok").get() as { ok: number } | undefined;
         dbConnected = row?.ok === 1;
@@ -22,6 +53,7 @@ export function makeHealthRouter(db?: DB): Router {
         dbKind = "sqlite";
       }
     }
+
     const uptimeMs = Date.now() - bootAt;
     res.json({
       status: dbConnected ? "ok" : "degraded",

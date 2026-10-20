@@ -130,4 +130,4 @@ curl -sf http://localhost:3001/api/health
 ## 来源
 
 - 评审条目: `docs/REVIEWS/REVIEW_performance.md` 弱项 ✗ 10 (无异地备份)
-- 桶: harden v2.4
+- 桶: harden v2.3.1

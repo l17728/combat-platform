@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { log, asyncHandler } from "./logger.js";
 import type { DbAdapter } from "./db-adapter.js";
+import { adminMiddleware } from "./auth.js";
 
 export function makeSettingsRouter(adapter: DbAdapter): Router {
   // SQLite-only DDL — Postgres path already provisioned by POSTGRES_SCHEMA_DDL.
@@ -17,6 +18,7 @@ export function makeSettingsRouter(adapter: DbAdapter): Router {
 
   r.get(
     "/settings",
+    adminMiddleware,
     asyncHandler(async (_req, res) => {
       const rows = await adapter.query<{ key: string; value: string }>(
         `SELECT key, value FROM app_settings WHERE key LIKE ?`,
@@ -38,6 +40,7 @@ export function makeSettingsRouter(adapter: DbAdapter): Router {
 
   r.get(
     "/settings/:key",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const row = await adapter.queryOne<{ value: string }>(`SELECT value FROM app_settings WHERE key = ?`, [
         cfgKey(req.params.key),
@@ -53,6 +56,7 @@ export function makeSettingsRouter(adapter: DbAdapter): Router {
 
   r.get(
     "/settings/:key/resolve",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const scope = req.query.scope as string | undefined;
       let row: { value: string } | undefined;
@@ -78,6 +82,7 @@ export function makeSettingsRouter(adapter: DbAdapter): Router {
 
   r.put(
     "/settings/:key",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const { values, label } = req.body as { values?: string[]; label?: string };
       if (!Array.isArray(values)) return res.status(400).json({ error: "values 必须是数组" });
@@ -93,6 +98,7 @@ export function makeSettingsRouter(adapter: DbAdapter): Router {
 
   r.delete(
     "/settings/:key",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const info = await adapter.run(`DELETE FROM app_settings WHERE key = ?`, [cfgKey(req.params.key)]);
       if (info.changes === 0) return res.status(404).json({ error: "配置项不存在" });

@@ -40,7 +40,7 @@ export async function scanEscalation(
     escalated = 0;
   // Preload to avoid N+1 inside the loop
   const escalatedIds = new Set((await repo.listAuditLog({ action: "ESCALATE" })).map((a) => a.entityId));
-  const allRefEdges = await repo.queryEdges({ edgeType: "REF" });
+  const allRefEdges = await repo.queryEdges({ edgeType: "分配" });
   for (const t of await repo.queryNodes("attackTicket")) {
     const status = String(t.properties["状态"] ?? "");
     if (!ACTIVE.has(status)) continue;
@@ -58,7 +58,7 @@ export async function scanEscalation(
       .find((e) => String(e.properties["field"]) === "当前处理人");
     if (ownerRef)
       await repo.createEdge(
-        "ESCALATED_TO",
+        "上报",
         t.id,
         ownerRef.targetId,
         { level: lvl, 上升角色: rule.上升角色, at: new Date().toISOString() },

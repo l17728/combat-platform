@@ -1,5 +1,6 @@
 {
   "name": "combat-tool",
+  "version": "3.5.0",
   "private": true,
   "workspaces": [
     "packages/*",
@@ -42,5 +43,8 @@
     "husky": "9.1.7",
     "lint-staged": "15.5.2",
     "prettier": "3.8.3"
+  },
+  "dependencies": {
+    "compression": "^1.8.1"
   }
 }

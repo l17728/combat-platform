@@ -63,4 +63,12 @@ describe("helmet + CORS + rate-limit (P1)", () => {
       .set("Access-Control-Request-Method", "GET");
     expect(r.status).toBe(204);
   });
+
+  it("rate limit 放宽后 50 次连续请求不触发 429", async () => {
+    const { app } = makeApp();
+    const results = await Promise.all(Array.from({ length: 50 }, () => request(app).get("/api/health")));
+    const rateLimited = results.filter((r) => r.status === 429);
+    expect(rateLimited.length).toBe(0);
+    expect(results.every((r) => r.status === 200)).toBe(true);
+  });
 });

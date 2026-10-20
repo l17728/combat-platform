@@ -3,6 +3,7 @@ import { writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { SchemaRegistry, Repository, NodeSchema, FieldSchema, FieldType } from "@combat/shared";
 import { log, asyncHandler } from "./logger.js";
+import { adminMiddleware } from "./auth.js";
 
 export interface SchemaSuggestion {
   nodeType: string;
@@ -16,6 +17,9 @@ export interface SchemaSuggestion {
 }
 
 const NODE_TYPE_RE = /^[a-zA-Z][a-zA-Z0-9]*$/;
+
+// Core nodeTypes that the application hardcodes — deleting them breaks the system.
+export const PROTECTED_NODE_TYPES: ReadonlySet<string> = new Set(["attackTicket", "person", "contribution"]);
 
 export async function seedConfigFromSchemas(registry: SchemaRegistry, repo: Repository): Promise<void> {
   for (const ns of registry.getConfig().nodeTypes) {
@@ -101,6 +105,7 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
   // POST /api/schema/nodeType — create a new schema
   r.post(
     "/schema/nodeType",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const { nodeType, label, fields, identityKeys } = req.body as {
         nodeType?: string;
@@ -192,6 +197,7 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
   // DELETE /api/schema/nodeType/:nodeType
   r.delete(
     "/schema/nodeType/:nodeType",
+    adminMiddleware,
     asyncHandler(async (req, res) => {
       const { nodeType } = req.params;
 
@@ -200,7 +206,10 @@ export function makeSchemaApiRouter(registry: SchemaRegistry, schemaDir: string,
         return res.status(400).json({ error: "nodeType 格式非法" });
       }
 
-      // Check schema exists
+      if (PROTECTED_NODE_TYPES.has(nodeType)) {
+        return res.status(403).json({ error: `系统核心类型 "${nodeType}" 不允许删除` });
+      }
+
       const existing = registry.getNodeSchema(nodeType);
       if (!existing) {
         return res.status(404).json({ error: `nodeType "${nodeType}" 不存在` });

@@ -1,5 +1,36 @@
 import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
 import { api, setAuthToken, getStoredUser, setStoredUser, type AuthUser } from "../api.js";
+import { isGuestSession, SESSION_KEYS } from "../system-paths.js";
+
+const ACTIVE_TENANT_KEY = "activeTenant";
+
+interface ActiveTenant {
+  tenantId: string | null;
+  tenantName: string;
+}
+
+function getStoredTenant(): ActiveTenant {
+  try {
+    const sessionRaw = sessionStorage.getItem(SESSION_KEYS.TENANT);
+    if (sessionRaw) return JSON.parse(sessionRaw);
+    const raw = localStorage.getItem(ACTIVE_TENANT_KEY);
+    return raw ? JSON.parse(raw) : { tenantId: null, tenantName: "全局视图" };
+  } catch {
+    return { tenantId: null, tenantName: "全局视图" };
+  }
+}
+
+function setStoredTenant(t: ActiveTenant | null) {
+  const guest = isGuestSession();
+  const store = guest ? sessionStorage : localStorage;
+  const key = guest ? SESSION_KEYS.TENANT : ACTIVE_TENANT_KEY;
+  if (t) {
+    store.setItem(key, JSON.stringify(t));
+  } else {
+    sessionStorage.removeItem(SESSION_KEYS.TENANT);
+    localStorage.removeItem(ACTIVE_TENANT_KEY);
+  }
+}
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -8,9 +39,13 @@ interface AuthContextValue {
   logout: () => void;
   isAdmin: boolean;
   isLeader: boolean;
-  /** P1 强制改密:登录或 /auth/me 报告默认密未改时为 true,改密成功后清零 */
+  isSuperAdmin: boolean;
+  isGuest: boolean;
   passwordMustChange: boolean;
   clearPasswordMustChange: () => void;
+  activeTenantId: string | null;
+  activeTenantName: string;
+  switchTenant: (tenantId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -20,8 +55,13 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
   isAdmin: false,
   isLeader: false,
+  isSuperAdmin: false,
+  isGuest: false,
   passwordMustChange: false,
   clearPasswordMustChange: () => {},
+  activeTenantId: null,
+  activeTenantName: "全局视图",
+  switchTenant: async () => {},
 });
 
 export function useAuth() {
@@ -32,13 +72,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(getStoredUser());
   const [loading, setLoading] = useState(true);
   const [passwordMustChange, setPasswordMustChange] = useState(false);
+  const [activeTenant, setActiveTenant] = useState<ActiveTenant>(getStoredTenant);
 
   useEffect(() => {
+    const guest = isGuestSession();
     api
       .getMe()
       .then((res) => {
         setUser(res.user);
-        setStoredUser(res.user);
+        setStoredUser(res.user, guest);
         setPasswordMustChange(!!res.passwordMustChange);
       })
       .catch(() => {
@@ -56,6 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredUser(result.user);
     setUser(result.user);
     setPasswordMustChange(!!result.passwordMustChange);
+    if (result.user.role === "superadmin") {
+      setActiveTenant({ tenantId: null, tenantName: "全局视图" });
+      setStoredTenant({ tenantId: null, tenantName: "全局视图" });
+    }
     return { passwordMustChange: !!result.passwordMustChange };
   }, []);
 
@@ -64,9 +110,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStoredUser(null);
     setUser(null);
     setPasswordMustChange(false);
+    setActiveTenant({ tenantId: null, tenantName: "全局视图" });
+    setStoredTenant(null);
   }, []);
 
   const clearPasswordMustChange = useCallback(() => setPasswordMustChange(false), []);
+
+  const switchTenant = useCallback(
+    async (tenantId: string) => {
+      const result = await api.switchTenant(tenantId);
+      setAuthToken(result.token);
+      const newTenant: ActiveTenant = {
+        tenantId: result.tenantId ?? null,
+        tenantName: result.tenantName,
+      };
+      setActiveTenant(newTenant);
+      setStoredTenant(newTenant);
+      if (user) {
+        const updatedUser = { ...user, tenantId: result.tenantId ?? user.tenantId };
+        setStoredUser(updatedUser);
+        setUser(updatedUser);
+      }
+    },
+    [user]
+  );
 
   return (
     <AuthContext.Provider
@@ -75,10 +142,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         login,
         logout,
-        isAdmin: user?.role === "admin",
-        isLeader: user?.role === "leader" || user?.role === "admin",
+        isAdmin: user?.role === "admin" || user?.role === "superadmin",
+        isLeader: user?.role === "leader" || user?.role === "admin" || user?.role === "superadmin",
+        isSuperAdmin: user?.role === "superadmin",
+        isGuest: user?.username?.startsWith("guest_") ?? false,
         passwordMustChange,
         clearPasswordMustChange,
+        activeTenantId: activeTenant.tenantId,
+        activeTenantName: activeTenant.tenantName,
+        switchTenant,
       }}
     >
       {children}

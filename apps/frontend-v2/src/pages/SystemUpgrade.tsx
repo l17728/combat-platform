@@ -33,6 +33,9 @@ import {
   CloudDownloadOutlined,
 } from "@ant-design/icons";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { useAuth } from "../hooks/useAuth.js";
 
 const { Title, Text, Paragraph } = Typography;
@@ -86,6 +89,7 @@ function fmtDuration(sec: number): string {
 
 export default function SystemUpgrade() {
   const { isAdmin } = useAuth();
+  const { guard } = useGuestGuard();
   const [current, setCurrent] = useState<Awaited<ReturnType<typeof api.upgradeCurrent>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -167,6 +171,7 @@ export default function SystemUpgrade() {
   };
 
   const fetchFromRelease = async () => {
+    if (!guard()) return;
     if (!selectedAssetUrl) {
       message.warning("请选择一个 .tar.gz asset");
       return;
@@ -195,7 +200,6 @@ export default function SystemUpgrade() {
   };
 
   useEffect(() => {
-    if (!isAdmin) return;
     fetchCurrent();
     fetchHistory();
     pollStatus();
@@ -203,17 +207,10 @@ export default function SystemUpgrade() {
     return () => {
       if (pollTimer.current) window.clearInterval(pollTimer.current);
     };
-  }, [isAdmin]);
-
-  if (!isAdmin) {
-    return (
-      <Card>
-        <Alert type="warning" showIcon message="系统升级仅管理员可用" />
-      </Card>
-    );
-  }
+  }, []);
 
   const beforeUpload = async (file: File) => {
+    if (!guard()) return false;
     if (!/\.(tar\.gz|tgz)$/i.test(file.name)) {
       message.error("仅支持 .tar.gz / .tgz 升级包");
       return false;
@@ -248,6 +245,7 @@ export default function SystemUpgrade() {
   };
 
   const startUpgrade = async () => {
+    if (!guard()) return;
     if (!stagingId) return;
     Modal.confirm({
       title: "确认执行系统升级",
@@ -285,6 +283,7 @@ export default function SystemUpgrade() {
   };
 
   const doRollback = async () => {
+    if (!guard()) return;
     Modal.confirm({
       title: "确认回滚到上次备份?",
       content: "回滚将恢复 config/ + SQLite + overlay 到升级前状态,并重启服务。",
@@ -310,6 +309,7 @@ export default function SystemUpgrade() {
   const isRunning = status?.phase && !["idle", "done", "failed", "rolled-back"].includes(status.phase);
 
   const beforeSigUpload = async (file: File) => {
+    if (!guard()) return false;
     if (!stagingId) {
       message.error("请先上传升级包");
       return false;
@@ -343,9 +343,12 @@ export default function SystemUpgrade() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          系统升级
-        </Title>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            系统升级
+          </Title>
+          <HelpButton title={HELP.systemUpgrade.title} content={HELP.systemUpgrade.content} />
+        </div>
         <Space>
           <Button
             icon={<ReloadOutlined />}

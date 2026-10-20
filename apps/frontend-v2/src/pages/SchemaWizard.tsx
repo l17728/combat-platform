@@ -29,6 +29,7 @@ import {
 } from "@ant-design/icons";
 import type { FieldSchema, FieldType, NodeSchema } from "@combat/shared";
 import { api } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import type { SchemaSuggestion } from "../api.js";
 import { useSettings } from "../hooks/useSettings.js";
 import HelpButton from "../components/HelpButton.js";
@@ -36,6 +37,8 @@ import HELP from "../help-content.js";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
+
+import { PROTECTED_NODE_TYPES } from "../system-paths.js";
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
   { value: "string", label: "文本 (string)" },
@@ -158,8 +161,9 @@ export default function SchemaWizard() {
     group: string;
   }>({ name: "", label: "", type: "string", enumValues: "", group: "" });
   const [addingField, setAddingField] = useState(false);
-  // v2.6: 新分组占位输入框
+  // v2.3.4: 新分组占位输入框
   const [newGroupName, setNewGroupName] = useState("");
+  const { guard } = useGuestGuard();
   const { settings } = useSettings();
   const settingKeys = Object.keys(settings).filter((k) => !k.includes("."));
 
@@ -196,6 +200,7 @@ export default function SchemaWizard() {
   };
 
   const handleSubmit = async () => {
+    if (!guard()) return;
     if (!nodeType.trim() || !/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
       message.error("表名必须以字母开头，只包含字母和数字");
       return;
@@ -237,6 +242,7 @@ export default function SchemaWizard() {
   };
 
   const handleDeleteSchema = async (nt: string) => {
+    if (!guard()) return;
     try {
       await api.deleteSchema(nt);
       message.success("已删除");
@@ -248,6 +254,7 @@ export default function SchemaWizard() {
   };
 
   const handleAddFieldToSchema = async () => {
+    if (!guard()) return;
     if (!selectedSchema) return;
     const name = newFieldDraft.name.trim();
     const label = newFieldDraft.label.trim() || name;
@@ -291,6 +298,7 @@ export default function SchemaWizard() {
   };
 
   const handleSetOptionsKey = async (nodeType: string, fieldId: string, optionsKey: string | null) => {
+    if (!guard()) return;
     try {
       const updated = await api.patchSchema(nodeType, { op: "setOptionsKey", id: fieldId, optionsKey });
       message.success(optionsKey ? `已绑定配置项"${optionsKey}"` : "已解除配置绑定");
@@ -302,6 +310,7 @@ export default function SchemaWizard() {
   };
 
   const handleRetireField = async (nodeType: string, fieldId: string) => {
+    if (!guard()) return;
     try {
       const updated = await api.patchSchema(nodeType, { op: "retire", id: fieldId });
       message.success("字段已停用");
@@ -313,6 +322,7 @@ export default function SchemaWizard() {
   };
 
   const handleUnretireField = async (nodeType: string, fieldId: string) => {
+    if (!guard()) return;
     try {
       const updated = await api.patchSchema(nodeType, { op: "unretire", id: fieldId });
       message.success("字段已恢复");
@@ -323,10 +333,11 @@ export default function SchemaWizard() {
     }
   };
 
-  // v2.6: 字段分组管理 ---------------------------------------------------------
+  // v2.3.4: 字段分组管理 ---------------------------------------------------------
   // PATCH /api/schema/<nt> { op: "updateField", ... } 走后端 updateField 分支,
   // 同时写回 baseline / overlay 并记录审计。
   const handleSetFieldGroup = async (nodeType: string, fieldId: string, group: string | null) => {
+    if (!guard()) return;
     try {
       const updated = await api.patchSchema(nodeType, { op: "updateField", id: fieldId, group });
       message.success(group ? `已移入分组「${group}」` : "已移出分组");
@@ -338,6 +349,7 @@ export default function SchemaWizard() {
   };
 
   const handleMoveField = async (nodeType: string, fieldId: string, dir: "up" | "down") => {
+    if (!guard()) return;
     if (!selectedSchema) return;
     // 同组内按 (order asc, idx asc) 排序后,与上/下邻居交换 order。
     const fields = selectedSchema.fields;
@@ -392,6 +404,7 @@ export default function SchemaWizard() {
   })();
 
   const handleAddGroup = () => {
+    if (!guard()) return;
     const g = newGroupName.trim();
     if (!g) {
       message.warning("请输入分组名");
@@ -550,15 +563,6 @@ export default function SchemaWizard() {
                 { title: "类型标识", dataIndex: "nodeType", render: (v: string) => <Text code>{v}</Text> },
                 { title: "显示名", dataIndex: "label" },
                 { title: "字段数", render: (_: unknown, r: NodeSchema) => r.fields.length },
-                {
-                  title: "",
-                  width: 60,
-                  render: (_: unknown, r: NodeSchema) => (
-                    <Popconfirm title="确认删除？有数据的表无法删除" onConfirm={() => handleDeleteSchema(r.nodeType)}>
-                      <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-                    </Popconfirm>
-                  ),
-                },
               ]}
               onRow={(record) => ({
                 onClick: () => setSelectedSchema(selectedSchema?.nodeType === record.nodeType ? null : record),
@@ -627,7 +631,7 @@ export default function SchemaWizard() {
             </Button>
           }
         >
-          {/* v2.6: 字段分组管理面板 */}
+          {/* v2.3.4: 字段分组管理面板 */}
           <Card
             size="small"
             type="inner"

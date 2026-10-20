@@ -1,4 +1,4 @@
-// §v2.6: /api/llm-settings router
+// §v2.3.4: /api/llm-settings router
 //
 // 端点:
 //   GET  /api/llm-settings              → 当前配置(apiKey 已 masked)
@@ -125,7 +125,7 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
     asyncHandler(async (req, res) => {
       const b = (req.body ?? {}) as PingBody;
       const current = await getLlmSettings(adapter);
-      // §v2.7: env 作为最终 fallback,允许 admin 在 DB 空时通过 env 一键测试
+      // §v2.3.5: env 作为最终 fallback,允许 admin 在 DB 空时通过 env 一键测试
       const envBase = process.env.HERMES_LLM_BASE_URL;
       const envKey = process.env.HERMES_LLM_API_KEY;
       const envModel = process.env.HERMES_MODEL;
@@ -185,7 +185,7 @@ export function makeLlmSettingsRouter(adapter: DbAdapter): Router {
     })
   );
 
-  // §v2.7: GET /api/llm-settings/models — 透传 provider 的 OpenAI 兼容 /models
+  // §v2.3.5: GET /api/llm-settings/models — 透传 provider 的 OpenAI 兼容 /models
   // 用 DB 配置(或 env fallback)调 `${baseURL}/models`,返回 {models: [{id, owned_by?}]}。
   // 用于前端「刷新模型列表」按钮替换硬编码 PROVIDER_DEFAULTS.models。
   r.get(

@@ -10,7 +10,7 @@ import { listManualLinks } from "./relations.js";
  */
 async function buildConflicts(repo: Repository, id: string): Promise<ConflictItem[]> {
   const out: ConflictItem[] = [];
-  for (const edgeType of ["CONFLICTS_WITH", "OVERLAPS_WITH"] as ConflictEdgeType[]) {
+  for (const edgeType of ["冲突", "重叠"] as ConflictEdgeType[]) {
     for (const e of await repo.queryEdges({ sourceId: id, edgeType })) {
       const peer = await repo.getNode(e.targetId);
       if (!peer) continue;

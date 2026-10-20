@@ -22,9 +22,16 @@ import type {
   CoAnchoredItem,
   ExpandedItem,
   ConflictItem,
+  CustomCommand,
+  CustomCommandRunResult,
+  PinnedUi,
+  ManualLinkView,
+  OncallCurrentRow,
+  UiSpec,
 } from "@combat/shared";
+import { isApiSystemPath, STORAGE_KEYS, SESSION_KEYS, isGuestSession } from "./system-paths.js";
 
-// §v2.6 LLM settings DTOs
+// §v2.3.4 LLM settings DTOs
 export type LlmThinkingMode = "disabled" | "enabled" | "auto";
 export interface LlmSettingsMaskedDTO {
   provider: string;
@@ -305,6 +312,27 @@ export interface HermesAskResult {
   fallback_reason?: string;
 }
 
+export interface HermesSession {
+  id: string;
+  userId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HermesSessionMessage {
+  id: string;
+  sessionId: string;
+  role: "user" | "assistant";
+  content: string;
+  citations?: string;
+  createdAt: string;
+}
+
+export interface HermesSessionDetail extends HermesSession {
+  messages: HermesSessionMessage[];
+}
+
 /**
  * 类型化的 API 错误。所有 api.* 调用失败统一抛 ApiError(而非裸 Error),
  * 调用方可以按 status 分支处理(如 403 隐藏 toast)。
@@ -350,20 +378,35 @@ export class Api {
 
   private getToken(): string | null {
     try {
-      return localStorage.getItem("combat-token");
+      const sessionToken = sessionStorage.getItem(SESSION_KEYS.TOKEN);
+      if (sessionToken) return sessionToken;
+      return localStorage.getItem(STORAGE_KEYS.TOKEN);
     } catch {
       return null;
     }
   }
 
   private async req<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const method = (init.method || "GET").toUpperCase();
+    if (
+      method !== "GET" &&
+      method !== "HEAD" &&
+      method !== "OPTIONS" &&
+      isGuestFromToken() &&
+      isGuestSystemPath(path)
+    ) {
+      const { message } = await import("antd");
+      message.warning("游客参观期间，请勿触动控制面板，谢谢！");
+      throw new ApiError(403, "游客仅可查看，无法执行操作", path);
+    }
     const headers: Record<string, string> = { ...((init.headers as Record<string, string>) ?? {}) };
+    if (init.body && !(init.body instanceof FormData) && !headers["content-type"] && !headers["Content-Type"]) {
+      headers["content-type"] = "application/json";
+    }
     const token = this.getToken();
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
-    // P0-3 修复:不再注入 X-Role 头,后端从 JWT payload 取 role,
-    // 防止客户端伪造 role 越权(localStorage 可任意改写)。
     init = { ...init, headers };
     const start = Date.now();
     const r = await this.f(`${this.base}${path}`, init);
@@ -381,6 +424,10 @@ export class Api {
       // 用的,不能让它弹 toast + 跳转(它的 401 是预期的"未登录"信号),所以排除。
       if (r.status === 401 && !path.startsWith("/api/auth/me")) {
         _triggerUnauthorized(err);
+      }
+      if (r.status === 403 && isGuestFromToken() && isGuestSystemPath(path) && init?.method && init.method !== "GET") {
+        const { message } = await import("antd");
+        message.warning("游客参观期间，请勿触动控制面板，谢谢！");
       }
       throw err;
     }
@@ -561,6 +608,10 @@ export class Api {
   }
 
   exportNodes(nodeType: string): Promise<Blob> {
+    if (isGuestFromToken()) {
+      import("antd").then(({ message }) => message.warning("游客仅可参观，无法导出数据"));
+      return Promise.reject(new ApiError(403, "游客仅可参观，无法导出数据", `/api/export/${nodeType}`));
+    }
     return this.authFetch(`/api/export/${nodeType}`).then((r) => {
       if (!r.ok) throw new Error(`导出失败: HTTP ${r.status}`);
       return r.blob();
@@ -571,7 +622,7 @@ export class Api {
     return this.req<SmtpConfigMasked>("/api/email/config");
   }
 
-  // §v2.6 LLM settings
+  // §v2.3.4 LLM settings
   getLlmSettings(): Promise<LlmSettingsMaskedDTO> {
     return this.req<LlmSettingsMaskedDTO>("/api/llm-settings");
   }
@@ -589,7 +640,7 @@ export class Api {
       body: JSON.stringify(body),
     });
   }
-  /** §v2.7 透传 provider /models 真实可用列表;失败返 {error}。 */
+  /** §v2.3.5 透传 provider /models 真实可用列表;失败返 {error}。 */
   listLlmModels(): Promise<LlmModelsResult> {
     return this.req<LlmModelsResult>("/api/llm-settings/models");
   }
@@ -796,11 +847,43 @@ export class Api {
     return this.req(`/api/query/search?${p.toString()}`);
   }
 
-  hermesAsk(question: string, context?: string): Promise<HermesAskResult> {
+  hermesAsk(question: string, context?: string, sessionId?: string, scope?: string): Promise<HermesAskResult> {
+    const body: Record<string, unknown> = { question };
+    if (context) body.context = context;
+    if (sessionId) body.sessionId = sessionId;
+    if (scope) body.scope = scope;
     return this.req("/api/hermes/ask", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(context ? { question, context } : { question }),
+      body: JSON.stringify(body),
+    });
+  }
+
+  hermesListSessions(): Promise<HermesSession[]> {
+    return this.req("/api/hermes/sessions");
+  }
+
+  hermesCreateSession(title?: string): Promise<HermesSession> {
+    return this.req("/api/hermes/sessions", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(title ? { title } : {}),
+    });
+  }
+
+  hermesGetSession(id: string): Promise<HermesSessionDetail> {
+    return this.req(`/api/hermes/sessions/${id}`);
+  }
+
+  hermesDeleteSession(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/hermes/sessions/${id}`, { method: "DELETE" });
+  }
+
+  hermesUpdateSessionTitle(id: string, title: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/hermes/sessions/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title }),
     });
   }
 
@@ -981,11 +1064,18 @@ export class Api {
     });
   }
 
-  register(username: string, password: string, displayName?: string, role?: string): Promise<LoginResult> {
+  register(opts: {
+    username: string;
+    password: string;
+    displayName?: string;
+    inviteCode?: string;
+    tenantName?: string;
+    tenantSlug?: string;
+  }): Promise<LoginResult> {
     return this.req("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, displayName, role }),
+      body: JSON.stringify(opts),
     });
   }
 
@@ -998,6 +1088,20 @@ export class Api {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  }
+
+  completeTour(tourId: string): Promise<{ completed: string[] }> {
+    return this.req("/api/auth/tour", {
+      method: "PUT",
+      body: JSON.stringify({ tourId }),
+    });
+  }
+
+  resetTours(): Promise<void> {
+    return this.req("/api/auth/tour", {
+      method: "PUT",
+      body: JSON.stringify({ tourId: "__reset__" }),
     });
   }
 
@@ -1075,6 +1179,12 @@ export class Api {
   }
 
   downloadBackup(filename: string): Promise<Blob> {
+    if (isGuestFromToken()) {
+      import("antd").then(({ message }) => message.warning("游客仅可参观，无法下载备份"));
+      return Promise.reject(
+        new ApiError(403, "游客仅可查看，无法执行操作", `/api/backup/${encodeURIComponent(filename)}`)
+      );
+    }
     return this.authFetch(`/api/backup/${encodeURIComponent(filename)}`).then((r) => {
       if (!r.ok) throw new Error(`下载失败: HTTP ${r.status}`);
       return r.blob();
@@ -1432,6 +1542,405 @@ export class Api {
       body: JSON.stringify({ url }),
     });
   }
+
+  listWebhooks(): Promise<any[]> {
+    return this.req("/api/webhooks");
+  }
+
+  getWebhookEvents(): Promise<string[]> {
+    return this.req("/api/webhooks/events");
+  }
+
+  createWebhook(url: string, events: string[]): Promise<any> {
+    return this.req("/api/webhooks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url, events }),
+    });
+  }
+
+  updateWebhook(id: string, data: { url?: string; events?: string[]; enabled?: boolean }): Promise<any> {
+    return this.req(`/api/webhooks/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteWebhook(id: string): Promise<any> {
+    return this.req(`/api/webhooks/${id}`, { method: "DELETE" });
+  }
+
+  testWebhook(id: string): Promise<any> {
+    return this.req(`/api/webhooks/${id}/test`, { method: "POST" });
+  }
+
+  getDigestConfig(): Promise<any> {
+    return this.req("/api/digest/config");
+  }
+
+  updateDigestConfig(data: Record<string, any>): Promise<any> {
+    return this.req("/api/digest/config", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  previewDigest(days?: number): Promise<any> {
+    const q = days ? `?days=${days}` : "";
+    return this.req(`/api/digest/preview${q}`);
+  }
+
+  sendDigest(days?: number): Promise<any> {
+    return this.req("/api/digest/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(days ? { days } : {}),
+    });
+  }
+
+  addSchemaField(nodeType: string, field: Record<string, any>): Promise<any> {
+    return this.req(`/api/schema/${nodeType}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "addField", field }),
+    });
+  }
+
+  listInvitations(): Promise<any[]> {
+    return this.req("/api/invitations");
+  }
+
+  createInvitation(data: { role: string; email: string; displayName?: string; expiresInDays?: number }): Promise<any> {
+    return this.req("/api/invitations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteInvitation(id: string): Promise<any> {
+    return this.req(`/api/invitations/${id}`, { method: "DELETE" });
+  }
+
+  checkInvite(code: string): Promise<any> {
+    return this.req(`/api/invitations/check/${code}`);
+  }
+
+  listWiki(scope: string, scopeId?: string): Promise<any[]> {
+    const params = new URLSearchParams({ scope });
+    if (scopeId) params.set("scopeId", scopeId);
+    return this.req(`/api/wiki?${params}`);
+  }
+
+  getWiki(id: string): Promise<any> {
+    return this.req(`/api/wiki/${id}`);
+  }
+
+  createWiki(data: {
+    scope: string;
+    scopeId?: string;
+    parentId?: string;
+    title: string;
+    content?: string;
+    isLocked?: boolean;
+    lockPassword?: string;
+  }): Promise<any> {
+    return this.req("/api/wiki", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  updateWiki(
+    id: string,
+    data: {
+      title?: string;
+      content?: string;
+      parentId?: string;
+      sortOrder?: number;
+      isLocked?: boolean;
+      lockPassword?: string;
+    }
+  ): Promise<any> {
+    return this.req(`/api/wiki/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  }
+
+  deleteWiki(id: string, password?: string): Promise<any> {
+    const suffix = password ? `?password=${encodeURIComponent(password)}` : "";
+    return this.req(`/api/wiki/${id}${suffix}`, { method: "DELETE" });
+  }
+
+  searchWiki(scope: string, keyword: string, scopeId?: string): Promise<any[]> {
+    const params = new URLSearchParams({ scope, keyword });
+    if (scopeId) params.set("scopeId", scopeId);
+    return this.req(`/api/wiki?${params}`);
+  }
+
+  reorderWiki(ids: string[]): Promise<any> {
+    return this.req("/api/wiki/reorder", { method: "POST", body: JSON.stringify({ ids }) });
+  }
+
+  likeWiki(id: string): Promise<{ liked: boolean; likes: number }> {
+    return this.req(`/api/wiki/${id}/like`, { method: "POST" });
+  }
+
+  // ---- 分享 ----
+  createShareLink(params: {
+    entityType: string;
+    entityId: string;
+    password?: string;
+    expiresIn?: number;
+    maxViews?: number;
+    targetUsers?: string[];
+  }): Promise<{ id: string; url: string; token: string; expiresAt: string | null }> {
+    return this.req("/api/share", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  }
+
+  getSharedContent(
+    token: string,
+    password?: string
+  ): Promise<{
+    entityType: string;
+    title: string;
+    content: string;
+    sharedBy: string;
+    sharedAt: string;
+    expiresAt: string | null;
+    requiresPassword?: boolean;
+  }> {
+    const qs = password ? `?password=${encodeURIComponent(password)}` : "";
+    return this.req(`/api/s/${token}${qs}`);
+  }
+
+  listShareLinks(entityType: string, entityId: string): Promise<any[]> {
+    return this.req(`/api/share?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`);
+  }
+
+  revokeShareLink(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/share/${id}`, { method: "DELETE" });
+  }
+
+  getShareStats(
+    entityType: string,
+    entityId: string
+  ): Promise<{
+    totalLinks: number;
+    totalViews: number;
+    dailyViews: { date: string; count: number }[];
+  }> {
+    return this.req(
+      `/api/share/stats?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`
+    );
+  }
+
+  copyWikiToTicket(
+    wikiId: string,
+    targetScopeId: string,
+    title?: string
+  ): Promise<{ ok: boolean; copyId: string; title: string }> {
+    return this.req(`/api/wiki/${wikiId}/copy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetScopeId, title }),
+    });
+  }
+
+  // ---- SaaS Platform ----
+  listTenants(): Promise<Tenant[]> {
+    return this.req("/api/platform/tenants");
+  }
+
+  createTenant(data: { name: string; slug: string; plan?: string; maxUsers?: number }): Promise<Tenant> {
+    return this.req("/api/platform/tenants", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  getTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}`);
+  }
+
+  updateTenant(
+    id: string,
+    data: { name?: string; plan?: string; status?: string; maxUsers?: number }
+  ): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  suspendTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}/suspend`, { method: "PUT" });
+  }
+
+  restoreTenant(id: string): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${id}/restore`, { method: "PUT" });
+  }
+
+  getPlatformStats(): Promise<{ tenantCount: number; userCount: number; nodeCount: number }> {
+    return this.req("/api/platform/stats");
+  }
+
+  getTenantUsers(tenantId: string): Promise<any[]> {
+    return this.req(`/api/platform/tenants/${tenantId}/users`);
+  }
+
+  getTenantUsage(tenantId: string): Promise<{
+    users: number;
+    nodes: number;
+    edges: number;
+    wikiArticles: number;
+    auditLogs: number;
+    maxUsers: number;
+    plan: string;
+  }> {
+    return this.req(`/api/platform/tenants/${tenantId}/usage`);
+  }
+
+  updateTenantSettings(tenantId: string, settings: Record<string, unknown>): Promise<Tenant> {
+    return this.req(`/api/platform/tenants/${tenantId}/settings`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  }
+
+  guestAccess(): Promise<{ token: string; username: string }> {
+    return this.req("/api/platform/guest-access", { method: "POST" });
+  }
+
+  switchTenant(tenantId: string): Promise<{ token: string; tenantId: string | null; tenantName: string }> {
+    return this.req(`/api/platform/switch-tenant/${tenantId}`, { method: "POST" });
+  }
+
+  listPlatformAdmins(): Promise<
+    { id: string; username: string; role: string; display_name: string; tenant_id: string }[]
+  > {
+    return this.req("/api/platform/admins");
+  }
+
+  setUserRole(userId: string, role: "admin" | "superadmin"): Promise<{ ok: boolean }> {
+    return this.req(`/api/platform/users/${userId}/role`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  deleteSupportTemplate(templateId: string): Promise<{ deleted: number }> {
+    return this.req(`/api/support-templates/${encodeURIComponent(templateId)}`, { method: "DELETE" });
+  }
+
+  createManualRelation(data: {
+    sourceId: string;
+    targetId: string;
+    reason?: string;
+    sourceField?: string;
+  }): Promise<{ edgeId: string; sourceId: string; targetId: string; sourceField?: string; reason: string }> {
+    return this.req("/api/relations/manual", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  listManualRelations(nodeId: string): Promise<ManualLinkView[]> {
+    return this.req<ManualLinkView[]>(`/api/relations/manual?nodeId=${encodeURIComponent(nodeId)}`);
+  }
+
+  deleteManualRelation(edgeId: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/relations/manual/${encodeURIComponent(edgeId)}`, { method: "DELETE" });
+  }
+
+  listPinnedWidgets(): Promise<PinnedUi[]> {
+    return this.req<PinnedUi[]>("/api/ui-cache/pinned");
+  }
+
+  pinWidget(data: { label?: string; question?: string; intent?: string; uiSpec: UiSpec }): Promise<PinnedUi> {
+    return this.req<PinnedUi>("/api/ui-cache/pin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  renamePinnedWidget(id: string, label: string): Promise<PinnedUi> {
+    return this.req(`/api/ui-cache/pinned/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ label }),
+    });
+  }
+
+  unpinWidget(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/ui-cache/pinned/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  listCommands(): Promise<CustomCommand[]> {
+    return this.req<CustomCommand[]>("/api/commands");
+  }
+
+  createCommand(data: { name: string; template: string; description?: string }): Promise<CustomCommand> {
+    return this.req<CustomCommand>("/api/commands", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteCommand(id: string): Promise<{ ok: boolean }> {
+    return this.req(`/api/commands/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  runCommand(id: string, args: Record<string, unknown>): Promise<CustomCommandRunResult> {
+    return this.req<CustomCommandRunResult>(`/api/commands/${encodeURIComponent(id)}/run`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ args }),
+    });
+  }
+
+  getOncallCurrent(domain?: string): Promise<OncallCurrentRow[]> {
+    const qs = domain ? `?domain=${encodeURIComponent(domain)}` : "";
+    return this.req<OncallCurrentRow[]>(`/api/oncall/current${qs}`);
+  }
+
+  getResponsibilityDiagram(): Promise<{
+    mermaid: string;
+    nodeCount: number;
+    edgeCount: number;
+    totalTickets: number;
+    totalPersons: number;
+    totalConflicts: number;
+    escalationRules: { level: string; slaHours: number; role: string; ticketCount: number }[];
+    personLoads: { personId: string; name: string; assignedCount: number; escalatedCount: number; conflictCount: number }[];
+    conflictTop: { ticketA: string; ticketAId: string; ticketB: string; ticketBId: string }[];
+  }> {
+    return this.req("/api/responsibility/diagram");
+  }
+
+  offsiteBackup(config: {
+    host: string;
+    user: string;
+    port?: number;
+    remoteDir: string;
+    keyPath?: string;
+    sshPassword?: string;
+    dryRun?: boolean;
+  }): Promise<{ ok: boolean; summary?: unknown; stdout?: string }> {
+    return this.req("/api/backup/offsite", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(config),
+    });
+  }
 }
 
 export interface DocItem {
@@ -1472,6 +1981,8 @@ export interface AuthUser {
   username: string;
   role: string;
   displayName: string;
+  tenantId: string;
+  tourCompleted: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -1508,7 +2019,7 @@ export interface BackupSchedule {
 export interface TicketTab {
   id: string;
   ticketId: string;
-  tabType: "link" | "custom";
+  tabType: "link" | "custom" | "wiki";
   title: string;
   tabOrder: number;
   config: string;
@@ -1518,31 +2029,69 @@ export interface TicketTab {
   updatedAt: string;
 }
 
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  max_users: number;
+  settings: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export const api = new Api("");
 
-export function setAuthToken(token: string | null) {
+export function setAuthToken(token: string | null, guest = false) {
+  const store = guest ? sessionStorage : localStorage;
+  const key = guest ? SESSION_KEYS.TOKEN : STORAGE_KEYS.TOKEN;
   if (token) {
-    localStorage.setItem("combat-token", token);
+    store.setItem(key, token);
   } else {
-    localStorage.removeItem("combat-token");
+    sessionStorage.removeItem(SESSION_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
   }
 }
 
 export function getStoredUser(): AuthUser | null {
   try {
-    const raw = localStorage.getItem("combat-user");
+    const sessionRaw = sessionStorage.getItem(SESSION_KEYS.USER);
+    if (sessionRaw) return JSON.parse(sessionRaw);
+    const raw = localStorage.getItem(STORAGE_KEYS.USER);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-export function setStoredUser(user: AuthUser | null) {
+function isGuestFromToken(): boolean {
+  try {
+    if (isGuestSession()) return true;
+    const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (!token) return false;
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return !!payload.isGuest;
+  } catch {
+    return false;
+  }
+}
+
+function isGuestSystemPath(path: string): boolean {
+  return isApiSystemPath(path);
+}
+
+export function setStoredUser(user: AuthUser | null, guest = false) {
   if (user) {
-    localStorage.setItem("combat-user", JSON.stringify(user));
-    localStorage.setItem("combat-role", user.role);
+    const store = guest ? sessionStorage : localStorage;
+    const userKey = guest ? SESSION_KEYS.USER : STORAGE_KEYS.USER;
+    const roleKey = guest ? SESSION_KEYS.ROLE : STORAGE_KEYS.ROLE;
+    store.setItem(userKey, JSON.stringify(user));
+    store.setItem(roleKey, user.role);
   } else {
-    localStorage.removeItem("combat-user");
-    localStorage.removeItem("combat-role");
+    sessionStorage.removeItem(SESSION_KEYS.USER);
+    sessionStorage.removeItem(SESSION_KEYS.ROLE);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.ROLE);
   }
 }

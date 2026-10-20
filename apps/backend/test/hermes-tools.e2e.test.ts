@@ -163,7 +163,7 @@ describe("hermes-tools — 7. traverse_graph", () => {
   it("从 startId 出发 depth=1", async () => {
     const tid = await seedTicket({ 标题: "图根" });
     const pid = await seedPerson({ 姓名: "张三" });
-    await repo.createEdge("REF", tid, pid, { field: "当前处理人" }, "tester");
+    await repo.createEdge("分配", tid, pid, { field: "当前处理人" }, "tester");
     const r = await callTool("traverse_graph", { startId: tid, depth: 1 }, ctxFor());
     expect(r.ok).toBe(true);
     const data = r.data as any;

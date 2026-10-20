@@ -33,9 +33,12 @@ import { PAGE_SIZE, PAGE_SIZE_OPTIONS } from "../constants.js";
 import StatusTag from "../components/StatusTag.js";
 import { useSettings } from "../hooks/useSettings.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { useFlexTable, FlexHeaderCell } from "../hooks/useFlexTable.js";
 import type { GraphNode, NodeSchema } from "@combat/shared";
 import HelpButton from "../components/HelpButton.js";
+import ProductTour from "../components/ProductTour.js";
+import attackListTourSteps from "../tours/attackListTour.js";
 import HELP from "../help-content.js";
 import { buildMembersFromForm, syncMemberFields } from "../utils/teamMembers.js";
 import { handleApiError } from "../utils/handleApiError.js";
@@ -89,12 +92,13 @@ export default function AttackList() {
   const [activeTab, setActiveTab] = useState<"all" | "favorites">(() =>
     searchParams.get("tab") === "favorites" ? "favorites" : "all"
   );
-  // v2.7: 视图切换器(table / kanban / calendar);默认 table 保持 v2.6 行为
+  // v2.3.5: 视图切换器(table / kanban / calendar);默认 table 保持 v2.3.4 行为
   const [view, setView] = useState<"table" | "kanban" | "calendar">(() => {
     const v = searchParams.get("view");
     return v === "kanban" || v === "calendar" ? v : "table";
   });
   const { user } = useAuth();
+  const { guard } = useGuestGuard();
   const currentKey = useMemo(() => favKey(user?.username), [user]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   // 用户切换时从对应 key 重新加载关注列表(避免串账号)
@@ -146,6 +150,18 @@ export default function AttackList() {
       const [nodeList, schemaData] = await Promise.all([api.listNodes("attackTicket"), api.getSchema("attackTicket")]);
       setNodes(nodeList);
       setSchema(schemaData);
+      // 清理已不存在的关注 id（ticket 被删除后 localStorage 残留）
+      if (favorites.size > 0 && nodeList.length > 0) {
+        const existingIds = new Set(nodeList.map((n: GraphNode) => n.id));
+        const stale = [...favorites].filter((id) => !existingIds.has(id));
+        if (stale.length > 0) {
+          setFavorites((prev) => {
+            const next = new Set(prev);
+            for (const s of stale) next.delete(s);
+            return next;
+          });
+        }
+      }
     } catch (e) {
       handleApiError(e, "加载攻关单列表失败");
     } finally {
@@ -166,11 +182,12 @@ export default function AttackList() {
   // CommandPalette / 深链 ?new=1 一键打开新建抽屉
   useEffect(() => {
     if (searchParams.get("new") === "1") {
-      setDrawerOpen(true);
+      if (guard()) setDrawerOpen(true);
       const next = new URLSearchParams(searchParams);
       next.delete("new");
       setSearchParams(next, { replace: true });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, setSearchParams]);
 
   const fieldOptions = useMemo(() => {
@@ -190,6 +207,8 @@ export default function AttackList() {
     }
     return [...seen].sort();
   }, [filterField, nodes]);
+
+  const favoriteCount = useMemo(() => nodes.filter((n) => favorites.has(n.id)).length, [nodes, favorites]);
 
   const filteredNodes = useMemo(() => {
     let result = activeTab === "favorites" ? nodes.filter((n) => favorites.has(n.id)) : nodes;
@@ -231,6 +250,7 @@ export default function AttackList() {
   }));
 
   const handleCreate = async (values: Record<string, unknown>) => {
+    if (!guard()) return;
     setSubmitting(true);
     try {
       // 表单里 攻关组长(单选) + 攻关成员(多选姓名数组)各自录入一次,
@@ -263,6 +283,7 @@ export default function AttackList() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!guard()) return;
     try {
       await api.deleteNode(id);
       message.success("删除成功");
@@ -274,6 +295,7 @@ export default function AttackList() {
 
   // 批量删除:仅删除当前用户为「创建人」的行,其它行静默跳过(避免悄悄越权)
   const handleBatchDelete = async () => {
+    if (!guard()) return;
     const ids = new Set(selectedRowKeys.map(String));
     const targets = nodes.filter((n) => ids.has(n.id));
     const me = (user?.username || "").trim();
@@ -320,6 +342,7 @@ export default function AttackList() {
   };
 
   const handleExport = async () => {
+    if (!guard()) return;
     setExporting(true);
     try {
       const blob = await api.exportNodes("attackTicket");
@@ -523,10 +546,10 @@ export default function AttackList() {
           <HelpButton title={HELP.attackList.title} content={HELP.attackList.content} />
         </div>
         <Space>
-          <Button icon={<PlusOutlined />} type="primary" onClick={() => setDrawerOpen(true)}>
+          <Button icon={<PlusOutlined />} type="primary" onClick={() => guard() && setDrawerOpen(true)} data-tour="create-btn">
             新建攻关
           </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting}>
+          <Button icon={<ExportOutlined />} onClick={handleExport} loading={exporting} data-tour="export-btn">
             导出
           </Button>
         </Space>
@@ -543,7 +566,7 @@ export default function AttackList() {
               key: "favorites",
               label: (
                 <span>
-                  <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favorites.size > 0 ? ` (${favorites.size})` : ""}
+                  <StarFilled style={{ color: "#fadb14" }} /> 我的关注{favoriteCount > 0 ? ` (${favoriteCount})` : ""}
                 </span>
               ),
             },
@@ -561,7 +584,7 @@ export default function AttackList() {
         />
       </div>
 
-      <Space style={{ marginBottom: 16 }} wrap>
+      <Space style={{ marginBottom: 16 }} wrap data-tour="filters">
         <Select
           placeholder="选择筛选字段"
           allowClear
@@ -830,6 +853,7 @@ export default function AttackList() {
           )}
         </Form>
       </Drawer>
+      <ProductTour tourId="attackList" steps={attackListTourSteps} />
     </div>
   );
 }

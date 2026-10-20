@@ -17,10 +17,13 @@ import {
 } from "antd";
 import { ReloadOutlined, DeleteOutlined } from "@ant-design/icons";
 import { api, type OpLogEntry } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import { PAGE_SIZE, PAGE_SIZE_OPTIONS, DATE_FORMAT_FULL } from "../constants.js";
 import { setEnabled, isEnabled } from "../utils/op-logger.js";
 import { useAuth } from "../hooks/useAuth.js";
 import dayjs from "dayjs";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { handleApiError } from "../utils/handleApiError.js";
 
 const { Title, Text } = Typography;
@@ -51,6 +54,7 @@ export default function OperationLog() {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null);
   const [trackingEnabled, setTrackingEnabled] = useState(isEnabled());
   const { isAdmin } = useAuth();
+  const { guard } = useGuestGuard();
   const { token } = theme.useToken();
 
   useEffect(() => {
@@ -64,6 +68,7 @@ export default function OperationLog() {
   }, []);
 
   const handleToggle = async (v: boolean) => {
+    if (!guard()) return;
     try {
       await api.setOpLogSettings(v);
       setTrackingEnabled(v);
@@ -101,6 +106,7 @@ export default function OperationLog() {
   }, [page, categoryFilter, sessionIdFilter, userNameFilter, dateRange]);
 
   const handleCleanup = async () => {
+    if (!guard()) return;
     try {
       const before = dayjs().subtract(30, "day").toISOString();
       const res = await api.deleteOpLogs({ before });
@@ -188,9 +194,12 @@ export default function OperationLog() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>
-          操作追踪
-        </Title>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            操作追踪
+          </Title>
+          <HelpButton title={HELP.operationLog.title} content={HELP.operationLog.content} />
+        </div>
         <Space>
           {isAdmin && (
             <Space size={4}>

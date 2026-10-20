@@ -9,7 +9,7 @@ export async function syncAnchorEdges(
 ): Promise<void> {
   const schema = registry.getNodeSchema(node.nodeType);
   if (!schema) return;
-  await repo.deleteEdges({ sourceId: node.id, edgeType: "ANCHORED_TO" }, actor);
+  await repo.deleteEdges({ sourceId: node.id, edgeType: "关联" }, actor);
   // One shared atomic anchor per anchorKind per node: when several fields map to
   // the same kind, the later field in schema order wins (single ANCHORED_TO edge).
   const resolved = new Map<string, { value: string; field: string }>();
@@ -26,6 +26,6 @@ export async function syncAnchorEdges(
       (n) => String(n.properties["key"] ?? "") === value
     );
     const anchor = existing ?? (await repo.createNode(kind, { key: value }, actor));
-    await repo.createEdge("ANCHORED_TO", node.id, anchor.id, { anchorKind: kind, field }, actor);
+    await repo.createEdge("关联", node.id, anchor.id, { anchorKind: kind, field }, actor);
   }
 }

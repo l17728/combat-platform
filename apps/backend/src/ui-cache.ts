@@ -2,6 +2,7 @@ import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import type { Repository } from "@combat/shared";
 import type { PinnedUi } from "@combat/shared";
+import { adminMiddleware } from "./auth.js";
 import { log } from "./logger.js";
 
 async function readPinned(repo: Repository): Promise<PinnedUi[]> {
@@ -24,7 +25,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
     res.json(await readPinned(repo));
   });
 
-  r.post("/ui-cache/pin", async (req, res) => {
+  r.post("/ui-cache/pin", adminMiddleware, async (req, res) => {
     const { label, question, intent, uiSpec } = req.body ?? {};
     if (!uiSpec) return res.status(400).json({ error: "uiSpec 必填" });
     if (typeof uiSpec.widget !== "string" || typeof uiSpec.params !== "object" || uiSpec.params === null) {
@@ -49,7 +50,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
     res.status(201).json(pin);
   });
 
-  r.patch("/ui-cache/pinned/:id", async (req, res) => {
+  r.patch("/ui-cache/pinned/:id", adminMiddleware, async (req, res) => {
     const actor = (req as any).user?.username ?? "api";
     const pins = await readPinned(repo);
     const pin = pins.find((p) => p.id === req.params.id);
@@ -60,7 +61,7 @@ export function makeUiCacheRouter(repo: Repository): Router {
     res.json(pin);
   });
 
-  r.delete("/ui-cache/pinned/:id", async (req, res) => {
+  r.delete("/ui-cache/pinned/:id", adminMiddleware, async (req, res) => {
     const actor = (req as any).user?.username ?? "api";
     const pins = (await readPinned(repo)).filter((p) => p.id !== req.params.id);
     await writePinned(repo, pins, actor);

@@ -216,7 +216,7 @@ test.describe("编辑操作 - 攻关详情", () => {
     await page.goto(`/attack/${ticket.id}`);
 
     await test.step("验证摘要卡片字段", async () => {
-      // v2.6: 基础信息 tab 由 schema 驱动渲染所有字段(含摘要卡片同字段),
+      // v2.3.4: 基础信息 tab 由 schema 驱动渲染所有字段(含摘要卡片同字段),
       // 因此 PB-BASIC / 腾讯云 可能同时出现在摘要卡片 + 基础信息 tab 卡片中 → first() 任一即可
       await expect(page.getByText("PB-BASIC").first()).toBeVisible();
       await expect(page.getByText("腾讯云").first()).toBeVisible();

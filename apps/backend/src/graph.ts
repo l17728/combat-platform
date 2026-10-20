@@ -8,7 +8,7 @@ import type {
   GraphNode,
 } from "@combat/shared";
 
-const VIZ_EDGE_TYPES = new Set(["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"]);
+const VIZ_EDGE_TYPES = new Set(["分配", "关联", "冲突", "重叠"]);
 
 function labelOf(n: GraphNode): string {
   const p = n.properties;

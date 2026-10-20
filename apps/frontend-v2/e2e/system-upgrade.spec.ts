@@ -61,11 +61,11 @@ test.describe("系统升级 UI", () => {
         contentType: "application/json",
         body: JSON.stringify([
           {
-            tag: "v2.4.0",
-            name: "v2.4.0",
+            tag: "v2.3.1.0",
+            name: "v2.3.1.0",
             publishedAt: "2026-06-01T00:00:00Z",
             body: "notes",
-            assets: [{ name: "combat-v2.4.0.tar.gz", url: "https://example.com/combat.tar.gz", size: 123456 }],
+            assets: [{ name: "combat-v2.3.1.0.tar.gz", url: "https://example.com/combat.tar.gz", size: 123456 }],
           },
         ]),
       })

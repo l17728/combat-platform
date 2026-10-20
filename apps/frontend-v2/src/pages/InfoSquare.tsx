@@ -19,8 +19,7 @@ import {
   Tooltip,
 } from "antd";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import MarkdownRenderer from "../components/MarkdownRenderer.js";
 import { api } from "../api.js";
 import { INFO_IMPORTANCE_COLOR, INFO_CATEGORY_COLOR } from "../constants.js";
 import { useSettings } from "../hooks/useSettings.js";
@@ -317,7 +316,7 @@ export default function InfoSquare() {
           {previewContent && (
             <Card size="small" title="预览" style={{ marginBottom: 16 }}>
               <div style={{ maxHeight: 200, overflow: "auto" }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{previewContent}</ReactMarkdown>
+                <MarkdownRenderer>{previewContent}</MarkdownRenderer>
               </div>
             </Card>
           )}
@@ -363,7 +362,7 @@ export default function InfoSquare() {
               className="markdown-body"
               style={{ padding: 16, background: "#fafafa", borderRadius: 8, minHeight: 100 }}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{detailCard.content || detailCard.summary}</ReactMarkdown>
+              <MarkdownRenderer>{detailCard.content || detailCard.summary}</MarkdownRenderer>
             </div>
           </div>
         )}

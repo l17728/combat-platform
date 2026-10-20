@@ -76,3 +76,35 @@
 .markdown-body p {
   margin: 8px 0;
 }
+
+/* Dark mode overrides */
+html[data-theme="dark"] .markdown-body th,
+html[data-theme="dark"] .markdown-body td {
+  border-color: #424242;
+}
+
+html[data-theme="dark"] .markdown-body th {
+  background: #1d1d1d;
+}
+
+html[data-theme="dark"] .markdown-body tr:hover td {
+  background: #262626;
+}
+
+html[data-theme="dark"] .markdown-body hr {
+  border-top-color: #303030;
+}
+
+html[data-theme="dark"] .markdown-body blockquote {
+  border-left-color: #424242;
+  color: #a0a0a0;
+  background: #1d1d1d;
+}
+
+html[data-theme="dark"] .markdown-body code {
+  background: #262626;
+}
+
+html[data-theme="dark"] .markdown-body pre {
+  background: #262626;
+}

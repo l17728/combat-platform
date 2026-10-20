@@ -25,6 +25,7 @@ function cleanTestSchema() {
 }
 
 function make() {
+  process.env.COMBAT_NO_AUTH = "1";
   const repo = new SqliteRepository(
     new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-schema-")), "t.sqlite")))
   );

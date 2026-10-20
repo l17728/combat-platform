@@ -1,6 +1,6 @@
 // Excel I/O wrapper around exceljs.
 //
-// Rationale (harden v2.4): xlsx@0.18.5 has unpatched advisories
+// Rationale (harden v2.3.1): xlsx@0.18.5 has unpatched advisories
 // (GHSA-4r6h-8v6p-xvw6 prototype pollution, GHSA-5pgg-2g8v-p4x9 ReDoS) — the
 // npm registry has no patched release. exceljs is the actively maintained
 // alternative with a clean audit and feature parity for our flat-tabular

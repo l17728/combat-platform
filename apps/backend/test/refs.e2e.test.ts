@@ -64,7 +64,7 @@ describe("refs e2e", () => {
     const persons = await repo.queryNodes("person");
     expect(persons).toHaveLength(1);
     expect(persons[0].properties["name"]).toBe("张三");
-    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
+    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "分配" });
     expect(edges).toHaveLength(1);
     expect(edges[0].targetId).toBe(persons[0].id);
     expect(edges[0].properties["field"]).toBe("当前处理人");
@@ -90,7 +90,7 @@ describe("refs e2e", () => {
     await request(app).put(`/api/nodes/${c.body.id}`).send({ 当前处理人: "李四" });
     const persons = await repo.queryNodes("person");
     expect(persons.map((p) => p.properties["name"]).sort()).toEqual(["张三", "李四"].sort());
-    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "REF" });
+    const edges = await repo.queryEdges({ sourceId: c.body.id, edgeType: "分配" });
     expect(edges).toHaveLength(1);
     const li = persons.find((p) => p.properties["name"] === "李四")!;
     expect(edges[0].targetId).toBe(li.id);

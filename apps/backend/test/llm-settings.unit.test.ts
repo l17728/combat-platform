@@ -1,5 +1,5 @@
 /**
- * §v2.6 桶 A — LlmSettings repo 单元测试
+ * §v2.3.4 桶 A — LlmSettings repo 单元测试
  *
  * 覆盖:
  *  1) DDL 幂等: ensureLlmSettingsTable 多次调用不报错

@@ -133,7 +133,7 @@ describe("§43 CLI core", () => {
     });
   });
 
-  it("llm:get/set/test builds correctly (§v2.6)", async () => {
+  it("llm:get/set/test builds correctly (§v2.3.4)", async () => {
     const { http, calls } = recorder();
     await runCli(["llm:get"], http);
     expect(calls[0]).toEqual({ method: "GET", path: "/api/llm-settings" });
@@ -263,6 +263,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend import closed loop: import file then list reads it back (§44)", async () => {
+    process.env.COMBAT_NO_AUTH = "1";
     const repo = new SqliteRepository(
       new SqliteAdapter(openDb(join(mkdtemp(join(tmpdir(), "combat-cli-io-")), "t.sqlite")))
     );
@@ -448,6 +449,7 @@ describe("§43 CLI core", () => {
   });
 
   it("CLI ↔ real backend closed loop: create then read back", async () => {
+    process.env.COMBAT_NO_AUTH = "1";
     const repo = new SqliteRepository(
       new SqliteAdapter(openDb(join(mkdtempSync(join(tmpdir(), "combat-cli-")), "t.sqlite")))
     );

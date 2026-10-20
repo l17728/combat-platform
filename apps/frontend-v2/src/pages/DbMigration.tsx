@@ -18,7 +18,10 @@ import {
 } from "antd";
 import { DatabaseOutlined, CheckCircleOutlined, WarningOutlined, ApiOutlined } from "@ant-design/icons";
 import { api } from "../api.js";
+import HelpButton from "../components/HelpButton.js";
+import HELP from "../help-content.js";
 import { useAuth } from "../hooks/useAuth.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -43,6 +46,7 @@ interface MigrationResult {
 //   POST /api/db-migration/run            一键迁移(可加 dry-run)
 export default function DbMigration() {
   const { isAdmin } = useAuth();
+  const { guard } = useGuestGuard();
   const [status, setStatus] = useState<DbStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
@@ -52,31 +56,24 @@ export default function DbMigration() {
   const [result, setResult] = useState<MigrationResult | null>(null);
   const [form] = Form.useForm<{ pgUrl: string; truncate: boolean; dryRun: boolean }>();
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (silent = false) => {
     setLoading(true);
     try {
       const s = await api.dbMigrationStatus();
       setStatus(s);
     } catch (e) {
-      message.error((e instanceof Error ? e.message : String(e)) || "获取数据库状态失败");
+      if (!silent) message.error((e instanceof Error ? e.message : String(e)) || "获取数据库状态失败");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isAdmin) fetchStatus();
-  }, [isAdmin]);
-
-  if (!isAdmin) {
-    return (
-      <Card>
-        <Alert type="warning" showIcon message="数据库迁移仅管理员可用" />
-      </Card>
-    );
-  }
+    fetchStatus(true);
+  }, []);
 
   const testConnection = async () => {
+    if (!guard()) return;
     const pgUrl = form.getFieldValue("pgUrl");
     if (!pgUrl) {
       message.warning("请输入 Postgres 连接串");
@@ -95,6 +92,7 @@ export default function DbMigration() {
   };
 
   const runMigration = async () => {
+    if (!guard()) return;
     const values = await form.validateFields();
     setMigrating(true);
     setStep(2);
@@ -124,9 +122,12 @@ export default function DbMigration() {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>
-        <DatabaseOutlined /> 数据库迁移 (SQLite → Postgres)
-      </Title>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>
+          <DatabaseOutlined /> 数据库迁移 (SQLite → Postgres)
+        </Title>
+        <HelpButton title={HELP.dbMigration.title} content={HELP.dbMigration.content} />
+      </div>
 
       <Alert
         type="info"

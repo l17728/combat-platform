@@ -1,15 +1,19 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import express from "express";
+import compression from "compression";
 import { openDb, openDbFromUrl, parseDbUrl } from "./db.js";
 import { SqliteRepository } from "./repository.js";
 import { FileSchemaRegistry } from "./registry.js";
 import { createApp } from "./app.js";
 import { tickScheduledJobs } from "./jobs.js";
+import { DigestRepo, sendDigest } from "./digest.js";
+import { NodemailerSender } from "./mailer.js";
 import { scanEscalation } from "./escalation.js";
 import { scanAndCreateReminders } from "./reminders.js";
 import { runScheduledBackup, applyRestorePending } from "./backup.js";
 import { SqliteAdapter, PostgresAdapter, type DbAdapter } from "./db-adapter.js";
+import { SAAS_MODE, cleanGuestData } from "./tenant-middleware.js";
 import { log } from "./logger.js";
 import { initSentry, captureException } from "./sentry.js";
 
@@ -69,9 +73,23 @@ const app = createApp({ repo, registry, adapter, db: rawSqliteDb, dbPath: DB_PAT
 
 const frontendDist = join(process.cwd(), "..", "frontend-v2", "dist");
 if (existsSync(frontendDist)) {
-  app.use(express.static(frontendDist));
+  app.use(compression());
+  app.use(
+    express.static(frontendDist, {
+      setHeaders: (res, path) => {
+        if (path.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        } else if (/-[A-Za-z0-9_-]{6,}\.(js|css|woff2?|svg|png|jpg)$/.test(path)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    })
+  );
   app.get("*", (_req, res, next) => {
     if (_req.path.startsWith("/api")) return next();
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     res.sendFile(join(frontendDist, "index.html"));
   });
   log.info("server.serving_frontend", { dir: frontendDist });
@@ -94,8 +112,34 @@ app.listen(PORT, () => {
     runScheduledBackup(adapter, DB_PATH).catch((e) => log.warn("auto_backup.fail", { error: (e as Error).message }));
   }, 3600_000).unref();
   log.info("server.backup_scheduler.started");
+
+  if (SAAS_MODE) {
+    setInterval(() => {
+      cleanGuestData(adapter).catch((e) => log.warn("guest_clean.fail", { error: (e as Error).message }));
+    }, 24 * 3600_000).unref();
+    log.info("server.guest_cleaner.started");
+  }
 });
 
 setInterval(() => {
   tickScheduledJobs(repo, registry).catch((e) => console.error("[jobs.tick]", e));
+}, 3600_000).unref();
+
+setInterval(() => {
+  (async () => {
+    const digestRepo = new DigestRepo(adapter);
+    const config = await digestRepo.getConfig();
+    if (!config.enabled || config.recipients.length === 0) return;
+    const now = new Date();
+    const last = config.lastSentAt ? new Date(config.lastSentAt) : null;
+    const shouldSend =
+      config.frequency === "daily"
+        ? !last || last.toDateString() !== now.toDateString()
+        : !last || now.getTime() - last.getTime() > 7 * 24 * 60 * 60 * 1000;
+    if (!shouldSend) return;
+    const { readConfig } = await import("./email.js");
+    const smtpConfig = await readConfig(repo);
+    if (!smtpConfig) return;
+    await sendDigest(adapter, repo, new NodemailerSender(), smtpConfig);
+  })().catch((e) => log.warn("digest.auto_send.fail", { error: (e as Error).message }));
 }, 3600_000).unref();

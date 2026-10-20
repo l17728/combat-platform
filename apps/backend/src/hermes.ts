@@ -3,9 +3,23 @@ import type { Repository, SchemaRegistry, HermesAnswer, HermesCitation, GraphNod
 import { recommendHelpers } from "./recommend.js";
 import { log, asyncHandler } from "./logger.js";
 import { answerWithAgent, answerWithToolCalling, type AgentRunner, type ToolCallingRunner } from "./hermes-agent.js";
+import { runWelinkExtraction } from "./welink-extraction.js";
+import type { DbAdapter } from "./db-adapter.js";
 import type { DB } from "./db.js";
+import {
+  createSession,
+  getSession,
+  listSessions,
+  deleteSession,
+  appendMessage,
+  loadRecentMessages,
+  updateSessionTitle,
+  pruneExpiredSessions,
+  resetSessionCache,
+  type HermesMessage,
+} from "./hermes-sessions.js";
 
-// §v2.5 桶 B: HERMES_MODE 控制 ask 路径
+// §v2.3.3 桶 B: HERMES_MODE 控制 ask 路径
 //   - 'tool'  : 强制走 tool-calling agent;失败 fallback intent
 //   - 'intent': 强制走规则引擎(不调 LLM,纯本地)
 //   - 'auto'  : 短问题 + 命中 intent 正则走 intent;否则走 tool (默认)
@@ -371,21 +385,24 @@ export async function answerQuestion(repo: Repository, registry: SchemaRegistry,
     };
   }
 
-  // 5) fallback: full-text search across all nodeTypes
-  const needle = question.toLowerCase();
+  // 5) fallback: keyword-based search across all nodeTypes
+  const keywords = extractKeywords(question);
   const hits: { node: GraphNode; score: number }[] = [];
-  if (needle) {
+  if (keywords.length > 0) {
     for (const nt of registry.getConfig().nodeTypes.map((n) => n.nodeType)) {
       for (const n of await repo.queryNodes(nt)) {
         const hay = Object.values(n.properties)
           .map((v) => String(v))
           .join(" ")
           .toLowerCase();
-        let score = 0,
-          i = hay.indexOf(needle);
-        while (i !== -1) {
-          score++;
-          i = hay.indexOf(needle, i + needle.length);
+        let score = 0;
+        for (const kw of keywords) {
+          const needle = kw.toLowerCase();
+          let i = hay.indexOf(needle);
+          while (i !== -1) {
+            score++;
+            i = hay.indexOf(needle, i + needle.length);
+          }
         }
         if (score > 0) hits.push({ node: n, score });
       }
@@ -494,15 +511,11 @@ function welinkFallbackCitations(db: DB, question: string, ticketId: string): He
 }
 
 export interface HermesRouterOptions {
-  /** 兼容旧接口:单轮 prompt-based AgentRunner(走 answerWithAgent) */
   runner?: AgentRunner;
-  /** §v2.5 新接口:OpenAI tool-calling LLM runner(走 answerWithToolCalling) */
   toolRunner?: ToolCallingRunner;
-  /** Welink DB 句柄(可选) */
   db?: DB;
-  /** 启动期默认 mode(env 优先于此默认) */
+  adapter?: DbAdapter;
   defaultMode?: HermesMode;
-  /** 审计写入(可选;mode=tool 成功/失败都记一条) */
   auditActor?: string;
 }
 
@@ -520,6 +533,61 @@ export function makeHermesRouter(
   if (db && !opts.db) opts.db = db;
 
   const r = Router();
+
+  // --- Session REST routes ---
+  r.get(
+    "/hermes/sessions",
+    asyncHandler(async (req, res) => {
+      if (!opts.adapter) return res.json([]);
+      const userId = (req as any).user?.username ?? "anonymous";
+      const sessions = await listSessions(opts.adapter, userId);
+      res.json(sessions);
+    })
+  );
+
+  r.post(
+    "/hermes/sessions",
+    asyncHandler(async (req, res) => {
+      if (!opts.adapter) return res.status(501).json({ error: "session unavailable" });
+      const userId = (req as any).user?.username ?? "anonymous";
+      const title = String(req.body?.title ?? "").trim() || undefined;
+      const session = await createSession(opts.adapter, userId, title);
+      res.json(session);
+    })
+  );
+
+  r.get(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
+      const session = await getSession(opts.adapter, req.params.id);
+      if (!session) return res.status(404).json({ error: "session not found" });
+      const messages = await loadRecentMessages(opts.adapter, req.params.id, 200);
+      res.json({ ...session, messages });
+    })
+  );
+
+  r.delete(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
+      const ok = await deleteSession(opts.adapter, req.params.id);
+      res.json({ ok });
+    })
+  );
+
+  r.patch(
+    "/hermes/sessions/:id",
+    asyncHandler(async (req, res) => {
+      if (!opts.adapter) return res.status(504).json({ error: "session unavailable" });
+      const title = String(req.body?.title ?? "").trim();
+      if (!title) return res.status(400).json({ error: "title 必填" });
+      const ok = await updateSessionTitle(opts.adapter, req.params.id, title);
+      res.json({ ok });
+    })
+  );
+
+  // --- Ask endpoint ---
   r.post(
     "/hermes/ask",
     asyncHandler(async (req, res) => {
@@ -527,8 +595,91 @@ export function makeHermesRouter(
       if (!q) return res.status(400).json({ error: "question 必填" });
       const context = String(req.body?.context ?? "").trim() || undefined;
       const requestedMode = parseMode(req.body?.mode ?? opts.defaultMode);
+      const scope = String(req.body?.scope ?? "").trim() || undefined;
       const ticketIdHint = extractTicketIdHint(context);
+      const isWelinkScope = scope === "welink" || !!ticketIdHint;
       const startedAt = Date.now();
+      const rawSessionId = String(req.body?.sessionId ?? "").trim() || undefined;
+      let effectiveSessionId = rawSessionId;
+
+      // ★ Welink 预处理：有 ticketId 上下文时，在 LLM 调用前自动确保抽取存在，
+      // 并将抽取摘要注入 context，使小模型无需 tool-call 即可回答。
+      let effectiveContext = context;
+      if (scope === "welink") {
+        effectiveContext = `scope=welink${effectiveContext ? "\n" + effectiveContext : ""}`;
+      }
+      let hasWelinkInjection = false;
+      if (isWelinkScope && ticketIdHint && opts.db) {
+        try {
+          const existing = opts.db
+            .prepare("SELECT COUNT(*) AS c FROM welink_extractions WHERE ticket_id = ?")
+            .get(ticketIdHint) as { c: number };
+          if (existing.c === 0) {
+            const result = await runWelinkExtraction(opts.db, repo, ticketIdHint, undefined, { useAllMessages: true });
+            log.info("hermes.ask.welink_auto_extract", {
+              ticketId: ticketIdHint,
+              extracted: result.extracted,
+              source: result.source,
+            });
+          }
+          const rows = opts.db
+            .prepare("SELECT kind, label, payload FROM welink_extractions WHERE ticket_id = ? ORDER BY created_at DESC")
+            .all(ticketIdHint) as { kind: string; label: string; payload: string }[];
+          if (rows.length > 0) {
+            const entities = rows
+              .filter((r) => r.kind === "entity")
+              .map((r) => {
+                try {
+                  const p = JSON.parse(r.payload);
+                  return `${r.label}(${p.appearedCount ?? 1}次)`;
+                } catch {
+                  return r.label;
+                }
+              })
+              .join("、");
+            const decisions = rows
+              .filter((r) => r.kind === "decision")
+              .map((r) => r.label)
+              .join("、");
+            const events = rows
+              .filter((r) => r.kind === "event")
+              .map((r) => r.label)
+              .join("、");
+            const gaps = rows
+              .filter((r) => r.kind === "gap")
+              .map((r) => r.label)
+              .join("、");
+            const parts: string[] = [`共${rows.length}条抽取记录`];
+            if (entities) parts.push(`参与人: ${entities}`);
+            if (decisions) parts.push(`关键决策: ${decisions}`);
+            if (events) parts.push(`事件: ${events}`);
+            if (gaps) parts.push(`待办: ${gaps}`);
+            const summary = `\n[AI抽取摘要 - 请直接根据此数据回答用户问题] ${parts.join("; ")}`;
+            effectiveContext = (effectiveContext ?? "") + summary;
+            hasWelinkInjection = true;
+            log.info("hermes.ask.welink_context_inject", {
+              ticketId: ticketIdHint,
+              extractionCount: rows.length,
+            });
+          }
+        } catch (e) {
+          log.warn("hermes.ask.welink_auto_extract_failed", { ticketId: ticketIdHint, error: (e as Error).message });
+        }
+      }
+
+      let priorMessages: import("./hermes-agent.js").LlmMessage[] | undefined;
+      if (effectiveSessionId && opts.adapter) {
+        const session = await getSession(opts.adapter, effectiveSessionId);
+        if (session) {
+          const history = await loadRecentMessages(opts.adapter, effectiveSessionId);
+          priorMessages = history.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          }));
+        } else {
+          effectiveSessionId = undefined;
+        }
+      }
 
       // ===== mode dispatch =====
       // intent: 强制走规则引擎
@@ -559,9 +710,23 @@ export function makeHermesRouter(
       // ===== tool-calling path (新) =====
       if (plannedEngine === "tool" && opts.toolRunner) {
         try {
-          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, context, opts.db);
+          const answer = await answerWithToolCalling(repo, registry, q, opts.toolRunner, effectiveContext, opts.db, {
+            priorMessages,
+            ...(hasWelinkInjection ? { tools: [] } : {}),
+            user: (req as any).user,
+          });
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           const ms = Date.now() - startedAt;
+          if (effectiveSessionId && opts.adapter) {
+            const sa = opts.adapter;
+            await appendMessage(sa, effectiveSessionId, "user", q);
+            await appendMessage(sa, effectiveSessionId, "assistant", answer.answer, JSON.stringify(answer.citations));
+            if (q.length <= 40) {
+              try {
+                await updateSessionTitle(sa, effectiveSessionId, q);
+              } catch {}
+            }
+          }
           log.info("hermes.ask.done", {
             intent: answer.intent,
             engine: "tool",
@@ -603,7 +768,7 @@ export function makeHermesRouter(
       // ===== legacy single-turn AgentRunner path (向后兼容) =====
       if (plannedEngine === "tool" && opts.runner) {
         try {
-          const answer = await answerWithAgent(repo, registry, q, opts.runner, context, opts.db);
+          const answer = await answerWithAgent(repo, registry, q, opts.runner, effectiveContext, opts.db);
           enrichWithWelinkFallback(answer, opts.db, ticketIdHint, q);
           log.info("hermes.ask.done", {
             intent: answer.intent,

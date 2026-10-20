@@ -79,6 +79,29 @@ function fetchSelectedMessages(db: DB, ticketId: string): WelinkMessageLite[] {
   }));
 }
 
+/**
+ * 读取攻关单的全部 Welink 消息(不限 selected)。
+ * AI 助手自动触发抽取时使用——用户未手动勾选消息时也能产出摘要。
+ */
+function fetchAllMessages(db: DB, ticketId: string): WelinkMessageLite[] {
+  const rows = db
+    .prepare(
+      `SELECT id, message_id, sent_at, author, content, content_type
+       FROM welink_messages
+      WHERE ticket_id = ? AND deleted_at IS NULL
+      ORDER BY sent_at ASC, created_at ASC`
+    )
+    .all(ticketId) as any[];
+  return rows.map((r) => ({
+    id: r.id,
+    messageId: r.message_id,
+    sentAt: r.sent_at,
+    author: r.author,
+    content: r.content,
+    contentType: r.content_type,
+  }));
+}
+
 async function fetchTicketMembers(repo: Repository, ticketId: string): Promise<{ 姓名: string; 角色: string }[]> {
   const n = await repo.getNode(ticketId);
   if (!n) return [];
@@ -299,9 +322,10 @@ export async function runWelinkExtraction(
   db: DB,
   repo: Repository,
   ticketId: string,
-  runner: AgentRunner | undefined
+  runner: AgentRunner | undefined,
+  opts?: { useAllMessages?: boolean }
 ): Promise<RunExtractionResult> {
-  const msgs = fetchSelectedMessages(db, ticketId);
+  const msgs = opts?.useAllMessages ? fetchAllMessages(db, ticketId) : fetchSelectedMessages(db, ticketId);
   if (msgs.length === 0) {
     return { queued: 0, extracted: 0, source: "heuristic", extractions: [] };
   }

@@ -60,7 +60,7 @@ export default function AttackDetailSidebar({
           />
         </Card>
       )}
-      {visibleCards.includes("audit") && isLeader && (
+      {visibleCards.includes("audit") && (
         <Card
           title="合规追溯"
           size="small"

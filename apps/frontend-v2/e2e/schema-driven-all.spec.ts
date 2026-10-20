@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { API, waitForDrawer } from "./helpers";
 
-// v2.7: 详情/抽屉全栈 schema 驱动。
+// v2.3.5: 详情/抽屉全栈 schema 驱动。
 // 这组测试针对 5 个 nodeType,一律走"加 schema 字段 → 跳页面 → 表单出现该字段"的回归路径。
 //
 // 注:helpRequest/bugReport/proposal/reminder 是 virtual schema —
@@ -50,7 +50,7 @@ async function expectFieldInOpenDrawer(page: Page, fieldName: string) {
   await expect(formItem.first()).toBeVisible({ timeout: 8000 });
 }
 
-test.describe("schema-driven detail/drawer (v2.7)", () => {
+test.describe("schema-driven detail/drawer (v2.3.5)", () => {
   test("person — 添加字段后 创建抽屉里出现新字段", async ({ page, request }) => {
     const fname = "e2e人员字段_" + Date.now().toString(36);
     await addSchemaField(request, "person", fname);
@@ -168,7 +168,7 @@ test.describe("schema-driven detail/drawer (v2.7)", () => {
 });
 
 // 虚拟 schema 安全:确认 /api/nodes/<virtual> 仍然拒绝
-test.describe("virtual schema /api/nodes gate (v2.7)", () => {
+test.describe("virtual schema /api/nodes gate (v2.3.5)", () => {
   for (const nt of ["helpRequest", "bugReport", "proposal", "reminder"]) {
     test(`/api/nodes/${nt} POST returns 400`, async ({ request }) => {
       const r = await request.post(`${API}/api/nodes/${nt}`, { data: {} });

@@ -1,8 +1,8 @@
-// §v2.6: OpenAICompatibleRunner — pure fetch, OpenAI-compatible /chat/completions client.
+// §v2.3.4: OpenAICompatibleRunner — pure fetch, OpenAI-compatible /chat/completions client.
 //
 // 一份实现同时实现:
 //   - AgentRunner.run(prompt) — 旧 prompt-based 路径(向后兼容,welink.ts 等还会用)
-//   - ToolCallingRunner.chat(messages, tools) — §v2.5 多轮工具编排路径
+//   - ToolCallingRunner.chat(messages, tools) — §v2.3.3 多轮工具编排路径
 //
 // 配置来源(优先级):
 //   1. 构造时静态字段 (baseURL/apiKey/model/...)
@@ -178,7 +178,7 @@ export class OpenAICompatibleRunner implements ToolCallingRunner, AgentRunner {
     return parsed;
   }
 
-  /** §v2.5 多轮工具协议 — ToolCallingRunner.chat。 */
+  /** §v2.3.3 多轮工具协议 — ToolCallingRunner.chat。 */
   async chat(messages: LlmMessage[], tools: ToolSchema[]): Promise<LlmTurnResult> {
     const cfg = await this.resolveConfig();
     const body = this.buildBody(cfg, messages, tools);

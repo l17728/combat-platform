@@ -49,7 +49,25 @@ import { makeTicketTabsRouter } from "./ticket-tabs.js";
 import { makeDocumentRouter } from "./documents.js";
 import { makeWelinkRouter } from "./welink.js";
 import { makeDbMigrationRouter } from "./db-migration.js";
+import { makeWebhookRouter } from "./webhook-router.js";
+import { makeDigestRouter } from "./digest-router.js";
+import { makeInvitationRouter } from "./invitation-router.js";
+import { makeWikiRouter } from "./wiki-router.js";
+import { makeShareRouter } from "./share-router.js";
+import { makeOpenApiRouter } from "./openapi-router.js";
 import { makeUpgradeRouter } from "./upgrade.js";
+import {
+  SAAS_MODE,
+  tenantMiddleware,
+  ensureDefaultTenant,
+  ensureSuperAdmin,
+  quotaMiddleware,
+  ensureGuestTenant,
+  cleanGuestData,
+  makeGuestAccessRouter,
+  guestReadOnlyMiddleware,
+} from "./tenant-middleware.js";
+import { makePlatformRouter } from "./platform-router.js";
 import { OpencodeAgentRunner } from "./opencode-runner.js";
 import { OpenAICompatibleRunner, type LlmConfig } from "./openai-compatible-runner.js";
 import { ensureLlmSettingsTable, getLlmSettings, resolveLlmSecret } from "./llm-settings.js";
@@ -60,6 +78,7 @@ import { ensureAuditChainColumns, makeAuditChainRouter } from "./audit-chain-rou
 import { fileURLToPath } from "node:url";
 import type { DB } from "./db.js";
 import { SqliteAdapter, type DbAdapter } from "./db-adapter.js";
+import { tenantContext } from "./repository.js";
 
 export function createApp(deps: {
   repo: Repository;
@@ -100,7 +119,7 @@ export function createApp(deps: {
   // P1 全局限流:60 req/IP/min,COMBAT_RATE_LIMIT_PER_MIN env 可调。
   // 跳过 NODE_ENV=test 与 COMBAT_NO_AUTH=1(e2e 走 supertest,每个 case 都会被打挂)。
   const skipRate = process.env.NODE_ENV === "test" || process.env.COMBAT_NO_AUTH === "1";
-  const perMin = Number(process.env.COMBAT_RATE_LIMIT_PER_MIN || 60);
+  const perMin = Number(process.env.COMBAT_RATE_LIMIT_PER_MIN || 600);
   app.use(
     rateLimit({
       windowMs: 60_000,
@@ -111,18 +130,36 @@ export function createApp(deps: {
       message: { error: "请求过于频繁,请稍后再试" },
     })
   );
-  // P1 登录爆破限流:5 req/IP/15min,仅限 POST /auth/login,跳过 test/NO_AUTH。
-  app.use(
-    "/api/auth/login",
-    rateLimit({
-      windowMs: 15 * 60_000,
-      max: 5,
-      standardHeaders: true,
-      legacyHeaders: false,
-      skip: () => skipRate,
-      message: { error: "登录尝试过多,请 15 分钟后重试" },
-    })
-  );
+  // P1 登录爆破限流:5 req/IP/15min,仅限 POST /auth/login。
+  // 默认关闭(避免运维误锁);设 COMBAT_LOGIN_RATE_LIMIT=1 启用。
+  // 跳过 test/NO_AUTH。
+  const loginRateEnabled = process.env.COMBAT_LOGIN_RATE_LIMIT === "1";
+  if (loginRateEnabled) {
+    app.use(
+      "/api/auth/login",
+      rateLimit({
+        windowMs: 15 * 60_000,
+        max: 5,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: () => skipRate,
+        message: { error: "登录尝试过多,请 15 分钟后重试" },
+      })
+    );
+  }
+  if (SAAS_MODE) {
+    app.use(
+      "/api/auth/register",
+      rateLimit({
+        windowMs: 60 * 60_000,
+        max: 5,
+        standardHeaders: true,
+        legacyHeaders: false,
+        skip: () => skipRate,
+        message: { error: "注册请求过多,请 1 小时后重试" },
+      })
+    );
+  }
   // logger 先注册:即便后续 body parser 抛错(如截图反馈 base64 超限)也会留下日志便于追踪。
   app.use(requestLogger());
   // v2.2 P1 §7: metrics 中间件紧随 logger,统计每个请求的 in_flight/count/duration
@@ -131,13 +168,31 @@ export function createApp(deps: {
   app.use(express.json({ limit: "20mb" }));
 
   // 健康检查 + Prometheus 指标:auth 之前注册,无需鉴权 — 系统级端点,供 systemd / 反代 / Prometheus 调用。
-  app.use("/api", makeHealthRouter(deps.db));
+  app.use("/api", makeHealthRouter(deps.db, adapter));
   app.use("/api", makeMetricsRouter());
+  app.use("", makeOpenApiRouter());
 
   if (adapter) {
     app.use("/api", makeAuthRouter(adapter));
     app.use("/api", authMiddleware);
-    // P1 CSRF:同源 Origin/Referer 校验,挂在 auth 之后(只对已登录的写请求生效)。
+    app.use("/api", guestReadOnlyMiddleware);
+    app.use("/api", makeGuestAccessRouter(adapter));
+    if (SAAS_MODE) {
+      app.use("/api", tenantMiddleware);
+      app.use("/api", (req: any, _res: any, next: any) => {
+        const tid = req.isSuperAdmin ? null : (req.tenantId ?? null);
+        tenantContext.run(tid, () => next());
+      });
+      app.use("/api", quotaMiddleware);
+      ensureDefaultTenant(adapter).catch((e) =>
+        log.warn("tenant.ensure_default_failed", { error: (e as Error).message })
+      );
+      ensureGuestTenant(adapter).catch((e) => log.warn("tenant.ensure_guest_failed", { error: (e as Error).message }));
+      ensureSuperAdmin(adapter).catch((e) =>
+        log.warn("tenant.ensure_superadmin_failed", { error: (e as Error).message })
+      );
+      app.use("/api", makePlatformRouter(adapter));
+    }
     app.use("/api", csrfMiddleware);
     app.use("/api", makeUserAdminRouter(adapter));
   }
@@ -152,11 +207,9 @@ export function createApp(deps: {
     app.use("/api/merge", adminMiddleware);
     app.use("/api/op-logs", adminMiddleware);
     app.use("/api/backup", adminMiddleware);
-    app.use("/api/proposals", adminMiddleware);
-    app.use("/api/reminders", adminMiddleware);
     // email:配置 + 测试 + 发送均限 admin
     app.use("/api/email", adminMiddleware);
-    // §v2.6: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
+    // §v2.3.4: LLM 设置仅 admin 可读写。空表 GET 返回默认占位,所以读也限 admin(避免泄露已配 baseURL)。
     app.use("/api/llm-settings", adminMiddleware);
     // ticket-tabs:leader+ 可写(普通用户不应改 markdown/导致 XSS 投毒)。
     app.use("/api/tickets/:id/tabs", leaderMiddleware);
@@ -169,8 +222,8 @@ export function createApp(deps: {
 
   // Fire-and-forget — runs the seed in background; failures are logged but
   // don't block server startup.
-  seedConfigFromSchemas(deps.registry, deps.repo).catch(() => {
-    /* logged inside */
+  seedConfigFromSchemas(deps.registry, deps.repo).catch((e) => {
+    log.warn("app.seed_config_failed", { error: (e as Error).message });
   });
 
   // P1 SMTP 密码加密:启动期把历史明文密码原地加密 (一次性迁移,幂等)。
@@ -208,7 +261,7 @@ export function createApp(deps: {
     app.use("/api", makeKgOutboxRouter(adapter, deps.repo, deps.registry));
   }
 
-  app.use("/api", makeRouter(deps.repo, deps.registry, outboxEnqueuer));
+  app.use("/api", makeRouter(deps.repo, deps.registry, outboxEnqueuer, adapter));
   app.use("/api", makeImportRouter(deps.repo, deps.registry));
   app.use("/api", makeHonorRouter(deps.repo));
   app.use("/api", makeExportRouter(deps.repo, deps.registry));
@@ -224,7 +277,7 @@ export function createApp(deps: {
   );
   app.use("/api", makeConflictsRouter(deps.repo));
   app.use("/api", makeKGRouter(deps.repo, deps.registry));
-  // §v2.6: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
+  // §v2.3.4: Hermes runner — 统一走 OpenAICompatibleRunner(纯 fetch OpenAI 兼容协议)。
   // 配置全部从 DB(llm_settings 表)取,经 getConfig 钩子热加载;
   // 缺 DB 配置时 fallback env → 最后 hardcoded baseURL(智谱)+ 必须 env apiKey,
   // 绝无 hardcoded apiKey。
@@ -290,13 +343,13 @@ export function createApp(deps: {
   app.use(
     "/api",
     makeHermesRouter(deps.repo, deps.registry, {
-      // 默认两端都用 OpenAICompatibleRunner 实例;HERMES_AGENT=1 时 runner 路径走旧 opencode
       runner: hermesRunner ?? llmRunner,
       toolRunner: llmRunner,
       db: deps.db,
+      adapter: deps.adapter,
     })
   );
-  // v2.5: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
+  // v2.3.3: 通用 14 工具暴露;hermes-agent 与 LLM tool-calling 用同一 callTool 入口。
   app.use("/api", makeHermesToolsRouter(deps.repo, deps.registry, adapter, deps.db));
   app.use("/api", makeGraphRouter(deps.repo, deps.registry));
   app.use("/api", makeAuditRouter(deps.repo));
@@ -307,7 +360,7 @@ export function createApp(deps: {
   app.use("/api", makeOncallRouter(deps.repo));
   app.use("/api", makeCustomCommandsRouter(deps.repo));
   app.use("/api", makeEmailRouter(deps.repo, deps.registry, mailSender));
-  // §v2.6: LLM 全局配置 (admin only)
+  // §v2.3.4: LLM 全局配置 (admin only)
   if (adapter) {
     app.use("/api", makeLlmSettingsRouter(adapter));
   }
@@ -325,6 +378,11 @@ export function createApp(deps: {
     app.use("/api", makeBackupRouter(adapter, deps.dbPath || ""));
     app.use("/api", makeTicketTabsRouter(adapter));
     app.use("/api", makeDocumentRouter(adapter));
+    app.use("/api", makeWebhookRouter(adapter));
+    app.use("/api", makeDigestRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeInvitationRouter(adapter, deps.repo, mailSender));
+    app.use("/api", makeWikiRouter(adapter));
+    app.use("/api", makeShareRouter(adapter, new NotificationsRepo(adapter)));
     // Always mount db-migration router (with adapter); sqlitePath may be empty
     // on Postgres path — that's fine, /status reports kind correctly and the
     // mutation endpoints validate input. The legacy `dbPath` branch stays for
@@ -343,5 +401,8 @@ export function createApp(deps: {
     log.error("http.error", { path: req.path, error: err.message });
     res.status(500).json({ error: err.message });
   });
+  if (adapter) {
+    app.locals.adapter = adapter;
+  }
   return app;
 }

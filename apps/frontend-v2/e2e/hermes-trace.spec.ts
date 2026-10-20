@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * v2.5 桶 C — Hermes 工具调用过程展开 UI。
+ * v2.3.3 桶 C — Hermes 工具调用过程展开 UI。
  *
  * 后端 /api/hermes/ask 升级后返回 trace[]/engine/fallback_reason 三个新字段
  * (向后兼容,旧接口无该字段时不渲染)。
@@ -54,7 +54,7 @@ async function openChatAndAsk(page: import("@playwright/test").Page, question: s
   await textarea.press("Enter");
 }
 
-test.describe("HermesChat trace UI (v2.5)", () => {
+test.describe("HermesChat trace UI (v2.3.3)", () => {
   test("trace 区默认折叠,折叠头显示步骤数和总耗时", async ({ page }) => {
     await page.route("**/api/hermes/ask", (route) =>
       route.fulfill({

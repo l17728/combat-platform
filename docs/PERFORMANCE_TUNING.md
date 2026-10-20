@@ -134,7 +134,7 @@ combat_http_in_flight
 - baseline 测试时长无显著退化(86s → 76s)
 - 9 个 SQLite 表达式索引共占用约 < 100 KB / 10k 节点
 
-## PM2 Cluster 使用说明 (v2.4 harden)
+## PM2 Cluster 使用说明 (v2.3.1 harden)
 
 仓库根 `ecosystem.config.cjs` 是 PM2 的进程编排清单。默认 `instances: "1" / fork` 模式,
 和现在 systemd 单实例完全等价 — 可直接接入 SQLite 生产部署作为对等替代品(零行为差异)。

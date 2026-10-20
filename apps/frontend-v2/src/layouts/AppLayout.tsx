@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar } from "antd";
+import { Layout, Menu, Select, Space, Typography, theme, Dropdown, Button, Avatar, Tooltip } from "antd";
 import BreadcrumbBar from "../components/BreadcrumbBar.js";
 import NotificationBell from "../components/NotificationBell.js";
 import {
@@ -31,16 +31,90 @@ import {
   EyeOutlined,
   DatabaseOutlined,
   CloudUploadOutlined,
+  ApiOutlined,
   QuestionCircleOutlined,
+  MoonOutlined,
+  SunOutlined,
+  StarOutlined,
+  KeyOutlined,
+  CloudServerOutlined,
+  CodeOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { useAuth } from "../hooks/useAuth.js";
 import FloatingFeedback from "../components/FloatingFeedback.js";
 import HermesChat from "../components/HermesChat.js";
 import CommandPalette from "../components/CommandPalette.js";
+import { useThemeContext } from "../hooks/useTheme.js";
+import { resetAllTours } from "../components/ProductTour.js";
+import { api } from "../api.js";
+import { ChangePasswordModal } from "../components/ChangePasswordModal.js";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+
+interface TenantItem {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+}
+
+function TenantSelector({
+  activeTenantId,
+  activeTenantName,
+  onSwitch,
+  token: themeToken,
+}: {
+  activeTenantId: string | null;
+  activeTenantName: string;
+  onSwitch: (tenantId: string) => Promise<void>;
+  token: { colorPrimary: string; colorBgContainer: string; colorBorderSecondary: string };
+}) {
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    api
+      .listTenants()
+      .then(setTenants)
+      .catch(() => {});
+  }, []);
+
+  const options = useMemo(
+    () => [
+      { value: "global", label: "🌐 全局视图" },
+      ...tenants.map((t) => ({
+        value: t.id,
+        label: t.status === "suspended" ? `${t.name} (已暂停)` : t.name,
+        disabled: t.status === "suspended",
+      })),
+    ],
+    [tenants]
+  );
+
+  const handleChange = async (value: string) => {
+    setSwitching(true);
+    try {
+      await onSwitch(value);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  return (
+    <Select
+      size="small"
+      value={activeTenantId ?? "global"}
+      onChange={handleChange}
+      loading={switching}
+      options={options}
+      style={{ minWidth: 140 }}
+      popupMatchSelectWidth={false}
+      suffixIcon={<CloudServerOutlined />}
+    />
+  );
+}
 
 function getSelectedKey(path: string): string {
   if (path.startsWith("/attack")) return "/attack";
@@ -51,11 +125,14 @@ function getSelectedKey(path: string): string {
   if (path === "/proposals") return "/proposals";
   if (path === "/reminders") return "/reminders";
   if (path.startsWith("/related")) return "/attack";
-  if (["/search", "/kg", "/documents", "/bug-report", "/manual"].includes(path)) return path;
+  if (["/search", "/kg", "/screen", "/documents", "/bug-report", "/manual"].includes(path)) return path;
   if (
     [
       "/import",
       "/email",
+      "/digest",
+      "/webhooks",
+      "/invitations",
       "/llm-settings",
       "/audit",
       "/schema",
@@ -66,11 +143,17 @@ function getSelectedKey(path: string): string {
       "/merge",
       "/db-migration",
       "/system-upgrade",
+      "/notifications",
+      "/platform",
+      "/commands",
+      "/responsibility",
     ].includes(path)
   )
     return path;
   return "/";
 }
+
+import { isSystemPath, STORAGE_KEYS } from "../system-paths.js";
 
 function getOpenKeysForPath(path: string): string[] {
   if (path.startsWith("/attack") || path.startsWith("/daily-report") || path.startsWith("/related")) return ["attack"];
@@ -80,6 +163,9 @@ function getOpenKeysForPath(path: string): string[] {
     [
       "/import",
       "/email",
+      "/digest",
+      "/webhooks",
+      "/invitations",
       "/llm-settings",
       "/audit",
       "/schema",
@@ -90,19 +176,25 @@ function getOpenKeysForPath(path: string): string[] {
       "/merge",
       "/db-migration",
       "/system-upgrade",
+      "/notifications",
+      "/platform",
+      "/commands",
+      "/responsibility",
     ].includes(path)
   )
     return ["system"];
-  if (["/documents", "/search", "/kg", "/bug-report", "/manual"].includes(path)) return ["tools"];
+  if (["/documents", "/search", "/kg", "/screen", "/bug-report", "/manual"].includes(path)) return ["tools"];
   return [];
 }
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  const [pwdOpen, setPwdOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isSuperAdmin, isGuest, activeTenantId, activeTenantName, switchTenant } = useAuth();
+  const { isDark, toggleMode } = useThemeContext();
 
   const [openKeys, setOpenKeys] = useState<string[]>(getOpenKeysForPath(location.pathname));
 
@@ -119,7 +211,7 @@ export function AppLayout() {
     setOpenKeys(getOpenKeysForPath(location.pathname));
   }, [location.pathname]);
 
-  const currentRole = (typeof localStorage !== "undefined" && localStorage.getItem("combat-role")) || "normal";
+  const currentRole = (typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEYS.ROLE)) || "normal";
 
   const selectedKeys = [getSelectedKey(location.pathname)];
 
@@ -135,7 +227,7 @@ export function AppLayout() {
       label: "攻关管理",
       onTitleClick: () => navigate("/attack"),
       children: [
-        { key: "/attack", label: "攻关作战台" },
+        { key: "/attack", label: "攻关作战台", icon: <ThunderboltOutlined /> },
         { key: "/daily-report", label: "攻关日报", icon: <FileTextOutlined /> },
       ],
     },
@@ -145,8 +237,8 @@ export function AppLayout() {
       label: "人员与荣誉",
       onTitleClick: () => navigate("/people"),
       children: [
-        { key: "/people", label: "全员名单" },
-        { key: "/contributions", label: "贡献录入" },
+        { key: "/people", label: "全员名单", icon: <TeamOutlined /> },
+        { key: "/contributions", label: "贡献录入", icon: <StarOutlined /> },
         { key: "/honor", label: "荣誉殿堂", icon: <TrophyOutlined /> },
       ],
     },
@@ -163,44 +255,61 @@ export function AppLayout() {
       children: [
         { key: "/search", label: "全局搜索", icon: <SearchOutlined /> },
         { key: "/kg", label: "知识图谱", icon: <DeploymentUnitOutlined /> },
+        { key: "/screen", label: "运营大屏", icon: <DashboardOutlined /> },
         { key: "/documents", label: "文档中心", icon: <FileTextOutlined /> },
         { key: "/bug-report", label: "问题反馈", icon: <BugOutlined /> },
         { key: "/manual", label: "帮助中心", icon: <QuestionCircleOutlined /> },
       ],
     },
-    {
-      key: "system",
-      icon: <SettingOutlined />,
-      label: "系统管理",
-      onTitleClick: () => navigate("/import"),
-      children: [
-        { key: "/import", label: "数据导入/导出", icon: <ImportOutlined /> },
-        { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
-        { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
-        { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
-        ...(isAdmin ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }] : []),
-        { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
-        { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
-        ...(isAdmin ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }] : []),
-        ...(isAdmin
-          ? [
-              {
-                key: "review",
-                icon: <AuditOutlined />,
-                label: "审核管理",
-                children: [
-                  { key: "/proposals", label: "关系审批", icon: <ApartmentOutlined /> },
-                  { key: "/reminders", label: "跟催提醒", icon: <BellOutlined /> },
-                ],
-              },
-            ]
-          : []),
-        ...(isAdmin ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
-        ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
-      ],
-    },
+    ...(isAdmin || isGuest
+      ? [
+          {
+            key: "system",
+            icon: <SettingOutlined />,
+            label: "系统管理",
+            onTitleClick: () => navigate("/import"),
+            children: [
+              { key: "/import", label: "数据导入/导出", icon: <ImportOutlined /> },
+              { key: "/schema", label: "表结构管理", icon: <TableOutlined /> },
+              { key: "/config", label: "配置中心", icon: <ControlOutlined /> },
+              { key: "/email", label: "邮件设置", icon: <SettingOutlined /> },
+              { key: "/digest", label: "邮件摘要", icon: <MailOutlined /> },
+              ...(isAdmin || isGuest
+                ? [{ key: "/llm-settings", label: "LLM 设置", icon: <ThunderboltOutlined /> }]
+                : []),
+              { key: "/audit", label: "审计日志", icon: <FileSearchOutlined /> },
+              { key: "/backup", label: "备份恢复", icon: <DatabaseOutlined /> },
+              { key: "/commands", label: "自定义命令", icon: <CodeOutlined /> },
+              { key: "/responsibility", label: "责任图谱", icon: <ApartmentOutlined /> },
+              ...(isAdmin || isGuest ? [{ key: "/merge", label: "人员合并", icon: <MergeOutlined /> }] : []),
+              ...(isAdmin || isGuest
+                ? [{ key: "/system-upgrade", label: "系统升级", icon: <CloudUploadOutlined /> }]
+                : []),
+              ...(isAdmin || isGuest
+                ? [{ key: "/db-migration", label: "数据库迁移", icon: <DatabaseOutlined /> }]
+                : []),
+              ...(isAdmin || isGuest
+                ? [
+                    {
+                      key: "review",
+                      icon: <AuditOutlined />,
+                      label: "审核管理",
+                      children: [
+                        { key: "/proposals", label: "关系审批", icon: <ApartmentOutlined /> },
+                        { key: "/reminders", label: "跟催提醒", icon: <BellOutlined /> },
+                      ],
+                    },
+                  ]
+                : []),
+              ...(isAdmin || isGuest ? [{ key: "/op-log", label: "操作追踪", icon: <EyeOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/webhooks", label: "Webhook 订阅", icon: <ApiOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/invitations", label: "邀请管理", icon: <TeamOutlined /> }] : []),
+              ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+              ...(isSuperAdmin ? [{ key: "/platform", label: "平台管理", icon: <CloudServerOutlined /> }] : []),
+            ],
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -239,7 +348,7 @@ export function AppLayout() {
             <ThunderboltOutlined style={{ fontSize: 20, color: token.colorPrimary }} />
           ) : (
             <Text strong style={{ fontSize: 16, color: token.colorPrimary, whiteSpace: "nowrap" }}>
-              作战平台
+              会战管理
             </Text>
           )}
         </div>
@@ -265,7 +374,7 @@ export function AppLayout() {
             alignItems: "center",
             justifyContent: "space-between",
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            background: "#fff",
+            background: token.colorBgContainer,
             position: "sticky",
             top: 0,
             zIndex: 10,
@@ -281,6 +390,23 @@ export function AppLayout() {
             </span>
           </Space>
           <Space size="middle">
+            {isSuperAdmin && (
+              <TenantSelector
+                activeTenantId={activeTenantId}
+                activeTenantName={activeTenantName}
+                onSwitch={switchTenant}
+                token={token}
+              />
+            )}
+            <Tooltip title={isDark ? "切换亮色" : "切换暗色"}>
+              <span
+                onClick={toggleMode}
+                style={{ cursor: "pointer", fontSize: 16, lineHeight: "48px" }}
+                data-testid="theme-toggle"
+              >
+                {isDark ? <SunOutlined /> : <MoonOutlined />}
+              </span>
+            </Tooltip>
             <NotificationBell />
             <Dropdown
               menu={{
@@ -295,13 +421,24 @@ export function AppLayout() {
                     disabled: true,
                   },
                   { type: "divider" },
-                  ...(isAdmin ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  ...(isAdmin || isGuest ? [{ key: "/users", label: "用户管理", icon: <UserOutlined /> }] : []),
+                  ...(!isGuest ? [{ key: "change-password", label: "修改密码", icon: <KeyOutlined /> }] : []),
+                  { type: "divider" },
+                  { key: "replay-tour", label: "重播引导", icon: <QuestionCircleOutlined /> },
                   { key: "logout", label: "退出登录", icon: <LogoutOutlined />, danger: true },
                 ],
                 onClick: ({ key }) => {
                   if (key === "logout") {
                     logout();
                     navigate("/login");
+                  } else if (key === "change-password") {
+                    setPwdOpen(true);
+                  } else if (key === "replay-tour") {
+                    resetAllTours();
+                    api
+                      .resetTours()
+                      .then(() => window.location.reload())
+                      .catch(() => window.location.reload());
                   } else if (key.startsWith("/")) navigate(key);
                 },
               }}
@@ -315,6 +452,21 @@ export function AppLayout() {
           </Space>
         </Header>
 
+        {isGuest && isSystemPath(location.pathname) && (
+          <div
+            style={{
+              padding: "8px 24px",
+              background: "#fffbe6",
+              borderBottom: "1px solid #ffe58f",
+              textAlign: "center",
+              fontSize: 14,
+              color: "#ad6800",
+            }}
+          >
+            🛡️ 游客参观模式 — 可查看所有功能，但无法修改任何数据
+          </div>
+        )}
+
         <Content style={{ padding: 24, maxWidth: 1400, margin: "0 auto", width: "100%" }}>
           <BreadcrumbBar />
           <Outlet />
@@ -322,6 +474,7 @@ export function AppLayout() {
         <FloatingFeedback />
         <HermesChat title="AI 问答" bottom={156} />
         <CommandPalette />
+        <ChangePasswordModal open={pwdOpen} onClose={() => setPwdOpen(false)} />
       </Layout>
     </Layout>
   );

@@ -4,7 +4,7 @@ import { Breadcrumb } from "antd";
 import { HomeOutlined } from "@ant-design/icons";
 
 /**
- * v2.6 配置驱动面包屑。
+ * v2.3.4 配置驱动面包屑。
  * 设计:
  * - 不依赖 react-router data API (createBrowserRouter / useMatches),
  *   保留对现有 <BrowserRouter> + <Routes> 的兼容。

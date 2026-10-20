@@ -1,4 +1,4 @@
-// §v2.7: drop-in cleanup planner 单测
+// §v2.3.5: drop-in cleanup planner 单测
 //
 // 验证 scripts/deploy-v2/dropin-cleanup.mjs 的纯函数对 systemd drop-in
 // Environment= 行的解析 + 冲突检测 + cleanup plan 生成。

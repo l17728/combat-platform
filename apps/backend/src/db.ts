@@ -92,7 +92,58 @@ export function openDb(path: string): DB {
   const db = new Database(path);
   db.pragma("journal_mode = WAL");
   db.exec(SQLITE_SCHEMA_DDL);
+  migrateSqlite(db);
   return db;
+}
+
+function migrateSqlite(db: Database.Database): void {
+  const cols = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "tour_completed")) {
+    db.exec("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+  }
+  {
+    const saasTables = [
+      "users",
+      "nodes",
+      "edges",
+      "progress_log",
+      "audit_log",
+      "wiki_articles",
+      "wiki_likes",
+      "bug_reports",
+      "help_requests",
+      "daily_report_entry",
+      "support_node",
+      "support_template",
+      "notifications",
+      "inbox_notifications",
+      "webhook_subscriptions",
+      "digest_config",
+      "llm_settings",
+      "invitations",
+      "op_logs",
+      "app_settings",
+      "ticket_tabs",
+      "ticket_tab_dynamic",
+      "documents",
+      "proposals",
+      "shared_links",
+      "shared_link_views",
+      "kg_outbox",
+      "welink_messages",
+      "welink_extractions",
+    ];
+    for (const table of saasTables) {
+      try {
+        const tableCols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+        if (!tableCols.some((c) => c.name === "tenant_id")) {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`);
+        }
+      } catch {
+        // table may not exist yet (e.g. wiki_articles in old DBs)
+      }
+    }
+  }
 }
 
 /**
@@ -161,7 +212,7 @@ const SQLITE_SCHEMA_DDL = `
       subject TEXT, body TEXT,
       status TEXT NOT NULL, decided_by TEXT, decided_at TEXT, created_at TEXT);
     CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
-    /* v2.6 §1: 用户收件箱通知。与既有 notifications 表(实为 reminder 决策队列)分离,
+    /* v2.3.4 §1: 用户收件箱通知。与既有 notifications 表(实为 reminder 决策队列)分离,
        避免语义混淆。每条 inbox_notification 对应"某用户应被告知的某事件";
        read_at 为 null 即未读。 */
     CREATE TABLE IF NOT EXISTS inbox_notifications (
@@ -237,24 +288,36 @@ const SQLITE_SCHEMA_DDL = `
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'normal',
       display_name TEXT NOT NULL DEFAULT '',
+      tour_completed TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      max_users INTEGER NOT NULL DEFAULT 50,
+      settings TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
-      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
-      title TEXT NOT NULL,
-      tab_order INTEGER NOT NULL DEFAULT 0,
-      config TEXT NOT NULL DEFAULT '{}',
-      content TEXT NOT NULL DEFAULT '',
-      created_by TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
-    CREATE TABLE IF NOT EXISTS welink_messages (
+       tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
+       title TEXT NOT NULL,
+       tab_order INTEGER NOT NULL DEFAULT 0,
+       config TEXT NOT NULL DEFAULT '{}',
+       content TEXT NOT NULL DEFAULT '',
+       created_by TEXT NOT NULL DEFAULT '',
+       created_at TEXT NOT NULL DEFAULT (datetime('now')),
+       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+     );
+     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+     CREATE TABLE IF NOT EXISTS welink_messages (
       id           TEXT PRIMARY KEY,
       ticket_id    TEXT NOT NULL,
       message_id   TEXT NOT NULL,
@@ -379,24 +442,36 @@ const POSTGRES_SCHEMA_DDL = `
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'normal',
       display_name TEXT NOT NULL DEFAULT '',
+      tour_completed TEXT NOT NULL DEFAULT '[]',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+    CREATE TABLE IF NOT EXISTS tenants (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL DEFAULT 'free',
+      status TEXT NOT NULL DEFAULT 'active',
+      max_users INTEGER NOT NULL DEFAULT 50,
+      settings TEXT DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS ticket_tabs (
       id TEXT PRIMARY KEY,
       ticket_id TEXT NOT NULL,
-      tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom')),
-      title TEXT NOT NULL,
-      tab_order INTEGER NOT NULL DEFAULT 0,
-      config TEXT NOT NULL DEFAULT '{}',
-      content TEXT NOT NULL DEFAULT '',
-      created_by TEXT NOT NULL DEFAULT '',
-      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
-      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
-    );
-    CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
-    CREATE TABLE IF NOT EXISTS bug_reports (
+       tab_type TEXT NOT NULL CHECK(tab_type IN ('link', 'custom', 'wiki')),
+       title TEXT NOT NULL,
+       tab_order INTEGER NOT NULL DEFAULT 0,
+       config TEXT NOT NULL DEFAULT '{}',
+       content TEXT NOT NULL DEFAULT '',
+       created_by TEXT NOT NULL DEFAULT '',
+       created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+       updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+     );
+     CREATE INDEX IF NOT EXISTS idx_ticket_tabs_ticket ON ticket_tabs(ticket_id);
+     CREATE TABLE IF NOT EXISTS bug_reports (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT NOT NULL DEFAULT '',
@@ -445,7 +520,8 @@ const POSTGRES_SCHEMA_DDL = `
       size INTEGER,
       url TEXT,
       uploaded_by TEXT,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      tenant_id TEXT NOT NULL DEFAULT 'default'
     );
     CREATE INDEX IF NOT EXISTS idx_documents_created ON documents(created_at);
     CREATE TABLE IF NOT EXISTS op_logs (
@@ -490,12 +566,150 @@ const POSTGRES_SCHEMA_DDL = `
     );
     CREATE INDEX IF NOT EXISTS idx_welink_ext_ticket ON welink_extractions(ticket_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_welink_ext_kind ON welink_extractions(ticket_id, kind);
+    CREATE TABLE IF NOT EXISTS wiki_articles (
+      id TEXT PRIMARY KEY,
+      scope TEXT NOT NULL DEFAULT 'global',
+      scope_id TEXT,
+      parent_id TEXT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE INDEX IF NOT EXISTS idx_wiki_scope ON wiki_articles(scope, scope_id);
+    CREATE INDEX IF NOT EXISTS idx_wiki_parent ON wiki_articles(parent_id);
+    CREATE TABLE IF NOT EXISTS wiki_likes (
+      article_id TEXT NOT NULL,
+      username TEXT NOT NULL,
+      PRIMARY KEY (article_id, username)
+    );
+    CREATE TABLE IF NOT EXISTS llm_settings (
+      id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL DEFAULT '',
+      base_url TEXT NOT NULL DEFAULT '',
+      api_key_encrypted TEXT NOT NULL DEFAULT '',
+      api_key_masked TEXT NOT NULL DEFAULT '',
+      default_model TEXT NOT NULL DEFAULT '',
+      small_model TEXT NOT NULL DEFAULT '',
+      thinking_mode TEXT NOT NULL DEFAULT 'disabled',
+      extra TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS digest_config (
+      id TEXT PRIMARY KEY DEFAULT 'default',
+      enabled INTEGER NOT NULL DEFAULT 0,
+      frequency TEXT NOT NULL DEFAULT 'daily',
+      recipients TEXT NOT NULL DEFAULT '[]',
+      subject_template TEXT NOT NULL DEFAULT '',
+      body_template TEXT NOT NULL DEFAULT '',
+      last_sent_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL DEFAULT '[]',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      updated_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS shared_links (
+      id TEXT PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      created_by TEXT NOT NULL DEFAULT '',
+      expires_at TEXT,
+      max_views INTEGER,
+      password TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS shared_link_views (
+      id TEXT PRIMARY KEY,
+      link_id TEXT NOT NULL REFERENCES shared_links(id),
+      ip_address TEXT,
+      user_agent TEXT,
+      viewed_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
+    CREATE TABLE IF NOT EXISTS kg_outbox (
+      id TEXT PRIMARY KEY,
+      event_type TEXT NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      error TEXT,
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      processed_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS invitations (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      role TEXT NOT NULL DEFAULT 'normal',
+      email TEXT NOT NULL DEFAULT '',
+      display_name TEXT NOT NULL DEFAULT '',
+      used_by TEXT,
+      used_at TEXT,
+      created_by TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (NOW()::TEXT),
+      expires_at TEXT NOT NULL DEFAULT (NOW()::TEXT)
+    );
   `;
 
 async function ensurePostgresSchema(pool: PgPool): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query(POSTGRES_SCHEMA_DDL);
+    const { rows } = await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'tour_completed'"
+    );
+    if (rows.length === 0) {
+      await client.query("ALTER TABLE users ADD COLUMN tour_completed TEXT NOT NULL DEFAULT '[]'");
+    }
+    {
+      const wikiCols = [
+        ["is_locked", "INTEGER NOT NULL DEFAULT 0"],
+        ["lock_password", "TEXT DEFAULT NULL"],
+        ["likes", "INTEGER NOT NULL DEFAULT 0"],
+        ["tenant_id", "TEXT NOT NULL DEFAULT 'default'"],
+      ] as const;
+      for (const [col, def] of wikiCols) {
+        await client.query(`ALTER TABLE wiki_articles ADD COLUMN IF NOT EXISTS ${col} ${def}`).catch(() => {});
+      }
+    }
+    {
+      const saasTables = [
+        "users",
+        "nodes",
+        "edges",
+        "progress_log",
+        "audit_log",
+        "wiki_articles",
+        "bug_reports",
+        "help_requests",
+        "ticket_tabs",
+        "support_node",
+        "notifications",
+        "webhook_subscriptions",
+        "digest_config",
+        "invitations",
+        "op_logs",
+        "app_settings",
+        "ticket_tab_dynamic",
+        "documents",
+        "inbox_notifications",
+        "proposals",
+      ];
+      for (const table of saasTables) {
+        await client
+          .query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT 'default'`)
+          .catch(() => {});
+      }
+    }
   } finally {
     client.release();
   }

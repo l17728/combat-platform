@@ -36,6 +36,13 @@ describe("ticket-tabs router", () => {
     expect(res.body.content).toBe("# 会议纪要\n...");
   });
 
+  it("POST /tickets/:id/tabs creates a wiki tab", async () => {
+    const res = await request(app).post("/api/tickets/t1/tabs").send({ tabType: "wiki", title: "知识库" });
+    expect(res.status).toBe(201);
+    expect(res.body.tabType).toBe("wiki");
+    expect(res.body.title).toBe("知识库");
+  });
+
   it("POST rejects missing tabType", async () => {
     const res = await request(app).post("/api/tickets/t1/tabs").send({ title: "no type" });
     expect(res.status).toBe(400);

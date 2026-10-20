@@ -1,16 +1,16 @@
-# Hermes 通用工具集 (v2.5/v2.6)
+# Hermes 通用工具集 (v2.3.3/v2.3.4)
 
-> Hermes 从 v2.4 的「intent 路由器」升级为「Tool-using Agent」。LLM 自决调哪个工具,而不是开发者硬编码 intent 正则。
-> v2.6 起,LLM 通信走纯 fetch OpenAI 兼容协议,配置全部从 DB(UI 可改)读取,不再依赖 opencode SDK / 子进程。
+> Hermes 从 v2.3.1 的「intent 路由器」升级为「Tool-using Agent」。LLM 自决调哪个工具,而不是开发者硬编码 intent 正则。
+> v2.3.4 起,LLM 通信走纯 fetch OpenAI 兼容协议,配置全部从 DB(UI 可改)读取,不再依赖 opencode SDK / 子进程。
 
-## 架构 (v2.6)
+## 架构 (v2.3.4)
 
 ```
 用户问句
    ↓
 HERMES_MODE = auto | tool | intent
    ↓
-auto: 短问题 + 命中 intent 正则 → intent 路由 (旧 v2.4 路径,毫秒级)
+auto: 短问题 + 命中 intent 正则 → intent 路由 (旧 v2.3.1 路径,毫秒级)
       其他 → tool agent
 tool: 强制走 tool agent
 intent: 强制走 intent 路由
@@ -28,7 +28,7 @@ intent: 强制走 intent 路由
    失败 / 超 hop → 自动 fallback 到 intent 路由 (trace 标 fallback_reason)
 ```
 
-> v2.6 起 backend **不再 spawn opencode 子进程**,也不再依赖 `@opencode-ai/sdk`。
+> v2.3.4 起 backend **不再 spawn opencode 子进程**,也不再依赖 `@opencode-ai/sdk`。
 > 全部走 OpenAI 兼容协议直接打 `POST {baseURL}/chat/completions`。这让切换 provider
 > (智谱/华为云/自部 vLLM)只需在前端 UI 改 baseURL+model,不动代码、不重启服务。
 > 旧的 `OpencodeAgentRunner`(SDK 路径)保留为 `HERMES_AGENT=1` 时的可选 fallback。
@@ -107,7 +107,7 @@ npm run cli -- hermes:tools              # 列工具
 npm run cli -- hermes:tool count_nodes --input '{"nodeType":"person"}'
 ```
 
-## LLM 配置 (v2.6 — UI 优先)
+## LLM 配置 (v2.3.4 — UI 优先)
 
 LLM 的 baseURL / apiKey / defaultModel / smallModel / thinking / maxHops / timeoutMs
 **全部** 在前端「系统管理 → LLM 设置」(`/llm-settings`, admin only)配置,
@@ -143,15 +143,15 @@ npm run cli -- llm:test
 
 典型题:
 
-- 「有多少员工」→ `count_nodes(person)` (这是 v2.4 现网 bug 报告的真问题,fallback-search 命不中,工具时代直接命中)
+- 「有多少员工」→ `count_nodes(person)` (这是 v2.3.1 现网 bug 报告的真问题,fallback-search 命不中,工具时代直接命中)
 - 「张三参加过哪些攻关」→ `search_text` + `traverse_graph`
 - 「本月新增几条攻关单」→ `query_nodes(attackTicket, filter:{createdAt:{op:'gte',val:'2026-05-01'}})`
 - 「admin 改过哪些 schema」→ `get_audit(actor:'admin', action:'SCHEMA_*')`
 - 「处理中的高优单子」→ `query_nodes(attackTicket, filter:{状态:'处理中', 事件级别:{op:'in',val:['P0','P1']}})`
 
-## v2.4 → v2.5 切换
+## v2.3.1 → v2.3.3 切换
 
-| 项           | v2.4 (intent)               | v2.5 (tool)                         |
+| 项           | v2.3.1 (intent)             | v2.3.3 (tool)                       |
 | ------------ | --------------------------- | ----------------------------------- |
 | "有多少员工" | fallback-search 空          | `count_nodes(person) → {count: 32}` |
 | 新问题       | 加 intent 正则 + endpoint   | LLM 自动选工具,无需改代码           |
@@ -169,11 +169,11 @@ npm run cli -- llm:test
 
 `hermes-tools.ts` 末尾的兼容层导出 `TOOL_SCHEMAS / ToolSchema / ToolCtx / callToolUnwrap` 给 agent;`callToolUnwrap` 拆解 `ToolResult{ok, data, error}` 为「成功返 data, 失败抛 Error」。
 
-## v2.7 — 模型列表动态获取 + 审计追溯类问题指引
+## v2.3.5 — 模型列表动态获取 + 审计追溯类问题指引
 
 ### GET /api/llm-settings/models endpoint
 
-从 v2.7 起新增 `GET /api/llm-settings/models`(admin only),透传 provider 的 OpenAI 兼容 `/models` endpoint。前端「LLM 设置」页面的「刷新模型列表」按钮调本接口,把硬编码的 `PROVIDER_DEFAULTS.models` 替换成 provider 真实可用的列表。
+从 v2.3.5 起新增 `GET /api/llm-settings/models`(admin only),透传 provider 的 OpenAI 兼容 `/models` endpoint。前端「LLM 设置」页面的「刷新模型列表」按钮调本接口,把硬编码的 `PROVIDER_DEFAULTS.models` 替换成 provider 真实可用的列表。
 
 **实现要点**:
 
@@ -185,9 +185,9 @@ npm run cli -- llm:test
 
 **CLI 暂未提供** — UI 上的「刷新」按钮即可,CLI 场景里 provider 模型列表查找通常已有别的渠道。
 
-### POST /api/llm-settings/test 的 env-fallback (v2.7)
+### POST /api/llm-settings/test 的 env-fallback (v2.3.5)
 
-`/test` 的凭据优先级链由 v2.6 的 `body → DB` 扩展为 `body → DB → env`:
+`/test` 的凭据优先级链由 v2.3.4 的 `body → DB` 扩展为 `body → DB → env`:
 
 - 新部署时 admin 还没存 DB,直接走 systemd Environment=HERMES_LLM_API_KEY 启动 → UI 一进「测试连接」就能验通
 - 单测覆盖三条 fallback 路径

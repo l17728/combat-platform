@@ -42,8 +42,8 @@ export function ConflictsPage() {
   // Counts are derived from the current list so the header is always
   // consistent with what the user sees in the Tabs (scanResult is only used
   // for the post-scan toast message).
-  const conflictRows = useMemo(() => rows.filter(r => r.edgeType === "CONFLICTS_WITH"), [rows]);
-  const overlapRows = useMemo(() => rows.filter(r => r.edgeType === "OVERLAPS_WITH"), [rows]);
+  const conflictRows = useMemo(() => rows.filter(r => r.edgeType === "冲突"), [rows]);
+  const overlapRows = useMemo(() => rows.filter(r => r.edgeType === "重叠"), [rows]);
   const n = conflictRows.length;
   const m = overlapRows.length;
 

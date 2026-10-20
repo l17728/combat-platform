@@ -15,6 +15,8 @@ import {
   Alert,
   Divider,
   Tag,
+  Form,
+  Input,
 } from "antd";
 import {
   PlusOutlined,
@@ -23,8 +25,10 @@ import {
   UploadOutlined,
   CloudUploadOutlined,
   ClockCircleOutlined,
+  CloudSyncOutlined,
 } from "@ant-design/icons";
 import { api, type BackupInfo, type BackupSchedule } from "../api.js";
+import { useGuestGuard } from "../hooks/useGuestGuard.js";
 import dayjs from "dayjs";
 import HelpButton from "../components/HelpButton.js";
 import HELP from "../help-content.js";
@@ -51,6 +55,11 @@ export default function BackupRestore() {
   const [schedule, setScheduleState] = useState<BackupSchedule | null>(null);
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [offsiteOpen, setOffsiteOpen] = useState(false);
+  const [offsiteForm] = Form.useForm();
+  const [offsiteRunning, setOffsiteRunning] = useState(false);
+  const [offsiteResult, setOffsiteResult] = useState<{ ok: boolean; summary?: unknown; stdout?: string } | null>(null);
+  const { guard } = useGuestGuard();
 
   const fetchBackups = useCallback(async (silent?: boolean) => {
     if (!silent) setLoading(true);
@@ -70,6 +79,7 @@ export default function BackupRestore() {
   }, [fetchBackups]);
 
   const handleCreate = async () => {
+    if (!guard()) return;
     setCreating(true);
     try {
       await api.createBackup();
@@ -83,6 +93,7 @@ export default function BackupRestore() {
   };
 
   const handleDownload = async (filename: string) => {
+    if (!guard()) return;
     try {
       const blob = await api.downloadBackup(filename);
       const url = URL.createObjectURL(blob);
@@ -97,6 +108,7 @@ export default function BackupRestore() {
   };
 
   const handleDelete = async (filename: string) => {
+    if (!guard()) return;
     try {
       await api.deleteBackup(filename);
       message.success("已删除");
@@ -107,6 +119,7 @@ export default function BackupRestore() {
   };
 
   const handleRestore = async (file: File) => {
+    if (!guard()) return;
     setRestoring(true);
     try {
       await api.restoreBackup(file);
@@ -120,12 +133,36 @@ export default function BackupRestore() {
   };
 
   const handleScheduleChange = async (patch: Partial<BackupSchedule>) => {
+    if (!guard()) return;
     try {
       const updated = await api.setBackupSchedule(patch);
       setScheduleState(updated);
       message.success("定时备份设置已更新");
     } catch (e) {
       handleApiError(e);
+    }
+  };
+
+  const handleOffsiteBackup = async (values: {
+    host: string;
+    user: string;
+    port?: number;
+    remoteDir: string;
+    keyPath?: string;
+    sshPassword?: string;
+    dryRun?: boolean;
+  }) => {
+    if (!guard()) return;
+    setOffsiteRunning(true);
+    setOffsiteResult(null);
+    try {
+      const result = await api.offsiteBackup(values);
+      setOffsiteResult(result);
+      if (result.ok) message.success("异地备份完成");
+    } catch (e) {
+      handleApiError(e);
+    } finally {
+      setOffsiteRunning(false);
     }
   };
 
@@ -183,7 +220,10 @@ export default function BackupRestore() {
           <Button icon={<PlusOutlined />} type="primary" loading={creating} onClick={handleCreate}>
             立即备份
           </Button>
-          <Button icon={<UploadOutlined />} danger onClick={() => setRestoreModalOpen(true)}>
+          <Button icon={<CloudSyncOutlined />} onClick={() => guard() && setOffsiteOpen(true)}>
+            异地备份
+          </Button>
+          <Button icon={<UploadOutlined />} danger onClick={() => guard() && setRestoreModalOpen(true)}>
             恢复数据库
           </Button>
         </Space>
@@ -266,6 +306,84 @@ export default function BackupRestore() {
           <div style={{ textAlign: "center", marginTop: 16 }}>
             <Text type="warning">正在恢复数据库，请等待服务重启...</Text>
           </div>
+        )}
+      </Modal>
+
+      <Modal
+        title="异地备份"
+        open={offsiteOpen}
+        onCancel={() => {
+          setOffsiteOpen(false);
+          offsiteForm.resetFields();
+          setOffsiteResult(null);
+        }}
+        footer={null}
+        width={560}
+        destroyOnClose
+      >
+        <Alert type="info" showIcon message="将当前数据库备份推送到远程服务器" style={{ marginBottom: 16 }} />
+        <Form
+          form={offsiteForm}
+          layout="vertical"
+          onFinish={handleOffsiteBackup}
+          initialValues={{ port: 22, dryRun: false }}
+        >
+          <Form.Item name="host" label="目标主机" rules={[{ required: true, message: "请输入主机地址" }]}>
+            <Input placeholder="如: 192.168.1.100" />
+          </Form.Item>
+          <Form.Item name="user" label="SSH 用户" rules={[{ required: true, message: "请输入用户名" }]}>
+            <Input placeholder="如: root" />
+          </Form.Item>
+          <Form.Item name="port" label="SSH 端口">
+            <InputNumber style={{ width: "100%" }} min={1} max={65535} />
+          </Form.Item>
+          <Form.Item name="remoteDir" label="远程目录" rules={[{ required: true, message: "请输入远程目录" }]}>
+            <Input placeholder="如: /backup/combat" />
+          </Form.Item>
+          <Form.Item name="keyPath" label="密钥路径（可选）">
+            <Input placeholder="如: ~/.ssh/id_rsa" />
+          </Form.Item>
+          <Form.Item name="sshPassword" label="SSH 密码（可选，优先密钥）">
+            <Input.Password placeholder="留空则使用密钥认证" />
+          </Form.Item>
+          <Form.Item name="dryRun" valuePropName="checked" style={{ marginBottom: 16 }}>
+            <Switch checkedChildren="Dry Run" unCheckedChildren="正式" />{" "}
+            <Text type="secondary">仅测试连接，不实际传输</Text>
+          </Form.Item>
+          <Form.Item style={{ marginBottom: 0, textAlign: "right" }}>
+            <Space>
+              <Button
+                onClick={() => {
+                  setOffsiteOpen(false);
+                  offsiteForm.resetFields();
+                  setOffsiteResult(null);
+                }}
+              >
+                取消
+              </Button>
+              <Button type="primary" htmlType="submit" loading={offsiteRunning} icon={<CloudSyncOutlined />}>
+                开始备份
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+        {offsiteResult && (
+          <Alert
+            style={{ marginTop: 16 }}
+            type={offsiteResult.ok ? "success" : "error"}
+            message={offsiteResult.ok ? "备份成功" : "备份失败"}
+            description={
+              offsiteResult.ok ? (
+                <pre style={{ fontSize: 12, maxHeight: 200, overflow: "auto" }}>
+                  {JSON.stringify(offsiteResult.summary, null, 2)}
+                </pre>
+              ) : (
+                <pre style={{ fontSize: 12, maxHeight: 200, overflow: "auto" }}>
+                  {offsiteResult.stdout?.slice(0, 1000)}
+                </pre>
+              )
+            }
+          />
         )}
       </Modal>
     </div>

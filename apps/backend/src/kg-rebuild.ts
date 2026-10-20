@@ -5,7 +5,7 @@ import { syncAnchorEdges } from "./anchors.js";
 import { syncConflicts } from "./conflicts.js";
 import { log } from "./logger.js";
 
-const DERIVED_EDGE_TYPES = ["REF", "ANCHORED_TO", "CONFLICTS_WITH", "OVERLAPS_WITH"] as const;
+const DERIVED_EDGE_TYPES = ["分配", "关联", "冲突", "重叠"] as const;
 
 /**
  * §34: Wipe all derived edges and rebuild them from authoritative structured data
@@ -44,12 +44,12 @@ export async function rebuildKG(repo: Repository, registry: SchemaRegistry): Pro
   for (const ns of registry.getConfig().nodeTypes) for (const f of ns.fields) if (f.anchor) anchorKinds.add(f.anchor);
   for (const kind of anchorKinds)
     for (const anchor of await repo.queryNodes(kind))
-      if ((await repo.queryEdges({ targetId: anchor.id, edgeType: "ANCHORED_TO" })).length === 0)
+      if ((await repo.queryEdges({ targetId: anchor.id, edgeType: "关联" })).length === 0)
         await repo.deleteNode(anchor.id, actor);
 
   const result = {
-    refEdges: (await repo.queryEdges({ edgeType: "REF" })).length,
-    anchorEdges: (await repo.queryEdges({ edgeType: "ANCHORED_TO" })).length,
+    refEdges: (await repo.queryEdges({ edgeType: "分配" })).length,
+    anchorEdges: (await repo.queryEdges({ edgeType: "关联" })).length,
     conflicts,
     overlaps,
     durationMs: Date.now() - t0,

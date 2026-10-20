@@ -52,7 +52,7 @@ export default function PeopleList() {
   const [submitting, setSubmitting] = useState(false);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const navigate = useNavigate();
-  // v2.7: schema 驱动 — 表单字段由 person schema 派生,在 SchemaWizard 加字段即生效。
+  // v2.3.5: schema 驱动 — 表单字段由 person schema 派生,在 SchemaWizard 加字段即生效。
   const { schema: personSchema } = useNodeSchema("person");
   const editableFields = editableFieldsOf(personSchema);
   const viewFields = viewFieldsOf(personSchema);
@@ -380,7 +380,7 @@ export default function PeopleList() {
                 {String(detailNode.properties["角色"] ?? "")}
               </Text>
             </div>
-            {/* v2.7: schema 驱动 — 字段按 person schema 的 group/order 分组渲染 */}
+            {/* v2.3.5: schema 驱动 — 字段按 person schema 的 group/order 分组渲染 */}
             <SchemaViewBody
               fields={viewFields.filter((f) => f.name !== "姓名")}
               values={detailNode.properties}

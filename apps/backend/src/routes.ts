@@ -4,8 +4,10 @@ import { PRIVILEGED_ROLES } from "@combat/shared";
 import { syncRefEdges } from "./refs.js";
 import { syncAnchorEdges } from "./anchors.js";
 import { log } from "./logger.js";
-import { verifyAuth } from "./auth.js";
+import { verifyAuth, adminMiddleware } from "./auth.js";
 import { canAccessPrivateAttackTicket, filterAccessibleTickets } from "./private-tickets.js";
+import type { DbAdapter } from "./db-adapter.js";
+import { dispatchWebhook } from "./webhooks.js";
 
 /**
  * resilience(outbox): 业务路由用此接口把 KG 派生任务投递到 `kg_outbox` 表,
@@ -74,14 +76,19 @@ export function actorOf(req: unknown, fallback = "api"): string {
   return (req as { user?: { username?: string } })?.user?.username || fallback;
 }
 
-export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: OutboxEnqueuer): Router {
+export function makeRouter(
+  repo: Repository,
+  registry: SchemaRegistry,
+  outbox?: OutboxEnqueuer,
+  webhookAdapter?: DbAdapter
+): Router {
   const r = Router();
 
   r.get("/schema/:nodeType", (req, res) => {
     const s = registry.getNodeSchema(req.params.nodeType);
     return s ? res.json(s) : res.status(404).json({ error: "unknown nodeType" });
   });
-  r.post("/schema/scan", (_req, res) => {
+  r.post("/schema/scan", adminMiddleware, (_req, res) => {
     try {
       registry.reload();
       res.json({ ok: true });
@@ -89,7 +96,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
       res.status(400).json({ error: (e as Error).message });
     }
   });
-  r.patch("/schema/:nodeType", async (req, res) => {
+  r.patch("/schema/:nodeType", adminMiddleware, async (req, res) => {
     const { nodeType } = req.params;
     if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(nodeType)) {
       return res.status(400).json({ error: "nodeType 格式非法" });
@@ -118,7 +125,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const { nodeType } = req.params;
     const schema = registry.getNodeSchema(nodeType);
     if (schema) {
-      // v2.7: virtual schemas (helpRequest/bugReport/proposal/reminder) are UI-only,
+      // v2.3.5: virtual schemas (helpRequest/bugReport/proposal/reminder) are UI-only,
       // they MUST NOT be served via the generic node CRUD — their data lives in dedicated tables.
       if (schema.virtual) {
         return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });
@@ -150,7 +157,7 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
 
   r.post("/nodes/:nodeType", async (req, res) => {
     const { nodeType } = req.params;
-    // v2.7: 虚拟 schema 拒绝 POST(数据存自己表里)
+    // v2.3.5: 虚拟 schema 拒绝 POST(数据存自己表里)
     const schemaForPost = registry.getNodeSchema(nodeType);
     if (schemaForPost?.virtual) {
       return res.status(400).json({ error: `虚拟 schema (${nodeType}) 不支持通用节点 CRUD; 请改用其专用接口` });
@@ -168,6 +175,8 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const actor = actorOf(req);
     const node = await repo.createNode(nodeType, req.body, actor);
     log.info("node.create", { nodeType, id: node.id, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.created", { nodeType, id: node.id, properties: node.properties });
     if (nodeType === "contribution") {
       const ref = String(req.body?.["关联攻关单"] ?? "");
       if (ref) {
@@ -196,6 +205,12 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const actor = actorOf(req);
     const updated = await repo.updateNode(req.params.id, req.body, actor);
     log.info("node.update", { id: req.params.id, nodeType: cur.nodeType, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.updated", {
+        id: req.params.id,
+        nodeType: cur.nodeType,
+        properties: updated.properties,
+      });
     await syncRefEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     await syncAnchorEdges(repo, registry, updated, { ...cur.properties, ...req.body }, actor);
     if (cur.nodeType === "attackTicket") triggerPostSaveJobs(outbox, req.params.id);
@@ -205,19 +220,20 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
   r.delete("/nodes/:id", async (req, res) => {
     const cur = await repo.getNode(req.params.id);
     if (!cur) return res.status(404).json({ error: "not found" });
-    // 攻关单删除:仅创建人本人可删,管理员也不行。
-    // 老数据无创建人 → 视为孤儿,UI 不显示删除;必要时管理员走 CLI/直连 DB 清理。
-    // 无 req.user(test/CLI/COMBAT_NO_AUTH bypass):放行,保留既有行为;真实生产链路 authMiddleware 必然填充 req.user。
     const reqUser = (req as any).user?.username as string | undefined;
-    if (cur.nodeType === "attackTicket" && reqUser) {
+    const isSuperAdmin = (req as any).isSuperAdmin === true;
+    const isAdmin = (req as any).user?.role === "admin" || isSuperAdmin;
+    // 无 req.user (test/CLI/COMBAT_NO_AUTH bypass): 放行,保留既有行为。
+    if (reqUser && !isAdmin) {
       const creator = String(cur.properties?.["创建人"] ?? "").trim();
       if (!creator || creator !== reqUser) {
-        return res.status(403).json({ error: "仅创建人可删除该攻关单" });
+        return res.status(403).json({ error: "仅创建人或管理员可删除该记录" });
       }
     }
     const actor = actorOf(req);
     await repo.deleteNode(req.params.id, actor);
     log.info("node.delete", { id: req.params.id, actor });
+    if (webhookAdapter) dispatchWebhook(webhookAdapter, "node.deleted", { id: req.params.id, nodeType: cur.nodeType });
     res.json({ ok: true });
   });
 
@@ -226,7 +242,10 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const { content, statusSnapshot } = req.body;
     if (!content) return res.status(400).json({ error: "content required" });
     // body.actor 不再被信任(P1 防伪造);req.user 缺失才退回 "api"
-    res.status(201).json(await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req)));
+    const prog = await repo.appendProgress(req.params.id, content, statusSnapshot, actorOf(req));
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "progress.added", { nodeId: req.params.id, content, statusSnapshot });
+    res.status(201).json(prog);
   });
 
   // §41: atomic state transition — update 状态 + append a status-snapshotted
@@ -248,6 +267,13 @@ export function makeRouter(repo: Repository, registry: SchemaRegistry, outbox?: 
     const content = `状态变更：${fromStatus || "(空)"}→${toStatus}` + (note ? `；${note}` : "");
     const progress = await repo.appendProgress(node.id, content, toStatus, actor);
     log.info("node.transition", { id: node.id, toStatus, actor });
+    if (webhookAdapter)
+      dispatchWebhook(webhookAdapter, "node.transition", {
+        id: node.id,
+        nodeType: node.nodeType,
+        fromStatus,
+        toStatus,
+      });
     triggerPostSaveJobs(outbox, node.id);
     res.json({ node: updated, progress });
   });

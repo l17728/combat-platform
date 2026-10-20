@@ -1,6 +1,6 @@
 # 通知中心 (Inbox Notifications) — 系统文档
 
-> v2.6 引入。覆盖 schema / API / SSE / 触发源 / 邮件 digest 选项。
+> v2.3.4 引入。覆盖 schema / API / SSE / 触发源 / 邮件 digest 选项。
 
 通知中心是一个**按用户隔离的私人收件箱**,集中展示与当前用户相关的系统事件。与既有「跟催提醒」(reminder 决策队列) 是两个独立系统:跟催提醒是管理员操作台,逐条人工决定发不发邮件;通知中心是每位用户都有的轻量级通知聚合,不需要决策,只需阅读或忽略。
 
@@ -35,7 +35,7 @@ CREATE INDEX idx_inbox_user_unread
 | -------------- | -------- | -------------------------------------------- | ---------------------- |
 | `escalation`   | 升级     | attackTicket 超过事件级别 SLA                | 当前处理人 + 创建人    |
 | `reminder`     | 跟催     | 规则引擎扫描出待跟催的问题单/FE Deadline/CCB | 提醒目标人(收件人姓名) |
-| `mention`      | 提及     | 进展记录中 @ 某人 (v2.7+)                    | 被提及用户             |
+| `mention`      | 提及     | 进展记录中 @ 某人 (v2.3.5+)                  | 被提及用户             |
 | `help_request` | 求助     | 求助邮件失败 / 对方回复了求助                | 求助发起人             |
 | `bug_update`   | 问题更新 | bug_reports 状态变更                         | 提报人                 |
 | `system`       | 系统     | 平台公告 / 升级提醒 (admin 手动创建)         | 全员或指定用户         |
@@ -129,7 +129,7 @@ PATCH 时若 `status` 变化且 `reporter` 非空 → 给提报人推 `bug_updat
 
 ### 手动 / 系统公告
 
-admin 调用 `POST /api/notifications` 直接创建,适合维护公告 / 测试 / 把 v2.6 之前没接通知的事件回灌。
+admin 调用 `POST /api/notifications` 直接创建,适合维护公告 / 测试 / 把 v2.3.4 之前没接通知的事件回灌。
 
 ### 失败兜底
 
@@ -160,13 +160,13 @@ CLI 走 `COMBAT_API` (默认 `http://localhost:3001`) + JWT (`COMBAT_TOKEN` 或 
 
 - `components/NotificationBell.tsx` — 顶栏铃铛 + Badge + Dropdown(最近 10 条) + SSE 订阅
 - `pages/NotificationsPage.tsx` — `/notifications` 全列表 + 筛选 + 全部标已读
-- `components/BreadcrumbBar.tsx` — v2.6 一并上线的配置驱动面包屑
+- `components/BreadcrumbBar.tsx` — v2.3.4 一并上线的配置驱动面包屑
 
 ## 9. 与既有 `notifications` 表的关系
 
 ⚠️ 注意:仓库里**已有**一张叫 `notifications` 的表 (`db.ts` 内),实际存的是 **reminder 决策队列** (kind/ticket_id/recipient_person_id/status),由 `SqliteRepository.createReminder()` 写入,被 `/api/reminders` 操作。
 
-为避免语义混淆,v2.6 新表命名为 `inbox_notifications`,**两表完全独立**:
+为避免语义混淆,v2.3.4 新表命名为 `inbox_notifications`,**两表完全独立**:
 
 - `notifications` (旧表) = admin 的提醒决策台 → "我要不要给 X 发提醒邮件?"
 - `inbox_notifications` (新表) = 每个用户的私人收件箱 → "什么事跟我有关?"

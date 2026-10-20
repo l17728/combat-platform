@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { API, selectOption } from "./helpers";
 
-// v2.6: 表结构管理新增「字段分组管理」面板。
+// v2.3.4: 表结构管理新增「字段分组管理」面板。
 //   - 选中 attackTicket → 详情卡里有「字段分组」侧栏 + 行内「分组」Select + 「↑/↓」按钮
 //   - 通过 Select 把字段切到新分组,后端 updateField,接口返回的 schema 反映新 group
 //   - 「新建分组」会写到第一个未分组字段(其它),作为占位
-test.describe("SchemaWizard 字段分组管理 (v2.6)", () => {
+test.describe("SchemaWizard 字段分组管理 (v2.3.4)", () => {
   test("groups panel + per-field group select are rendered for attackTicket", async ({ page }) => {
     await page.goto("/schema");
     await page.waitForLoadState("domcontentloaded");
